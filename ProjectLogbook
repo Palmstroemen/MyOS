@@ -1,0 +1,66 @@
+# 📖 MyOS: IDEAS / TODO / LEARNINGS
+
+---
+
+## 📌 Projektstatus
+
+**Stand:** 2025-06-05  
+**Aktuelle Phase:** Strukturaufbau, Konzeptverfeinerung, Prototypenplanung
+
+---
+
+## 💡 IDEAS (Brainstorm / Backlog)
+
+- Integration von Obsidian als systemweiter Markdown-Editor mit Zen-Mode
+- Projekt-Container mit individuellen GUIs und Sessions
+- Standardisierte Ordnerstruktur mit optionaler Sichtbarkeit (halbtransparent)
+- Lokalisierbare Ordnernamen (per Mapping / FUSE-Dateisystem)
+- Projektübergreifende Ordner-Queries (z.B. `/finanzen` als virtuelle Sammlung)
+- Einfache, verständliche Rechteverwaltung für Unterordner
+- Kompatibler Zen-Mode für Obsidian mit aufgeräumter Oberfläche
+- Prototyp für ein flexibles Projekt-Switching-Tool
+- `freaky_funky_playground` für Prototypen & Ideen-Dumps
+
+---
+
+## ✅ TODO (Aktiv / Nächste Schritte)
+
+- [ ] Projekt-Ordnerstruktur anlegen und initial committen
+- [ ] `freaky_funky_playground`-Ordner einrichten
+- [ ] Obsidian-Startkonfiguration definieren
+- [ ] Rechteverwaltungskonzept skizzieren
+- [ ] Lokalisierungsstrategie für Ordnernamen aufsetzen
+- [ ] Ideen- und Statusdatei (`IDEAS_TODO_LEARNINGS.md`) pflegen
+
+---
+
+## 📚 LEARNINGS & NOTES
+
+- FUSE eignet sich sehr gut für virtuelle Views und Ordner-Mappings
+- Symlinks zu komplex für Zielgruppe → besser per Service oder Fuse-Dateisystem abbilden
+- Ein Repository für alles ist sinnvoll zum Start, spätere Ausgliederung nach Momentum
+- GitHub Actions optional für CI/CD, aktuell noch nicht nötig
+- Prototypen und Experimente strikt im `freaky_funky_playground` halten
+
+---
+
+## ❓ OFFENE FRAGEN
+
+- Wie flexibel lässt sich Obsidian programmatisch im Zen-Mode starten?
+- Welche Desktop-Umgebung eignet sich für maximale GUI-Flexibilität? (aktuell: XFCE / GNOME / KDE?)
+- Wie organisieren wir Projekt-Metadaten am besten? `.config`-Ordner? YAML-Datei?
+
+---
+
+## 📌 NÄCHSTE SCHRITTE
+
+1. Projektstruktur im Cursor anlegen  
+2. Diese Datei weiter pflegen  
+3. Erste Ordnerstruktur committen  
+4. Lokalisierungskonzept ausarbeiten  
+5. Obsidian-Integration testen  
+6. Prototype-Idee für den Project-Switcher schreiben  
+
+---
+
+> **Notiz:** Diese Datei ist der zentrale Einstiegspunkt für jeden Entwickler oder Mitarbeiter im Projekt. Hier steht, was gedacht wurde, was gemacht wurde und was noch offen ist.
