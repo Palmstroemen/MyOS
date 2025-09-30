@@ -32,6 +32,9 @@ The tools for all this already exist — but they're overly complicated and frag
 **MyOS** aims to unify these capabilities into one clean, intuitive environment with smart defaults and a gentle learning curve.
 
 ---
+## Tools
+### Libfuse
+
 
 ## 📦 Repository Structure
 
