@@ -31,13 +31,13 @@ jobs:
     
     - name: Run tests with pytest
       run: |
-        python -m pytest tests/ -v --tb=short
+        python -m pytest -v --tb=short
     
     - name: Run tests with unittest (fallback)
       if: failure()
       run: |
         echo "Trying unittest as fallback..."
-        cd tests && python -m unittest discover -v
+        python -m unittest discover -v
     
     - name: Basic syntax check
       run: |

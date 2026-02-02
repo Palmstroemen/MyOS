@@ -7,6 +7,50 @@ should be adaptable via plugins.
 
 ---
 
+## **2. ACLs.md Format (Draft)**
+`ACLs.md` lives in `.MyOS/` and follows the same parser rules as other config files.
+
+### **2.1 Sections**
+Recommended sections:
+- **`# Permissions`**: Role → allowed paths + rights
+- **`# Users`** *(optional for MVP)*: User → role(s)
+- **`# inherit`** *(optional)*: Inherit rules if used (default: `dynamic`)
+
+### **2.2 Example**
+```markdown
+# Permissions
+
+## Folder
+- /{Folder}/: read, write
+- /info/: read
+
+## Admin
+- /*: read, write, execute, change
+
+## Buchhalter
+- /finanz/: read, write, execute
+- /rechtliches/: read
+
+## Entwickler
+- /finanz/eingang/: read, write
+- /ressources/: read
+- /ressources/datenblaetter/: read, write
+- /work/scrum/: read, write, execute
+
+# Users
+anna: Admin
+karl: Entwickler, Buchhalter
+```
+
+Notes:
+- Rights are explicit. **MVP rights set**: `read`, `write`, `execute`, `change`.
+- `change` only grants write access to `.MyOS/ACLs.md` (ACL management).
+- Paths are **relative to the project root** (e.g. `/finanz/`).
+- `*` can be used as a wildcard path (e.g. `/*: read, write`).
+- If no `inherit` is defined, the default is **`dynamic`**.
+
+---
+
 ## **2. Core Philosophy**
 - **Self‑explanatory**: Access rules should be understandable at a glance.
 - **Project‑centric**: ACLs live with the project and reflect its structure.
@@ -39,6 +83,13 @@ Each top‑level folder implies a **default role**:
 - `/team/` → **HR**
 - `/admin/` → **Admin**
 - etc.
+
+**Folder defaults:**  
+The `## Folder` block defines rights that apply to all auto‑generated roles.
+These defaults **do not merge** with role‑specific permissions; the role‑specific block
+must list all intended rights explicitly. This allows rights to be removed as well as added.
+Within the `## Folder` block, **duplicate paths are merged** (rights are unioned) so that
+global defaults like `/info/` remain additive.
 
 ### **4.2 Custom Roles**
 Admins can define **custom roles**, e.g. **“Prokura”** with access to `/finanz/` and `/rechtliches/`.
@@ -113,7 +164,8 @@ Define a small, stable interface for ACL backends:
 ---
 
 ## **9. Open Questions**
-- What is the minimal rights set? (read/write/execute/list/birth?)
+- Do we need additional rights beyond the MVP set? (e.g., list, birth)
+- Do we ever need a dedicated `mychmod` command, or is ACL editing sufficient?
 - How should role inheritance be expressed?
 - Should template roles auto‑generate users/groups?
 - How is auditing handled (who changed ACLs, when)?

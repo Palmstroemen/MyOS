@@ -15,6 +15,7 @@ TEMPLATE_DIR = TEST_LAB_ROOT / "Templates"
 PLATE_DIR = TEST_LAB_ROOT / "plate"
 
 os.environ["MYOS_TEMPLATES_DIR"] = str(TEMPLATE_DIR)
+os.environ["MYOS_ROLES"] = "admin, info, kommunikation"
 print(f"[Test Setup] Set MYOS_TEMPLATES_DIR to: {TEMPLATE_DIR}")
 
 @pytest.fixture(scope="session", autouse=True)
@@ -125,6 +126,22 @@ def _create_test_project(project_dir, template_name):
     (myos_dir / "Templates.md").write_text(templates_content)
     
     print(f"Created test project at {project_dir} with template '{template_name}'")
+
+
+def _write_acl_policy(project_dir: Path) -> None:
+    myos_dir = project_dir / ".MyOS"
+    (myos_dir / "ACLs.md").write_text(
+        "# Permissions\n"
+        "## Folder\n"
+        "- /{Folder}/: read\n"
+        "## Admin\n"
+        "- /*: read, write, execute\n"
+        "- /.MyOS/ACLs.md: change\n"
+        "## Info\n"
+        "- /info/: read, write\n"
+        "# Users\n"
+        "testuser: Info\n"
+    )
 
 # Fixtures
 @pytest.fixture
@@ -323,6 +340,57 @@ def test_project_with_broken_template(mount_garten):
     assert "admin" not in entries
     assert "info" not in entries
     assert "kommunikation" not in entries
+
+
+def test_acl_embryo_visibility(monkeypatch):
+    """Embryos are only shown when write is allowed by ACLs."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir) / "AclProject"
+        _create_test_project(project_root, "Standard")
+        _write_acl_policy(project_root)
+
+        monkeypatch.setenv("MYOS_ROLES", "info")
+
+        layer = Blueprint(project_root)
+        entries = layer.readdir("/", None)
+
+        assert "info" in entries
+        assert "admin" not in entries
+        assert "kommunikation" not in entries
+
+
+def test_acl_birth_denied_without_write(monkeypatch):
+    """Birth is blocked when ACLs exist but role has no write."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir) / "AclProject"
+        _create_test_project(project_root, "Standard")
+        _write_acl_policy(project_root)
+
+        monkeypatch.setenv("MYOS_ROLES", "info")
+
+        layer = Blueprint(project_root)
+
+        with pytest.raises(Exception) as excinfo:
+            layer.create("/admin/test.txt", 0o644, None)
+
+        assert "Permission denied" in str(excinfo.value)
+
+
+def test_acl_no_roles_no_embryos(monkeypatch):
+    """When ACLs exist and no roles resolve, embryos are hidden."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir) / "AclProject"
+        _create_test_project(project_root, "Standard")
+        _write_acl_policy(project_root)
+
+        monkeypatch.delenv("MYOS_ROLES", raising=False)
+
+        layer = Blueprint(project_root)
+        entries = layer.readdir("/", None)
+
+        assert "admin" not in entries
+        assert "info" not in entries
+        assert "kommunikation" not in entries
 
 def test_deeply_nested_project(mount_webseite):
     """Testet tief verschachtelte Projekte."""

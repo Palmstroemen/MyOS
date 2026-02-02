@@ -9,8 +9,10 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 
 from fuse import FUSE, FuseOSError, Operations
 from core.project import ProjectConfig
+from core.acl import ACLPolicy
 
 import shutil
+import getpass
 
 class BirthClinic:
     """Handles the birth process from embryos to physical folders."""
@@ -214,6 +216,11 @@ class Blueprint(Operations):
         
         # Cache for embryo status (path -> True/False)
         self._embryo_cache: Dict[str, bool] = {}
+
+        # ACL policy and role resolution
+        self.acl_policy = ACLPolicy.from_project(self.project_root)
+        self.acl_enabled = (self.project_root / ".MyOS" / "ACLs.md").exists()
+        self.acl_roles = self._resolve_acl_roles()
         
         print(f"Blueprint: Mounted on {self.project_root}")
         print(f"Blueprint: Using templates from {self.templates_dir}")
@@ -227,6 +234,37 @@ class Blueprint(Operations):
                 return current
             current = current.parent
         raise ValueError(f"No project root found from {start_path}")
+
+    def _resolve_acl_roles(self) -> Set[str]:
+        """
+        Resolve roles for the current user.
+        Priority:
+        1) MYOS_ROLES env var (comma-separated)
+        2) Users section in ACLs.md
+        If Users section exists but user is not listed, returns empty set.
+        If no Users section exists, returns empty set (no enforcement).
+        """
+        env_roles = os.environ.get("MYOS_ROLES")
+        if env_roles:
+            return {r.strip().lower() for r in env_roles.split(",") if r.strip()}
+
+        if not self.acl_policy.users:
+            return set()
+
+        user = getpass.getuser()
+        return self.acl_policy.roles_for_user(user)
+
+    def _can_write_embryo(self, rel_path: str) -> bool:
+        """
+        Return True if the current roles allow write access to this embryo path.
+        If no roles are resolved, do not enforce ACLs.
+        """
+        if not self.acl_enabled:
+            return True
+        if not self.acl_roles:
+            return False
+        path = f"/{rel_path.strip('/')}"
+        return any(self.acl_policy.can_access(role, path, "write") for role in self.acl_roles)
 
     def _load_embryo_tree(self) -> Dict[str, Any]:
         """Load recursive embryo tree from ALL configured templates."""
@@ -357,7 +395,7 @@ class Blueprint(Operations):
                 full_path = name
             
             # Only when it is an embryo (not physically present)
-            if self.is_embryo(full_path):
+            if self.is_embryo(full_path) and self._can_write_embryo(full_path):
                 embryos.append(name)
         
         return embryos
@@ -391,6 +429,10 @@ class Blueprint(Operations):
         
         # Embryo path (only embryo segments)
         embryo_path = '/'.join(embryo_parts)
+
+        # Enforce ACLs for birth
+        if not self._can_write_embryo(embryo_path):
+            raise FuseOSError(errno.EACCES)
         
         # Remaining path after the embryo
         remaining_parts = parts[len(embryo_parts):]
