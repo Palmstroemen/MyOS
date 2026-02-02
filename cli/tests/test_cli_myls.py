@@ -1,4 +1,4 @@
-# cli/tests/test_cli_myls.py (Teilweise Anpassungen)
+# cli/tests/test_cli_myls.py (partial updates)
 
 import unittest
 from pathlib import Path
@@ -7,7 +7,7 @@ import os
 import tempfile
 import time
 import subprocess
-import pytest  # Für capsys Fixture
+import pytest  # For capsys fixture
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from cli.myls import MyOSLister
@@ -19,55 +19,52 @@ class TestMyOSListerBasic(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp(prefix="myos_test_")
         self.test_path = Path(self.test_dir)
         
-        # Grundstruktur erstellen
+        # Basic structure
         (self.test_path / "README.md").write_text("# Test Project")
         (self.test_path / "test.txt").touch()
         (self.test_path / "recent.txt").touch()
         (self.test_path / "old_file.txt").touch()
         
-        # Einige Ordner
+        # Some folders
         (self.test_path / "real_folder").mkdir()
         (self.test_path / "existing").mkdir()
         (self.test_path / "deep").mkdir()
         (self.test_path / "deep" / "nested").mkdir()
         (self.test_path / "deep" / "nested" / "very").mkdir()
         
-        # %-Ordner (veraltet, aber für Kompatibilität)
+        # %-folder (deprecated, kept for compatibility)
         (self.test_path / "potential%").mkdir()
         
-        # Für roentgen test
+        # For roentgen test
         (self.test_path / "Project").mkdir()
         (self.test_path / "Project" / "Source").mkdir()
         (self.test_path / "Project" / "Source" / "main.py").write_text("print('test')")
         (self.test_path / "Project" / "Docs").mkdir()
         (self.test_path / "Project" / "Admin%").mkdir()  # %-Ordner
         
-        # recent.txt neuer machen
+        # Make recent.txt newer
         recent_time = time.time() - 300  # 5 Minuten alt
         os.utime(self.test_path / "recent.txt", (recent_time, recent_time))
         
-        # old_file.txt älter machen
+        # Make old_file.txt older
         old_time = time.time() - 86400  # 1 Tag alt
         os.utime(self.test_path / "old_file.txt", (old_time, old_time))
         
-        print(f"\n[setUp] Created: {self.test_dir}")
-        print("  - Project/ (with Source/, Docs/, Admin%/)")
-        print("  - old_file.txt (MODIFIED to be recent)")
-        print("  - recent.txt (5min old)")
-        print("  - Other normal files")
+        # Minimal setup summary (optional)
+        # print(f"\n[setUp] Created: {self.test_dir}")
         
         self.lister = MyOSLister(self.test_dir)
         
-        # capsys wird von pytest gesetzt, wenn verfügbar
+        # capsys is provided by pytest when available
         self.capsys = None
     
-    # pytest Fixture injection
+    # pytest fixture injection
     @pytest.fixture(autouse=True)
     def inject_capsys(self, capsys):
         self.capsys = capsys
     
     def get_output(self):
-        """Hole die Captured Output wenn capsys verfügbar."""
+        """Return captured output if capsys is available."""
         if self.capsys:
             return self.capsys.readouterr().out
         return ""
@@ -88,17 +85,17 @@ class TestMyOSListerBasic(unittest.TestCase):
     
     def test_basic_listing(self):
         """Test that basic listing works."""
-        # Da wir capsys nicht in unittest haben, testen wir einfach dass es läuft
+        # Without capsys in unittest, just ensure it runs
         try:
             self.lister.list_normal()
-            # Wenn keine Exception, ist es gut
+            # If no exception, it is OK
             self.assertTrue(True)
         except Exception as e:
             self.fail(f"list_normal() raised {type(e).__name__}: {e}")
     
     def test_list_normal(self):
         """Test normal listing shows files and folders."""
-        # Kann nicht auf Ausgabe prüfen ohne capsys, also testen wir nur Lauffähigkeit
+        # Without capsys, only test that it runs
         try:
             self.lister.list_normal()
             self.assertTrue(True)
@@ -123,7 +120,7 @@ class TestMyOSListerBasic(unittest.TestCase):
     
     def test_roentgen_shows_paths(self):
         """Roentgen should show files with their paths."""
-        # Tabulate könnte fehlen, also testen wir nur Lauffähigkeit
+        # Tabulate may be missing; only test that it runs
         try:
             self.lister.list_roentgen(limit=5)
             self.assertTrue(True)
@@ -134,8 +131,8 @@ class TestMyOSListerBasic(unittest.TestCase):
     
     def test_list_all_combined_view(self):
         """Combined view should show extended info."""
-        # Alte Assertion "Potential folders" ist veraltet
-        # Stattdessen testen wir dass list_all() läuft
+        # Old "Potential folders" assertion is deprecated
+        # Instead, ensure list_all() runs
         try:
             self.lister.list_all()
             self.assertTrue(True)
@@ -144,11 +141,11 @@ class TestMyOSListerBasic(unittest.TestCase):
     
     def test_command_line_interface(self):
         """Test that myls can be called from command line."""
-        # Erstelle eine einfache Test-Datei
+        # Create a simple test file
         test_file = self.test_path / "cli_test.txt"
         test_file.write_text("test")
         
-        # Teste mit Subprocess
+        # Run via subprocess
         myls_path = Path(__file__).parent.parent.parent / "cli" / "myls.py"
         
         result = subprocess.run(
@@ -157,10 +154,10 @@ class TestMyOSListerBasic(unittest.TestCase):
             text=True
         )
         
-        # Hauptsache es läuft ohne Crash
-        # returncode könnte 0 oder 1 sein je nach Implementierung
+        # Ensure it runs without crashing
+        # returncode may be 0 or 1 depending on implementation
         self.assertIn(test_file.name, result.stdout + result.stderr)
 
 if __name__ == '__main__':
-    # Für unittest alleine (ohne pytest)
+    # For unittest only (without pytest)
     unittest.main()

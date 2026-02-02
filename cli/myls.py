@@ -1,4 +1,4 @@
-# cli/myls.py (Aktualisierung)
+# cli/myls.py (update)
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -14,7 +14,7 @@ from typing import List, Dict, Optional, Any
 import tempfile
 
 try:
-    # Versuche MyOS API zu importieren
+    # Try to import the MyOS API
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from core.localBlueprintLayer import Blueprint
     HAS_MYOS = True
@@ -28,7 +28,7 @@ class MyOSLister:
             print(f"Error: Directory does not exist: {self.root}", file=sys.stderr)
             sys.exit(1)
         
-        # MyOS API initialisieren falls verfügbar
+        # Initialize MyOS API if available
         self.api = None
         self.in_myos_project = False
         
@@ -37,23 +37,23 @@ class MyOSLister:
                 self.api = Blueprint(self.root)
                 self.in_myos_project = True
             except (ValueError, ImportError):
-                # Kein MyOS Projekt oder andere Fehler
+                # Not a MyOS project or other error
                 pass
     
     def is_embryo(self, name: str) -> bool:
-        """Prüfe ob ein Name ein Embryo ist."""
+        """Check whether a name is an embryo."""
         if not self.api or not self.in_myos_project:
             return False
         
         try:
-            # Konvertiere zu relativem Pfad für API
+            # Convert to relative path for the API
             rel_path = str(Path(name).relative_to(self.root) if Path(name).is_absolute() else name)
             return self.api.is_embryo(rel_path)
         except:
             return False
     
     def get_embryos(self) -> List[str]:
-        """Hole alle Embryos im aktuellen Verzeichnis."""
+        """Return all embryos in the current directory."""
         if not self.api or not self.in_myos_project:
             return []
         
@@ -65,10 +65,10 @@ class MyOSLister:
     
     def list_extended(self, color: bool = False) -> None:
         """
-        Erweiterte Ansicht mit Embryo-Informationen.
+        Extended view with embryo information.
         
         Args:
-            color: Farbige Ausgabe verwenden
+            color: Use colored output
         """
         print(f"Directory: {self.root}")
         if self.in_myos_project and self.api:
@@ -86,11 +86,11 @@ class MyOSLister:
             icon = "📁" if item.is_dir() else "📄"
             name = item.name + ("/" if item.is_dir() else "")
             
-            # Embryo-Status prüfen
+            # Check embryo status
             is_emb = self.is_embryo(item.name) if item.is_dir() else False
             
             if color and is_emb:
-                # Farbcode für halbtransparent (ANSI)
+                # ANSI color for embryos
                 print(f"\033[2;34m{icon} {name:<40} [embryo]\033[0m")
             elif is_emb:
                 print(f"{icon} {name:<40} [embryo]")
@@ -99,22 +99,22 @@ class MyOSLister:
             else:
                 print(f"{icon} {name}")
         
-        # Embryo-Statistik
+        # Embryo summary
         embryos = self.get_embryos()
         if embryos:
             print(f"\nEmbryos in this directory ({len(embryos)}):")
             for embryo in sorted(embryos):
                 print(f"  🥚 {embryo}")
         
-        # Projekt-Info wenn verfügbar
+        # Project info if available
         if self.in_myos_project and self.api:
             total_embryos = sum(len(self.api.get_embryos_at(p)) 
                               for p in [""] + list(self.api.embryo_tree.keys()))
             print(f"\nProject has {total_embryos} total embryos available")
     
-    # Bestehende Methoden behalten...
+    # Existing methods retained
     def list_normal(self) -> None:
-        """Normale ls-ähnliche Ausgabe."""
+        """Normal ls-like output."""
         try:
             items = sorted(self.root.iterdir())
             for item in items:
@@ -126,21 +126,21 @@ class MyOSLister:
             print(f"Error: Cannot read directory {self.root}", file=sys.stderr)
     
     def list_potential(self) -> None:
-        """Veraltet - für Kompatibilität."""
+        """Deprecated - kept for compatibility."""
         print("Note: % markers are deprecated. Use --extended instead.")
         self.list_extended()
     
-    # Rest der bestehenden Methoden...
+    # Remaining existing methods
     def _get_all_files(self) -> List[Dict[str, Any]]:
-        # ... bestehende Implementierung
+        # ... existing implementation
         pass
     
     def list_recent(self, limit: int = 10, roentgen: bool = False) -> None:
-        # ... bestehende Implementierung
+        # ... existing implementation
         pass
     
     def list_roentgen(self, limit: int = 10) -> None:
-        # ... bestehende Implementierung
+        # ... existing implementation
         pass
     
     def list_all(self) -> None:
@@ -150,10 +150,10 @@ class MyOSLister:
         self.list_recent(limit=5, roentgen=True)
         print("=" * 60)
 
-def parse_arguments(args=None) -> argparse.Namespace:  # ← Parameter hinzufügen
+def parse_arguments(args=None) -> argparse.Namespace:
     """Parse command line arguments."""
     if args is None:
-        args = sys.argv[1:]  # Default: aktuelle Kommandozeile
+        args = sys.argv[1:]  # Default: current command line
     
     parser = argparse.ArgumentParser(
         description='MyOS Intelligent File Lister',
@@ -171,7 +171,7 @@ def parse_arguments(args=None) -> argparse.Namespace:  # ← Parameter hinzufüg
         help='Directory to analyze (default: current directory)'
     )
     
-    # Neue extended Option
+    # Extended option
     parser.add_argument(
         '--extended', '-e',
         action='store_true',
@@ -184,7 +184,7 @@ def parse_arguments(args=None) -> argparse.Namespace:  # ← Parameter hinzufüg
         help='Colored output (embryos in light blue)'
     )
     
-    # Bestehende Optionen
+    # Existing options
     parser.add_argument(
         '--potential',
         action='store_true',
@@ -230,7 +230,7 @@ def main() -> None:
         args = parse_arguments()
         lister = MyOSLister(args.path)
         
-        # Dispatch zu entsprechender View
+        # Dispatch to the selected view
         if args.extended or args.potential:
             lister.list_extended(color=args.color)
         elif args.recent is not None:

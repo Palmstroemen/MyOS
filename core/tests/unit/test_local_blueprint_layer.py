@@ -120,8 +120,8 @@ def _create_test_project(project_dir, template_name):
     myos_dir = project_dir / ".MyOS"
     myos_dir.mkdir(exist_ok=True)
     
-    (myos_dir / "project.md").write_text("# MyOS Project\n")
-    templates_content = f"# Project Templates\n\n## Templates\n- {template_name}\n"
+    (myos_dir / "Project.md").write_text("# MyOS Project\n")
+    templates_content = f"# Templates\n{template_name}\n"
     (myos_dir / "Templates.md").write_text(templates_content)
     
     print(f"Created test project at {project_dir} with template '{template_name}'")

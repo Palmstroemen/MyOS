@@ -90,7 +90,7 @@ def test_birth_process_no_percent():
 
 **Was wird getestet:**
 
-- Projekt-Erkennung (`.MyOS/project.md`)
+- Projekt-Erkennung (`.MyOS/Project.md`)
     
 - Template-Parsing
     
@@ -106,7 +106,7 @@ python
 def test_project_root_findung_multiple_levels():
     """Projekt-Root-Findung in tiefen Verzeichnissen."""
     # Start: /home/projects/haus/dach/kommunikation/extern/webseite
-    # Erwartet: webseite/ (weil .MyOS/project.md dort)
+    # Erwartet: webseite/ (weil .MyOS/Project.md dort)
     layer = Blueprint(tiefes_verzeichnis)
     assert layer.project_root.name == "Webseite"
 
@@ -191,7 +191,7 @@ def test_lab_structure():
     """Komplette Test-Umgebung mit Templates und Projekten."""
     # Erstellt:
     # - Templates/Standard/ mit admin/, info/, kommunikation/
-    # - Plate/Projekte/Haus/ mit .MyOS/project.md
+    # - Plate/Projekte/Haus/ mit .MyOS/Project.md
     # - Verschachtelte Projekt-Strukturen
     return PLATE_DIR
 

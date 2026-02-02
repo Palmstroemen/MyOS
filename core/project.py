@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-project.py - MyOS project detection and configuration handling
-Handles -MyOS/project.me files and project hierarchy detection.
+project.py - MyOS project detection and configuration handling.
+Handles .MyOS/Project.md and project hierarchy detection.
 """
 
 from typing import Dict, List, Any, Optional, Union, Tuple
@@ -21,36 +21,38 @@ MYOS_VERSION = os.environ.get("MYOS_VERSION", "MyOS v0.1")
 
 
 class ProjectConfig:
+    """Load, write, and manage project configuration stored in .MyOS/."""
+
     def __init__(self, path: Path):
+        """Initialize a ProjectConfig for the given path."""
         self.path = Path(path)
         self.myos_dir = self.path / ".MyOS"
         
-        # check if /.MyOS/project.md exists
-        self.project_md = self.myos_dir / "project.md"
+        # Marker file that defines a project root
+        self.project_md = self.myos_dir / "Project.md"
         
         self.templates = []
         self.version = None
         self.metadata = {}
-        self.config_data = {}  # WICHTIG: Hier initialisieren!
+        self.config_data = {}
         
-        # Load if project exists
+        # Load config if this is a valid project
         if self.is_valid():
             self.load()
             logger.debug("ProjectConfig created at %s", self.path)
     
     def _is_project(self) -> bool:
-        """Check if this is a valid MyOS project."""
+        """Return True when the project marker file exists."""
         return self.project_md.exists()
     
     def load(self):
-        """Load configuration from project files."""
-        # Try .MyOS/ first
+        """Load configuration from local .MyOS/ files."""
         if self.myos_dir.exists():
             self._load_from_myos()
     
     def _load_from_myos(self):
-        """Load from .MyOS/ directory."""
-        # Load Templates.md
+        """Load Templates.md, Manifest.md, and Config.md from .MyOS/."""
+        # Templates.md -> self.templates
         templates_md = self.myos_dir / "Templates.md"
         if templates_md.exists():
             try:
@@ -58,13 +60,13 @@ class ProjectConfig:
                 logger.debug("Parsed Templates.md: %s", data)
                 
                 if data:
-                    # Versuche 1: Direkte Liste unter "Templates"
+                    # Case 1: list under "Templates"
                     if "Templates" in data:
                         templates_data = data["Templates"]
                         if isinstance(templates_data, list):
                             self.templates = templates_data
                         elif isinstance(templates_data, dict):
-                            # Versuche "items" zu finden
+                            # Look for "items" in a section dict
                             if "items" in templates_data:
                                 items = templates_data["items"]
                                 if isinstance(items, list):
@@ -72,17 +74,15 @@ class ProjectConfig:
                                 elif isinstance(items, str):
                                     self.templates = [items]
                     
-                    # Versuche 2: Direkte Liste als Wurzel
+                    # Case 2: root list
                     elif isinstance(data, list):
                         self.templates = data
                     
                 logger.debug("Loaded templates = %s", self.templates)
             except Exception as e:
-                print(f"MyOS ProjectConfig: Error parsing Templates.md: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception("Error parsing Templates.md: %s", e)
         
-        # Load Manifest.md
+        # Manifest.md -> self.metadata, self.version
         manifest_md = self.myos_dir / "Manifest.md"
         if manifest_md.exists():
             try:
@@ -92,37 +92,35 @@ class ProjectConfig:
                 if data and "Project" in data:
                     manifest_data = data["Project"]
                     if isinstance(manifest_data, dict):
-                        # Konvertiere Schlüssel zu lowercase für konsistenten Zugriff
+                        # Normalize keys for consistent access
                         self.metadata = {}
                         for key, value in manifest_data.items():
-                            # Speichere als String, nicht als Liste
+                            # Store values as strings for easier use
                             if isinstance(value, list):
                                 self.metadata[key.lower()] = ", ".join(value)
                             else:
                                 self.metadata[key.lower()] = str(value)
                         
-                        # Extrahiere version separat
+                        # Extract version separately if present
                         if "version" in self.metadata:
                             self.version = self.metadata.pop("version")
                         
                 logger.debug("Loaded metadata = %s, version = %s", self.metadata, self.version)
             except Exception as e:
-                print(f"MyOS ProjectConfig: Error parsing Manifest.md: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception("Error parsing Manifest.md: %s", e)
         
-        # Load Config.md (falls existiert)
+        # Config.md -> self.config_data
         self._load_config_data()
     
     def _load_config_data(self):
-        """Lädt Config.md Daten."""
+        """Load Config.md into self.config_data."""
         config_md = self.myos_dir / "Config.md"
         if config_md.exists():
             try:
                 self.config_data = MarkdownConfigParser.parse_file(config_md)
                 logger.debug("Loaded config_data from Config.md")
             except Exception as e:
-                print(f"MyOS ProjectConfig: Error parsing Config.md: {e}")
+                logger.exception("Error parsing Config.md: %s", e)
                 self.config_data = {}
         else:
             self.config_data = {}
@@ -156,14 +154,14 @@ class ProjectConfig:
             # Ensure .MyOS/ exists
             self.myos_dir.mkdir(exist_ok=True, parents=True)
             
-            # Write project.md (MINIMAL!)
+            # Ensure Project.md exists as a minimal marker file
             if not self.project_md.exists():
                 self.project_md.write_text("# MyOS Project\n")
             
-            # Write Templates.md im NEUEN Format
+            # Write Templates.md in the current format
             templates_md = self.myos_dir / "Templates.md"
             if self.templates:
-                # NEUES FORMAT: "# Templates" ohne ## und ohne -
+                # Format: "# Templates" followed by one template per line
                 content = "# Templates\n"
                 content += "\n".join(f"{t}" for t in self.templates)
                 content += "\n"
@@ -172,11 +170,11 @@ class ProjectConfig:
             elif templates_md.exists():
                 templates_md.unlink()  # Remove if no templates
             
-            # Write Manifest.md im NEUEN Format
+            # Write Manifest.md in the current format
             manifest_md = self.myos_dir / "Manifest.md"
             # Always write manifest if we have version or metadata
             if self.version is not None or self.metadata:
-                # NEUES FORMAT: "# Project" nicht "# MyOS Project"
+                # Format: "# Project" followed by key/value lines
                 content = "# Project\n"
                 if self.version:
                     content += f"Version: {self.version}\n"
@@ -193,20 +191,18 @@ class ProjectConfig:
             return True
             
         except Exception as e:
-            print(f"MyOS ProjectConfig: Error saving config: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error saving config: %s", e)
             return False
     
     def get_inherit_status(self, section_name: str) -> str:
         """
-        Liest den inherit-Status einer Section.
+        Read the inherit status for a section.
         
         Args:
-            section_name: Name der Section (z.B. "Templates")
+            section_name: Section name (e.g., "Templates")
                 
         Returns:
-            "fix" | "dynamic" | "not"; fehlend/ungültig = "dynamic"
+            "fix" | "dynamic" | "not"; missing/invalid -> "dynamic"
         """
         if not self.config_data:
             self._load_config_data()
@@ -225,11 +221,11 @@ class ProjectConfig:
             inherit_value = str(inherit_values).lower()
         if inherit_value in ("fix", "dynamic", "not"):
             return inherit_value
-        logger.warning("Ungültiger inherit-Wert '%s' in Section '%s', default dynamic", inherit_value, section_name)
+        logger.warning("Invalid inherit value '%s' in section '%s', defaulting to dynamic", inherit_value, section_name)
         return "dynamic"
 
     def get_parent_project(self) -> Optional['ProjectConfig']:
-        """Findet Parent-Projekt (ein Verzeichnis darüber)."""
+        """Find the nearest parent project (one directory above)."""
         parent_dir = self.path.parent
         if parent_dir == self.path:
             return None
@@ -239,7 +235,7 @@ class ProjectConfig:
         return None
 
     def get_child_projects(self) -> List['ProjectConfig']:
-        """Findet alle direkten Child-Projekte."""
+        """Return direct child projects under this path."""
         children = []
         try:
             for item in self.path.iterdir():
@@ -252,12 +248,12 @@ class ProjectConfig:
         return children
 
     def is_valid(self) -> bool:
-        """Check if this is a valid MyOS project."""
+        """Return True when this path is a valid MyOS project."""
         return self._is_project()
 
     
-    # 2. Parsing / Loading    
     def _parse_section_markdown(self, text: str) -> dict:
+        """Parse a single-file section into items + inherit."""
         items = []
         inherit = None
 
@@ -282,6 +278,7 @@ class ProjectConfig:
         }
 
     def _parse_legacy_config(self, text: str) -> dict:
+        """Parse legacy Config.md content into sections."""
         sections = {}
         current = None
         buffer = []
@@ -316,16 +313,17 @@ class ProjectConfig:
         return sections
 
     def load_sections(self) -> dict:
+        """Load all sections from single files and Config.md (legacy style)."""
         sections = {}
 
-        # Neue Welt: einzelne Dateien
+        # Single-file sections
         for md in self.myos_dir.glob("*.md"):
             if md.name.lower() == "project.md":
                 continue
             name = md.stem
             sections[name] = self._parse_section_markdown(md.read_text())
 
-        # Alte Welt: Config.md
+        # Config.md sections
         config = self.myos_dir / "Config.md"
         if config.exists():
             legacy = self._parse_legacy_config(config.read_text())
@@ -337,33 +335,41 @@ class ProjectConfig:
     @classmethod
     def create(cls, dir_path: Union[str, Path]) -> 'ProjectConfig':
         """
-        Create a new project by copying .MyOS/ from parent directory.
+        Create a new project by copying .MyOS/ from a parent directory.
         """
         dir_path = Path(dir_path)
         
-        # 1. Parent finden (wo .MyOS existiert)
+        # Find nearest parent with .MyOS
         parent_myos = cls._find_parent_myos(dir_path)
         if not parent_myos:
             raise ValueError(f"No parent .MyOS directory found for {dir_path}")
         
-        # 2. .MyOS/ kopieren
+        # Copy parent .MyOS/ into target
         target_myos = dir_path / ".MyOS"
         import shutil
-        shutil.copytree(parent_myos, target_myos)
+        # Security: symlink suppression
+        def _ignore_symlinks(src, names):
+            ignored = []
+            for name in names:
+                full = Path(src) / name
+                if full.is_symlink():
+                    ignored.append(name)
+            return ignored
+        shutil.copytree(parent_myos, target_myos, symlinks=False, ignore=_ignore_symlinks)
         
-        # 3. Dateien mit inherit:"not" löschen
-        for config_file in list(target_myos.glob("*.md")):  # Liste erstellen, da wir während Iteration löschen
-            if config_file.name == "project.md":
+        # Remove files marked with inherit: not
+        for config_file in list(target_myos.glob("*.md")):  # Use list to allow deletes during iteration
+            if config_file.name == "Project.md":
                 continue
                 
             try:
-                # Versuche, Datei zu parsen
+                # Parse file to find inherit rule
                 data = MarkdownConfigParser.parse_file(config_file)
                 section_name = config_file.stem
                 
                 if section_name in data:
                     inherit_status = None
-                    # Versuche, inherit-Wert zu finden
+                    # Extract inherit value
                     inherit_values = MarkdownConfigParser.find_inherit(data[section_name])
                     
                     if inherit_values:
@@ -377,19 +383,19 @@ class ProjectConfig:
                             config_file.unlink()
                             logger.debug("Removed %s (inherit: not)", config_file.name)
             except Exception as e:
-                print(f"Warning: Could not process {config_file}: {e}")
-                # Datei behalten wenn wir sie nicht parsen können
+                logger.warning("Could not process %s: %s", config_file, e)
+                # Keep the file when parsing fails
         
-        # 4. Projektobjekt erstellen und zurückgeben
+        # Return fresh ProjectConfig
         project = cls(dir_path)
-        project._load_config_data()  # Geparste Daten laden
+        project._load_config_data()
         return project
 
     @staticmethod
     def _find_parent_myos(dir_path: Path) -> Optional[Path]:
         """Find parent .MyOS directory by walking up the directory tree."""
         current = dir_path.parent
-        while current and current != current.parent:  # Bis zum root
+        while current and current != current.parent:  # Stop at filesystem root
             myos_dir = current / ".MyOS"
             if myos_dir.exists():
                 return myos_dir
@@ -398,25 +404,25 @@ class ProjectConfig:
 
     def propagate_config(self, section_name: str, dry_run: bool = False) -> Dict[str, Union[bool, str]]:
         """
-        Propagiert Config-Änderungen an alle Child-Projekte.
+        Propagate a config section to all child projects.
         
         Args:
-            section_name: Name der Config-Section (z.B. "Templates")
-            dry_run: Wenn True, nur zeigen was passieren würde
+            section_name: Config section name (e.g., "Templates")
+            dry_run: When True, only report what would change
         
         Returns:
-            Dict mit {child_path: success_or_status}
+            Dict mapping {child_path: success_or_status}
         """
         logger.debug("propagate_config: section=%s path=%s dry_run=%s", section_name, self.path, dry_run)
         results = {}
         
-        # 1. Eigene Config laden
+        # Load own config data
         self._load_config_data()
         if section_name not in self.config_data:
-            logger.debug("Section '%s' nicht in Config gefunden", section_name)
+            logger.debug("Section '%s' not found in config", section_name)
             return results
         
-        # 2. Alle Children finden
+        # Find and update child projects
         children = self.get_child_projects()
         for child in children:
             child_inherit = child.get_inherit_status(section_name)
@@ -428,7 +434,7 @@ class ProjectConfig:
         return results
 
     def _update_from_parent(self, parent: 'ProjectConfig', section_name: str, dry_run: bool = False) -> bool:
-        """Aktualisiert Config von Parent (interne Methode)."""
+        """Update a section from a parent ProjectConfig (internal)."""
         try:
             if not hasattr(parent, 'config_data') or not parent.config_data:
                 parent._load_config_data()
@@ -441,13 +447,11 @@ class ProjectConfig:
                 return self._save_config_data()
             return True
         except Exception as e:
-            logger.debug("Error updating %s: %s", section_name, e)
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error updating %s: %s", section_name, e)
             return False
 
     def _save_config_data(self) -> bool:
-        """Speichert Config.md Daten."""
+        """Write current config_data back to Config.md."""
         try:
             config_md = self.myos_dir / "Config.md"
             if not self.config_data:
@@ -455,7 +459,7 @@ class ProjectConfig:
                     config_md.unlink()
                 return True
             
-            # Config.md Inhalt generieren
+            # Build Config.md content
             content = ""
             for section_name, section_data in self.config_data.items():
                 content += f"# {section_name}\n"
@@ -482,52 +486,49 @@ class ProjectConfig:
             return True
             
         except Exception as e:
-            print(f"Error saving Config.md: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error saving Config.md: %s", e)
             return False
 
     def _copy_parent_config(self, parent: 'ProjectConfig'):
-        """Kopiert Config vom Parent (beim Erstellen)."""
+        """Copy config files from a parent project (creation helper)."""
         try:
-            # Parent Config laden
+            # Load parent config data
             parent._load_config_data()
             
-            # .MyOS/ Verzeichnisstruktur kopieren
+            # Copy files from parent .MyOS/
             for item in parent.myos_dir.iterdir():
                 if item.is_file():
-                    # Config.md separat behandeln
+                    # Handle Config.md separately
                     if item.name == "Config.md":
                         self._process_parent_config(item, parent)
                     else:
-                        # Andere Files kopieren
+                        # Copy other files as-is
                         import shutil
                         shutil.copy2(item, self.myos_dir / item.name)
                         
         except Exception as e:
-            print(f"Warning: Could not copy parent config: {e}")
+            logger.warning("Could not copy parent config: %s", e)
 
     def _process_parent_config(self, config_path: Path, parent: 'ProjectConfig'):
-        """Verarbeitet parent Config.md mit inherit-Logik."""
-        from core.config.parser import MarkdownConfigParser
+        """Process parent Config.md with inherit rules."""
         
         data = MarkdownConfigParser.parse_file(config_path)
         
-        # Filtere Sections mit inherit: fix
+        # Filter out sections with inherit: fix
         filtered_data = {}
         for section_name, section_data in data.items():
             inherit = MarkdownConfigParser.find_inherit(section_data)
             if inherit and isinstance(inherit, list) and inherit[0].lower() == "fix":
-                # Nicht kopieren (lokal fix)
+                # Skip fixed sections
                 continue
             filtered_data[section_name] = section_data
         
-        # Speichere gefilterte Config
+        # Save filtered config data
         self.config_data = filtered_data
         self._save_config_data()
 
     def propagate_command():
-        """CLI Command für Config Propagation."""
+        """CLI entry point to propagate config sections."""
         import argparse
         
         parser = argparse.ArgumentParser(description="Propagate config changes to child projects")
@@ -545,7 +546,7 @@ class ProjectConfig:
         print(f"Propagating '{args.section}' from {config.path}")
         results = config.propagate_config(args.section, args.dry_run)
         
-        # Zusammenfassung
+        # Summary
         print(f"\n{'='*50}")
         print(f"Summary: {sum(1 for r in results.values() if r == True)} updated, "
               f"{sum(1 for r in results.values() if r == 'skipped_fix')} skipped (fix), "
@@ -576,17 +577,17 @@ class ProjectConfig:
             # Create directory if it doesn't exist
             path.mkdir(parents=True, exist_ok=True)
             
-            # Create project config (copies .MyOS from parent, template name currently unused)
+            # Create project config (copies .MyOS from parent)
             config = ProjectConfig.create(path)
             return config.is_valid()
             
         except (OSError, PermissionError) as e:
             # Catch actual filesystem errors
-            print(f"Error creating project at {dir_path}: {e}")
+            logger.error("Error creating project at %s: %s", dir_path, e)
             return False
         except Exception as e:
             # Catch any other errors
-            print(f"Unexpected error creating project at {dir_path}: {e}")
+            logger.exception("Unexpected error creating project at %s: %s", dir_path, e)
             return False
 
 
@@ -611,8 +612,8 @@ class ProjectFinder:
         current = Path(start_path).expanduser().absolute()
         
         while current != current.parent:  # Stop at filesystem root
-            # Check for new .MyOS/project.md format first
-            if (current / ".MyOS" / "project.md").exists():
+            # Check for .MyOS/Project.md marker
+            if (current / ".MyOS" / "Project.md").exists():
                 return current
             
             current = current.parent
@@ -624,8 +625,8 @@ class ProjectFinder:
         """Check if directory contains a MyOS project."""
         path = Path(path)
         
-        # Check for new .MyOS/project.md format
-        if (path / ".MyOS" / "project.md").exists():
+        # Check for .MyOS/Project.md marker
+        if (path / ".MyOS" / "Project.md").exists():
             return True
         
         return False
@@ -641,7 +642,7 @@ if __name__ == "__main__":
         test_dir.mkdir()
         parent_myos = test_dir.parent / ".MyOS"
         parent_myos.mkdir(exist_ok=True)
-        (parent_myos / "project.md").write_text("# MyOS Project\n")
+        (parent_myos / "Project.md").write_text("# MyOS Project\n")
         result = ProjectConfig.make_project(test_dir, template="standard")
         assert result, "make_project should succeed"
         config = ProjectConfig(test_dir)

@@ -4,13 +4,13 @@
 **"Convention over Configuration"** - Like Git, MyOS uses a simple hidden directory (`.MyOS/`) with human-readable Markdown files. No complex manifests, no duplicate bookkeeping.
 
 ## **2. Project Definition**
-A **MyOS Project** is any directory containing a `.MyOS/` directory **and** a marker file `.MyOS/project.md`. Inside `.MyOS/`, Markdown (`.md`) files are loaded as configuration according to the parser rules.
+A **MyOS Project** is any directory containing a `.MyOS/` directory **and** a marker file `.MyOS/Project.md`. Inside `.MyOS/`, Markdown (`.md`) files are loaded as configuration according to the parser rules.
 
 ## **3. Directory Structure**
 ```
 project/
 ├── .MyOS/                    # MyOS configuration directory
-│   ├── project.md            # Required marker file
+│   ├── Project.md            # Required marker file
 │   ├── Templates.md          # Template configuration (optional)
 │   ├── Manifest.md           # Project metadata (optional)
 │   ├── Config.md             # Inheritance rules (optional)
@@ -48,169 +48,72 @@ Priority: High
 ### **4.3 Other .md files**
 Any `.md` file in `.MyOS/` is loaded and parsed with the MarkdownConfigParser.  
 Sections are defined by `# Section` headers; values are key-value pairs (`key: value`) or lists.
-`Config.md` is special: it defines inheritance rules per section (e.g. `inherit: dynamic|fix|not`).
 
-## **5. Configuration Loading Algorithm**
+**Two configuration styles (can be mixed):**
+1. **Single files** (e.g. `Templates.md`, `Manifest.md`, `ACLs.md`)
+2. **A single `Config.md`** with multiple `# Section` blocks
+
+**Equivalence rule:**  
+A section in `Config.md` that starts with `# Templates` is equivalent to a file named `Templates.md` with the same content.  
+
+## **5. Configuration Loading Algorithm (Verbally)**
 
 ### **5.1 `ProjectConfig` Class (`core/project.py`)**
-```python
-class ProjectConfig:
-    def __init__(self, path: Path):
-        self.path = Path(path)
-        self.myos_dir = self.path / ".MyOS"
-        self.project_md = self.myos_dir / "project.md"
-        self.templates = []
-        self.version = None
-        self.metadata = {}
-        self.config_data = {}
+`ProjectConfig` encapsulates loading and writing project configuration from `.MyOS/`.
 
-    def is_valid(self) -> bool:
-        return self.project_md.exists()
+- **`is_valid()`**  
+  Checks whether `.MyOS/Project.md` exists (marker file).
 
-    def load(self) -> None:
-        # Loads only local project files
-        if self.myos_dir.exists():
-            self._load_from_myos()
+- **`load()`**  
+  Loads **local** `.MyOS/` files only (no automatic parent merge).
 
-    def _load_from_myos(self) -> None:
-        # Templates.md -> self.templates
-        # Manifest.md  -> self.metadata + self.version
-        # Config.md    -> self.config_data
-        pass
+- **`_load_from_myos()`**  
+  Loads individual files:
+  - `Templates.md` → `templates`
+  - `Manifest.md` → `metadata` + `version`
+  - `Config.md` → `config_data`
 
-    def get_inherit_status(self, section: str) -> str:
-        # "fix" | "dynamic" | "not"
-        return "dynamic"
+- **`get_inherit_status(section)`**  
+  Reads the `inherit` rule for a section; default is `dynamic`.
 
-    @classmethod
-    def create(cls, dir_path: Path) -> "ProjectConfig":
-        # Copies parent .MyOS/ and deletes files with inherit:not
-        # (inheritance is applied on project creation, not on every load)
-        pass
-```
+- **`create(path)`**  
+  Turns a folder into a project:  
+  1) Finds a parent with `.MyOS/`  
+  2) Copies the parent configuration  
+  3) Removes files with `inherit: not`
 
-**Inheritance model (current):**
-- **On creation:** `ProjectConfig.create()` copies the parent `.MyOS/` directory and removes files with `inherit: not`.
-- **On changes:** `ProjectConfig.propagate_config(section, dry_run)` pushes a section to child projects, skipping `inherit: fix`.
-- **On load:** No automatic parent merge; only local `.MyOS/` is loaded.
+- **`propagate_config(section, dry_run)`**  
+  Writes a section into child projects (skips `inherit: fix`).
 
-### **5.2 Markdown Parser Helper (`core/config/parser.py`)**
-```python
-class MarkdownConfigParser:
-    @staticmethod
-    def parse_file(path: Path) -> Dict[str, Any]:
-        # Parses sections like:
-        #   # Templates
-        #   inherit: dynamic
-        #   items: Standard, Person
-        # and returns a dict structure used by ProjectConfig
-        pass
+**Override + Inheritance rules:**
+- **Single files override `Config.md`** for the same section.
+- **Inheritance can be defined in both** single files and `Config.md` sections.
+- If a section has **no inherit defined**, the default is **`dynamic`**.
 
-    @staticmethod
-    def find_inherit(section_data: Any) -> Optional[List[str]]:
-        # Extracts "inherit" from a section (list or dict)
-        pass
-```
+### **5.2 Markdown Parser (`core/config/parser.py`)**
+The parser reads `# Section` blocks and converts lines into simple data structures
+(key-value pairs, lists), so `ProjectConfig` can extract `inherit`, `items`, and similar fields.
 
 ## **6. Template Merging Logic**
-
-### **6.1 Building Embryo Tree**
-```python
-def build_embryo_tree(template_names: List[str], templates_dir: Path) -> Dict:
-    """Build combined embryo tree from multiple templates."""
-    combined_tree = {}
-    
-    for template_name in template_names:
-        template_path = templates_dir / template_name
-        if not template_path.exists():
-            logging.warning(f"Template not found: {template_name}")
-            continue
-        
-        # Load template structure (folders without %)
-        template_tree = scan_directory_tree(template_path)
-        
-        # Convert to embryo names (add % to folder names)
-        embryo_tree = convert_to_embryo_tree(template_tree)
-        
-        # Deep merge with existing tree
-        combined_tree = deep_merge_trees(combined_tree, embryo_tree)
-    
-    return combined_tree
-```
-
-### **6.2 Directory Scanning**
-```python
-def scan_directory_tree(path: Path) -> Dict:
-    """Scan directory and return tree structure."""
-    tree = {}
-    
-    for item in path.iterdir():
-        if item.is_dir() and not item.name.startswith('.'):
-            tree[item.name] = scan_directory_tree(item)
-    
-    return tree
-```
-
-### **6.3 Embryo Conversion**
-```python
-def convert_to_embryo_tree(tree: Dict) -> Dict:
-    """Convert folder names to embryo names (add % suffix)."""
-    embryo_tree = {}
-    
-    for name, subtree in tree.items():
-        embryo_name = f"{name}%"
-        embryo_tree[embryo_name] = convert_to_embryo_tree(subtree)
-    
-    return embryo_tree
-```
+The template system combines multiple template folders into a single **embryo tree**:
+1. Scan each template directory (folders only, ignore hidden items).
+2. Convert folder names into embryo names by appending `%`.
+3. Deep‑merge all template trees into one combined structure.
+4. Missing templates are skipped with a warning.
 
 ## **7. FUSE Integration**
-
-### **7.1 Updated Blueprint Class**
-```python
-class Blueprint(Operations):
-    def __init__(self, project_root: Path, templates_dir: Path = "~/.myos/templates"):
-        self.project = ProjectConfig(project_root)
-        
-        if not self.project.is_valid():
-            raise ValueError(f"No MyOS project at {project_root}")
-        
-        self.templates_dir = Path(templates_dir).expanduser()
-        self.template_names = self.project.templates
-        self.embryo_tree = build_embryo_tree(self.template_names, self.templates_dir)
-        
-        print(f"[Blueprint] Project: {self.project.path}")
-        print(f"[Blueprint] Templates: {self.template_names}")
-```
+The FUSE blueprint layer:
+- Validates the project with `ProjectConfig.is_valid()`.
+- Reads `ProjectConfig.templates` and builds the embryo tree.
+- Exposes the merged structure as a virtual filesystem view.
 
 ## **8. CLI Commands (Future)**
-
-### **8.1 Project Management**
-```bash
-# Create new project
-myos init /path/to/project
-
-# Add template to project
-myos template add Standard /path/to/project
-
-# Show project info
-myos status /path/to/project
-
-# List all templates
-myos template list
-```
-
-### **8.2 Configuration**
-```bash
-# Edit configuration
-myos config edit /path/to/project
-
-# Show inheritance chain
-myos config parents /path/to/project
-
-# Propagate template to subprojects
-myos template propagate Standard /path/to/project --recursive
-```
+Planned CLI capabilities:
+- Create and initialize projects
+- Add/remove templates
+- Show project status and templates
+- Edit config and show inheritance chain
+- Propagate config/template changes to subprojects
 
 ## **9. Testing Strategy**
 
@@ -237,7 +140,7 @@ test_lab/
 ```
 
 ### **9.2 Key Test Cases**
-1. **Empty .MyOS/** with `project.md` - Valid project
+1. **Empty .MyOS/** with `Project.md` - Valid project
 2. **Missing Templates.md** - Templates list is empty
 3. **inherit:not** - File is deleted on `create()`
 4. **propagate_config(dry_run)** - Reports affected children
@@ -246,7 +149,7 @@ test_lab/
 ## **10. Error Handling & Validation**
 
 ### **10.1 Graceful Degradation**
-- Missing `.MyOS/` or `.MyOS/project.md` → Clear error message
+- Missing `.MyOS/` or `.MyOS/Project.md` → Clear error message
 - Missing template → Warning log, skip that template
 - Invalid Markdown → Fallback to default parsing
 

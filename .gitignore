@@ -34,3 +34,6 @@ env/
 Myos Whitepaper.pdf
 Template.tar.gz
 core/tests/unit/test_lab/plate/Projekte/Haus/finanz/rechnungen/2026/rechnung.pdf
+
+# Generated test fixtures
+core/tests/unit/test_lab/

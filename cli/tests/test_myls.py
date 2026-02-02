@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from cli.myls import MyOSLister, parse_arguments, main
 
 def test_extended_flag_parsing(monkeypatch):
-    """Teste dass --extended Flag korrekt geparst wird."""
+    """Test that the --extended flag is parsed correctly."""
     monkeypatch.setattr(sys, 'argv', ['myls.py', '--extended'])
     args = parse_arguments()
     assert args.extended == True
@@ -26,7 +26,7 @@ def test_extended_flag_parsing(monkeypatch):
     assert args.extended == False
 
 def test_extended_view_without_api(capsys):
-    """Teste extended view ohne MyOS API."""
+    """Test extended view without MyOS API."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         (tmp / "file1.txt").touch()
@@ -62,7 +62,7 @@ class MockAPI:
         return "Standard"
 
 def test_extended_view_with_mock_api(capsys, monkeypatch):
-    """Teste extended view mit mock API für Embryos."""
+    """Test extended view with a mock API for embryos."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         (tmp / "admin").mkdir()
@@ -87,7 +87,7 @@ def test_extended_view_with_mock_api(capsys, monkeypatch):
         assert "[embryo]" in output or "Template:" in output
 
 def test_extended_color_output(capsys, monkeypatch):
-    """Teste farbige extended Ausgabe."""
+    """Test colored extended output."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         (tmp / "embryo_dir").mkdir()
@@ -120,7 +120,7 @@ def test_extended_color_output(capsys, monkeypatch):
         assert "embryo_dir" in captured.out
 
 def test_command_line_integration(monkeypatch):
-    """Teste myls.py mit --extended."""
+    """Test myls.py with --extended."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         (tmp / "testfile.txt").touch()
@@ -142,13 +142,13 @@ def test_command_line_integration(monkeypatch):
         assert "testfile.txt" in output
 
 def test_basic_extended():
-    """Einfacher Test für extended view."""
+    """Simple test for extended view."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         (tmp / "normal_dir").mkdir()
         (tmp / "normal_file.txt").touch()
         
         lister = MyOSLister(str(tmp))
-        # Sollte ohne Fehler laufen
+        # Should run without errors
         lister.list_extended()
         lister.list_extended(color=True)

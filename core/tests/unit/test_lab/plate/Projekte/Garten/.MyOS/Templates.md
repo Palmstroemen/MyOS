@@ -1,4 +1,0 @@
-# Project Templates
-
-## Templates
-- FalscherTemplateName

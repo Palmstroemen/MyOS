@@ -15,8 +15,8 @@ def setup_complete_test_config(root_dir: Path):
     myos_dir = root_dir / ".MyOS"
     myos_dir.mkdir(exist_ok=True)
     
-    # 1. project.md (required)
-    (myos_dir / "project.md").write_text("# MyOS Project\nRoot configuration for testing\n")
+    # 1. Project.md (required)
+    (myos_dir / "Project.md").write_text("# MyOS Project\nRoot configuration for testing\n")
     
     # 2. Templates.md
     (myos_dir / "Templates.md").write_text("""# Templates
@@ -79,14 +79,14 @@ class TestProjectConfig:
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            # Create .MyOS/ with empty project.md
+            # Create .MyOS/ with empty Project.md
             myos_dir = project_path / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# MyOS Project\n")
+            (myos_dir / "Project.md").write_text("# MyOS Project\n")
             
             config = ProjectConfig(project_path)
             
-            # Should be valid (has project.md)
+            # Should be valid (has Project.md)
             assert config.is_valid()
             assert config.templates == []  # No templates.md yet
             assert config.metadata == {}   # No manifest.md yet
@@ -101,7 +101,7 @@ class TestProjectConfig:
             # Create .MyOS/ structure with templates matching our config
             myos_dir = project_path / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# MyOS Project\n")
+            (myos_dir / "Project.md").write_text("# MyOS Project\n")
             
             # Write Templates.md matching our root configuration
             (myos_dir / "Templates.md").write_text("""# Templates
@@ -124,7 +124,7 @@ Finanzen
             
             myos_dir = project_path / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# MyOS Project\n")
+            (myos_dir / "Project.md").write_text("# MyOS Project\n")
             
             # Write Manifest.md
             (myos_dir / "Manifest.md").write_text("""# Project
@@ -159,7 +159,7 @@ Priority: High
             
             myos_dir = project_path / ".MyOS"
             assert myos_dir.exists()
-            assert (myos_dir / "project.md").exists()
+            assert (myos_dir / "Project.md").exists()
             assert (myos_dir / "Templates.md").exists()
             assert (myos_dir / "Manifest.md").exists()
             
@@ -184,7 +184,7 @@ Priority: High
             # Create initial structure
             myos_dir = project_path / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# Old Project\n")
+            (myos_dir / "Project.md").write_text("# Old Project\n")
             (myos_dir / "Templates.md").write_text("# Old\n- OldTemplate\n")
             (myos_dir / "Manifest.md").write_text("Old: yes\n")
             
@@ -208,22 +208,22 @@ Priority: High
             print(f"✓ Save updated existing files")
     
     def test_missing_project_md_is_invalid(self):
-        """Test that project without project.md is invalid."""
+        """Test that project without Project.md is invalid."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            # Create .MyOS/ but NO project.md
+            # Create .MyOS/ but NO Project.md
             myos_dir = project_path / ".MyOS"
             myos_dir.mkdir()
-            # Only templates.md, no project.md
+            # Only templates.md, no Project.md
             (myos_dir / "Templates.md").write_text("# Templates\n- Standard\n")
             
             config = ProjectConfig(project_path)
             
-            # Should NOT be valid without project.md
+            # Should NOT be valid without Project.md
             assert not config.is_valid()
-            print(f"✓ Missing project.md makes project invalid")
+            print(f"✓ Missing Project.md makes project invalid")
 
 
 class TestProjectInheritance:
@@ -303,7 +303,7 @@ class TestProjectInheritance:
         
         # Now delete files with inherit:not
         for config_file in child_myos.glob("*.md"):
-            if config_file.name == "project.md":
+            if config_file.name == "Project.md":
                 continue
             
             try:
@@ -361,7 +361,7 @@ class TestProjectFinder:
             # Create project at project_dir
             myos_dir = project_dir / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# Project\n")
+            (myos_dir / "Project.md").write_text("# Project\n")
             
             # Should find project from deep subdirectory
             found = ProjectFinder.find_nearest(subdir)
@@ -377,7 +377,7 @@ class TestProjectFinder:
             
             myos_dir = project_dir / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# Project\n")
+            (myos_dir / "Project.md").write_text("# Project\n")
             
             found = ProjectFinder.find_nearest(project_dir)
             assert found == project_dir
@@ -402,15 +402,15 @@ class TestProjectFinder:
             valid = Path(tmpdir) / "valid_project"
             valid.mkdir()
             (valid / ".MyOS").mkdir()
-            (valid / ".MyOS" / "project.md").write_text("# Project\n")
+            (valid / ".MyOS" / "Project.md").write_text("# Project\n")
             
             assert ProjectFinder.is_project(valid)
             
-            # Invalid: no project.md
+            # Invalid: no Project.md
             invalid1 = Path(tmpdir) / "invalid1"
             invalid1.mkdir()
             (invalid1 / ".MyOS").mkdir()
-            # Only templates.md, no project.md
+            # Only templates.md, no Project.md
             (invalid1 / ".MyOS" / "Templates.md").write_text("# Templates\n")
             
             assert not ProjectFinder.is_project(invalid1)
@@ -435,7 +435,7 @@ class TestProjectConfigEdgeCases:
             
             myos_dir = project_path / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# Project\n")
+            (myos_dir / "Project.md").write_text("# Project\n")
             
             # Create empty Config.md
             (myos_dir / "Config.md").write_text("")
@@ -456,7 +456,7 @@ class TestProjectConfigEdgeCases:
             
             myos_dir = project_path / ".MyOS"
             myos_dir.mkdir()
-            (myos_dir / "project.md").write_text("# Project\n")
+            (myos_dir / "Project.md").write_text("# Project\n")
             
             # Create malformed Templates.md (not proper markdown)
             (myos_dir / "Templates.md").write_text("Invalid: Content: More: Data")

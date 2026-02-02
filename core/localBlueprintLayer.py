@@ -1,4 +1,4 @@
-# localBlueprintLayer.py - Blueprint Klasse (FUSE-only Embryos)
+# localBlueprintLayer.py - Blueprint class (FUSE-only embryos)
 
 import os
 import stat
@@ -30,7 +30,7 @@ class BirthClinic:
         # 1. Find template source for this specific embryo
         template_source = self.find_template_source(embryo_path)
         
-        # 2. SECURITY: Validate template before copying
+        # Security: validate template before copying
         self._validate_template_security(template_source)
         
         # 3. Convert embryo path to physical path
@@ -39,7 +39,7 @@ class BirthClinic:
         # 4. Ensure parent directory exists
         target_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # 5. Copy template WITHOUT symlinks
+        # Security: copy template without symlinks
         self._copy_template_safely(template_source, target_path)
         
         print(f"BirthClinic: Embryo '{embryo_path}' → {target_path} (from {template_source})")
@@ -52,7 +52,7 @@ class BirthClinic:
         """
         issues = []
         
-        # Check for symlinks (forbidden in templates)
+        # Security: check for symlinks (forbidden in templates)
         try:
             for root, dirs, files in os.walk(template_source, followlinks=False):
                 # Check directories
@@ -74,20 +74,20 @@ class BirthClinic:
             raise ValueError(error_msg)
     
     def _copy_template_safely(self, source: Path, target: Path):
-        """Copy template directory WITHOUT symlinks."""
+        """Copy template directory without symlinks."""
         if source.is_dir():
-            # WICHTIG: symlinks=False verhindert das Kopieren von Symlinks
+            # Security: symlinks=False prevents copying symlinks
             shutil.copytree(
                 source, 
                 target, 
                 dirs_exist_ok=True,
-                symlinks=False,  # Keine Symlinks kopieren!
-                ignore_dangling_symlinks=True,  # Ignoriere defekte Symlinks
+                symlinks=False,  # Security: do not copy symlinks
+                ignore_dangling_symlinks=True,  # Security: ignore dangling symlinks
                 ignore=None
             )
             shutil.copystat(source, target)
         else:
-            # Für Dateien: copy2 kopiert keine Symlinks
+            # Security: copy2 does not follow symlinks for files
             shutil.copy2(source, target)
     
     def find_template_source(self, embryo_path: str) -> Path:
@@ -97,31 +97,30 @@ class BirthClinic:
         if not embryo_path:
             raise ValueError("Empty embryo path")
         
-        # 2. URL-decode FIRST (Angreifer könnten encoded Pfade senden)
+        # Security: URL-decode first (attackers can send encoded paths)
         import urllib.parse
         try:
-            # Sicher: Nur %2f (/), %5c (\) und %2e (.) decodieren
+            # Security: allow only key path characters to be decoded explicitly
             decoded = embryo_path
             decoded = decoded.replace('%2f', '/').replace('%2F', '/')
             decoded = decoded.replace('%5c', '\\').replace('%5C', '\\')
             decoded = decoded.replace('%2e', '.').replace('%2E', '.')
-            decoded = urllib.parse.unquote(decoded)  # Restliche Decoding
+            decoded = urllib.parse.unquote(decoded)  # Remaining decoding
         except:
             decoded = embryo_path
         
-        # 3. Normalize path separators (Unix/Windows)
-        # Ersetze Windows backslashes mit forward slashes für konsistente Prüfung
+        # Normalize path separators (Unix/Windows)
+        # Security: replace Windows backslashes with forward slashes
         normalized = decoded.replace('\\', '/')
         
-        # 4. SECURITY: Block ALL ".." ANYWHERE (strikt für Embryo-Pfade)
-        # Embryo-Pfade sollten nie ".." enthalten (sind immer relative Template-Pfade)
+        # Security: block ".." anywhere (embryo paths must stay relative)
         if ".." in normalized:
             raise ValueError(
                 f"Path traversal blocked (CWE-22): {embryo_path} "
                 f"(decoded: {decoded})"
             )
         
-        # 5. SECURITY: Block absolute paths (Unix & Windows & Network)
+        # Security: block absolute paths (Unix, Windows, Network)
         # Unix: /path, Windows: C:\path oder C:/path, Network: //server/path
         if (
             normalized.startswith('/') or  # Unix absolute
@@ -132,8 +131,7 @@ class BirthClinic:
                 f"Absolute path not allowed: {embryo_path}"
             )
         
-        # 6. SECURITY: Block hidden paths (optional, aber gut)
-        # Verhindert .ssh, .config, etc.
+        # Security: block hidden paths (e.g., .ssh, .config)
         parts = normalized.split('/')
         for part in parts:
             if part and part.startswith('.'):
@@ -141,11 +139,11 @@ class BirthClinic:
                     f"Hidden paths not allowed in embryo context: {embryo_path}"
                 )
         
-        # JETZT erst Template-Suche
+        # Only now: template search
         parts = normalized.strip('/').split('/')
         
         for template_name in self.blueprint.template_names:
-            # SECURITY: Auch Template-Namen validieren
+            # Security: validate template names
             if not template_name or '..' in template_name or '/' in template_name:
                 print(f"WARNING: Skipping invalid template name: {template_name}")
                 continue
@@ -214,7 +212,7 @@ class Blueprint(Operations):
         self.embryo_tree = self._load_embryo_tree()
         self.mount_time = time.time()
         
-        # Cache für Embryo-Status (Pfad → True/False)
+        # Cache for embryo status (path -> True/False)
         self._embryo_cache: Dict[str, bool] = {}
         
         print(f"Blueprint: Mounted on {self.project_root}")
@@ -222,10 +220,10 @@ class Blueprint(Operations):
         print(f"Blueprint: Active templates: {self.template_names}")
 
     def _find_project_root(self, start_path: Path) -> Path:
-        """Find the nearest project root by searching for .MyOS/project.md upwards."""
+        """Find the nearest project root by searching for .MyOS/Project.md upwards."""
         current = start_path
         while current != current.parent:
-            if (current / ".MyOS" / "project.md").exists():
+            if (current / ".MyOS" / "Project.md").exists():
                 return current
             current = current.parent
         raise ValueError(f"No project root found from {start_path}")
@@ -282,20 +280,20 @@ class Blueprint(Operations):
         if not path:
             return False
         
-        # Prüfe zuerst physischen Status (hat Vorrang!)
+        # Check physical existence first (takes precedence)
         physical = self._physical_path(path)
         exists_physically = physical.exists()
         
-        # Wenn physisch existiert → definitiv kein Embryo
+        # If it exists physically, it is not an embryo
         if exists_physically:
             self._embryo_cache[path] = False
             return False
         
-        # Cache prüfen (nur wenn nicht physisch existiert)
+        # Check cache (only if not physically present)
         if path in self._embryo_cache:
             return self._embryo_cache[path]
         
-        # Prüfe ob in Embryo-Tree
+        # Check if path exists in embryo tree
         parts = path.split('/')
         node = self.embryo_tree
         
@@ -303,7 +301,7 @@ class Blueprint(Operations):
             if part in node:
                 node = node[part]
             else:
-                # Teil nicht gefunden → kein Embryo
+                # Not found -> not an embryo
                 node = None
                 break
         
@@ -316,7 +314,7 @@ class Blueprint(Operations):
         """Check if any part of a path is an embryo."""
         parts = path.strip('/').split('/') if path else []
         
-        # Prüfe jeden Teilpfad
+        # Check every subpath
         current_path = ""
         for part in parts:
             if current_path:
@@ -337,20 +335,20 @@ class Blueprint(Operations):
         embryos = []
         
         if not rel_path:
-            # Root level: Embryos direkt im Wurzelverzeichnis
+            # Root level: embryos directly under project root
             node = self.embryo_tree
         else:
-            # Navigiere zum Knoten
+            # Navigate to the requested node
             node = self.embryo_tree
             parts = rel_path.split('/')
             for i, part in enumerate(parts):
                 if part in node:
                     node = node[part]
                 else:
-                    # Nicht gefunden → keine Embryos hier
+                    # Not found -> no embryos here
                     return []
         
-        # Alle Kinder, die Embryos sind
+        # Include children that are embryos
         for name in node.keys():
             # Build the full path
             if rel_path:
@@ -358,7 +356,7 @@ class Blueprint(Operations):
             else:
                 full_path = name
             
-            # Nur wenn es ein Embryo ist (physisch nicht existiert)
+            # Only when it is an embryo (not physically present)
             if self.is_embryo(full_path):
                 embryos.append(name)
         
@@ -385,22 +383,22 @@ class Blueprint(Operations):
                 embryo_parts.append(part)
                 current_path = test_path
             else:
-                # Sobald wir einen nicht-Embryo Teil erreichen, stoppen wir
+                # Stop once a non-embryo segment is reached
                 break
         
         if not embryo_parts:
             raise ValueError(f"No embryo found in path: {fuse_path}")
         
-        # Embryo-Pfad (nur die Embryo-Teile)
+        # Embryo path (only embryo segments)
         embryo_path = '/'.join(embryo_parts)
         
-        # Restlicher Pfad nach dem Embryo
+        # Remaining path after the embryo
         remaining_parts = parts[len(embryo_parts):]
         
-        # Geburt für den Embryo durchführen
+        # Trigger birth for the embryo
         newborn = self.birth_clinic.give_birth(embryo_path)
         
-        # Restlichen Pfad erstellen
+        # Create remaining path parts
         for part in remaining_parts:
             newborn = newborn / part
         
@@ -411,11 +409,11 @@ class Blueprint(Operations):
         return True
 
     # ------------------------------------------------------------
-    # FUSE Operations (überarbeitet für FUSE-only Embryos)
+    # FUSE Operations (FUSE-only embryos)
     # ------------------------------------------------------------
 
     def getattr(self, path: str, fh=None) -> Dict[str, Any]:
-        # Optional: Warnung bei Symlinks im Projekt
+        # Security: warn about symlinks in the project path
         physical = self._physical_path(path)
         if physical.exists() and physical.is_symlink():
             print(f"SECURITY NOTICE: Symlink detected at {path}")
@@ -424,13 +422,12 @@ class Blueprint(Operations):
         rel_path = path.lstrip('/')
         
         if self.is_embryo(rel_path):
-            # Es ist ein Embryo-Verzeichnis
-            # Finde Template-Quelle für korrekte Metadaten
+            # Embryo directory; use template source for metadata
             try:
                 template_source = self.birth_clinic.find_template_source(rel_path)
                 st = os.lstat(template_source)
                 return {
-                    'st_mode': stat.S_IFDIR | 0o555,  # Read-only für Embryos
+                    'st_mode': stat.S_IFDIR | 0o555,  # Read-only for embryos
                     'st_nlink': 2,
                     'st_size': 4096,
                     'st_ctime': self.mount_time,
@@ -440,7 +437,7 @@ class Blueprint(Operations):
                     'st_gid': os.getgid(),
                 }
             except (ValueError, OSError):
-                # Template nicht gefunden, Standard-Werte
+                # Template not found: fall back to default values
                 pass
         
         # 2. Check physical paths
@@ -481,15 +478,15 @@ class Blueprint(Operations):
 
         entries = ['.', '..']
 
-        # Physische Einträge (haben Vorrang!)
+        # Physical entries (take precedence)
         for item in os.listdir(physical):
             if not item.startswith('.'):
                 entries.append(item)
 
-        # Embryos an diesem Level (nur wenn nicht schon physisch existiert)
+        # Embryos at this level (only if not already physical)
         embryos_here = self.get_embryos_at(rel_path)
         for embryo in embryos_here:
-            # Prüfe ob nicht schon physisch existiert (sollte durch get_embryos_at schon gefiltert sein)
+            # Ensure it does not already exist physically
             if embryo not in entries and self._has_write_permission_for_embryo(embryo):
                 entries.append(embryo)
 

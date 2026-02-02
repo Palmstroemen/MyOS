@@ -1,16 +1,8 @@
-Schreibe Kommentare im Code auf englisch.
+Write code comments in English.
 
-Vor Methoden oder Programmbereichen, die der Sicherheit dienen schreibe einen Kommentar wie:
+For security-relevant code blocks, add a header comment like:
 "# Security: To avoid ..."
-Wichtig ist das Keyword Security: am Anfang
+The keyword "Security:" must be at the beginning.
 
-Schreibe niemals Code, den du nicht siehst bzw. wirklich gut kennst.
+Never write code you cannot see or fully understand in this repository.
 
-# Test
-## Test
-### Test
-#### Test
-##### Test
-###### Test
-###### Test
-Test
