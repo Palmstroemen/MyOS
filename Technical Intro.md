@@ -1,5 +1,11 @@
 # MyOS Project Details & Technical Notes
 
+## Design Docs
+
+- `core/Dokumentation/Designdocument Projects.md`
+- `core/Dokumentation/Designdocument BlueprintLayer.md`
+- `core/Dokumentation/Designdocument ACLs.md`
+
 ## Repository Structure
 
 MyOS/  
@@ -212,36 +218,3 @@ cp existing.pdf mount/docs%/
 ---
 
 _Last updated: MyOS Prototype v0.2.0_
-
-text
-
-Jetzt ist die Sprache durchgängig Englisch und konsistent. Die Haupt-README.md ist optimiert für GitHub-Besucher, während PROJECT_DETAILS.md detaillierte technische Informationen für Entwickler bereitstellt.
-
-Ich sehe nur nicht genau, wo das Readme endet, und das Project_details beginnt. Bitte kurze Antwort.
-
-**README.md** ist die Hauptdatei für GitHub-Besucher und enthält:
-
-- Einführung, Features, Quick Start
-    
-- Installationsanleitung, Architektur-Übersicht
-    
-- Command Reference, Status, Roadmap
-    
-- Contributing, License, Acknowledgments
-    
-
-**PROJECT_DETAILS.md** ist für Entwickler und enthält:
-
-- Repository-Struktur im Detail
-    
-- Entwickler-Setup mit 3 Optionen
-    
-- Detaillierte Testanleitungen
-    
-- Technische Architekturdetails
-    
-- Sicherheitsdetails und Best Practices
-    
-- Roadmap-Details und Contribution-Richtlinien
-    
-- Performance-Considerations

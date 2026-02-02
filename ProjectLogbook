@@ -28,9 +28,17 @@
 - [ ] Projekt-Ordnerstruktur anlegen und initial committen
 - [ ] `freaky_funky_playground`-Ordner einrichten
 - [ ] Obsidian-Startkonfiguration definieren
-- [ ] Rechteverwaltungskonzept skizzieren
+- [ ] Rechteverwaltungskonzept skizzieren (siehe **Design Docs**)
 - [ ] Lokalisierungsstrategie für Ordnernamen aufsetzen
 - [ ] Ideen- und Statusdatei (`IDEAS_TODO_LEARNINGS.md`) pflegen
+
+---
+
+## 📐 DESIGN DOCS
+
+- `core/Dokumentation/Designdocument Projects.md`
+- `core/Dokumentation/Designdocument BlueprintLayer.md`
+- `core/Dokumentation/Designdocument ACLs.md`
 
 ---
 
