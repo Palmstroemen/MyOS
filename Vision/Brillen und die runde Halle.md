@@ -1,0 +1,13 @@
+Stelle dir vor, du hast eine große runde Halle in der du all deine Projekte organisierst.
+
+In der Mitte gibt es einen gläsernen Turm, in dem auf verschiedenen Stockwerken unterschiedliche Abteilungen untergebracht sind. Die Finanzabteilung, die Rechtsabteilung darüber, das Archiv für Dokumentationen im Keller...
+
+Rund um diesen Turm sind deine Projekte organisiert. Da gibt es die Autowerkstätte mit den Garagenstellplätzen für 5 Autos. Da gibt es das Musikstudio, den Bereich für deine Familie und Freunde, die Freizeiträume, deinen Job mit all seinen Projekten. Und in jedem dieser Räume gibt es ein Regal, mit Ordnern für Administration, Finanzen, Dokumentation, ...
+
+Und diese sind über eine Rohrpostleitung mit all den Abteilungen in deinem gläsernen Turm verbunden. Der Finanzen-Ordner mit der Finanzabteilung.
+Oder stelle dir vor, du hast von jedem deiner Projekte aus eine Leiter und eine Türe zu diesen Abteilungen. Du kannst von überall sofort in die Finanzabteilung gehen. Der Finanzen-Ordner in deiner Werkstatt ist das Portal dazu. 
+
+Aus Sicht der Werkstatt siehst du dein Regal mit den Ordnern und ihren Unterordnern (Finanzen - Angebote, Ein- und Ausgaben, ...)
+
+Aus Sicht der Finanzabteilung siehst du NUR Finanzen in der Organisationsstruktur all deiner Projekte. Bist du in der Finanzabteilung, hast du ein Regal mit lauter Ordnern, die mit deinen Projekten beschriftet sind. Familie, Freizeit, Job, Autos, Computer, ...
+Du setzt dir sozusagen die **Brille eines Buchhalters** auf, und betrachtest durch diese Brille all deine Projekte. Oder die Brille eines Archivars in der Dokumentationsabteilung. Die Brille eines HR-Managers in der Teams-Abteilung, ...

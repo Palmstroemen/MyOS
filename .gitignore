@@ -1,0 +1,36 @@
+.DS_Store
+Thumbs.db
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor/IDE
+.idea/
+.vscode/
+
+# Local env files
+.env
+.env.*
+
+# Backups
+*.bak
+*.bac
+*.backup
+*.backup2
+
+# Build/test artifacts
+*.log
+
+# Exclude large/outdated assets
+Myos Whitepaper.pdf
+Template.tar.gz
+core/tests/unit/test_lab/plate/Projekte/Haus/finanz/rechnungen/2026/rechnung.pdf

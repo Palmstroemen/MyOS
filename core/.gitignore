@@ -1,0 +1,18 @@
+
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Temporary test directories
+myos_test_*
+myls_test_*
+myos_sample_*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

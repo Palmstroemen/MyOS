@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""
+MyOS VLP - View/Lens/Plate Architektur
+Minimal implementiert für erste Tests
+"""
+
+from pathlib import Path
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+import os
+
+@dataclass
+class PlateManager:
+    """Physischer Storage (PLATE)"""
+    root: Path = field(default_factory=lambda: Path.home() / "myos_plates")
+    
+    def __post_init__(self):
+        self.root = self.root.expanduser()
+        self.root.mkdir(parents=True, exist_ok=True)
+    
+    def physical_path(self, virtual_path: str = "") -> Path:
+        """
+        Konvertiert virtuellen Pfad zu physischem Pfad.
+        
+        Args:
+            virtual_path: Pfad relativ zum Plate-Root
+        """
+        if not virtual_path or virtual_path == ".":
+            return self.root
+        
+        # Normalisiere Pfad
+        if virtual_path.startswith("/"):
+            virtual_path = virtual_path[1:]
+        
+        return self.root / virtual_path
+    
+    def exists(self, virtual_path: str = "") -> bool:
+        """Prüft ob Pfad existiert"""
+        return self.physical_path(virtual_path).exists()
+    
+    def materialize(self, virtual_path: str) -> Path:
+        """
+        Erstellt physische Struktur.
+        
+        Returns:
+            Path zum erstellten Pfad
+        """
+        path = self.physical_path(virtual_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    
+    def list_dir(self, virtual_path: str = "") -> List[str]:
+        """Listet physisches Verzeichnis auf"""
+        path = self.physical_path(virtual_path)
+        if path.exists():
+            return os.listdir(path)
+        return []
+
+@dataclass
+class LensTemplate:
+    """Template-Definition (Teil von LENS)"""
+    name: str
+    path: Path
+    ghost_tree: Dict[str, List[str]] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if not self.ghost_tree:
+            self.ghost_tree = self._scan_template()
+    
+    def _scan_template(self) -> Dict[str, List[str]]:
+        """Scannt Template-Verzeichnis rekursiv"""
+        tree = {}
+        try:
+            for item in self.path.iterdir():
+                if item.is_dir() and not item.name.startswith('.'):
+                    # Rekursiv scannen
+                    subtemplate = LensTemplate("", item)
+                    tree[item.name] = list(subtemplate._scan_template().keys())
+        except FileNotFoundError:
+            pass
+        return tree
+    
+    def ghosts_at(self, current_path: str = "") -> List[str]:
+        """
+        Gibt Ghosts für aktuellen Pfad zurück.
+        
+        Args:
+            current_path: Aktueller Pfad (z.B. "infos%", "infos%/intern%")
+        
+        Returns:
+            Liste von Ghost-Namen mit % Suffix
+        """
+        # Normalisiere Pfad
+        if current_path == "/" or not current_path:
+            current_path = ""
+        else:
+            current_path = current_path.strip('/')
+        
+        # Starte bei Root des Baums
+        node = self.ghost_tree
+        
+        # Navigiere durch Pfadsegmente
+        if current_path:
+            parts = current_path.split('/')
+            for part in parts:
+                part = part.rstrip('%')  % entfernen
+                if part in node:
+                    node = {k: [] for k in node[part]}
+                else:
+                    return []  # Pfad existiert nicht im Template
+        
+        # Gib Ghosts zurück
+        return [f"{name}%" for name in node.keys()]
+
+# TODO: LensEngine (FUSE), View, ProjectConfig, etc.
+
+# --- Hilfsfunktionen für Tests ---
+def create_standard_template(path: Path) -> LensTemplate:
+    """Erstellt Standard-Template für Tests"""
+    template_dir = path / "template_standard"
+    template_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Struktur
+    (template_dir / "infos").mkdir()
+    (template_dir / "infos" / "intern").mkdir()
+    (template_dir / "infos" / "web").mkdir()
+    (template_dir / "team").mkdir()
+    (template_dir / "admin").mkdir()
+    
+    # Konfiguration
+    (template_dir / ".project.cfg").write_text("MyOS v0.1\ntemplate: standard\n")
+    
+    return LensTemplate("standard", template_dir)
+
+if __name__ == "__main__":
+    print("MyOS VLP Module")
+    print("Use: python3 -m pytest tests/test_vlp.py -v")
