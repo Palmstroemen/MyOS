@@ -158,6 +158,30 @@ class TestMyOSListerBasic(unittest.TestCase):
         # returncode may be 0 or 1 depending on implementation
         self.assertIn(test_file.name, result.stdout + result.stderr)
 
+    def test_tags_output(self):
+        """Tags should show when xattr is available."""
+        if not hasattr(os, "setxattr") or not hasattr(os, "getxattr"):
+            self.skipTest("xattr not available on this platform")
+
+        tag_target = self.test_path / "tagged.txt"
+        tag_target.write_text("tagged")
+
+        try:
+            os.setxattr(str(tag_target), "user.myos.tags", b"wichtig=60, dringend=20")
+        except OSError:
+            self.skipTest("xattr not supported on this filesystem")
+
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        buffer = StringIO()
+        with redirect_stdout(buffer):
+            self.lister.list_tags()
+        output = buffer.getvalue()
+
+        self.assertIn("tagged.txt", output)
+        self.assertIn("wichtig=60", output)
+
 if __name__ == '__main__':
     # For unittest only (without pytest)
     unittest.main()

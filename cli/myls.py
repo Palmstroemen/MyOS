@@ -111,6 +111,25 @@ class MyOSLister:
             total_embryos = sum(len(self.api.get_embryos_at(p)) 
                               for p in [""] + list(self.api.embryo_tree.keys()))
             print(f"\nProject has {total_embryos} total embryos available")
+
+    def list_tags(self) -> None:
+        """List files with tags from filesystem metadata."""
+        tags_found = False
+        try:
+            items = sorted(self.root.iterdir())
+        except PermissionError:
+            print(f"Error: Cannot read directory {self.root}", file=sys.stderr)
+            return
+
+        for item in items:
+            tags = _read_tags_xattr(item)
+            if not tags:
+                continue
+            tags_found = True
+            print(f"{item.name}: {', '.join(tags)}")
+
+        if not tags_found:
+            print("No tags found.")
     
     # Existing methods retained
     def list_normal(self) -> None:
@@ -216,6 +235,12 @@ def parse_arguments(args=None) -> argparse.Namespace:
     )
     
     parser.add_argument(
+        '--tags',
+        action='store_true',
+        help='Show tags (from filesystem metadata)'
+    )
+
+    parser.add_argument(
         '--version',
         action='version',
         version='myls 0.2.0 (MyOS Prototype)'
@@ -233,6 +258,8 @@ def main() -> None:
         # Dispatch to the selected view
         if args.extended or args.potential:
             lister.list_extended(color=args.color)
+        elif args.tags:
+            lister.list_tags()
         elif args.recent is not None:
             lister.list_recent(limit=args.recent)
         elif args.roentgen is not None:
@@ -255,3 +282,20 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+
+
+def _read_tags_xattr(path: Path) -> List[str]:
+    key = "user.myos.tags"
+    if not hasattr(os, "getxattr"):
+        return []
+    try:
+        raw = os.getxattr(str(path), key)
+    except (OSError, AttributeError):
+        return []
+    try:
+        value = raw.decode("utf-8").strip()
+    except Exception:
+        return []
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
