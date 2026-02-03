@@ -632,6 +632,35 @@ class ProjectFinder:
         return False
 
 
+def find_projects(start_path: Union[str, Path]) -> List[ProjectConfig]:
+    """
+    Find project configs from the given path upwards.
+    Order is most specific first.
+    """
+    start_path = Path(start_path).expanduser().resolve()
+    if start_path.is_file():
+        start_path = start_path.parent
+
+    results: List[ProjectConfig] = []
+    current = start_path
+    while True:
+        candidate = ProjectConfig(current)
+        if candidate.is_valid():
+            results.append(candidate)
+        if current == current.parent:
+            break
+        current = current.parent
+    return results
+
+
+def resolve_cwp(start_path: Union[str, Path]) -> Optional[ProjectConfig]:
+    """Resolve current working project for a given path."""
+    found = ProjectFinder.find_nearest(start_path)
+    if not found:
+        return None
+    return ProjectConfig(found)
+
+
 
 if __name__ == "__main__":
     # Smoke test. Run from repo root: python3 -m core.project

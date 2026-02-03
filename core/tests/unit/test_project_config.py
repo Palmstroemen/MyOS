@@ -7,6 +7,7 @@ import shutil
 import os
 
 from core.project import ProjectConfig, ProjectFinder
+from core.project import find_projects, resolve_cwp
 from core.config.parser import MarkdownConfigParser
 
 # Helper function for test setup
@@ -482,6 +483,50 @@ class TestProjectCLI:
         assert hasattr(ProjectConfig, 'propagate_command')
         
         print(f"✓ CLI command structure exists")
+
+
+def test_find_projects_orders_by_specificity():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "Root"
+        sub = root / "Sub"
+        deep = sub / "Deep"
+        deep.mkdir(parents=True)
+
+        (root / ".MyOS").mkdir(parents=True)
+        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (sub / ".MyOS").mkdir(parents=True)
+        (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+
+        results = find_projects(deep)
+
+        assert [cfg.path.name for cfg in results] == ["Sub", "Root"]
+
+
+def test_resolve_cwp_returns_nearest_project():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "Root"
+        sub = root / "Sub"
+        deep = sub / "Deep"
+        deep.mkdir(parents=True)
+
+        (root / ".MyOS").mkdir(parents=True)
+        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (sub / ".MyOS").mkdir(parents=True)
+        (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+
+        cwp = resolve_cwp(deep)
+
+        assert cwp is not None
+        assert cwp.path == sub
+
+
+def test_resolve_cwp_none_when_no_project():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "Root"
+        sub = root / "Sub"
+        sub.mkdir(parents=True)
+
+        assert resolve_cwp(sub) is None
 
 
 # Note: The make_project() function tests have been removed because 

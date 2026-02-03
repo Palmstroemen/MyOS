@@ -145,7 +145,15 @@ independent of the underlying filesystem.
 
 ---
 
-## **7. MVP Scope**
+## **7. Public API (Draft)**
+Public API should live in `core/acl.py` and be used by CLI/GUI:
+- `ACLPolicy.from_project(project_root)`
+- `ACLPolicy.can_access(role, path, right)`
+- `ACLPolicy.roles_for_user(username)`
+
+---
+
+## **8. MVP Scope**
 The MVP should demonstrate that **access control is real and intentional**:
 - ACLs stored in `.MyOS/ACLs.md`
 - Role‑based checks in the MyOS layer (FUSE/CLI)
@@ -154,7 +162,7 @@ The MVP should demonstrate that **access control is real and intentional**:
 
 ---
 
-## **8. Plugin‑Ready Architecture (Concept)**
+## **9. Plugin‑Ready Architecture (Concept)**
 Define a small, stable interface for ACL backends:
 - **Read rules** from `.MyOS/ACLs.md`
 - **Resolve role → allowed paths**
@@ -163,7 +171,7 @@ Define a small, stable interface for ACL backends:
 
 ---
 
-## **9. Open Questions**
+## **10. Open Questions**
 - Do we need additional rights beyond the MVP set? (e.g., list, birth)
 - Do we ever need a dedicated `mychmod` command, or is ACL editing sufficient?
 - How should role inheritance be expressed?
@@ -172,7 +180,7 @@ Define a small, stable interface for ACL backends:
 
 ---
 
-## **10. Summary**
+## **11. Summary**
 MyOS ACLs are **human‑first** and **portable**:
 - **Self‑explanatory** because they mirror project structure
 - **Adaptable** via templates

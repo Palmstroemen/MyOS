@@ -148,7 +148,14 @@ Options (non-binding):
 
 ---
 
-## **13. Open Questions**
+## **13. Public API (Draft)**
+Public API should live in `core/exporter.py` and `core/importer.py` and be used by CLI/GUI:
+- `export_subtree(source_path, output_dir, package_name=None, zip_output=False)`
+- `import_package(package_path, target_root=None, mode="adopt", conflict="merge")`
+
+---
+
+## **14. Open Questions**
 - live MyOS bundle as optional export target?
 - read-only template export mode?
 - conflict resolution UI for large imports?
@@ -156,7 +163,7 @@ Options (non-binding):
 
 ---
 
-## **14. Not Realized Yet**
+## **15. Not Realized Yet**
 - Importer module (merge modes, conflict UI, and adoption flow)
 - Export history log in the original project
 - Live-MyOS bundle option
@@ -165,7 +172,7 @@ Options (non-binding):
 
 ---
 
-## **15. Summary**
+## **16. Summary**
 The export/import design aims for portability and clarity:
 - subtree exports rooted in a project
 - config and ACLs always travel with the data
