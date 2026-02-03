@@ -31,6 +31,7 @@ class MarkdownConfigParser:
         current_section = None
         current_items = []
         state = "SLEEPING"
+        root_items = []
         
         for line in stream:
             line = line.rstrip('\n')  # Strip newline only
@@ -52,7 +53,7 @@ class MarkdownConfigParser:
             if stripped.startswith('#') and ' ' in stripped:
                 # Finalize previous section
                 if current_section is not None and current_items:
-                    result[current_section] = MarkdownConfigParser._finalize_items(current_items)
+                    result = MarkdownConfigParser._merge_section_items(result, current_section, current_items)
                 
                 # Start new section
                 hash_end = stripped.find(' ')
@@ -67,7 +68,7 @@ class MarkdownConfigParser:
                 # Empty line ends a section
                 if not stripped:
                     if current_items:
-                        result[current_section] = MarkdownConfigParser._finalize_items(current_items)
+                        result = MarkdownConfigParser._merge_section_items(result, current_section, current_items)
                     current_section = None
                     state = "SLEEPING"
                     continue
@@ -76,18 +77,26 @@ class MarkdownConfigParser:
                 item = MarkdownConfigParser._parse_line(stripped)
                 if item is not None:
                     current_items.append(item)
-                else:
-                    # Invalid line -> end section
-                    if current_items:
-                        result[current_section] = MarkdownConfigParser._finalize_items(current_items)
-                    current_section = None
-                    state = "SLEEPING"
                     continue
+                if current_items:
+                    result = MarkdownConfigParser._merge_section_items(result, current_section, current_items)
+                current_section = None
+                state = "SLEEPING"
+                continue
+
+            # Root-level list items (file starts with list without headers)
+            if state == "SLEEPING" and current_section is None and stripped:
+                item = MarkdownConfigParser._parse_line(stripped)
+                if item is not None:
+                    root_items.append(item)
+                continue
         
         # Store last section
         if current_section is not None and current_items:
-            result[current_section] = MarkdownConfigParser._finalize_items(current_items)
+            result = MarkdownConfigParser._merge_section_items(result, current_section, current_items)
         
+        if not result and root_items:
+            return MarkdownConfigParser._finalize_items(root_items)
         return result
     
     @staticmethod
@@ -130,8 +139,9 @@ class MarkdownConfigParser:
             if ',' in value:
                 items = [item.strip() for item in value.split(',')]
                 return {key: items}
-            else:
-                return {key: [value]}
+            if ' ' in value:
+                return None
+            return {key: [value]}
         
         # 2. List item with "*" (optional)
         if line.startswith('* '):
@@ -187,6 +197,26 @@ class MarkdownConfigParser:
         
         # 4. Fallback: return as-is
         return items
+
+    @staticmethod
+    def _merge_section_items(result: Dict[str, Any], section: str, items: List[Any]) -> Dict[str, Any]:
+        finalized = MarkdownConfigParser._finalize_items(items)
+        if section not in result:
+            result[section] = finalized
+            return result
+
+        existing = result[section]
+        if isinstance(existing, list) and isinstance(finalized, list):
+            existing.extend(finalized)
+            return result
+        if isinstance(existing, dict) and isinstance(finalized, dict):
+            existing.update(finalized)
+            return result
+        if isinstance(existing, list):
+            existing.append(finalized)
+            return result
+        result[section] = [existing, finalized]
+        return result
     
     @staticmethod
     def find_inherit(section_data: Any) -> Optional[List[str]]:

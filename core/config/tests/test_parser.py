@@ -80,7 +80,7 @@ Item2"""
         result = MarkdownConfigParser.parse(content)
         print(f"\nDEBUG test_ignore_after_text: {result}")
         
-        self.assertEqual(result["Section"], ["Item1"])  # Nur Item1, Text bricht ab
+        self.assertEqual(result["Section"], ["Item1"])  # Text bricht ab
     
     def test_multiple_sections(self):
         """Mehrere Sections"""
@@ -132,3 +132,33 @@ red, green"""
             self.assertEqual(result["Test"], ["Item1", "Item2"])
         finally:
             os.unlink(temp_path)
+
+    def test_root_list(self):
+        """Root-level list without headers"""
+        content = """Standard
+Website"""
+        result = MarkdownConfigParser.parse(content)
+        self.assertEqual(result, ["Standard", "Website"])
+
+    def test_key_value_with_spaces_is_ignored(self):
+        """Key-value with spaces in value should end section"""
+        content = """# Meta
+Name: My Project
+Tag"""
+        result = MarkdownConfigParser.parse(content)
+        self.assertNotIn("Meta", result)
+
+    def test_duplicate_headers_merge(self):
+        """Repeated sections should merge items"""
+        content = """# Templates
+Standard
+Person
+
+# Notes
+Ignore
+
+### Templates
+FiBu
+Scrum"""
+        result = MarkdownConfigParser.parse(content)
+        self.assertEqual(result["Templates"], ["Standard", "Person", "FiBu", "Scrum"])

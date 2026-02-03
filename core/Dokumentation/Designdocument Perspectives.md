@@ -46,39 +46,39 @@ Inheritance follows standard rules with `dynamic` as default. A future global mo
 ---
 
 ## **6. Perspective Definition (Draft)**
-Perspectives are defined with sections for scope, rules, and display. The current Markdown parser prefers lists and stops at empty lines, so the draft format below uses list-style items and compact sections.
+Perspectives are defined with sections for scope, rules, and display. The parser accepts simple lines directly under headers and stops at empty lines, so the draft format below avoids blank lines inside sections.
 
 ```
 # Perspective
-* Name: Finance
-* Scope: /finanz/
+Name: Finance
+Scope: /finanz/
 
 ## Include
-* /finanz/
-* /rechtliches/
+/finanz/
+/rechtliches/
 
 ## Exclude
-* /finanz/schwarzgeld/
+/finanz/schwarzgeld/
 
 ## Filter
-* */rechnung.pdf
-* */invoice.pdf
-* */*rechnung.*
-* */*invoice.*
-* /*.jpg
+*/rechnung.pdf
+*/invoice.pdf
+*/*rechnung.*
+*/*invoice.*
+/*.jpg
 
 ## Flatten
-* true
+true
 
 ## Group
-* project
-* tags
+project
+tags
 
 ## Desk
-* Desk.md
+Desk.md
 ```
 
-Open item: we may evolve the parser to allow more natural inline formatting later (e.g., `## Group_by: project`), but for now we should stay consistent with existing rules.
+Open item: we may evolve the parser to allow more natural inline formatting later (e.g., `## Group_by: project`). We also keep “friendly input” options like pipe-separated lists (`| A | B | C`) in mind for the future, but not for MVP.
 
 ---
 
