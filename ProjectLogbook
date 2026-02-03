@@ -49,6 +49,12 @@
 - Ein Repository für alles ist sinnvoll zum Start, spätere Ausgliederung nach Momentum
 - GitHub Actions optional für CI/CD, aktuell noch nicht nötig
 - Prototypen und Experimente strikt im `freaky_funky_playground` halten
+- Pfadlängenlimits bedenken: ggf. Projekte auf Wurzelebene „brechen“ und in `.MyOS/Project.md` einen Referenzpfad hinterlegen (`## path: /...`)
+- Exporter: Standard als Ordner, optional zip; Templates immer mitgeben (ggf. ohne Schreibrechte); Embryos nicht exportieren; optional „Live‑MyOS“ mitsenden (nicht MVP)
+- Export‑Scope: letzte Projektwurzel + nur Subtree; Referenzpfad speichern für Re‑Import (z. B. `/Projekte/Haus/Dach/`)
+- Import: Default „merge“, aber Konfliktmodi pro Datei/Ordner nötig; ACL/Template‑Änderungen sichtbar machen und optional übernehmen
+- Perspektiven: entstehen als „Brille“ beim CWD‑Wechsel (z. B. in `/finanz/`), später persistierbar und direkt ladbar; Perspektiven bekommen eigene `Desk.md`
+- Year/Month/Day‑Strukturen: optionales Add‑on; ggf. limitierbar; Einordnung über Metadaten/Erstellungs‑/Änderungsdatum mit wählbarer Strategie
 
 ---
 
