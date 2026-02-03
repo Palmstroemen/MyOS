@@ -55,6 +55,7 @@
 - Import: Default „merge“, aber Konfliktmodi pro Datei/Ordner nötig; ACL/Template‑Änderungen sichtbar machen und optional übernehmen
 - Perspektiven: entstehen als „Brille“ beim CWD‑Wechsel (z. B. in `/finanz/`), später persistierbar und direkt ladbar; Perspektiven bekommen eigene `Desk.md`
 - Year/Month/Day‑Strukturen: optionales Add‑on; ggf. limitierbar; Einordnung über Metadaten/Erstellungs‑/Änderungsdatum mit wählbarer Strategie
+- Perspektiven‑Vererbung: möglicher zusätzlicher globaler Modus `sparse` (like dynamic but only store deltas); MVP bleibt bei `dynamic`
 
 ---
 
