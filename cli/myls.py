@@ -17,6 +17,7 @@ try:
     # Try to import the MyOS API
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from core.localBlueprintLayer import Blueprint
+    from core.tags import read_tags
     HAS_MYOS = True
 except ImportError:
     HAS_MYOS = False
@@ -122,11 +123,15 @@ class MyOSLister:
             return
 
         for item in items:
-            tags = _read_tags_xattr(item)
+            tags = read_tags(item) if HAS_MYOS else {}
             if not tags:
                 continue
             tags_found = True
-            print(f"{item.name}: {', '.join(tags)}")
+            formatted = ", ".join(
+                f"{key}={value}" if value is not None else key
+                for key, value in tags.items()
+            )
+            print(f"{item.name}: {formatted}")
 
         if not tags_found:
             print("No tags found.")
@@ -282,20 +287,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-
-
-def _read_tags_xattr(path: Path) -> List[str]:
-    key = "user.myos.tags"
-    if not hasattr(os, "getxattr"):
-        return []
-    try:
-        raw = os.getxattr(str(path), key)
-    except (OSError, AttributeError):
-        return []
-    try:
-        value = raw.decode("utf-8").strip()
-    except Exception:
-        return []
-    if not value:
-        return []
-    return [item.strip() for item in value.split(",") if item.strip()]
