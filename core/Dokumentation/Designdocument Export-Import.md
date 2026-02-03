@@ -90,7 +90,33 @@ If reference path is absent or user chooses adoption, import creates or merges i
 
 ---
 
-## **8. Conflict Strategy**
+## **8. Importer Design (MVP)**
+### **8.1 Inputs**
+- import source: folder or zip
+- target base path (optional override)
+- mode: restore or adopt
+- conflict mode: merge, overwrite, skip, or per-file/per-folder decisions
+- template handling: accept, ignore, or stage for review
+- ACL handling: accept, ignore, or stage for review
+
+### **8.2 Steps**
+1) Resolve package (unzip if needed into a temp directory)
+2) Validate package structure (`.MyOS/Project.md` exists)
+3) Read export metadata from `Project.md` (`ReferencePath`, `Subtree`, `ExportedAt`, `Source`)
+4) Run external virus scan (stub for MVP)
+5) Resolve target root based on mode
+6) Dry-run scan for conflicts and security checks
+7) Apply selected conflict strategy
+8) Apply ACL/template changes only if explicitly accepted
+9) Write import summary report (optional)
+
+### **8.3 Outputs**
+- imported subtree placed at target location
+- optional import report for conflicts and decisions
+
+---
+
+## **9. Conflict Strategy**
 Default: **merge**.
 Support conflict modes:
 - merge (default)
@@ -100,13 +126,13 @@ Support conflict modes:
 
 ---
 
-## **9. ACL and Template Deltas**
+## **10. ACL and Template Deltas**
 Template or ACL changes from the export have to be made **visible** and can be explicitly accepted or ignored.
 Use case: team lead reviews ACLs prepared by another person.
 
 ---
 
-## **10. Source Identity**
+## **11. Source Identity**
 Record a source identifier for provenance and collaboration.
 Options (non-binding):
 - hostname + user
@@ -115,14 +141,14 @@ Options (non-binding):
 
 ---
 
-## **11. Security Considerations**
+## **12. Security Considerations**
 - do not export hidden/system folders outside the subtree
 - keep ACLs as data, do not apply OS ACLs during import
 - validate paths to prevent traversal during import
 
 ---
 
-## **12. Open Questions**
+## **13. Open Questions**
 - live MyOS bundle as optional export target?
 - read-only template export mode?
 - conflict resolution UI for large imports?
@@ -130,7 +156,7 @@ Options (non-binding):
 
 ---
 
-## **13. Not Realized Yet**
+## **14. Not Realized Yet**
 - Importer module (merge modes, conflict UI, and adoption flow)
 - Export history log in the original project
 - Live-MyOS bundle option
@@ -139,7 +165,7 @@ Options (non-binding):
 
 ---
 
-## **14. Summary**
+## **15. Summary**
 The export/import design aims for portability and clarity:
 - subtree exports rooted in a project
 - config and ACLs always travel with the data
