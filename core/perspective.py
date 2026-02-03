@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Iterable, Tuple
 
 from core.config.parser import MarkdownConfigParser
 
@@ -64,6 +64,45 @@ class PerspectiveConfig:
         )
 
 
+def find_perspectives(start_path: Union[str, Path]) -> List[Tuple[Path, PerspectiveConfig]]:
+    """
+    Find perspective configs from the given path upwards.
+    Order is most specific first.
+    """
+    start_path = Path(start_path).expanduser().resolve()
+    if start_path.is_file():
+        start_path = start_path.parent
+
+    results: List[Tuple[Path, PerspectiveConfig]] = []
+    for directory in _walk_up(start_path):
+        candidates = [
+            directory / "Perspective.md",
+            directory / ".MyOS" / "Perspective.md",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                results.append((candidate, PerspectiveConfig.from_file(candidate)))
+    return results
+
+
+def resolve_active_perspective(
+    cwd: Union[str, Path],
+    manual: Optional[Union[str, Path]] = None,
+) -> Optional[PerspectiveConfig]:
+    """
+    Resolve the active perspective.
+    Manual perspectives override auto perspectives.
+    """
+    if manual:
+        manual_path = Path(manual).expanduser().resolve()
+        return PerspectiveConfig.from_file(manual_path)
+
+    perspectives = find_perspectives(cwd)
+    if not perspectives:
+        return None
+    return perspectives[0][1]
+
+
 def _normalize_section_list(section: Any) -> List[str]:
     if section is None:
         return []
@@ -102,3 +141,12 @@ def _first_value(meta: Dict[str, List[str]], key: str) -> Optional[str]:
     if not values:
         return None
     return values[0]
+
+
+def _walk_up(start_path: Path) -> Iterable[Path]:
+    current = start_path
+    while True:
+        yield current
+        if current == current.parent:
+            break
+        current = current.parent
