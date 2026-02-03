@@ -108,21 +108,30 @@ Grouping defines how views are organized:
 
 ---
 
-## **10. Open Questions**
+## **10. Public API (Draft)**
+Public API should live in `core/perspective.py` and be used by CLI/GUI:
+- `PerspectiveConfig.from_file(path)`
+- `PerspectiveConfig.from_data(data)`
+- `find_perspectives(start_path)` (planned)
+- `resolve_active_perspective(cwd, manual=None)` (planned)
+
+---
+
+## **11. Open Questions**
 - final file format and section names
 - default storage location for global perspectives
 - rule syntax for tags and AI filters
 
 ---
 
-## **11. Not Realized Yet**
+## **12. Not Realized Yet**
 - tag‑based perspectives
 - AI‑based perspectives
 - `sparse` inheritance mode
 
 ---
 
-## **12. Summary**
+## **13. Summary**
 Perspectives provide user‑friendly, powerful views over MyOS data:
 - they filter and shape data without changing permissions
 - they can flatten and group complex trees
