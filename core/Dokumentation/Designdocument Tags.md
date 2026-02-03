@@ -9,6 +9,7 @@ Tags add human-readable meaning to files and folders. They should be explicit wo
 - Tags are always text labels (self-explanatory).
 - Colors are optional and must never replace the label.
 - Icons are optional and can reinforce meaning.
+- Tags may optionally carry numeric values for classification (e.g., 0–100).
 
 ---
 
@@ -40,7 +41,11 @@ No forced underscore format is required.
 ---
 
 ## **5. Storage**
-Tags can be stored in `.MyOS/Tags.md` with the same parser rules as other config files.
+Primary storage uses filesystem metadata:
+- macOS/Linux: extended attributes (xattr)
+- Windows/NTFS: to be evaluated
+
+Fallback storage (if metadata is unavailable) may use `.MyOS/Tags.md`, but MVP will prefer native metadata and may not support tags on filesystems without it.
 
 ---
 
@@ -49,6 +54,8 @@ Tags can be stored in `.MyOS/Tags.md` with the same parser rules as other config
 - icon set selection and theming (global preference, not per project)
 - whether tags can be scoped by project or global
 - whether tags apply to folders, files, or both
+- how numeric tag values are stored and visualized (e.g., Eisenhower/Disney quadrants, 2D charts)
+- NTFS metadata mapping strategy
 
 ---
 
