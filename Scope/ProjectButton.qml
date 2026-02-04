@@ -21,6 +21,7 @@ Rectangle {
     property bool renaming: false
     property bool renameEnabled: false
     property string renameText: ""
+    property int textLeftInset: 0
     signal activate()
     signal renameRequested()
     signal renameTextEdited(string text)
@@ -46,7 +47,12 @@ Rectangle {
         anchors.fill: parent
         visible: !renaming && style === "text"
         Text {
-            anchors.centerIn: parent
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.leftMargin: textLeftInset
+            anchors.right: parent.right
+            anchors.rightMargin: textLeftInset
+            horizontalAlignment: textLeftInset > 0 ? Text.AlignLeft : Text.AlignHCenter
             text: label
             color: textColor
             font.pixelSize: textSize

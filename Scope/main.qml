@@ -22,6 +22,9 @@ ApplicationWindow {
     property int searchPathPrefixDepth: 2
     property bool verticalProjectView: false
     property var searchInputRef: null
+    property string standardButtonStyle: "text"
+    property string userButtonStyle: "text"
+    property string userPath: "/Eigene"
     QtObject {
         id: theme
         property color bg: darkTheme ? "#0f1014" : "#f3f4f8"
@@ -211,12 +214,41 @@ ApplicationWindow {
         return path
     }
 
+    function verticalProjectButtonStyle() {
+        return projectButtonStyle === "largeIcon" ? "text" : projectButtonStyle
+    }
+
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
 
     function lastPathSegment(path) {
         var parts = path.split("/").filter(function(p){ return p.length > 0 })
         return parts.length > 0 ? parts[parts.length - 1] : "/"
+    }
+
+    function rootPathOf(path) {
+        var parts = path.split("/").filter(function(p){ return p.length > 0 })
+        return parts.length > 0 ? ("/" + parts[0]) : "/"
+    }
+
+    function parentPathsFor(path) {
+        var parts = path.split("/").filter(function(p){ return p.length > 0 })
+        var paths = []
+        for (var i = 0; i < parts.length - 1; i++) {
+            paths.push("/" + parts.slice(0, i + 1).join("/"))
+        }
+        return paths
+    }
+
+    function visibleParentPathsFor(path, panelHeight) {
+        var parents = parentPathsFor(path)
+        if (parents.length <= maxVerticalParents) return parents
+        var approxNeeded = parents.length * (compactButtonHeight + verticalParentSpacing)
+        var reserve = (compactButtonHeight + verticalParentSpacing) * 4
+        if (panelHeight && (approxNeeded + reserve) > panelHeight) {
+            return parents.slice(Math.max(0, parents.length - maxVerticalParents))
+        }
+        return parents
     }
 
     function parentPaths() {
@@ -491,48 +523,26 @@ ApplicationWindow {
                             }
                             Repeater {
                                 model: [
-                                    { label: "t", icon: "", style: "text" },
-                                    { label: "G", icon: "", style: "largeIcon" },
-                                    { label: "k", icon: "", style: "smallIcon" }
+                                    { label: "t", style: "text" },
+                                    { label: "k", style: "smallIcon" }
                                 ]
                                 delegate: Rectangle {
                                     width: compactButtonHeight
                                     height: compactButtonHeight
                                     radius: 4
-                                    property bool isActive: modelData.style !== "" && projectButtonStyle === modelData.style
+                                    property bool isActive: projectButtonStyle === modelData.style
                                     color: isActive ? theme.accentSecondary : theme.pill
                                     border.color: isActive ? theme.accentSecondaryBorder : theme.pillBorder
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            if (modelData.style !== "") {
-                                                projectButtonStyle = modelData.style
-                                            }
-                                        }
-                                    }
                                     Text {
                                         anchors.centerIn: parent
                                         text: modelData.label
                                         color: theme.text
                                         font.pixelSize: baseFont - 2
                                     }
-                                }
-                            }
-                            Rectangle {
-                                width: compactButtonHeight
-                                height: compactButtonHeight
-                                radius: 4
-                                color: theme.pill
-                                border.color: theme.pillBorder
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: verticalProjectView ? "H" : "V"
-                                    color: theme.text
-                                    font.pixelSize: baseFont - 2
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: verticalProjectView = !verticalProjectView
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: projectButtonStyle = modelData.style
+                                    }
                                 }
                             }
                             Rectangle {
@@ -577,7 +587,7 @@ ApplicationWindow {
                             delegate: ProjectButton {
                                 width: parent.width
                                 label: lastPathSegment(modelData)
-                                style: "text"
+                                    style: verticalProjectButtonStyle()
                                 compactHeight: compactButtonHeight
                                 largeHeight: largeButtonHeight
                                 largePadding: largeButtonPadding
@@ -596,10 +606,10 @@ ApplicationWindow {
                             }
                         }
                     }
-                    ProjectButton {
+                        ProjectButton {
                         width: parent.width
                         label: lastPathSegment(cwp)
-                        style: "text"
+                        style: verticalProjectButtonStyle()
                         compactHeight: compactButtonHeight
                         largeHeight: largeButtonHeight
                         largePadding: largeButtonPadding
@@ -613,6 +623,7 @@ ApplicationWindow {
                         textBold: true
                         renaming: false
                         renameEnabled: false
+                            textLeftInset: verticalProjectButtonStyle() === "text" ? 16 : 0
                         onActivate: {}
                     }
                     Flickable {
@@ -623,13 +634,14 @@ ApplicationWindow {
                         Column {
                             width: parent.width
                             spacing: 6
-                            Repeater {
-                                model: subProjects
-                                delegate: ProjectButton {
-                                    width: parent.width
+                                Repeater {
+                                    model: subProjects
+                                    delegate: ProjectButton {
+                                        x: 16
+                                        width: parent.width - 16
                                     property string fullPath: modelData.indexOf("/") === 0 ? modelData : (cwp + "/" + modelData)
                                     label: displaySubprojectLabel(modelData)
-                                    style: "text"
+                                    style: verticalProjectButtonStyle()
                                     compactHeight: compactButtonHeight
                                     largeHeight: largeButtonHeight
                                     largePadding: largeButtonPadding
@@ -643,6 +655,7 @@ ApplicationWindow {
                                     renaming: renameActive && renameTargetPath === fullPath
                                     renameEnabled: true
                                     renameText: renameDraft
+                                        textLeftInset: verticalProjectButtonStyle() === "text" ? 16 : 0
                                     onRenameRequested: beginRename(fullPath)
                                     onRenameTextEdited: renameDraft = text
                                     onRenameAccepted: commitRename()
@@ -1454,6 +1467,267 @@ ApplicationWindow {
                 }
             }
 
+            RowLayout {
+                id: verticalSecondLevelContent
+                Layout.fillWidth: true
+                Layout.preferredHeight: 360
+                Layout.minimumHeight: 280
+                spacing: 12
+                visible: verticalProjectView
+                Rectangle {
+                    id: systemPanel
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 8
+                    color: theme.panelAlt
+                    border.color: theme.pillBorder
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 8
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Row {
+                                spacing: 6
+                                Repeater {
+                                    model: [
+                                        { label: "t", style: "text" },
+                                        { label: "k", style: "smallIcon" }
+                                    ]
+                                    delegate: Rectangle {
+                                        width: compactButtonHeight
+                                        height: compactButtonHeight
+                                        radius: 4
+                                        property bool isActive: standardButtonStyle === modelData.style
+                                        color: isActive ? theme.accentSecondary : theme.pill
+                                        border.color: isActive ? theme.accentSecondaryBorder : theme.pillBorder
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: theme.text
+                                            font.pixelSize: baseFont - 2
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: standardButtonStyle = modelData.style
+                                        }
+                                    }
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: verticalParentSpacing
+                            Repeater {
+                                model: visibleParentPathsFor(standardPath, systemPanel.height)
+                                delegate: ProjectButton {
+                                    width: parent.width
+                                    label: lastPathSegment(modelData)
+                                    style: standardButtonStyle
+                                    compactHeight: compactButtonHeight
+                                    largeHeight: largeButtonHeight
+                                    largePadding: largeButtonPadding
+                                    iconSmall: iconSizeSmall
+                                    iconLarge: iconSizeLarge
+                                    iconSource: iconFolder
+                                    fillColor: theme.pill
+                                    strokeColor: theme.pillBorder
+                                    textColor: theme.text
+                                    textSize: baseFont
+                                    renaming: false
+                                    renameEnabled: false
+                                    onActivate: {
+                                        standardPath = modelData
+                                    }
+                                }
+                            }
+                        }
+                        ProjectButton {
+                            width: parent.width
+                            label: lastPathSegment(standardPath)
+                            style: standardButtonStyle
+                            compactHeight: compactButtonHeight
+                            largeHeight: largeButtonHeight
+                            largePadding: largeButtonPadding
+                            iconSmall: iconSizeSmall
+                            iconLarge: iconSizeLarge
+                            iconSource: iconFolder
+                            fillColor: theme.accentPrimary
+                            strokeColor: theme.accentPrimary
+                            textColor: theme.accentPrimaryText
+                            textSize: baseFont + 1
+                            textBold: true
+                            renaming: false
+                            renameEnabled: false
+                            onActivate: {
+                                standardPath = rootPathOf(standardPath)
+                            }
+                        }
+                        Flickable {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            contentWidth: width
+                            clip: true
+                            Column {
+                                width: parent.width
+                                spacing: 6
+                                Repeater {
+                                    model: standardFolders
+                                    delegate: ProjectButton {
+                                        width: parent.width
+                                        label: modelData
+                                        style: standardButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: theme.pill
+                                        strokeColor: theme.pillBorder
+                                        textColor: theme.textSoft
+                                        textSize: baseFont
+                                        renaming: false
+                                        renameEnabled: false
+                                        onActivate: {
+                                            var base = standardPath.endsWith("/") ? standardPath.slice(0, -1) : standardPath
+                                            standardPath = base + "/" + modelData
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Rectangle {
+                    id: userPanel
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: 8
+                    color: theme.panelAlt2
+                    border.color: theme.pillBorder
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 8
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Row {
+                                spacing: 6
+                                Repeater {
+                                    model: [
+                                        { label: "t", style: "text" },
+                                        { label: "k", style: "smallIcon" }
+                                    ]
+                                    delegate: Rectangle {
+                                        width: compactButtonHeight
+                                        height: compactButtonHeight
+                                        radius: 4
+                                        property bool isActive: userButtonStyle === modelData.style
+                                        color: isActive ? theme.accentSecondary : theme.pill
+                                        border.color: isActive ? theme.accentSecondaryBorder : theme.pillBorder
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: theme.text
+                                            font.pixelSize: baseFont - 2
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: userButtonStyle = modelData.style
+                                        }
+                                    }
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: verticalParentSpacing
+                            Repeater {
+                                model: visibleParentPathsFor(userPath, userPanel.height)
+                                delegate: ProjectButton {
+                                    width: parent.width
+                                    label: lastPathSegment(modelData)
+                                    style: userButtonStyle
+                                    compactHeight: compactButtonHeight
+                                    largeHeight: largeButtonHeight
+                                    largePadding: largeButtonPadding
+                                    iconSmall: iconSizeSmall
+                                    iconLarge: iconSizeLarge
+                                    iconSource: iconFolder
+                                    fillColor: theme.pill
+                                    strokeColor: theme.pillBorder
+                                    textColor: theme.text
+                                    textSize: baseFont
+                                    renaming: false
+                                    renameEnabled: false
+                                    onActivate: {
+                                        userPath = modelData
+                                    }
+                                }
+                            }
+                        }
+                        ProjectButton {
+                            width: parent.width
+                            label: lastPathSegment(userPath)
+                            style: userButtonStyle
+                            compactHeight: compactButtonHeight
+                            largeHeight: largeButtonHeight
+                            largePadding: largeButtonPadding
+                            iconSmall: iconSizeSmall
+                            iconLarge: iconSizeLarge
+                            iconSource: iconFolder
+                            fillColor: theme.accentPrimary
+                            strokeColor: theme.accentPrimary
+                            textColor: theme.accentPrimaryText
+                            textSize: baseFont + 1
+                            textBold: true
+                            renaming: false
+                            renameEnabled: false
+                            onActivate: {
+                                userPath = rootPathOf(userPath)
+                            }
+                        }
+                        Flickable {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            contentWidth: width
+                            clip: true
+                            Column {
+                                width: parent.width
+                                spacing: 6
+                                Repeater {
+                                    model: userFolders
+                                    delegate: ProjectButton {
+                                        width: parent.width
+                                        label: modelData
+                                        style: userButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: theme.pill
+                                        strokeColor: theme.pillBorder
+                                        textColor: theme.textSoft
+                                        textSize: baseFont
+                                        renaming: false
+                                        renameEnabled: false
+                                        onActivate: {
+                                            var base = userPath.endsWith("/") ? userPath.slice(0, -1) : userPath
+                                            userPath = base + "/" + modelData
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Standard folder bar
             Rectangle {
                 Layout.fillWidth: true
@@ -1461,6 +1735,7 @@ ApplicationWindow {
                 radius: 8
                 color: theme.panelAlt
                 border.color: theme.pillBorder
+                visible: !verticalProjectView
                 RowLayout {
                     anchors.fill: parent
                     anchors.margins: 12
@@ -1511,6 +1786,7 @@ ApplicationWindow {
                 radius: 8
                 color: theme.panelAlt2
                 border.color: theme.pillBorder
+                visible: !verticalProjectView
                 RowLayout {
                     anchors.fill: parent
                     anchors.margins: 12
@@ -1554,6 +1830,7 @@ ApplicationWindow {
                 radius: 8
                 color: theme.card
                 border.color: theme.pillBorder
+                visible: !verticalProjectView
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 16
