@@ -20,6 +20,8 @@ ApplicationWindow {
     property int largeButtonPadding: 14
     property int largeButtonHeight: iconSizeLarge + baseFont + (largeButtonPadding * 2) + 2
     property int searchPathPrefixDepth: 2
+    property bool verticalProjectView: false
+    property var searchInputRef: null
     QtObject {
         id: theme
         property color bg: darkTheme ? "#0f1014" : "#f3f4f8"
@@ -209,6 +211,34 @@ ApplicationWindow {
         return path
     }
 
+    property int maxVerticalParents: 4
+    property int verticalParentSpacing: 6
+
+    function lastPathSegment(path) {
+        var parts = path.split("/").filter(function(p){ return p.length > 0 })
+        return parts.length > 0 ? parts[parts.length - 1] : "/"
+    }
+
+    function parentPaths() {
+        var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
+        var paths = []
+        for (var i = 0; i < parts.length - 1; i++) {
+            paths.push("/" + parts.slice(0, i + 1).join("/"))
+        }
+        return paths
+    }
+
+    function visibleParentPaths() {
+        var parents = parentPaths()
+        if (parents.length <= maxVerticalParents) return parents
+        var approxNeeded = parents.length * (compactButtonHeight + verticalParentSpacing)
+        var reserve = (compactButtonHeight + verticalParentSpacing) * 6
+        if (leftProjectPanel && (approxNeeded + reserve) > leftProjectPanel.height) {
+            return parents.slice(Math.max(0, parents.length - maxVerticalParents))
+        }
+        return parents
+    }
+
     function createSubproject(name) {
         var trimmed = name.trim().replace(/\s+/g, " ")
         if (trimmed.length === 0) return false
@@ -298,9 +328,9 @@ ApplicationWindow {
             searchText = ""
         } else {
             Qt.callLater(function() {
-                if (searchInput) {
-                    searchInput.forceActiveFocus()
-                    searchInput.selectAll()
+                if (searchInputRef) {
+                    searchInputRef.forceActiveFocus()
+                    searchInputRef.selectAll()
                 }
             })
         }
@@ -346,33 +376,336 @@ ApplicationWindow {
         }
     }
 
+    Component {
+        id: searchFieldComponent
+        Item {
+            id: searchFieldRoot
+            property alias input: searchInput
+            width: parent ? parent.width : 0
+            height: compactButtonHeight
+            clip: true
+            Rectangle {
+                anchors.fill: parent
+                radius: 4
+                color: theme.card
+                border.color: theme.pillBorder
+                opacity: searchActive ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                }
+                TextField {
+                    id: searchInput
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    text: searchText
+                    placeholderText: "Search      + deep    # all"
+                    font.pixelSize: baseFont
+                    selectByMouse: true
+                    color: theme.text
+                    placeholderTextColor: theme.textMuted
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 6
+                    rightPadding: 6
+                    topPadding: 1
+                    bottomPadding: 0
+                    background: Rectangle { color: "transparent" }
+                    onTextChanged: searchText = text
+                    onVisibleChanged: {
+                        if (visible && searchActive) {
+                            forceActiveFocus()
+                            selectAll()
+                        }
+                    }
+                    Keys.onEscapePressed: {
+                        searchText = ""
+                        searchActive = false
+                    }
+                }
+            }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: theme.bg
 
-        ColumnLayout {
+        RowLayout {
             anchors.fill: parent
-            spacing: 8
+            spacing: 12
             anchors.margins: 16
 
-            // Project bar
             Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 12 + topProjectRow.implicitHeight + (flowOnSecondLine ? (8 + bottomProjectRow.implicitHeight) : 0) + 12
+                id: leftProjectPanel
+                visible: verticalProjectView
+                Layout.preferredWidth: 320
+                Layout.fillHeight: true
                 radius: 8
                 color: theme.panel
                 border.color: theme.pillBorder
                 ColumnLayout {
-                    id: projectBarContent
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 8
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
+                        Row {
+                            id: leftTopButtons
+                            spacing: 6
+                            Rectangle {
+                                width: compactButtonHeight
+                                height: compactButtonHeight
+                                radius: 4
+                                color: theme.pill
+                                border.color: theme.accentSecondaryBorder
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: verticalProjectView ? "H" : "V"
+                                    color: theme.text
+                                    font.pixelSize: baseFont - 2
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: verticalProjectView = !verticalProjectView
+                                }
+                            }
+                            Rectangle {
+                                width: compactButtonHeight
+                                height: compactButtonHeight
+                                radius: 4
+                                color: theme.pill
+                                border.color: theme.pillBorder
+                                Image {
+                                    anchors.centerIn: parent
+                                    source: iconSearch
+                                    width: baseFont
+                                    height: baseFont
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        searchActive = !searchActive
+                                    }
+                                }
+                            }
+                            Repeater {
+                                model: [
+                                    { label: "t", icon: "", style: "text" },
+                                    { label: "G", icon: "", style: "largeIcon" },
+                                    { label: "k", icon: "", style: "smallIcon" }
+                                ]
+                                delegate: Rectangle {
+                                    width: compactButtonHeight
+                                    height: compactButtonHeight
+                                    radius: 4
+                                    property bool isActive: modelData.style !== "" && projectButtonStyle === modelData.style
+                                    color: isActive ? theme.accentSecondary : theme.pill
+                                    border.color: isActive ? theme.accentSecondaryBorder : theme.pillBorder
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            if (modelData.style !== "") {
+                                                projectButtonStyle = modelData.style
+                                            }
+                                        }
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        color: theme.text
+                                        font.pixelSize: baseFont - 2
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                width: compactButtonHeight
+                                height: compactButtonHeight
+                                radius: 4
+                                color: theme.pill
+                                border.color: theme.pillBorder
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: verticalProjectView ? "H" : "V"
+                                    color: theme.text
+                                    font.pixelSize: baseFont - 2
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: verticalProjectView = !verticalProjectView
+                                }
+                            }
+                            Rectangle {
+                                radius: 6
+                                height: compactButtonHeight
+                                color: theme.accentPrimary
+                                border.color: theme.accentPrimary
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: darkTheme ? "Light" : "Dark"
+                                    color: theme.accentPrimaryText
+                                    font.pixelSize: baseFont
+                                }
+                                implicitWidth: 70
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: darkTheme = !darkTheme
+                                }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Loader {
+                        id: verticalSearchLoader
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: searchActive ? compactButtonHeight : 0
+                        visible: searchActive
+                        sourceComponent: searchFieldComponent
+                        onLoaded: {
+                            searchInputRef = item.input
+                            if (searchActive) {
+                                item.input.forceActiveFocus()
+                                item.input.selectAll()
+                            }
+                        }
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: verticalParentSpacing
+                        Repeater {
+                            model: visibleParentPaths()
+                            delegate: ProjectButton {
+                                width: parent.width
+                                label: lastPathSegment(modelData)
+                                style: "text"
+                                compactHeight: compactButtonHeight
+                                largeHeight: largeButtonHeight
+                                largePadding: largeButtonPadding
+                                iconSmall: iconSizeSmall
+                                iconLarge: iconSizeLarge
+                                iconSource: iconFolder
+                                fillColor: theme.pill
+                                strokeColor: theme.pillBorder
+                                textColor: theme.text
+                                textSize: baseFont
+                                renaming: false
+                                renameEnabled: false
+                                onActivate: {
+                                    setCwp(modelData)
+                                }
+                            }
+                        }
+                    }
+                    ProjectButton {
+                        width: parent.width
+                        label: lastPathSegment(cwp)
+                        style: "text"
+                        compactHeight: compactButtonHeight
+                        largeHeight: largeButtonHeight
+                        largePadding: largeButtonPadding
+                        iconSmall: iconSizeSmall
+                        iconLarge: iconSizeLarge
+                        iconSource: iconFolder
+                        fillColor: theme.accentPrimary
+                        strokeColor: theme.accentPrimary
+                        textColor: theme.accentPrimaryText
+                        textSize: baseFont + 1
+                        textBold: true
+                        renaming: false
+                        renameEnabled: false
+                        onActivate: {}
+                    }
+                    Flickable {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        contentWidth: width
+                        clip: true
+                        Column {
+                            width: parent.width
+                            spacing: 6
+                            Repeater {
+                                model: subProjects
+                                delegate: ProjectButton {
+                                    width: parent.width
+                                    property string fullPath: modelData.indexOf("/") === 0 ? modelData : (cwp + "/" + modelData)
+                                    label: displaySubprojectLabel(modelData)
+                                    style: "text"
+                                    compactHeight: compactButtonHeight
+                                    largeHeight: largeButtonHeight
+                                    largePadding: largeButtonPadding
+                                    iconSmall: iconSizeSmall
+                                    iconLarge: iconSizeLarge
+                                    iconSource: iconFolder
+                                    fillColor: theme.accentSecondary
+                                    strokeColor: theme.accentSecondaryBorder
+                                    textColor: theme.textSoft
+                                    textSize: baseFont
+                                    renaming: renameActive && renameTargetPath === fullPath
+                                    renameEnabled: true
+                                    renameText: renameDraft
+                                    onRenameRequested: beginRename(fullPath)
+                                    onRenameTextEdited: renameDraft = text
+                                    onRenameAccepted: commitRename()
+                                    onRenameCanceled: cancelRename()
+                                    onActivate: {
+                                        if (modelData.indexOf("/") === 0) {
+                                            setCwp(modelData)
+                                        } else {
+                                            var newPath = cwp + "/" + modelData
+                                            setCwp(newPath)
+                                        }
+                                        clearSearchAfterNavigate()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
+                id: rightContent
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 8
+
+                // Project bar
+                Rectangle {
+                    visible: !verticalProjectView
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 12 + topProjectRow.implicitHeight + (flowOnSecondLine ? (8 + bottomProjectRow.implicitHeight) : 0) + 12
+                    radius: 8
+                    color: theme.panel
+                    border.color: theme.pillBorder
+                    ColumnLayout {
+                        id: projectBarContent
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 8
                     RowLayout {
                         id: topProjectRow
                         Layout.fillWidth: true
                         Layout.preferredHeight: projectButtonStyle === "largeIcon" ? largeButtonHeight : compactButtonHeight
                         spacing: 6
                         onWidthChanged: scheduleLayoutUpdate()
+                        Rectangle {
+                            width: compactButtonHeight
+                            height: compactButtonHeight
+                            radius: 4
+                            color: theme.pill
+                            border.color: theme.accentSecondaryBorder
+                            Layout.alignment: Qt.AlignTop
+                            Text {
+                                anchors.centerIn: parent
+                                text: verticalProjectView ? "H" : "V"
+                                color: theme.text
+                                font.pixelSize: baseFont - 2
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: verticalProjectView = !verticalProjectView
+                            }
+                        }
                         Item {
                             id: cwpHost
                             Layout.fillWidth: false
@@ -711,42 +1044,15 @@ ApplicationWindow {
                             Behavior on Layout.preferredWidth {
                                 NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
                             }
-                            Rectangle {
+                            Loader {
+                                id: horizontalSearchLoader
                                 anchors.fill: parent
-                                radius: 4
-                                color: theme.card
-                                border.color: theme.pillBorder
-                                opacity: searchWidth > 0 ? 1 : 0
-                                Behavior on opacity {
-                                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-                                }
-                                anchors.right: parent.right
-                                TextField {
-                                    id: searchInput
-                                    anchors.fill: parent
-                                    anchors.margins: 4
-                                    text: searchText
-                                    placeholderText: "Search      + deep    # all"
-                                    font.pixelSize: baseFont
-                                    selectByMouse: true
-                                    color: theme.text
-                                    placeholderTextColor: theme.textMuted
-                                    verticalAlignment: Text.AlignVCenter
-                                    leftPadding: 6
-                                    rightPadding: 6
-                                    topPadding: 1
-                                    bottomPadding: 0
-                                    background: Rectangle { color: "transparent" }
-                                    onTextChanged: searchText = text
-                                    onVisibleChanged: {
-                                        if (visible && searchActive) {
-                                            forceActiveFocus()
-                                            selectAll()
-                                        }
-                                    }
-                                    Keys.onEscapePressed: {
-                                        searchText = ""
-                                        searchActive = false
+                                sourceComponent: searchFieldComponent
+                                onLoaded: {
+                                    searchInputRef = item.input
+                                    if (searchActive) {
+                                        item.input.forceActiveFocus()
+                                        item.input.selectAll()
                                     }
                                 }
                             }
@@ -1044,6 +1350,7 @@ ApplicationWindow {
                     anchors.right: parent.right
                     anchors.topMargin: 12
                     anchors.rightMargin: 12
+                    visible: !verticalProjectView
                     width: rightButtonsWidth
                     height: topProjectRow.Layout.preferredHeight
                     clip: true
@@ -1280,4 +1587,5 @@ ApplicationWindow {
             }
         }
     }
+}
 }
