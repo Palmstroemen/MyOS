@@ -106,6 +106,8 @@ ApplicationWindow {
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
         rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
+        searchWidth = searchActive ? 520 : 0
+        topButtonsWidth = rightButtonsWidth + searchWidth + 6
         setCwp(cwp)
         updateFlowPlacement()
     }
@@ -117,11 +119,26 @@ ApplicationWindow {
     property real flowPreferredWidth: 0
     property bool layoutUpdatePending: false
     property real rightButtonsWidth: 0
+    property real searchWidth: 0
+    property real topButtonsWidth: 0
+    property bool searchActive: false
+    property string searchText: ""
 
     onSubProjectsChanged: updateFlowPlacement()
     onNewSubprojectEditingChanged: updateFlowPlacement()
     onProjectButtonStyleChanged: {
         rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
+        topButtonsWidth = rightButtonsWidth + searchWidth + 6
+        scheduleLayoutUpdate()
+    }
+    onSearchActiveChanged: {
+        searchWidth = searchActive ? 520 : 0
+        rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
+        topButtonsWidth = rightButtonsWidth + searchWidth + 6
+        scheduleLayoutUpdate()
+    }
+    onSearchWidthChanged: {
+        topButtonsWidth = rightButtonsWidth + searchWidth + 6
         scheduleLayoutUpdate()
     }
 
@@ -136,7 +153,7 @@ ApplicationWindow {
 
     function updateFlowPlacement() {
         if (!topSubprojectRow || !topProjectRow || !topRightButtons || !cwpRow) return
-        var available = topProjectRow.width - topRightButtons.implicitWidth - (topProjectRow.spacing * 2)
+        var available = topProjectRow.width - topButtonsWidth - (topProjectRow.spacing * 2)
         if (available < 0) available = 0
         if (availableTopWidth !== available) {
             availableTopWidth = available
@@ -601,6 +618,60 @@ ApplicationWindow {
                                 }
                             }
                         }
+                        Item {
+                            id: searchHost
+                            Layout.fillWidth: false
+                            Layout.preferredWidth: searchWidth
+                            Layout.minimumWidth: 0
+                            Layout.maximumWidth: 520
+                            Layout.preferredHeight: 30
+                            Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                            width: searchWidth
+                            height: 30
+                            clip: true
+                            Behavior on Layout.preferredWidth {
+                                NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
+                            }
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 4
+                                color: theme.card
+                                border.color: theme.pillBorder
+                                opacity: searchWidth > 0 ? 1 : 0
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                                }
+                                anchors.right: parent.right
+                                TextField {
+                                    id: searchInput
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    text: searchText
+                                    placeholderText: "Search"
+                                    font.pixelSize: baseFont
+                                    selectByMouse: true
+                                    color: theme.text
+                                    placeholderTextColor: theme.textMuted
+                                    verticalAlignment: Text.AlignVCenter
+                                    leftPadding: 6
+                                    rightPadding: 6
+                                    topPadding: 1
+                                    bottomPadding: 0
+                                    background: Rectangle { color: "transparent" }
+                                    onTextChanged: searchText = text
+                                    onVisibleChanged: {
+                                        if (visible && searchActive) {
+                                            forceActiveFocus()
+                                            selectAll()
+                                        }
+                                    }
+                                    Keys.onEscapePressed: {
+                                        searchText = ""
+                                        searchActive = false
+                                    }
+                                }
+                            }
+                        }
                         Item { Layout.fillWidth: true }
                     }
                     RowLayout {
@@ -939,18 +1010,37 @@ ApplicationWindow {
                     Row {
                         id: topRightButtons
                         anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.top: parent.top
                         spacing: 6
                         Component.onCompleted: {
                             rightButtonsWidth = topRightButtons.implicitWidth
                             scheduleLayoutUpdate()
                         }
+                        Rectangle {
+                            width: 30
+                            height: 30
+                            radius: 4
+                            color: theme.pill
+                            border.color: theme.pillBorder
+                            Image {
+                                anchors.centerIn: parent
+                                source: iconSearch
+                                width: baseFont
+                                height: baseFont
+                                fillMode: Image.PreserveAspectFit
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    searchActive = !searchActive
+                                }
+                            }
+                        }
                         Repeater {
                             model: [
-                                { label: "", icon: iconSearch, style: "" },
                                 { label: "t", icon: "", style: "text" },
-                                { label: "k", icon: "", style: "smallIcon" },
-                                { label: "G", icon: "", style: "largeIcon" }
+                                { label: "G", icon: "", style: "largeIcon" },
+                                { label: "k", icon: "", style: "smallIcon" }
                             ]
                             delegate: Rectangle {
                                 width: 30
