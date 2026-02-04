@@ -14,8 +14,12 @@ ApplicationWindow {
     property string iconFolder: "Theme/icons/folder.svg"
     property string iconSearch: "Theme/icons/search.svg"
     property string projectButtonStyle: "text" // text | smallIcon | largeIcon
-    property int iconSizeSmall: Math.round(baseFont * 1.5)
-    property int iconSizeLarge: 64
+    property int iconSizeSmall: Math.round(baseFont * 1.35)
+    property int iconSizeLarge: 120
+    property int compactButtonHeight: 32
+    property int largeButtonPadding: 14
+    property int largeButtonHeight: iconSizeLarge + baseFont + (largeButtonPadding * 2) + 2
+    property int searchPathPrefixDepth: 2
     QtObject {
         id: theme
         property color bg: darkTheme ? "#0f1014" : "#f3f4f8"
@@ -85,11 +89,124 @@ ApplicationWindow {
             node[name] = {}
             return true
         }
+
+        function collectPathsFromNode(node, prefix, out) {
+            var keys = Object.keys(node)
+            for (var i = 0; i < keys.length; i++) {
+                var key = keys[i]
+                var next = prefix ? (prefix + "/" + key) : ("/" + key)
+                out.push(next)
+                collectPathsFromNode(node[key], next, out)
+            }
+        }
+
+        function collectFromPath(path) {
+            var node = getNode(path)
+            if (!node) return []
+            var out = []
+            collectPathsFromNode(node, path, out)
+            return out
+        }
+
+        function collectAll() {
+            var out = []
+            collectPathsFromNode(tree, "", out)
+            return out
+        }
+
+        function renamePath(path, newName) {
+            var parts = path.split("/").filter(function(p){ return p.length > 0 })
+            if (parts.length === 0) return false
+            var parentParts = parts.slice(0, parts.length - 1)
+            var oldName = parts[parts.length - 1]
+            var parentPath = "/" + parentParts.join("/")
+            var parentNode = parentParts.length === 0 ? tree : getNode(parentPath)
+            if (!parentNode) return false
+            if (!parentNode[oldName]) return false
+            if (parentNode[newName]) return false
+            parentNode[newName] = parentNode[oldName]
+            delete parentNode[oldName]
+            return true
+        }
     }
 
     function setCwp(path) {
         cwp = path
-        subProjects = demoData.childrenOf(path)
+        updateSubProjects()
+    }
+
+    function updateSubProjects() {
+        var query = searchText.trim()
+        if (query.length === 0) {
+            subProjects = demoData.childrenOf(cwp)
+            return
+        }
+        var mode = "direct"
+        if (query[0] === "+") {
+            mode = "deep"
+            query = query.slice(1).trim()
+        } else if (query[0] === "#") {
+            mode = "all"
+            query = query.slice(1).trim()
+        }
+        var lower = query.toLowerCase()
+        if (mode === "direct") {
+            var directItems = demoData.childrenOf(cwp)
+            if (lower.length === 0) {
+                subProjects = directItems
+                return
+            }
+            subProjects = directItems.filter(function(name){
+                return name.toLowerCase().indexOf(lower) !== -1
+            })
+            return
+        }
+        if (mode === "deep") {
+            var allUnder = demoData.collectFromPath(cwp)
+            var prefix = cwp.endsWith("/") ? cwp : (cwp + "/")
+            var rel = allUnder.map(function(p){
+                return p.indexOf(prefix) === 0 ? p.slice(prefix.length) : p
+            })
+            if (lower.length === 0) {
+                subProjects = rel
+                return
+            }
+            subProjects = rel.filter(function(name){
+                return name.toLowerCase().indexOf(lower) !== -1
+            })
+            return
+        }
+        var all = demoData.collectAll()
+        if (lower.length === 0) {
+            subProjects = all
+            return
+        }
+        subProjects = all.filter(function(path){
+            return path.toLowerCase().indexOf(lower) !== -1
+        })
+    }
+
+    function clearSearchAfterNavigate() {
+        if (searchText.trim().length === 0) return
+        searchText = ""
+        searchActive = false
+    }
+
+    function shortenPathForDisplay(path) {
+        var trimmed = path[0] === "/" ? path.slice(1) : path
+        var parts = trimmed.split("/").filter(function(p){ return p.length > 0 })
+        var keepCount = Math.max(1, searchPathPrefixDepth + 1)
+        if (parts.length <= keepCount) return path
+        return ".../" + parts.slice(parts.length - keepCount).join("/")
+    }
+
+    function displaySubprojectLabel(path) {
+        var query = searchText.trim()
+        if (query.length === 0) return path
+        if (query[0] === "+" || query[0] === "#") {
+            return shortenPathForDisplay(path)
+        }
+        return path
     }
 
     function createSubproject(name) {
@@ -101,6 +218,44 @@ ApplicationWindow {
             return true
         }
         return false
+    }
+
+    function beginRename(path) {
+        renameActive = true
+        renameTargetPath = path
+        var parts = path.split("/").filter(function(p){ return p.length > 0 })
+        renameDraft = parts.length > 0 ? parts[parts.length - 1] : ""
+    }
+
+    function cancelRename() {
+        renameActive = false
+        renameTargetPath = ""
+        renameDraft = ""
+    }
+
+    function commitRename() {
+        if (!renameActive) return
+        var trimmed = renameDraft.trim().replace(/\s+/g, " ")
+        if (trimmed.length === 0) {
+            cancelRename()
+            return
+        }
+        var parts = renameTargetPath.split("/").filter(function(p){ return p.length > 0 })
+        var oldName = parts.length > 0 ? parts[parts.length - 1] : ""
+        if (trimmed === oldName) {
+            cancelRename()
+            return
+        }
+        var success = demoData.renamePath(renameTargetPath, trimmed)
+        if (success) {
+            var newPathParts = parts.slice(0, parts.length - 1).concat([trimmed])
+            var newPath = "/" + newPathParts.join("/")
+            if (cwp === renameTargetPath || cwp.indexOf(renameTargetPath + "/") === 0) {
+                cwp = newPath + cwp.slice(renameTargetPath.length)
+            }
+            setCwp(cwp)
+        }
+        cancelRename()
     }
 
     Component.onCompleted: {
@@ -123,6 +278,9 @@ ApplicationWindow {
     property real topButtonsWidth: 0
     property bool searchActive: false
     property string searchText: ""
+    property bool renameActive: false
+    property string renameTargetPath: ""
+    property string renameDraft: ""
 
     onSubProjectsChanged: updateFlowPlacement()
     onNewSubprojectEditingChanged: updateFlowPlacement()
@@ -131,10 +289,21 @@ ApplicationWindow {
         topButtonsWidth = rightButtonsWidth + searchWidth + 6
         scheduleLayoutUpdate()
     }
+    onSearchTextChanged: updateSubProjects()
     onSearchActiveChanged: {
         searchWidth = searchActive ? 520 : 0
         rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
         topButtonsWidth = rightButtonsWidth + searchWidth + 6
+        if (!searchActive) {
+            searchText = ""
+        } else {
+            Qt.callLater(function() {
+                if (searchInput) {
+                    searchInput.forceActiveFocus()
+                    searchInput.selectAll()
+                }
+            })
+        }
         scheduleLayoutUpdate()
     }
     onSearchWidthChanged: {
@@ -201,13 +370,13 @@ ApplicationWindow {
                     RowLayout {
                         id: topProjectRow
                         Layout.fillWidth: true
-                        Layout.preferredHeight: projectButtonStyle === "largeIcon" ? (iconSizeLarge + 24) : 32
+                        Layout.preferredHeight: projectButtonStyle === "largeIcon" ? largeButtonHeight : compactButtonHeight
                         spacing: 6
                         onWidthChanged: scheduleLayoutUpdate()
                         Item {
                             id: cwpHost
                             Layout.fillWidth: false
-                            Layout.preferredHeight: projectButtonStyle === "largeIcon" ? (iconSizeLarge + 24) : 32
+                            Layout.preferredHeight: projectButtonStyle === "largeIcon" ? largeButtonHeight : compactButtonHeight
                             Layout.minimumHeight: Layout.preferredHeight
                             Layout.preferredWidth: cwpPreferredWidth
                             clip: true
@@ -220,81 +389,30 @@ ApplicationWindow {
                                 onImplicitWidthChanged: scheduleLayoutUpdate()
                                 Repeater {
                                     model: cwp.split("/").filter(function(p){ return p.length > 0 })
-                                    delegate: Rectangle {
-                                        radius: 6
+                                    delegate: ProjectButton {
                                         property bool isCurrent: index === cwp.split("/").filter(function(p){ return p.length > 0 }).length - 1
-                                        property bool isLarge: projectButtonStyle === "largeIcon"
-                                        height: isLarge ? (iconSizeLarge + 24) : 30
-                                        color: isCurrent ? theme.accentPrimary : theme.pill
-                                        border.color: isCurrent ? theme.accentPrimary : theme.pillBorder
-                                        implicitWidth: {
-                                            var base = textMeasure.width + 20
-                                            if (projectButtonStyle === "smallIcon") {
-                                                return Math.max(60, base + iconSizeSmall + 6)
-                                            }
-                                            if (projectButtonStyle === "largeIcon") {
-                                                return Math.max(60, Math.max(iconSizeLarge, textMeasure.width) + 20)
-                                            }
-                                            return Math.max(60, base)
-                                        }
-                                        Item {
-                                            anchors.fill: parent
-                                            visible: projectButtonStyle === "text"
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: modelData
-                                                color: isCurrent ? theme.accentPrimaryText : theme.text
-                                                font.pixelSize: baseFont + 1
-                                                font.bold: isCurrent
-                                            }
-                                        }
-                                        Row {
-                                            anchors.centerIn: parent
-                                            spacing: 6
-                                            visible: projectButtonStyle === "smallIcon"
-                                            Image {
-                                                source: iconFolder
-                                                width: iconSizeSmall
-                                                height: iconSizeSmall
-                                                fillMode: Image.PreserveAspectFit
-                                            }
-                                            Text {
-                                                text: modelData
-                                                color: isCurrent ? theme.accentPrimaryText : theme.text
-                                                font.pixelSize: baseFont + 1
-                                                font.bold: isCurrent
-                                            }
-                                        }
-                                        Column {
-                                            anchors.centerIn: parent
-                                            width: parent.width
-                                            spacing: 2
-                                            visible: projectButtonStyle === "largeIcon"
-                                            Image {
-                                                source: iconFolder
-                                                width: iconSizeLarge
-                                                height: iconSizeLarge
-                                                fillMode: Image.PreserveAspectFit
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                            }
-                                            Text {
-                                                text: modelData
-                                                color: isCurrent ? theme.accentPrimaryText : theme.text
-                                                font.pixelSize: baseFont - 1
-                                                font.bold: isCurrent
-                                                horizontalAlignment: Text.AlignHCenter
-                                                width: parent.width
-                                            }
-                                        }
-                                        Text { id: textMeasure; text: modelData; visible: false; font.pixelSize: baseFont + 1 }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            onClicked: {
-                                                var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
-                                                var idx = index
-                                                var newPath = "/" + parts.slice(0, idx + 1).join("/")
-                                                setCwp(newPath)
-                                            }
+                                        label: displaySubprojectLabel(modelData)
+                                        style: projectButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: isCurrent ? theme.accentPrimary : theme.pill
+                                        strokeColor: isCurrent ? theme.accentPrimary : theme.pillBorder
+                                        textColor: isCurrent ? theme.accentPrimaryText : theme.text
+                                        textSize: baseFont + 1
+                                        largeTextSize: baseFont - 1
+                                        textBold: isCurrent
+                                        largeTextBold: isCurrent
+                                        renaming: false
+                                        renameEnabled: false
+                                        onActivate: {
+                                            var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
+                                            var idx = index
+                                            var newPath = "/" + parts.slice(0, idx + 1).join("/")
+                                            setCwp(newPath)
                                         }
                                     }
                                 }
@@ -303,7 +421,7 @@ ApplicationWindow {
                         Item {
                             id: topFlowHost
                             Layout.fillWidth: false
-                            Layout.preferredHeight: projectButtonStyle === "largeIcon" ? (iconSizeLarge + 24) : 32
+                            Layout.preferredHeight: projectButtonStyle === "largeIcon" ? largeButtonHeight : compactButtonHeight
                             Layout.alignment: Qt.AlignTop
                             Layout.preferredWidth: flowPreferredWidth
                             visible: !flowOnSecondLine
@@ -317,82 +435,43 @@ ApplicationWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                                 Repeater {
                                     model: subProjects
-                                delegate: Rectangle {
-                                    radius: 6
-                                    property bool isLarge: projectButtonStyle === "largeIcon"
-                                    height: isLarge ? (iconSizeLarge + 24) : 32
-                                    color: theme.accentSecondary
-                                    border.color: theme.accentSecondaryBorder
-                                    implicitWidth: {
-                                        var base = textItem.width + 24
-                                        if (projectButtonStyle === "smallIcon") {
-                                            return Math.max(80, base + iconSizeSmall + 6)
-                                        }
-                                        if (projectButtonStyle === "largeIcon") {
-                                            return Math.max(80, Math.max(iconSizeLarge, textItem.width) + 20)
-                                        }
-                                        return Math.max(80, base)
-                                    }
-                                    Item {
-                                        anchors.fill: parent
-                                        visible: projectButtonStyle === "text"
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: modelData
-                                            color: theme.textSoft
-                                            font.pixelSize: baseFont
-                                        }
-                                    }
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        visible: projectButtonStyle === "smallIcon"
-                                        Image {
-                                            source: iconFolder
-                                            width: iconSizeSmall
-                                            height: iconSizeSmall
-                                            fillMode: Image.PreserveAspectFit
-                                        }
-                                        Text {
-                                            text: modelData
-                                            color: theme.textSoft
-                                            font.pixelSize: baseFont
+                                    delegate: ProjectButton {
+                                        property string fullPath: modelData.indexOf("/") === 0 ? modelData : (cwp + "/" + modelData)
+                                        label: displaySubprojectLabel(modelData)
+                                        style: projectButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: theme.accentSecondary
+                                        strokeColor: theme.accentSecondaryBorder
+                                        textColor: theme.textSoft
+                                        textSize: baseFont
+                                        largeTextSize: baseFont - 1
+                                        renaming: renameActive && renameTargetPath === fullPath
+                                        renameEnabled: true
+                                        renameText: renameDraft
+                                        onRenameRequested: beginRename(fullPath)
+                                        onRenameTextEdited: renameDraft = text
+                                        onRenameAccepted: commitRename()
+                                        onRenameCanceled: cancelRename()
+                                        onActivate: {
+                                            if (modelData.indexOf("/") === 0) {
+                                                setCwp(modelData)
+                                            } else {
+                                                var newPath = cwp + "/" + modelData
+                                                setCwp(newPath)
+                                            }
+                                            clearSearchAfterNavigate()
                                         }
                                     }
-                                    Column {
-                                        anchors.centerIn: parent
-                                        width: parent.width
-                                        spacing: 2
-                                        visible: projectButtonStyle === "largeIcon"
-                                        Image {
-                                            source: iconFolder
-                                            width: iconSizeLarge
-                                            height: iconSizeLarge
-                                            fillMode: Image.PreserveAspectFit
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                        }
-                                        Text {
-                                            text: modelData
-                                            color: theme.textSoft
-                                            font.pixelSize: baseFont - 1
-                                            horizontalAlignment: Text.AlignHCenter
-                                            width: parent.width
-                                        }
-                                    }
-                                    Text { id: textItem; text: modelData; visible: false; font.pixelSize: baseFont }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            var newPath = cwp + "/" + modelData
-                                            setCwp(newPath)
-                                        }
-                                    }
-                                }
                                 }
                                 Rectangle {
                                     radius: 6
                                     property bool isLarge: projectButtonStyle === "largeIcon"
-                                    height: isLarge ? (iconSizeLarge + 24) : 32
+                                    height: isLarge ? largeButtonHeight : compactButtonHeight
                                     color: theme.accentSecondary
                                     border.color: theme.accentSecondaryBorder
                                     visible: !newSubprojectEditing
@@ -624,10 +703,10 @@ ApplicationWindow {
                             Layout.preferredWidth: searchWidth
                             Layout.minimumWidth: 0
                             Layout.maximumWidth: 520
-                            Layout.preferredHeight: 30
+                            Layout.preferredHeight: compactButtonHeight
                             Layout.alignment: Qt.AlignTop | Qt.AlignRight
                             width: searchWidth
-                            height: 30
+                            height: compactButtonHeight
                             clip: true
                             Behavior on Layout.preferredWidth {
                                 NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
@@ -647,7 +726,7 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     anchors.margins: 4
                                     text: searchText
-                                    placeholderText: "Search"
+                                    placeholderText: "Search      + deep    # all"
                                     font.pixelSize: baseFont
                                     selectByMouse: true
                                     color: theme.text
@@ -695,82 +774,43 @@ ApplicationWindow {
                                 layoutDirection: Qt.LeftToRight
                                 Repeater {
                                     model: subProjects
-                                    delegate: Rectangle {
-                                        radius: 6
-                                        property bool isLarge: projectButtonStyle === "largeIcon"
-                                        height: isLarge ? (iconSizeLarge + 24) : 32
-                                        color: theme.accentSecondary
-                                        border.color: theme.accentSecondaryBorder
-                                        implicitWidth: {
-                                            var base = textItem.width + 24
-                                            if (projectButtonStyle === "smallIcon") {
-                                                return Math.max(80, base + iconSizeSmall + 6)
-                                            }
-                                            if (projectButtonStyle === "largeIcon") {
-                                                return Math.max(80, Math.max(iconSizeLarge, textItem.width) + 20)
-                                            }
-                                            return Math.max(80, base)
-                                        }
-                                        Item {
-                                            anchors.fill: parent
-                                            visible: projectButtonStyle === "text"
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: modelData
-                                                color: theme.textSoft
-                                                font.pixelSize: baseFont
-                                            }
-                                        }
-                                        Row {
-                                            anchors.centerIn: parent
-                                            spacing: 6
-                                            visible: projectButtonStyle === "smallIcon"
-                                            Image {
-                                                source: iconFolder
-                                                width: iconSizeSmall
-                                                height: iconSizeSmall
-                                                fillMode: Image.PreserveAspectFit
-                                            }
-                                            Text {
-                                                text: modelData
-                                                color: theme.textSoft
-                                                font.pixelSize: baseFont
-                                            }
-                                        }
-                                    Column {
-                                        anchors.centerIn: parent
-                                        width: parent.width
-                                        spacing: 2
-                                        visible: projectButtonStyle === "largeIcon"
-                                        Image {
-                                            source: iconFolder
-                                            width: iconSizeLarge
-                                            height: iconSizeLarge
-                                            fillMode: Image.PreserveAspectFit
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                        }
-                                        Text {
-                                            text: modelData
-                                            color: theme.textSoft
-                                            font.pixelSize: baseFont - 1
-                                            horizontalAlignment: Text.AlignHCenter
-                                            width: parent.width
-                                        }
-                                    }
-                                        Text { id: textItem; text: modelData; visible: false; font.pixelSize: baseFont }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            onClicked: {
+                                    delegate: ProjectButton {
+                                        property string fullPath: modelData.indexOf("/") === 0 ? modelData : (cwp + "/" + modelData)
+                                        label: displaySubprojectLabel(modelData)
+                                        style: projectButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: theme.accentSecondary
+                                        strokeColor: theme.accentSecondaryBorder
+                                        textColor: theme.textSoft
+                                        textSize: baseFont
+                                        largeTextSize: baseFont - 1
+                                        renaming: renameActive && renameTargetPath === fullPath
+                                        renameEnabled: true
+                                        renameText: renameDraft
+                                        onRenameRequested: beginRename(fullPath)
+                                        onRenameTextEdited: renameDraft = text
+                                        onRenameAccepted: commitRename()
+                                        onRenameCanceled: cancelRename()
+                                        onActivate: {
+                                            if (modelData.indexOf("/") === 0) {
+                                                setCwp(modelData)
+                                            } else {
                                                 var newPath = cwp + "/" + modelData
                                                 setCwp(newPath)
                                             }
+                                            clearSearchAfterNavigate()
                                         }
                                     }
                                 }
                                 Rectangle {
                                     radius: 6
                                     property bool isLarge: projectButtonStyle === "largeIcon"
-                                    height: isLarge ? (iconSizeLarge + 24) : 32
+                                    height: isLarge ? largeButtonHeight : compactButtonHeight
                                     color: theme.accentSecondary
                                     border.color: theme.accentSecondaryBorder
                                     visible: !newSubprojectEditing
@@ -1017,8 +1057,8 @@ ApplicationWindow {
                             scheduleLayoutUpdate()
                         }
                         Rectangle {
-                            width: 30
-                            height: 30
+                            width: compactButtonHeight
+                            height: compactButtonHeight
                             radius: 4
                             color: theme.pill
                             border.color: theme.pillBorder
@@ -1043,8 +1083,8 @@ ApplicationWindow {
                                 { label: "k", icon: "", style: "smallIcon" }
                             ]
                             delegate: Rectangle {
-                                width: 30
-                                height: 30
+                                width: compactButtonHeight
+                                height: compactButtonHeight
                                 radius: 4
                                 property bool isActive: modelData.style !== "" && projectButtonStyle === modelData.style
                                 color: isActive ? theme.accentSecondary : theme.pill
@@ -1088,7 +1128,7 @@ ApplicationWindow {
                         }
                         Rectangle {
                             radius: 6
-                            height: 32
+                            height: compactButtonHeight
                             color: theme.accentPrimary
                             border.color: theme.accentPrimary
                             Text {
