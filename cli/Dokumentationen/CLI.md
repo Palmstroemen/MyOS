@@ -16,6 +16,7 @@ Project management.
 
 Examples:
 - `myproject create /path/to/folder`
+- `myproject create --new /path/to/new-folder`
 
 ---
 

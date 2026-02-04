@@ -22,6 +22,7 @@ Trennlinie, und rechts davon die Unterprojekte von des CWP.
 Also z.B. /Projekte/Haus/**Dach**/ || /Fundraising/, /Webseite/, ...
 Ganz rechts vielleicht ein Standardordner /new Project/.
 *Je nach Privilegien wird einem /new Project/ angezeigt oder nicht. Der Admin darf vielleicht neue Projekte anlegen, ein normaler Mitarbeiter nicht.*
+*MVP-Hinweis:* Bei sehr vielen Unterprojekten (z.B. hunderte) braucht es später eine bessere Navigation, z.B. eine Suche oder Filter direkt im Projektbereich. Für das MVP reicht eine einfache Zeilenumbruch-/Darstellungslösung, aber die Suche sollte als zukünftige Verbesserung eingeplant werden.
 ### Standardfolder
 In ganz ähnlicher Weise, wie im Projektbereich werden in der zweiten Zeile die Standardfolder dargestellt:
 /finanz/Ausgangsrechnungen/**2025**/ || /01/, /02/, ...

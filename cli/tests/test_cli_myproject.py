@@ -41,3 +41,18 @@ def test_myproject_create_without_parent_fails():
 
         assert result.returncode != 0
         assert "Error:" in result.stderr
+
+
+def test_myproject_create_new_path_with_flag():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "Root"
+        root.mkdir()
+        myos_dir = root / ".MyOS"
+        myos_dir.mkdir(parents=True)
+        (myos_dir / "Project.md").write_text("# MyOS Project\n")
+
+        target = root / "NewChild"
+        result = _run_myproject(["create", "--new", str(target)], cwd=tmpdir)
+
+        assert result.returncode == 0
+        assert (target / ".MyOS" / "Project.md").exists()
