@@ -70,6 +70,7 @@ Item {
         return buttonStyle
     }
 
+
     function pathParts() {
         return path.split("/").filter(function(p){ return p.length > 0 })
     }
@@ -154,7 +155,7 @@ Item {
                     id: pathHost
                     Layout.fillWidth: flowOnSecondLine
                     Layout.preferredWidth: flowOnSecondLine ? 0 : pathRow.implicitWidth
-                    Layout.preferredHeight: compactButtonHeight
+                    Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
                     clip: true
                     Row {
                         id: pathRow
@@ -174,7 +175,7 @@ Item {
                                 largePadding: largeButtonPadding
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
-                                iconSource: Qt.resolvedUrl(iconFolder)
+                                iconSource: iconFolder
                                 fillColor: isCurrent ? accentPrimary : pill
                                 strokeColor: isCurrent ? accentPrimary : pillBorder
                                 textColor: isCurrent ? accentPrimaryText : text
@@ -208,7 +209,7 @@ Item {
                                 largePadding: largeButtonPadding
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
-                                iconSource: Qt.resolvedUrl(iconFolder)
+                                iconSource: iconFolder
                                 fillColor: accentSecondary
                                 strokeColor: accentSecondaryBorder
                                 textColor: textSoft
@@ -325,12 +326,7 @@ Item {
                         }
                     }
                 }
-                Rectangle {
-                    width: 6
-                    height: 6
-                    color: "red"
-                    Layout.alignment: Qt.AlignVCenter
-                }
+
             }
 
             RowLayout { // VERTICAL VIEW: top row (H/V toggle + right-side buttons)
@@ -369,7 +365,7 @@ Item {
                         border.color: pillBorder
                         Image {
                             anchors.centerIn: parent
-                            source: Qt.resolvedUrl(iconSearch)
+                            source: iconSearch
                             width: baseFont
                             height: baseFont
                             fillMode: Image.PreserveAspectFit
@@ -478,7 +474,7 @@ Item {
                                 largePadding: largeButtonPadding
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
-                                iconSource: Qt.resolvedUrl(iconFolder)
+                                iconSource: iconFolder
                                 fillColor: accentSecondary
                                 strokeColor: accentSecondaryBorder
                                 textColor: textSoft
@@ -507,13 +503,13 @@ Item {
                     delegate: ProjectButton {
                         width: parent.width
                         label: modelData.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
-                        style: effectiveStyle()
+                        style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
                         compactHeight: compactButtonHeight
                         largeHeight: largeButtonHeight
                         largePadding: largeButtonPadding
                         iconSmall: iconSizeSmall
                         iconLarge: iconSizeLarge
-                        iconSource: Qt.resolvedUrl(iconFolder)
+                        iconSource: iconFolder
                         fillColor: pill
                         strokeColor: pillBorder
                         textColor: text
@@ -530,13 +526,13 @@ Item {
                 visible: verticalView
                 width: parent.width
                 label: pathParts().length ? pathParts()[pathParts().length - 1] : "/"
-                style: effectiveStyle()
+                style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
                 compactHeight: compactButtonHeight
                 largeHeight: largeButtonHeight
                 largePadding: largeButtonPadding
                 iconSmall: iconSizeSmall
                 iconLarge: iconSizeLarge
-                iconSource: Qt.resolvedUrl(iconFolder)
+                iconSource: iconFolder
                 fillColor: accentPrimary
                 strokeColor: accentPrimary
                 textColor: accentPrimaryText
@@ -567,12 +563,13 @@ Item {
                             width: parent.width - indent
                             label: modelData
                             style: effectiveStyle()
+                            largeIconAlignLeft: true
                             compactHeight: compactButtonHeight
                             largeHeight: largeButtonHeight
                             largePadding: largeButtonPadding
                             iconSmall: iconSizeSmall
                             iconLarge: iconSizeLarge
-                            iconSource: Qt.resolvedUrl(iconFolder)
+                            iconSource: iconFolder
                             fillColor: accentSecondary
                             strokeColor: accentSecondaryBorder
                             textColor: textSoft

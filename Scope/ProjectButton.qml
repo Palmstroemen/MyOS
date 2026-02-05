@@ -15,13 +15,14 @@ Rectangle {
     property color strokeColor: "#58648a"
     property color textColor: "#cfd3df"
     property int textSize: 14
-    property int largeTextSize: 13
+    property int largeTextSize: textSize
     property bool textBold: false
     property bool largeTextBold: textBold
     property bool renaming: false
     property bool renameEnabled: false
     property string renameText: ""
     property int textLeftInset: 0
+    property bool largeIconAlignLeft: false
     signal activate()
     signal renameRequested()
     signal renameTextEdited(string text)
@@ -32,6 +33,7 @@ Rectangle {
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
     border.color: strokeColor
+
     implicitWidth: {
         var base = textMeasure.width + 24
         if (style === "smallIcon") {
@@ -71,6 +73,8 @@ Rectangle {
             width: iconSmall
             height: iconSmall
             fillMode: Image.PreserveAspectFit
+            sourceSize.width: width
+            sourceSize.height: height
         }
         Text {
             text: label
@@ -84,7 +88,9 @@ Rectangle {
     Column {
         anchors.top: parent.top
         anchors.topMargin: largePadding
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.left: largeIconAlignLeft ? parent.left : undefined
+        anchors.leftMargin: largeIconAlignLeft ? 6 : 0
+        anchors.horizontalCenter: largeIconAlignLeft ? undefined : parent.horizontalCenter
         width: parent.width
         spacing: 2
         visible: style === "largeIcon"
@@ -93,14 +99,18 @@ Rectangle {
             width: iconLarge
             height: iconLarge
             fillMode: Image.PreserveAspectFit
-            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.left: largeIconAlignLeft ? parent.left : undefined
+            anchors.leftMargin: largeIconAlignLeft ? 6 : 0
+            anchors.horizontalCenter: largeIconAlignLeft ? undefined : parent.horizontalCenter
+            sourceSize.width: width
+            sourceSize.height: height
         }
         Text {
             text: label
             color: textColor
             font.pixelSize: largeTextSize
             font.bold: largeTextBold
-            horizontalAlignment: Text.AlignHCenter
+            horizontalAlignment: largeIconAlignLeft ? Text.AlignLeft : Text.AlignHCenter
             width: parent.width
             visible: !renaming
         }

@@ -11,4 +11,8 @@ Now you might think. Nice, but I would like to have other folders inside because
 2. You can edit the templates directly. Maybe you want to change it to your language, rename, add or remove folders. 
 For now, we do not want to go too deep in these kind of things, but you may be sure that you can change it to your needs.
 
+So hopefully your take away of this lesson is, that our standard folders come with a deep structure of subfolders behind and you can change it to your liking.
+
+Then [[growing big|let's take things further]].
+
 

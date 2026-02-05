@@ -718,15 +718,15 @@ ApplicationWindow {
             showSearchToggle: true
             showStyleToggle: true
             showThemeToggle: false
-            baseFont: baseFont
-            compactButtonHeight: compactButtonHeight
-            largeButtonHeight: largeButtonHeight
-            largeButtonPadding: largeButtonPadding
+            baseFont: window.baseFont
+            compactButtonHeight: window.compactButtonHeight
+            largeButtonHeight: window.largeButtonHeight
+            largeButtonPadding: window.largeButtonPadding
             verticalPreferredWidth: Math.round(window.width * 0.25)
-            iconSizeSmall: iconSizeSmall
-            iconSizeLarge: iconSizeLarge
-            iconFolder: Qt.resolvedUrl(iconFolder)
-            iconSearch: Qt.resolvedUrl(iconSearch)
+            iconSizeSmall: window.iconSizeSmall
+            iconSizeLarge: window.iconSizeLarge
+            iconFolder: window.iconFolder
+            iconSearch: window.iconSearch
             indent: 30
             panelColor: theme.panelAlt
             panelBorderColor: theme.pillBorder
@@ -773,15 +773,15 @@ ApplicationWindow {
             showSearchToggle: true
             showStyleToggle: true
             showThemeToggle: false
-            baseFont: baseFont
-            compactButtonHeight: compactButtonHeight
-            largeButtonHeight: largeButtonHeight
-            largeButtonPadding: largeButtonPadding
+            baseFont: window.baseFont
+            compactButtonHeight: window.compactButtonHeight
+            largeButtonHeight: window.largeButtonHeight
+            largeButtonPadding: window.largeButtonPadding
             verticalPreferredWidth: Math.round(window.width * 0.25)
-            iconSizeSmall: iconSizeSmall
-            iconSizeLarge: iconSizeLarge
-            iconFolder: Qt.resolvedUrl(iconFolder)
-            iconSearch: Qt.resolvedUrl(iconSearch)
+            iconSizeSmall: window.iconSizeSmall
+            iconSizeLarge: window.iconSizeLarge
+            iconFolder: window.iconFolder
+            iconSearch: window.iconSearch
             indent: 30
             panelColor: theme.panel
             panelBorderColor: theme.pillBorder
