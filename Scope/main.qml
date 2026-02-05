@@ -9,7 +9,7 @@ ApplicationWindow {
     visible: true
     title: "Scope - MyOS GUI Stub"
 
-    property int baseFont: Math.max(14, Qt.application.font.pixelSize + 2)
+    property int baseFont: Qt.application.font.pixelSize
     property bool darkTheme: true
     property string iconFolder: "Theme/icons/folder.svg"
     property string iconSearch: "Theme/icons/search.svg"
@@ -21,10 +21,18 @@ ApplicationWindow {
     property int largeButtonHeight: iconSizeLarge + baseFont + (largeButtonPadding * 2) + 2
     property int searchPathPrefixDepth: 2
     property bool verticalProjectView: false
+    property bool level2VerticalView: false
     property var searchInputRef: null
     property string standardButtonStyle: "text"
     property string userButtonStyle: "text"
     property string userPath: "/Eigene"
+    property string level2ButtonStyle: "smallIcon"
+    property real level2AvailableWidth: 0
+    property real level2PathPreferredWidth: 0
+    property real level2FlowPreferredWidth: 0
+    property bool level2LayoutUpdatePending: false
+    property real level2RightButtonsWidth: 0
+    property bool level2FlowOnSecondLine: false
     QtObject {
         id: theme
         property color bg: darkTheme ? "#0f1014" : "#f3f4f8"
@@ -50,6 +58,7 @@ ApplicationWindow {
     property var subProjects: []
     property string standardPath: "/finanz/Ausgangsrechnungen/2025"
     property var standardFolders: ["01", "02", "03", "04", "05"]
+    property var standardFoldersFiltered: ["01", "02", "03", "04", "05"]
     property var userFolders: ["myFolder", "myOtherFolder"]
     property var files: ["Rechnung_001.pdf", "Angebot_Alpha.docx", "Note.md"]
 
@@ -191,6 +200,25 @@ ApplicationWindow {
         })
     }
 
+    function updateStandardFolders() {
+        var query = level2SearchText.trim()
+        if (query.length === 0) {
+            standardFoldersFiltered = standardFolders
+            return
+        }
+        if (query[0] === "+" || query[0] === "#") {
+            query = query.slice(1).trim()
+        }
+        var lower = query.toLowerCase()
+        if (lower.length === 0) {
+            standardFoldersFiltered = standardFolders
+            return
+        }
+        standardFoldersFiltered = standardFolders.filter(function(name){
+            return name.toLowerCase().indexOf(lower) !== -1
+        })
+    }
+
     function clearSearchAfterNavigate() {
         if (searchText.trim().length === 0) return
         searchText = ""
@@ -327,6 +355,7 @@ ApplicationWindow {
         topButtonsWidth = rightButtonsWidth + searchWidth + 6
         setCwp(cwp)
         updateFlowPlacement()
+        updateBrowserLayout()
     }
     property bool newSubprojectEditing: false
     property string newSubprojectDraft: ""
@@ -340,6 +369,8 @@ ApplicationWindow {
     property real topButtonsWidth: 0
     property bool searchActive: false
     property string searchText: ""
+    property bool level2SearchActive: false
+    property string level2SearchText: ""
     property bool renameActive: false
     property string renameTargetPath: ""
     property string renameDraft: ""
@@ -351,7 +382,10 @@ ApplicationWindow {
         topButtonsWidth = rightButtonsWidth + searchWidth + 6
         scheduleLayoutUpdate()
     }
+    onVerticalProjectViewChanged: updateBrowserLayout()
+    onLevel2VerticalViewChanged: updateBrowserLayout()
     onSearchTextChanged: updateSubProjects()
+    onLevel2SearchTextChanged: updateStandardFolders()
     onSearchActiveChanged: {
         searchWidth = searchActive ? 520 : 0
         rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
@@ -368,10 +402,17 @@ ApplicationWindow {
         }
         scheduleLayoutUpdate()
     }
+    onLevel2SearchActiveChanged: {
+        if (!level2SearchActive) {
+            level2SearchText = ""
+        }
+        updateStandardFolders()
+    }
     onSearchWidthChanged: {
         topButtonsWidth = rightButtonsWidth + searchWidth + 6
         scheduleLayoutUpdate()
     }
+    onLevel2ButtonStyleChanged: scheduleLevel2LayoutUpdate()
 
     function scheduleLayoutUpdate() {
         if (layoutUpdatePending) return
@@ -405,6 +446,124 @@ ApplicationWindow {
             var newFlow = Math.max(0, available - newCwp)
             if (cwpPreferredWidth !== newCwp) cwpPreferredWidth = newCwp
             if (flowPreferredWidth !== newFlow) flowPreferredWidth = newFlow
+        }
+    }
+
+    function scheduleLevel2LayoutUpdate() {
+        if (level2LayoutUpdatePending) return
+        level2LayoutUpdatePending = true
+        Qt.callLater(function() {
+            level2LayoutUpdatePending = false
+            updateLevel2FlowPlacement()
+        })
+    }
+
+    function updateLevel2FlowPlacement() {
+        if (!standardTopRow || !standardPathRow || !level2TopFoldersRow || !level2RightButtons || !level2ToggleButton) return
+        var available = standardTopRow.width - level2RightButtonsWidth - level2ToggleButton.width - (standardTopRow.spacing * 3)
+        if (available < 0) available = 0
+        if (level2AvailableWidth !== available) level2AvailableWidth = available
+        if (available === 0) {
+            if (!level2FlowOnSecondLine) level2FlowOnSecondLine = true
+            if (level2PathPreferredWidth !== standardPathRow.implicitWidth) level2PathPreferredWidth = standardPathRow.implicitWidth
+            if (level2FlowPreferredWidth !== 0) level2FlowPreferredWidth = 0
+            return
+        }
+        var shouldWrap = (standardPathRow.implicitWidth + level2TopFoldersRow.implicitWidth) > available
+        if (level2FlowOnSecondLine !== shouldWrap) level2FlowOnSecondLine = shouldWrap
+        if (shouldWrap) {
+            if (level2PathPreferredWidth !== available) level2PathPreferredWidth = available
+            if (level2FlowPreferredWidth !== 0) level2FlowPreferredWidth = 0
+        } else {
+            var newPath = Math.min(standardPathRow.implicitWidth, available - level2TopFoldersRow.implicitWidth)
+            var newFlow = Math.max(0, available - newPath)
+            if (level2PathPreferredWidth !== newPath) level2PathPreferredWidth = newPath
+            if (level2FlowPreferredWidth !== newFlow) level2FlowPreferredWidth = newFlow
+        }
+    }
+
+    function setBrowserParent(item, newParent) {
+        if (item && newParent && item.parent !== newParent) {
+            item.parent = newParent
+            item.anchors.fill = newParent
+        }
+    }
+
+    function setSlotSize(slot, child, inRowLayout, isFilesPane) {
+        if (!slot || !child) return
+        var isFolderBrowser = child.hasOwnProperty("verticalView")
+        var wantsFixedWidth = inRowLayout && isFolderBrowser && child.verticalView
+        var wantsFillHeight = isFilesPane
+        if (wantsFixedWidth) {
+            slot.Layout.fillWidth = false
+            slot.Layout.preferredWidth = child.verticalPreferredWidth
+            slot.Layout.minimumWidth = child.verticalPreferredWidth
+            slot.Layout.maximumWidth = child.verticalPreferredWidth
+        } else {
+            slot.Layout.fillWidth = true
+            slot.Layout.preferredWidth = -1
+            slot.Layout.minimumWidth = 0
+            slot.Layout.maximumWidth = -1
+        }
+        if (wantsFillHeight) {
+            slot.Layout.fillHeight = true
+            slot.Layout.preferredHeight = -1
+            slot.Layout.minimumHeight = 0
+            slot.Layout.maximumHeight = -1
+        } else if (isFolderBrowser && !inRowLayout) {
+            slot.Layout.fillHeight = false
+            slot.Layout.preferredHeight = Qt.binding(function() { return child.implicitHeight })
+            slot.Layout.minimumHeight = Qt.binding(function() { return child.implicitHeight })
+            slot.Layout.maximumHeight = Qt.binding(function() { return child.implicitHeight })
+        } else {
+            slot.Layout.fillHeight = true
+            slot.Layout.preferredHeight = -1
+            slot.Layout.minimumHeight = 0
+            slot.Layout.maximumHeight = -1
+        }
+    }
+
+    function updateBrowserLayout() {
+        var templatesVertical = level2VerticalView
+        var projectsVertical = verticalProjectView
+        var th_pv = (!templatesVertical && projectsVertical)
+        var th_ph = (!templatesVertical && !projectsVertical)
+        var tv_ph = (templatesVertical && !projectsVertical)
+        var tv_pv = (templatesVertical && projectsVertical)
+
+        caseTH_PV.visible = th_pv
+        caseTH_PH.visible = th_ph
+        caseTV_PH.visible = tv_ph
+        caseTV_PV.visible = tv_pv
+
+        if (th_pv) {
+            setBrowserParent(templatesBrowser, slotTemplates_TH_PV)
+            setBrowserParent(projectsBrowser, slotProjects_TH_PV)
+            setBrowserParent(filesPane, slotFiles_TH_PV)
+            setSlotSize(slotTemplates_TH_PV, templatesBrowser, false, false)
+            setSlotSize(slotProjects_TH_PV, projectsBrowser, true, false)
+            setSlotSize(slotFiles_TH_PV, filesPane, true, true)
+        } else if (th_ph) {
+            setBrowserParent(templatesBrowser, slotTemplates_TH_PH)
+            setBrowserParent(projectsBrowser, slotProjects_TH_PH)
+            setBrowserParent(filesPane, slotFiles_TH_PH)
+            setSlotSize(slotTemplates_TH_PH, templatesBrowser, false, false)
+            setSlotSize(slotProjects_TH_PH, projectsBrowser, false, false)
+            setSlotSize(slotFiles_TH_PH, filesPane, false, true)
+        } else if (tv_ph) {
+            setBrowserParent(projectsBrowser, slotProjects_TV_PH)
+            setBrowserParent(templatesBrowser, slotTemplates_TV_PH)
+            setBrowserParent(filesPane, slotFiles_TV_PH)
+            setSlotSize(slotProjects_TV_PH, projectsBrowser, false, false)
+            setSlotSize(slotTemplates_TV_PH, templatesBrowser, false, false)
+            setSlotSize(slotFiles_TV_PH, filesPane, false, true)
+        } else if (tv_pv) {
+            setBrowserParent(projectsBrowser, slotProjects_TV_PV)
+            setBrowserParent(templatesBrowser, slotTemplates_TV_PV)
+            setBrowserParent(filesPane, slotFiles_TV_PV)
+            setSlotSize(slotProjects_TV_PV, projectsBrowser, true, false)
+            setSlotSize(slotTemplates_TV_PV, templatesBrowser, true, false)
+            setSlotSize(slotFiles_TV_PV, filesPane, true, true)
         }
     }
 
@@ -460,8 +619,257 @@ ApplicationWindow {
     Rectangle {
         anchors.fill: parent
         color: theme.bg
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 12
+            anchors.margins: 16
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Rectangle {
+                    radius: 6
+                    height: compactButtonHeight
+                    color: theme.accentPrimary
+                    border.color: theme.accentPrimary
+                    Text {
+                        anchors.centerIn: parent
+                        text: darkTheme ? "Light" : "Dark"
+                        color: theme.accentPrimaryText
+                        font.pixelSize: baseFont
+                    }
+                    implicitWidth: 70
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: darkTheme = !darkTheme
+                    }
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            Item {
+                id: layoutCases
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                ColumnLayout {
+                    id: caseTH_PV
+                    anchors.fill: parent
+                    spacing: 12
+                    visible: false
+                    Item { id: slotTemplates_TH_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 12
+                        Item { id: slotProjects_TH_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                        Item { id: slotFiles_TH_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    }
+                }
+
+                ColumnLayout {
+                    id: caseTH_PH
+                    anchors.fill: parent
+                    spacing: 12
+                    visible: false
+                    Item { id: slotTemplates_TH_PH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotProjects_TH_PH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotFiles_TH_PH; Layout.fillWidth: true; Layout.fillHeight: true }
+                }
+
+                ColumnLayout {
+                    id: caseTV_PH
+                    anchors.fill: parent
+                    spacing: 12
+                    visible: false
+                    Item { id: slotProjects_TV_PH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotTemplates_TV_PH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotFiles_TV_PH; Layout.fillWidth: true; Layout.fillHeight: true }
+                }
+
+                RowLayout {
+                    id: caseTV_PV
+                    anchors.fill: parent
+                    spacing: 12
+                    visible: false
+                    Item { id: slotProjects_TV_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotTemplates_TV_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotFiles_TV_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                }
+            }
+
+        }
+
+        Item {
+            id: floatingPool
+            anchors.fill: parent
+            visible: false
+        }
+
+        FolderBrowser {
+            id: templatesBrowser
+            parent: floatingPool
+            path: standardPath
+            folders: standardFoldersFiltered
+            verticalView: level2VerticalView
+            buttonStyle: level2ButtonStyle
+            allowLargeIcons: true
+            showModeToggle: true
+            showSearchToggle: true
+            showStyleToggle: true
+            showThemeToggle: false
+            baseFont: baseFont
+            compactButtonHeight: compactButtonHeight
+            largeButtonHeight: largeButtonHeight
+            largeButtonPadding: largeButtonPadding
+            verticalPreferredWidth: Math.round(window.width * 0.25)
+            iconSizeSmall: iconSizeSmall
+            iconSizeLarge: iconSizeLarge
+            iconFolder: Qt.resolvedUrl(iconFolder)
+            iconSearch: Qt.resolvedUrl(iconSearch)
+            indent: 30
+            panelColor: theme.panelAlt
+            panelBorderColor: theme.pillBorder
+            accentPrimary: theme.accentPrimary
+            accentPrimaryText: theme.accentPrimaryText
+            pill: theme.pill
+            pillBorder: theme.pillBorder
+            accentSecondary: theme.accentSecondary
+            accentSecondaryBorder: theme.accentSecondaryBorder
+            text: theme.text
+            textSoft: theme.textSoft
+            textMuted: theme.textMuted
+            card: theme.card
+            searchActive: level2SearchActive
+            searchText: level2SearchText
+            onToggleMode: level2VerticalView = !level2VerticalView
+            onToggleSearch: level2SearchActive = !level2SearchActive
+            onSearchTextChanged: level2SearchText = templatesBrowser.searchText
+            onSearchTextEdited: {
+                level2SearchText = value
+                updateStandardFolders()
+            }
+            onStyleChanged: level2ButtonStyle = style
+            onPathSegmentActivated: {
+                var parts = standardPath.split("/").filter(function(p){ return p.length > 0 })
+                standardPath = "/" + parts.slice(0, index + 1).join("/")
+            }
+            onPathSelected: standardPath = path
+            onFolderActivated: {
+                var base = standardPath.endsWith("/") ? standardPath.slice(0, -1) : standardPath
+                standardPath = base + "/" + name
+            }
+        }
+
+        FolderBrowser {
+            id: projectsBrowser
+            parent: floatingPool
+            path: cwp
+            folders: subProjects
+            verticalView: verticalProjectView
+            buttonStyle: projectButtonStyle
+            allowLargeIcons: true
+            showModeToggle: true
+            showSearchToggle: true
+            showStyleToggle: true
+            showThemeToggle: false
+            baseFont: baseFont
+            compactButtonHeight: compactButtonHeight
+            largeButtonHeight: largeButtonHeight
+            largeButtonPadding: largeButtonPadding
+            verticalPreferredWidth: Math.round(window.width * 0.25)
+            iconSizeSmall: iconSizeSmall
+            iconSizeLarge: iconSizeLarge
+            iconFolder: Qt.resolvedUrl(iconFolder)
+            iconSearch: Qt.resolvedUrl(iconSearch)
+            indent: 30
+            panelColor: theme.panel
+            panelBorderColor: theme.pillBorder
+            accentPrimary: theme.accentPrimary
+            accentPrimaryText: theme.accentPrimaryText
+            pill: theme.pill
+            pillBorder: theme.pillBorder
+            accentSecondary: theme.accentSecondary
+            accentSecondaryBorder: theme.accentSecondaryBorder
+            text: theme.text
+            textSoft: theme.textSoft
+            textMuted: theme.textMuted
+            card: theme.card
+            allowRename: true
+            renameTargetPath: renameTargetPath
+            renameDraft: renameDraft
+            searchActive: window.searchActive
+            searchText: window.searchText
+            onToggleMode: verticalProjectView = !verticalProjectView
+            onStyleChanged: projectButtonStyle = style
+            onToggleSearch: window.searchActive = !window.searchActive
+            onSearchTextChanged: {
+                window.searchText = projectsBrowser.searchText
+                window.updateSubProjects()
+            }
+            onSearchTextEdited: {
+                window.searchText = value
+                window.updateSubProjects()
+            }
+            onPathSegmentActivated: {
+                var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
+                setCwp("/" + parts.slice(0, index + 1).join("/"))
+            }
+            onPathSelected: setCwp(path)
+            onFolderActivated: {
+                if (name.indexOf("/") === 0) {
+                    setCwp(name)
+                } else {
+                    setCwp(cwp + "/" + name)
+                }
+                clearSearchAfterNavigate()
+            }
+            onRenameRequested: beginRename(fullPath)
+            onRenameTextEdited: renameDraft = text
+            onRenameAccepted: commitRename()
+            onRenameCanceled: cancelRename()
+        }
+
+        Rectangle {
+            id: filesPane
+            parent: floatingPool
+            radius: 8
+            color: theme.card
+            border.color: theme.pillBorder
+            implicitWidth: 0
+            implicitHeight: 0
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 8
+                Text {
+                    text: "Files (Roentgen view placeholder)"
+                    color: theme.textMuted
+                    font.pixelSize: baseFont
+                }
+                Repeater {
+                    model: files
+                    delegate: Rectangle {
+                        Layout.fillWidth: true
+                        height: 36
+                        radius: 6
+                        color: theme.panelAlt
+                        border.color: theme.pillBorder
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: 12
+                            text: modelData
+                            color: theme.text
+                            font.pixelSize: baseFont
+                        }
+                    }
+                }
+            }
+        }
 
         RowLayout {
+            visible: false
             anchors.fill: parent
             spacing: 12
             anchors.margins: 16
@@ -678,15 +1086,20 @@ ApplicationWindow {
 
             ColumnLayout {
                 id: rightContent
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                visible: false
+                Layout.fillWidth: false
+                Layout.fillHeight: false
+                Layout.preferredWidth: 0
+                Layout.preferredHeight: 0
+                Layout.minimumWidth: 0
+                Layout.minimumHeight: 0
                 spacing: 8
 
                 // Project bar
                 Rectangle {
                     visible: !verticalProjectView
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 12 + topProjectRow.implicitHeight + (flowOnSecondLine ? (8 + bottomProjectRow.implicitHeight) : 0) + 12
+                    Layout.preferredHeight: 0
                     radius: 8
                     color: theme.panel
                     border.color: theme.pillBorder
@@ -1470,14 +1883,15 @@ ApplicationWindow {
             RowLayout {
                 id: verticalSecondLevelContent
                 Layout.fillWidth: true
-                Layout.preferredHeight: 360
-                Layout.minimumHeight: 280
+                Layout.fillHeight: false
+                Layout.preferredHeight: systemPanel.implicitHeight
                 spacing: 12
-                visible: verticalProjectView
+                visible: level2VerticalView
                 Rectangle {
                     id: systemPanel
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    Layout.fillHeight: false
+                    Layout.preferredHeight: systemPanel.implicitHeight
                     radius: 8
                     color: theme.panelAlt
                     border.color: theme.pillBorder
@@ -1489,6 +1903,23 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Row {
                                 spacing: 6
+                                Rectangle {
+                                    width: compactButtonHeight
+                                    height: compactButtonHeight
+                                    radius: 4
+                                    color: theme.pill
+                                    border.color: theme.accentSecondaryBorder
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: level2VerticalView ? "H" : "V"
+                                        color: theme.text
+                                        font.pixelSize: baseFont - 2
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: level2VerticalView = !level2VerticalView
+                                    }
+                                }
                                 Repeater {
                                     model: [
                                         { label: "t", style: "text" },
@@ -1575,9 +2006,250 @@ ApplicationWindow {
                                 Repeater {
                                     model: standardFolders
                                     delegate: ProjectButton {
-                                        width: parent.width
+                                        x: 16
+                                        width: parent.width - 16
                                         label: modelData
                                         style: standardButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: theme.pill
+                                        strokeColor: theme.pillBorder
+                                        textColor: theme.textSoft
+                                        textSize: baseFont
+                                        renaming: false
+                                        renameEnabled: false
+                                        textLeftInset: standardButtonStyle === "text" ? 16 : 0
+                                        onActivate: {
+                                            var base = standardPath.endsWith("/") ? standardPath.slice(0, -1) : standardPath
+                                            standardPath = base + "/" + modelData
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+            }
+
+            // Standard folder bar
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 12 + standardTopRow.implicitHeight + (level2FlowOnSecondLine ? (8 + level2BottomRow.implicitHeight) : 0) + 12
+                radius: 8
+                color: theme.panelAlt
+                border.color: theme.pillBorder
+                visible: !level2VerticalView
+                ColumnLayout {
+                    id: standardBarContent
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+                    RowLayout {
+                        id: standardTopRow
+                        Layout.fillWidth: true
+                        spacing: 10
+                        onWidthChanged: scheduleLevel2LayoutUpdate()
+                        Rectangle {
+                            id: level2ToggleButton
+                            width: compactButtonHeight
+                            height: compactButtonHeight
+                            radius: 4
+                            color: theme.pill
+                            border.color: theme.accentSecondaryBorder
+                            Text {
+                                anchors.centerIn: parent
+                                text: level2VerticalView ? "H" : "V"
+                                color: theme.text
+                                font.pixelSize: baseFont - 2
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: level2VerticalView = !level2VerticalView
+                            }
+                        }
+                        Item {
+                            id: level2PathHost
+                            Layout.fillWidth: false
+                            Layout.preferredWidth: level2PathPreferredWidth
+                            Layout.preferredHeight: compactButtonHeight
+                            clip: true
+                            Row {
+                                id: standardPathRow
+                                spacing: 6
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: standardPathRow.implicitWidth <= level2PathHost.width ? parent.left : undefined
+                                anchors.right: standardPathRow.implicitWidth <= level2PathHost.width ? undefined : parent.right
+                                onImplicitWidthChanged: scheduleLevel2LayoutUpdate()
+                                Repeater {
+                                    model: standardPath.split("/").filter(function(p){ return p.length > 0 })
+                                    delegate: ProjectButton {
+                                        property bool isCurrent: index === standardPath.split("/").filter(function(p){ return p.length > 0 }).length - 1
+                                        label: modelData
+                                        style: level2ButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: isCurrent ? theme.accentPrimary : theme.pill
+                                        strokeColor: isCurrent ? theme.accentPrimary : theme.pillBorder
+                                        textColor: isCurrent ? theme.accentPrimaryText : theme.text
+                                        textSize: baseFont
+                                        renaming: false
+                                        renameEnabled: false
+                                        onActivate: {
+                                            var parts = standardPath.split("/").filter(function(p){ return p.length > 0 })
+                                            var idx = index
+                                            standardPath = "/" + parts.slice(0, idx + 1).join("/")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Item {
+                            id: level2TopFlowHost
+                            Layout.fillWidth: false
+                            Layout.preferredWidth: level2FlowPreferredWidth
+                            Layout.preferredHeight: compactButtonHeight
+                            Layout.alignment: Qt.AlignTop
+                            visible: !level2FlowOnSecondLine
+                            onWidthChanged: scheduleLevel2LayoutUpdate()
+                            Row {
+                                id: level2TopFoldersRow
+                                spacing: 6
+                                onImplicitWidthChanged: scheduleLevel2LayoutUpdate()
+                                Repeater {
+                                    model: standardFolders
+                                    delegate: ProjectButton {
+                                        label: modelData
+                                        style: level2ButtonStyle
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: theme.pill
+                                        strokeColor: theme.pillBorder
+                                        textColor: theme.textSoft
+                                        textSize: baseFont
+                                        renaming: false
+                                        renameEnabled: false
+                                        onActivate: {
+                                            var base = standardPath.endsWith("/") ? standardPath.slice(0, -1) : standardPath
+                                            standardPath = base + "/" + modelData
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        Row {
+                            id: level2RightButtons
+                            Layout.preferredWidth: level2RightButtons.implicitWidth
+                            Layout.minimumWidth: level2RightButtons.implicitWidth
+                            Layout.maximumWidth: level2RightButtons.implicitWidth
+                            spacing: 6
+                            Component.onCompleted: {
+                                level2RightButtonsWidth = level2RightButtons.implicitWidth
+                                scheduleLevel2LayoutUpdate()
+                            }
+                            onImplicitWidthChanged: {
+                                level2RightButtonsWidth = level2RightButtons.implicitWidth
+                                scheduleLevel2LayoutUpdate()
+                            }
+                            Rectangle {
+                                width: compactButtonHeight
+                                height: compactButtonHeight
+                                radius: 4
+                                color: theme.pill
+                                border.color: theme.pillBorder
+                                Image {
+                                    anchors.centerIn: parent
+                                    source: iconSearch
+                                    width: baseFont
+                                    height: baseFont
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: searchActive = !searchActive
+                                }
+                            }
+                            Repeater {
+                                model: [
+                                    { label: "t", style: "text" },
+                                    { label: "G", style: "largeIcon" },
+                                    { label: "k", style: "smallIcon" }
+                                ]
+                                delegate: Rectangle {
+                                    width: compactButtonHeight
+                                    height: compactButtonHeight
+                                    radius: 4
+                                    property bool isActive: level2ButtonStyle === modelData.style
+                                    color: isActive ? theme.accentSecondary : theme.pill
+                                    border.color: isActive ? theme.accentSecondaryBorder : theme.pillBorder
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        color: theme.text
+                                        font.pixelSize: baseFont - 2
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: level2ButtonStyle = modelData.style
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                radius: 6
+                                height: compactButtonHeight
+                                color: theme.accentPrimary
+                                border.color: theme.accentPrimary
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: darkTheme ? "Light" : "Dark"
+                                    color: theme.accentPrimaryText
+                                    font.pixelSize: baseFont
+                                }
+                                implicitWidth: 70
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: darkTheme = !darkTheme
+                                }
+                            }
+                        }
+                    }
+                    RowLayout {
+                        id: level2BottomRow
+                        Layout.fillWidth: true
+                        spacing: 6
+                        visible: level2FlowOnSecondLine
+                        implicitHeight: level2BottomFoldersFlow.implicitHeight
+                        Layout.preferredHeight: level2FlowOnSecondLine ? level2BottomFoldersFlow.implicitHeight : 0
+                        Item {
+                            id: level2BottomFlowHost
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: level2FlowOnSecondLine ? level2BottomFoldersFlow.implicitHeight : 0
+                            onWidthChanged: scheduleLevel2LayoutUpdate()
+                            Flow {
+                                id: level2BottomFoldersFlow
+                                width: level2BottomFlowHost.width
+                                height: implicitHeight
+                                spacing: 6
+                                flow: Flow.LeftToRight
+                                layoutDirection: Qt.LeftToRight
+                                Repeater {
+                                    model: standardFolders
+                                    delegate: ProjectButton {
+                                        label: modelData
+                                        style: level2ButtonStyle
                                         compactHeight: compactButtonHeight
                                         largeHeight: largeButtonHeight
                                         largePadding: largeButtonPadding
@@ -1600,227 +2272,6 @@ ApplicationWindow {
                         }
                     }
                 }
-                Rectangle {
-                    id: userPanel
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 8
-                    color: theme.panelAlt2
-                    border.color: theme.pillBorder
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 8
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Row {
-                                spacing: 6
-                                Repeater {
-                                    model: [
-                                        { label: "t", style: "text" },
-                                        { label: "k", style: "smallIcon" }
-                                    ]
-                                    delegate: Rectangle {
-                                        width: compactButtonHeight
-                                        height: compactButtonHeight
-                                        radius: 4
-                                        property bool isActive: userButtonStyle === modelData.style
-                                        color: isActive ? theme.accentSecondary : theme.pill
-                                        border.color: isActive ? theme.accentSecondaryBorder : theme.pillBorder
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: modelData.label
-                                            color: theme.text
-                                            font.pixelSize: baseFont - 2
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            onClicked: userButtonStyle = modelData.style
-                                        }
-                                    }
-                                }
-                            }
-                            Item { Layout.fillWidth: true }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: verticalParentSpacing
-                            Repeater {
-                                model: visibleParentPathsFor(userPath, userPanel.height)
-                                delegate: ProjectButton {
-                                    width: parent.width
-                                    label: lastPathSegment(modelData)
-                                    style: userButtonStyle
-                                    compactHeight: compactButtonHeight
-                                    largeHeight: largeButtonHeight
-                                    largePadding: largeButtonPadding
-                                    iconSmall: iconSizeSmall
-                                    iconLarge: iconSizeLarge
-                                    iconSource: iconFolder
-                                    fillColor: theme.pill
-                                    strokeColor: theme.pillBorder
-                                    textColor: theme.text
-                                    textSize: baseFont
-                                    renaming: false
-                                    renameEnabled: false
-                                    onActivate: {
-                                        userPath = modelData
-                                    }
-                                }
-                            }
-                        }
-                        ProjectButton {
-                            width: parent.width
-                            label: lastPathSegment(userPath)
-                            style: userButtonStyle
-                            compactHeight: compactButtonHeight
-                            largeHeight: largeButtonHeight
-                            largePadding: largeButtonPadding
-                            iconSmall: iconSizeSmall
-                            iconLarge: iconSizeLarge
-                            iconSource: iconFolder
-                            fillColor: theme.accentPrimary
-                            strokeColor: theme.accentPrimary
-                            textColor: theme.accentPrimaryText
-                            textSize: baseFont + 1
-                            textBold: true
-                            renaming: false
-                            renameEnabled: false
-                            onActivate: {
-                                userPath = rootPathOf(userPath)
-                            }
-                        }
-                        Flickable {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            contentWidth: width
-                            clip: true
-                            Column {
-                                width: parent.width
-                                spacing: 6
-                                Repeater {
-                                    model: userFolders
-                                    delegate: ProjectButton {
-                                        width: parent.width
-                                        label: modelData
-                                        style: userButtonStyle
-                                        compactHeight: compactButtonHeight
-                                        largeHeight: largeButtonHeight
-                                        largePadding: largeButtonPadding
-                                        iconSmall: iconSizeSmall
-                                        iconLarge: iconSizeLarge
-                                        iconSource: iconFolder
-                                        fillColor: theme.pill
-                                        strokeColor: theme.pillBorder
-                                        textColor: theme.textSoft
-                                        textSize: baseFont
-                                        renaming: false
-                                        renameEnabled: false
-                                        onActivate: {
-                                            var base = userPath.endsWith("/") ? userPath.slice(0, -1) : userPath
-                                            userPath = base + "/" + modelData
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Standard folder bar
-            Rectangle {
-                Layout.fillWidth: true
-                height: 56
-                radius: 8
-                color: theme.panelAlt
-                border.color: theme.pillBorder
-                visible: !verticalProjectView
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 10
-                    Text {
-                        text: standardPath + " /"
-                        color: theme.textMuted
-                        font.pixelSize: baseFont + 2
-                        Layout.fillWidth: true
-                        elide: Text.ElideLeft
-                    }
-                    Repeater {
-                        model: standardFolders
-                        delegate: Rectangle {
-                            radius: 6
-                            height: 28
-                            color: theme.pill
-                            border.color: theme.pillBorder
-                            Text {
-                                anchors.centerIn: parent
-                                text: modelData
-                                color: theme.textSoft
-                                font.pixelSize: baseFont
-                            }
-                            implicitWidth: 48
-                        }
-                    }
-                    Rectangle {
-                        radius: 6
-                        height: 28
-                        color: theme.action
-                        border.color: theme.actionBorder
-                        Text {
-                            anchors.centerIn: parent
-                            text: "new Standardfolder"
-                            color: theme.text
-                            font.pixelSize: baseFont - 1
-                        }
-                        implicitWidth: 160
-                    }
-                }
-            }
-
-            // Free folders bar
-            Rectangle {
-                Layout.fillWidth: true
-                height: 48
-                radius: 8
-                color: theme.panelAlt2
-                border.color: theme.pillBorder
-                visible: !verticalProjectView
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 10
-                    Repeater {
-                        model: userFolders
-                        delegate: Rectangle {
-                            radius: 6
-                            height: 26
-                            color: theme.pill
-                            border.color: theme.pillBorder
-                            Text {
-                                anchors.centerIn: parent
-                                text: modelData
-                                color: theme.textSoft
-                                font.pixelSize: baseFont - 1
-                            }
-                            implicitWidth: 90
-                        }
-                    }
-                    Rectangle {
-                        radius: 6
-                        height: 26
-                        color: theme.action
-                        border.color: theme.actionBorder
-                        Text {
-                            anchors.centerIn: parent
-                            text: "new Folder"
-                            color: theme.text
-                            font.pixelSize: baseFont - 1
-                        }
-                        implicitWidth: 110
-                    }
-                }
             }
 
             // Files area
@@ -1830,7 +2281,7 @@ ApplicationWindow {
                 radius: 8
                 color: theme.card
                 border.color: theme.pillBorder
-                visible: !verticalProjectView
+                visible: true
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 16
