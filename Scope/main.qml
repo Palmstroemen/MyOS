@@ -897,49 +897,19 @@ ApplicationWindow {
             onRenameCanceled: cancelRename()
         }
 
-        Rectangle {
+        FilesPanel {
             id: filesPane
             parent: floatingPool
-            radius: 8
-            color: theme.filesPaneBackground
-            border.color: theme.pillBorder
-            implicitWidth: 0
-            implicitHeight: 0
-            opacity: filesPanelHalfTransparent ? 0.5 : 1
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 8
-                Text {
-                    text: "Files Panel"
-                    color: theme.textMuted
-                    font.pixelSize: baseFont
-                }
-                Text {
-                    text: "FB widths: T=" + Math.round(templatesBrowser.implicitWidth) +
-                          " P=" + Math.round(projectsBrowser.implicitWidth)
-                    color: theme.text
-                    font.pixelSize: Math.max(10, baseFont - 2)
-                }
-                Repeater {
-                    model: files
-                    delegate: Rectangle {
-                        Layout.fillWidth: true
-                        height: 36
-                        radius: 6
-                        color: theme.panelAlt
-                        border.color: theme.pillBorder
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.left: parent.left
-                            anchors.leftMargin: 12
-                            text: modelData
-                            color: theme.text
-                            font.pixelSize: baseFont
-                        }
-                    }
-                }
-            }
+            files: files
+            baseFont: window.baseFont
+            text: theme.text
+            textMuted: theme.textMuted
+            panelAlt: theme.panelAlt
+            pillBorder: theme.pillBorder
+            backgroundColor: theme.filesPaneBackground
+            halfTransparent: filesPanelHalfTransparent
+            templatesBrowserWidth: templatesBrowser.implicitWidth
+            projectsBrowserWidth: projectsBrowser.implicitWidth
         }
 
     }
