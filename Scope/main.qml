@@ -900,7 +900,7 @@ ApplicationWindow {
         FilesPanel {
             id: filesPane
             parent: floatingPool
-            files: files
+            files: window.files
             baseFont: window.baseFont
             text: theme.text
             textMuted: theme.textMuted
