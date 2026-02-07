@@ -30,5 +30,6 @@ Organize yourself in Diseney-Technique or in Eisenhowser-Style? Here are your me
 
 If you like to mess around with tags, you'll find some files to tag inside this lesson. Have a look there are some funny usecases!
 
+[[Access Rights|Let's move on!]]
 
 

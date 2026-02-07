@@ -13,7 +13,7 @@ ApplicationWindow {
     property bool darkTheme: true
     property string iconFolder: "Theme/icons/folder.svg"
     property string iconSearch: "Theme/icons/search.svg"
-    property string projectButtonStyle: "text" // text | smallIcon | largeIcon
+    property string folderItemStyle: "text" // text | smallIcon | largeIcon
     property int iconSizeSmall: Math.round(baseFont * 1.35)
     property int iconSizeLarge: 120
     property int compactButtonHeight: 32
@@ -258,8 +258,8 @@ ApplicationWindow {
         return path
     }
 
-    function verticalProjectButtonStyle() {
-        return projectButtonStyle === "largeIcon" ? "text" : projectButtonStyle
+    function verticalfolderItemStyle() {
+        return folderItemStyle === "largeIcon" ? "text" : folderItemStyle
     }
 
     function lastPathSegment(path) {
@@ -830,7 +830,7 @@ ApplicationWindow {
             path: cwp
             folders: subProjects
             verticalView: verticalProjectView
-            buttonStyle: projectButtonStyle
+            buttonStyle: folderItemStyle
             allowLargeIcons: true
             showModeToggle: true
             showSearchToggle: true
@@ -868,7 +868,7 @@ ApplicationWindow {
             searchActive: window.searchActive
             searchText: window.searchText
             onToggleMode: verticalProjectView = !verticalProjectView
-            onStyleChanged: projectButtonStyle = style
+            onStyleChanged: folderItemStyle = style
             onToggleSearch: window.searchActive = !window.searchActive
             onSearchTextChanged: {
                 window.searchText = projectsBrowser.searchText

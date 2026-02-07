@@ -71,17 +71,15 @@ Item { // ROOT
 
     property bool flowOnSecondLine: false
     property bool layoutUpdatePending: false
-    property int wrapSlackOn: 20
-    property int wrapSlackOff: 40
+    property int wrapSlackOn: 10
+    property int wrapSlackOff: 60
     property bool verticalButtonsOnSecondLine: false
     property bool verticalLayoutUpdatePending: false
     property bool debugVerticalWrap: true
-    property real verticalAvailableHeight: 0
-    property real verticalDesiredHeight: 0
-    property real verticalOver: 0
     property bool foldersInSecondColumn: false
     property int verticalAutoWidth: 0
     property int verticalColumnWidth: 0
+    property int verticalRightColumnWidth: 0
     property bool verticalWidthUpdatePending: false
     property int contentHeight: 0
     property bool contentHeightUpdatePending: false
@@ -127,9 +125,22 @@ Item { // ROOT
         maxWidth = Math.max(maxWidth, buttonsWidth + 12)
         var padded = maxWidth + 32
         var columnWidth = Math.min(verticalMaxWidth, Math.max(verticalMinWidth, padded))
+        var rightWidth = calculateFoldersColumnWidth()
         verticalColumnWidth = columnWidth
+        verticalRightColumnWidth = rightWidth
         var gap = verticalContentRow ? verticalContentRow.spacing : 12
-        return foldersInSecondColumn ? (columnWidth * 2 + gap) : columnWidth
+        return foldersInSecondColumn ? (columnWidth + rightWidth + gap) : columnWidth
+    }
+
+    function calculateFoldersColumnWidth() {
+        if (!folders || folders.length === 0) return verticalMinWidth
+        var maxWidth = 0
+        var folderStyle = effectiveStyle()
+        for (var f = 0; f < folders.length; f++) {
+            maxWidth = Math.max(maxWidth, indent + estimateButtonWidth(folders[f], folderStyle))
+        }
+        var padded = maxWidth + 32
+        return Math.max(verticalMinWidth, padded)
     }
 
     function calculateContentHeight() {
@@ -282,20 +293,13 @@ Item { // ROOT
 
     function updateVerticalButtonsPlacement() {
         if (!verticalView) return
-        if (!verticalMainColumn || !verticalContentRow || !verticalButtonsPanel) return
+        if (!verticalMainColumn || !verticalContentRow) return
         if (verticalContentRow.height <= 0) return
-        var available = verticalContentRow.height       // verfügbare Höhe
-        var desired = verticalMainColumn.implicitHeight // aktuelle Höhe
-        var over = desired - available                  // 0 bei Berührung
-        verticalAvailableHeight = available
-        verticalDesiredHeight = desired
-        verticalOver = over
-        var remaining = available - desired
-        var freeHeight = verticalSpacer ? verticalSpacer.height : remaining
-        var rightColumnNeeded = foldersContentRight ? foldersContentRight.implicitHeight : 0
-        var shouldWrap = foldersInSecondColumn
-            ? (freeHeight < rightColumnNeeded + wrapSlackOff)
-            : (freeHeight < rightColumnNeeded + wrapSlackOn)
+        var freeHeight          = verticalSpacer ? verticalSpacer.height : 0
+        var uListHeight         = foldersContentRight ? foldersContentRight.implicitHeight : 0
+        var shouldWrap          = foldersInSecondColumn
+            ? (freeHeight*2 <= uListHeight + 10)
+            : (freeHeight < 1)
         if (verticalButtonsOnSecondLine !== shouldWrap) {
             verticalButtonsOnSecondLine = shouldWrap
             foldersInSecondColumn = shouldWrap
@@ -408,6 +412,7 @@ Item { // ROOT
                     radius: 4
                     color: smallButtonBg
                     border.color: smallButtonBorder
+                    Layout.alignment: Qt.AlignTop
                     Text {
                         anchors.centerIn: parent
                         text: verticalView ? "H" : "V"
@@ -435,7 +440,7 @@ Item { // ROOT
                         onImplicitWidthChanged: scheduleLayoutUpdate()
                         Repeater {
                             model: pathParts()
-                            delegate: ProjectButton {
+                            delegate: FolderItem {
                                 property bool isCurrent: index === pathParts().length - 1
                                 label: modelData
                                 style: effectiveStyle()
@@ -470,7 +475,7 @@ Item { // ROOT
                         onImplicitWidthChanged: scheduleLayoutUpdate()
                         Repeater {
                             model: folders
-                            delegate: ProjectButton {
+                            delegate: FolderItem {
                                 label: modelData
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
@@ -604,12 +609,19 @@ Item { // ROOT
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: 12
-                onHeightChanged: scheduleVerticalLayoutUpdate()
-                ColumnLayout { // VERTICAL mainColumn
-                    id: verticalMainColumn
+                onHeightChanged: {
+                    console.log("FB heights: row=" + Math.round(height) +
+                                " right=" + Math.round(verticalRightColumn.height))
+                    scheduleVerticalLayoutUpdate()
+                }
+                Item {
+                    id: verticalMainColumnHost
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 8
+                    ColumnLayout { // VERTICAL mainColumn
+                        id: verticalMainColumn
+                        anchors.fill: parent
+                        spacing: 8
                     onImplicitHeightChanged: {
                         scheduleVerticalLayoutUpdate()
                         scheduleContentHeightUpdate()
@@ -617,21 +629,6 @@ Item { // ROOT
                     onChildrenRectChanged: {
                         scheduleVerticalLayoutUpdate()
                         scheduleContentHeightUpdate()
-                    }
-                    Text {
-                        visible: debugVerticalWrap
-                        text: "V-wrap: avail=" + Math.round(verticalAvailableHeight) + "\n" +
-                              "desired=" + Math.round(verticalDesiredHeight) + "\n" +
-                              "over=" + Math.round(verticalOver) + "\n" +
-                              "wrap=" + (foldersInSecondColumn ? "yes" : "no")
-                        color: "#ff5c5c"
-                        font.pixelSize: Math.max(10, baseFont - 4)
-                    }
-                    Text {
-                        visible: debugVerticalWrap
-                        text: "FB width=" + Math.round(verticalAutoWidth)
-                        color: "#ff5c5c"
-                        font.pixelSize: Math.max(10, baseFont - 4)
                     }
                     RowLayout { // VERTICAL VIEW: top row (H/V toggle + inline buttons)
                         id: topRowVertical
@@ -647,6 +644,7 @@ Item { // ROOT
                             radius: 4
                             color: smallButtonBg
                             border.color: smallButtonBorder
+                            Layout.alignment: Qt.AlignTop
                             Text {
                                 anchors.centerIn: parent
                                 text: verticalView ? "H" : "V"
@@ -716,7 +714,7 @@ Item { // ROOT
                         spacing: verticalParentSpacing
                         Repeater { // PathButtons
                             model: visibleParentPaths()
-                            delegate: ProjectButton {
+                            delegate: FolderItem {
                                 width: parent.width
                                 label: modelData.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
                                 style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
@@ -736,7 +734,7 @@ Item { // ROOT
                             }
                         }
                     }
-                    ProjectButton { // VERTICAL VIEW: section 2 (current path highlight)
+                    FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
                         width: parent.width
                         label: pathParts().length ? pathParts()[pathParts().length - 1] : "/"
@@ -771,12 +769,12 @@ Item { // ROOT
                             spacing: 6
                             Repeater {
                                 model: folders
-                                delegate: ProjectButton {
+                                delegate: FolderItem {
                                     x: indent
                                     width: parent.width - indent
                                     label: modelData
                                     style: effectiveStyle()
-                                    largeIconAlignLeft: true
+                                    largeIconAlignLeft: effectiveStyle() !== "largeIcon"
                                     compactHeight: compactButtonHeight
                                     largeHeight: largeButtonHeight
                                     largePadding: largeButtonPadding
@@ -807,64 +805,68 @@ Item { // ROOT
                     }
                     Item { id: verticalSpacer; Layout.fillHeight: true; Layout.minimumHeight: 0 }
                 }
-            ColumnLayout { // VERTICAL: right column for folders
-                id: verticalRightColumn
-                visible: foldersInSecondColumn
-                Layout.preferredWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalColumnWidth)
-                Layout.minimumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalColumnWidth)
-                Layout.maximumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalColumnWidth)
-                Layout.fillHeight: true
-                spacing: 6
-                Rectangle { // Roter Indikator
-                    visible: debugVerticalWrap
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 14
-                    color: "#ff5c5c"
-                    radius: 3
                 }
-                Flickable { // VERTICAL: folders list (right column)
-                    Layout.fillWidth: true
+                Item {
+                    id: verticalRightColumnHost
+                    visible: foldersInSecondColumn
+                    Layout.preferredWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
+                    Layout.minimumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
+                    Layout.maximumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
                     Layout.fillHeight: true
-                    contentWidth: width
-                    contentHeight: foldersContentRight.height
-                    clip: true
-                    Column {
-                        id: foldersContentRight
-                        width: parent.width
+                    ColumnLayout { // VERTICAL: right column for folders
+                        id: verticalRightColumn
+                        anchors.fill: parent
                         spacing: 6
-                        Repeater {
-                            model: folders
-                            delegate: ProjectButton {
-                                x: indent
-                                width: parent.width - indent
-                                label: modelData
-                                style: effectiveStyle()
-                                largeIconAlignLeft: true
-                                compactHeight: compactButtonHeight
-                                largeHeight: largeButtonHeight
-                                largePadding: largeButtonPadding
-                                iconSmall: iconSizeSmall
-                                iconLarge: iconSizeLarge
-                                iconSource: iconFolder
-                                fillColor: accentSecondary
-                                strokeColor: accentSecondaryBorder
-                                textColor: textSoft
-                                textSize: baseFont
-                                textLeftInset: effectiveStyle() === "text" ? indent : 0
-                                renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
-                                renameEnabled: allowRename
-                                renameText: renameDraft
-                                onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
-                                onRenameTextEdited: renameTextEdited(text)
-                                onRenameAccepted: renameAccepted()
-                                onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(modelData)
+                        Rectangle { // Grey header 
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: compactButtonHeight
+                            border.color: theme.smallButtonBorder
+                            color: theme.smallButtonBg
+                            radius: 4
+                        }
+                        Flickable { // VERTICAL: folders list (right column)
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            contentWidth: width
+                            contentHeight: foldersContentRight.height
+                            clip: true
+                            Column {
+                                id: foldersContentRight
+                                width: parent.width
+                                spacing: 6
+                                Repeater {
+                                    model: folders
+                                    delegate: FolderItem {
+                                        x: indent
+                                        width: parent.width - indent
+                                        label: modelData
+                                        style: effectiveStyle()
+                                        largeIconAlignLeft: effectiveStyle() !== "largeIcon"
+                                        compactHeight: compactButtonHeight
+                                        largeHeight: largeButtonHeight
+                                        largePadding: largeButtonPadding
+                                        iconSmall: iconSizeSmall
+                                        iconLarge: iconSizeLarge
+                                        iconSource: iconFolder
+                                        fillColor: accentSecondary
+                                        strokeColor: accentSecondaryBorder
+                                        textColor: textSoft
+                                        textSize: baseFont
+                                        textLeftInset: effectiveStyle() === "text" ? indent : 0
+                                        renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                        renameEnabled: allowRename
+                                        renameText: renameDraft
+                                        onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                        onRenameTextEdited: renameTextEdited(text)
+                                        onRenameAccepted: renameAccepted()
+                                        onRenameCanceled: renameCanceled()
+                                        onActivate: folderActivated(modelData)
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                Item { Layout.fillHeight: true }
-            }
             }
 
             RowLayout { // HORIZONTAL VIEW: row 2 (wrapped folders flow)
@@ -887,7 +889,7 @@ Item { // ROOT
                         layoutDirection: Qt.LeftToRight
                         Repeater {
                             model: folders
-                            delegate: ProjectButton {
+                            delegate: FolderItem {
                                 label: modelData
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
