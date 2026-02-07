@@ -44,6 +44,11 @@ Item { // ROOT
     property color accentPrimaryText: "#ffffff"
     property color pill: "#2a2f40"
     property color pillBorder: "#3a4158"
+    property color smallButtonBg: pill
+    property color smallButtonBorder: pillBorder
+    property color smallButtonActiveBg: accentSecondary
+    property color smallButtonActiveBorder: accentSecondaryBorder
+    property color smallButtonText: textSoft
     property color accentSecondary: "#3b476b"
     property color accentSecondaryBorder: "#58648a"
     property color text: "#e6e6e6"
@@ -337,8 +342,8 @@ Item { // ROOT
                     width: compactButtonHeight
                     height: compactButtonHeight
                     radius: 4
-                    color: pill
-                    border.color: pillBorder
+                    color: smallButtonBg
+                    border.color: smallButtonBorder
                     Image {
                         anchors.centerIn: parent
                         source: iconSearch
@@ -362,13 +367,13 @@ Item { // ROOT
                         height: compactButtonHeight
                         radius: 4
                         property bool isActive: buttonStyle === modelData.style
-                        color: isActive ? accentSecondary : pill
-                        border.color: isActive ? accentSecondaryBorder : pillBorder
+                        color: isActive ? smallButtonActiveBg : smallButtonBg
+                        border.color: isActive ? smallButtonActiveBorder : smallButtonBorder
                         visible: allowLargeIcons || modelData.style !== "largeIcon"
                         Text {
                             anchors.centerIn: parent
                             text: modelData.label
-                            color: text
+                            color: smallButtonText
                             font.pixelSize: baseFont
                         }
                         MouseArea {
@@ -381,12 +386,12 @@ Item { // ROOT
                     width: compactButtonHeight
                     height: compactButtonHeight
                     radius: 4
-                    color: foldersInSecondColumn ? accentSecondary : pill
-                    border.color: foldersInSecondColumn ? accentSecondaryBorder : pillBorder
+                    color: foldersInSecondColumn ? smallButtonActiveBg : smallButtonBg
+                    border.color: foldersInSecondColumn ? smallButtonActiveBorder : smallButtonBorder
                     Text {
                         anchors.centerIn: parent
                         text: "R"
-                        color: text
+                        color: smallButtonText
                         font.pixelSize: baseFont
                     }
                     MouseArea {
@@ -417,12 +422,12 @@ Item { // ROOT
                     width: compactButtonHeight
                     height: compactButtonHeight
                     radius: 4
-                    color: pill
-                    border.color: accentSecondaryBorder
+                    color: smallButtonBg
+                    border.color: smallButtonBorder
                     Text {
                         anchors.centerIn: parent
                         text: verticalView ? "H" : "V"
-                        color: text
+                        color: smallButtonText
                         font.pixelSize: baseFont
                     }
                     MouseArea {
@@ -564,8 +569,8 @@ Item { // ROOT
                             width: compactButtonHeight
                             height: compactButtonHeight
                             radius: 4
-                            color: pill
-                            border.color: pillBorder
+                            color: smallButtonBg
+                            border.color: smallButtonBorder
                             Image {
                                 anchors.centerIn: parent
                                 source: Qt.resolvedUrl(iconSearch)
@@ -589,13 +594,13 @@ Item { // ROOT
                                 height: compactButtonHeight
                                 radius: 4
                                 property bool isActive: buttonStyle === modelData.style
-                                color: isActive ? accentSecondary : pill
-                                border.color: isActive ? accentSecondaryBorder : pillBorder
+                                color: isActive ? smallButtonActiveBg : smallButtonBg
+                                border.color: isActive ? smallButtonActiveBorder : smallButtonBorder
                                 visible: allowLargeIcons || modelData.style !== "largeIcon"
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData.label
-                                    color: text
+                                    color: smallButtonText
                                     font.pixelSize: baseFont
                                 }
                                 MouseArea {
@@ -656,12 +661,12 @@ Item { // ROOT
                             width: compactButtonHeight
                             height: compactButtonHeight
                             radius: 4
-                            color: pill
-                            border.color: accentSecondaryBorder
+                            color: smallButtonBg
+                            border.color: smallButtonBorder
                             Text {
                                 anchors.centerIn: parent
                                 text: verticalView ? "H" : "V"
-                                color: text
+                                color: smallButtonText
                                 font.pixelSize: baseFont
                             }
                             MouseArea {
