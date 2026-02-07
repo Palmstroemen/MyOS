@@ -13,6 +13,7 @@ ApplicationWindow {
     property bool darkTheme: true
     property string iconFolder: "Theme/icons/folder.svg"
     property string iconSearch: "Theme/icons/search.svg"
+    property string iconFile: "Theme/icons/file.svg"
     property string folderItemStyle: "text" // text | smallIcon | largeIcon
     property int iconSizeSmall: Math.round(baseFont * 1.35)
     property int iconSizeLarge: 120
@@ -910,6 +911,15 @@ ApplicationWindow {
             halfTransparent: filesPanelHalfTransparent
             templatesBrowserWidth: templatesBrowser.implicitWidth
             projectsBrowserWidth: projectsBrowser.implicitWidth
+            iconSource: window.iconFile
+            itemStyle: "largeIcon"
+            compactButtonHeight: window.compactButtonHeight
+            largeButtonHeight: window.largeButtonHeight
+            largeButtonPadding: window.largeButtonPadding
+            iconSizeSmall: window.iconSizeSmall
+            iconSizeLarge: window.iconSizeLarge
+            itemFillColor: "transparent"
+            itemBorderColor: theme.pillBorder
         }
 
     }

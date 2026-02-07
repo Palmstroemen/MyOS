@@ -609,11 +609,6 @@ Item { // ROOT
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: 12
-                onHeightChanged: {
-                    console.log("FB heights: row=" + Math.round(height) +
-                                " right=" + Math.round(verticalRightColumn.height))
-                    scheduleVerticalLayoutUpdate()
-                }
                 Item {
                     id: verticalMainColumnHost
                     Layout.fillWidth: true
