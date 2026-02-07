@@ -1,0 +1,5 @@
+# Full install set (core + GUI + dev)
+# Keep this list in sync over time.
+
+-r core/requirements.txt
+-r requirements-dev.txt
