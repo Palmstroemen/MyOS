@@ -367,8 +367,21 @@ ApplicationWindow {
     property string renameDraft: ""
 
     // legacy layout handlers removed
-    onVerticalProjectViewChanged: updateBrowserLayout()
-    onLevel2VerticalViewChanged: updateBrowserLayout()
+    property bool browserLayoutRefreshPending: false
+
+    function scheduleBrowserLayoutRefresh() {
+        if (browserLayoutRefreshPending) return
+        browserLayoutRefreshPending = true
+        Qt.callLater(function() {
+            browserLayoutRefreshPending = false
+            updateBrowserLayout()
+        })
+    }
+
+    onVerticalProjectViewChanged: scheduleBrowserLayoutRefresh()
+    onLevel2VerticalViewChanged: scheduleBrowserLayoutRefresh()
+    onProjectsBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
+    onTemplatesBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
     onSearchTextChanged: updateSubProjects()
     onLevel2SearchTextChanged: updateStandardFolders()
     onSearchActiveChanged: {
@@ -429,6 +442,17 @@ ApplicationWindow {
 
     function setSlotSize(slot, child, inRowLayout, isFilesPane) {
         if (!slot || !child) return
+        if (child.visible === false) {
+            slot.Layout.fillWidth = false
+            slot.Layout.preferredWidth = 0
+            slot.Layout.minimumWidth = 0
+            slot.Layout.maximumWidth = 0
+            slot.Layout.fillHeight = false
+            slot.Layout.preferredHeight = 0
+            slot.Layout.minimumHeight = 0
+            slot.Layout.maximumHeight = 0
+            return
+        }
         var isFolderBrowser = child.hasOwnProperty("verticalView")
         var wantsFixedWidth = inRowLayout && isFolderBrowser && child.verticalView
         var wantsFillHeight = isFilesPane
@@ -697,6 +721,7 @@ ApplicationWindow {
         FolderBrowser {
             id: templatesBrowser
             parent: floatingPool
+            visible: templatesBrowserVisible
             path: standardPath
             folders: standardFoldersFiltered
             verticalView: level2VerticalView
@@ -751,6 +776,7 @@ ApplicationWindow {
         FolderBrowser {
             id: projectsBrowser
             parent: floatingPool
+            visible: projectsBrowserVisible
             path: cwp
             folders: subProjects
             verticalView: verticalProjectView
@@ -820,7 +846,7 @@ ApplicationWindow {
             id: filesPane
             parent: floatingPool
             radius: 8
-            color: theme.panelAlt
+            color: "#333333"
             border.color: theme.pillBorder
             implicitWidth: 0
             implicitHeight: 0

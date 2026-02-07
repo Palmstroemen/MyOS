@@ -10,8 +10,8 @@ Item { // ROOT
     property int verticalMaxWidth: 560
     property int horizontalPreferredHeight: compactButtonHeight * 2 + (searchActive ? (compactButtonHeight + 8) : 0) + 24
     property int verticalPreferredHeight: 360
-    implicitWidth: verticalAutoWidth
-    implicitHeight: mainColumn ? (mainColumn.implicitHeight + 24) : 0
+    implicitWidth: visible ? verticalAutoWidth : 0
+    implicitHeight: visible ? (mainColumn ? (mainColumn.implicitHeight + 24) : 0) : 0
     property string path: "/"
     property var folders: []
     property bool verticalView: false
@@ -137,6 +137,11 @@ Item { // ROOT
         if (verticalButtonsSlotTop) {
             setButtonsParent(verticalButtonsPanel, verticalButtonsSlotTop)
         }
+        scheduleVerticalLayoutUpdate()
+        scheduleVerticalWidthUpdate()
+    }
+
+    onVisibleChanged: {
         scheduleVerticalLayoutUpdate()
         scheduleVerticalWidthUpdate()
     }
