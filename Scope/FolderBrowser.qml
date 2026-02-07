@@ -79,9 +79,9 @@ Item { // ROOT
     property real verticalAvailableHeight: 0
     property real verticalDesiredHeight: 0
     property real verticalOver: 0
-    property bool manualFoldersSecondColumn: false
     property bool foldersInSecondColumn: false
     property int verticalAutoWidth: 0
+    property int verticalColumnWidth: 0
     property bool verticalWidthUpdatePending: false
     property int contentHeight: 0
     property bool contentHeightUpdatePending: false
@@ -126,7 +126,10 @@ Item { // ROOT
         var buttonsWidth = (showModeToggle ? compactButtonHeight + 6 : 0) + verticalButtonsPanel.implicitWidth
         maxWidth = Math.max(maxWidth, buttonsWidth + 12)
         var padded = maxWidth + 32
-        return Math.min(verticalMaxWidth, Math.max(verticalMinWidth, padded))
+        var columnWidth = Math.min(verticalMaxWidth, Math.max(verticalMinWidth, padded))
+        verticalColumnWidth = columnWidth
+        var gap = verticalContentRow ? verticalContentRow.spacing : 12
+        return foldersInSecondColumn ? (columnWidth * 2 + gap) : columnWidth
     }
 
     function calculateContentHeight() {
@@ -152,11 +155,6 @@ Item { // ROOT
         if (verticalButtonsSlotTop) {
             setButtonsParent(verticalButtonsPanel, verticalButtonsSlotTop)
         }
-    }
-
-    onManualFoldersSecondColumnChanged: {
-        foldersInSecondColumn = manualFoldersSecondColumn
-        scheduleVerticalLayoutUpdate()
     }
 
     Component.onCompleted: {
@@ -216,6 +214,7 @@ Item { // ROOT
     }
     onFoldersInSecondColumnChanged: {
         scheduleVerticalWidthUpdate()
+        scheduleVerticalLayoutUpdate()
         scheduleContentHeightUpdate()
     }
     onSearchActiveChanged: scheduleContentHeightUpdate()
@@ -285,16 +284,18 @@ Item { // ROOT
         if (!verticalView) return
         if (!verticalMainColumn || !verticalContentRow || !verticalButtonsPanel) return
         if (verticalContentRow.height <= 0) return
-        var available = verticalContentRow.height
-        var desired = verticalMainColumn.implicitHeight
-        var over = desired - available
+        var available = verticalContentRow.height       // verfügbare Höhe
+        var desired = verticalMainColumn.implicitHeight // aktuelle Höhe
+        var over = desired - available                  // 0 bei Berührung
         verticalAvailableHeight = available
         verticalDesiredHeight = desired
         verticalOver = over
         var remaining = available - desired
-        var shouldWrap = manualFoldersSecondColumn
-            ? true
-            : (foldersInSecondColumn ? (remaining < wrapSlackOff) : (remaining < wrapSlackOn))
+        var freeHeight = verticalSpacer ? verticalSpacer.height : remaining
+        var rightColumnNeeded = foldersContentRight ? foldersContentRight.implicitHeight : 0
+        var shouldWrap = foldersInSecondColumn
+            ? (freeHeight < rightColumnNeeded + wrapSlackOff)
+            : (freeHeight < rightColumnNeeded + wrapSlackOn)
         if (verticalButtonsOnSecondLine !== shouldWrap) {
             verticalButtonsOnSecondLine = shouldWrap
             foldersInSecondColumn = shouldWrap
@@ -380,23 +381,6 @@ Item { // ROOT
                             anchors.fill: parent
                             onClicked: styleChanged(modelData.style)
                         }
-                    }
-                }
-                Rectangle { // VERTICAL: manual right-panel toggle
-                    width: compactButtonHeight
-                    height: compactButtonHeight
-                    radius: 4
-                    color: foldersInSecondColumn ? smallButtonActiveBg : smallButtonBg
-                    border.color: foldersInSecondColumn ? smallButtonActiveBorder : smallButtonBorder
-                    Text {
-                        anchors.centerIn: parent
-                        text: "R"
-                        color: smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: manualFoldersSecondColumn = !manualFoldersSecondColumn
                     }
                 }
             }
@@ -772,63 +756,63 @@ Item { // ROOT
                         renameEnabled: false
                         onActivate: {}
                     }
-                Flickable { // VERTICAL VIEW: section 3 (folders list, scrollable)
-                    id: foldersColumn
-                    visible: !foldersInSecondColumn
-                    Layout.fillWidth: true
-                    Layout.fillHeight: false
-                    Layout.preferredHeight: foldersContent.implicitHeight
-                    contentWidth: width
-                    contentHeight: foldersContent.implicitHeight
-                    clip: true
-                    Column {
-                        id: foldersContent
-                        width: parent.width
-                        spacing: 6
-                        Repeater {
-                            model: folders
-                            delegate: ProjectButton {
-                                x: indent
-                                width: parent.width - indent
-                                label: modelData
-                                style: effectiveStyle()
-                                largeIconAlignLeft: true
-                                compactHeight: compactButtonHeight
-                                largeHeight: largeButtonHeight
-                                largePadding: largeButtonPadding
-                                iconSmall: iconSizeSmall
-                                iconLarge: iconSizeLarge
-                                iconSource: iconFolder
-                                fillColor: accentSecondary
-                                strokeColor: accentSecondaryBorder
-                                textColor: textSoft
-                                textSize: baseFont
-                                textLeftInset: effectiveStyle() === "text" ? indent : 0
-                                renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
-                                renameEnabled: allowRename
-                                renameText: renameDraft
-                                onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
-                                onRenameTextEdited: renameTextEdited(text)
-                                onRenameAccepted: renameAccepted()
-                                onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(modelData)
+                    Flickable { // VERTICAL VIEW: section 3 (folders list, scrollable)
+                        id: foldersColumn
+                        visible: !foldersInSecondColumn
+                        Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        Layout.preferredHeight: foldersContent.implicitHeight
+                        contentWidth: width
+                        contentHeight: foldersContent.implicitHeight
+                        clip: true
+                        Column {
+                            id: foldersContent
+                            width: parent.width
+                            spacing: 6
+                            Repeater {
+                                model: folders
+                                delegate: ProjectButton {
+                                    x: indent
+                                    width: parent.width - indent
+                                    label: modelData
+                                    style: effectiveStyle()
+                                    largeIconAlignLeft: true
+                                    compactHeight: compactButtonHeight
+                                    largeHeight: largeButtonHeight
+                                    largePadding: largeButtonPadding
+                                    iconSmall: iconSizeSmall
+                                    iconLarge: iconSizeLarge
+                                    iconSource: iconFolder
+                                    fillColor: accentSecondary
+                                    strokeColor: accentSecondaryBorder
+                                    textColor: textSoft
+                                    textSize: baseFont
+                                    textLeftInset: effectiveStyle() === "text" ? indent : 0
+                                    renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                    renameEnabled: allowRename
+                                    renameText: renameDraft
+                                    onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                    onRenameTextEdited: renameTextEdited(text)
+                                    onRenameAccepted: renameAccepted()
+                                    onRenameCanceled: renameCanceled()
+                                    onActivate: folderActivated(modelData)
+                                }
                             }
                         }
                     }
-                }
-                Item {
-                    visible: foldersInSecondColumn
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
-                    Item { Layout.fillHeight: true }
+                    Item {
+                        visible: foldersInSecondColumn
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                    }
+                    Item { id: verticalSpacer; Layout.fillHeight: true; Layout.minimumHeight: 0 }
                 }
             ColumnLayout { // VERTICAL: right column for folders
                 id: verticalRightColumn
                 visible: foldersInSecondColumn
-                Layout.preferredWidth: verticalButtonsPanel.implicitWidth
-                Layout.minimumWidth: verticalButtonsPanel.implicitWidth
-                Layout.maximumWidth: verticalButtonsPanel.implicitWidth
+                Layout.preferredWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalColumnWidth)
+                Layout.minimumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalColumnWidth)
+                Layout.maximumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalColumnWidth)
                 Layout.fillHeight: true
                 spacing: 6
                 Rectangle { // Roter Indikator
