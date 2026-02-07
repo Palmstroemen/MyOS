@@ -33,7 +33,7 @@ There are maybe a few files left, that may not fit into our standard folders. Bu
 
 We hope, now you got the principle idea of our standard folders. They are there for you to be used as a proposal, but the are not ther until you actually use them. 
 
-So let's take things a [[Structures|little bit further]].
+So let's take things a [[deep Structures|little bit further]].
 
 
 
