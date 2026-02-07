@@ -119,8 +119,8 @@ Item { // ROOT
             maxWidth = Math.max(maxWidth, indent + estimateButtonWidth(folders[f], folderStyle))
         }
         var buttonsWidth = (showModeToggle ? compactButtonHeight + 6 : 0) + verticalButtonsPanel.implicitWidth
-        maxWidth = Math.max(maxWidth, buttonsWidth)
-        var padded = maxWidth + 12
+        maxWidth = Math.max(maxWidth, buttonsWidth + 12)
+        var padded = maxWidth + 32
         return Math.min(verticalMaxWidth, Math.max(verticalMinWidth, padded))
     }
 
@@ -328,7 +328,10 @@ Item { // ROOT
                 anchors.fill: parent
                 spacing: 6
                 Component.onCompleted: scheduleVerticalLayoutUpdate()
-                onImplicitWidthChanged: scheduleVerticalLayoutUpdate()
+                onImplicitWidthChanged: {
+                    scheduleVerticalLayoutUpdate()
+                    scheduleVerticalWidthUpdate()
+                }
                 Rectangle { // VERTICAL: search toggle button (Lupe)
                     visible: showSearchToggle
                     width: compactButtonHeight
@@ -511,7 +514,7 @@ Item { // ROOT
                     Layout.minimumWidth: rightButtonsRow.implicitWidth
                     Layout.maximumWidth: rightButtonsRow.implicitWidth
                     Layout.preferredHeight: compactButtonHeight
-                    Layout.alignment: Qt.AlignTop
+                    Layout.alignment: Qt.AlignTop | Qt.AlignRight
                     Row {
                         id: rightButtonsRow
                         anchors.fill: parent
@@ -628,10 +631,16 @@ Item { // ROOT
                     }
                     Text {
                         visible: debugVerticalWrap
-                        text: "V-wrap: avail=" + Math.round(verticalAvailableHeight) +
-                              " desired=" + Math.round(verticalDesiredHeight) +
-                              " over=" + Math.round(verticalOver) +
-                              " wrap=" + (foldersInSecondColumn ? "yes" : "no")
+                        text: "V-wrap: avail=" + Math.round(verticalAvailableHeight) + "\n" +
+                              "desired=" + Math.round(verticalDesiredHeight) + "\n" +
+                              "over=" + Math.round(verticalOver) + "\n" +
+                              "wrap=" + (foldersInSecondColumn ? "yes" : "no")
+                        color: "#ff5c5c"
+                        font.pixelSize: Math.max(10, baseFont - 4)
+                    }
+                    Text {
+                        visible: debugVerticalWrap
+                        text: "FB width=" + Math.round(verticalAutoWidth)
                         color: "#ff5c5c"
                         font.pixelSize: Math.max(10, baseFont - 4)
                     }
@@ -668,6 +677,7 @@ Item { // ROOT
                             Layout.minimumWidth: verticalButtonsPanel.implicitWidth
                             Layout.maximumWidth: verticalButtonsPanel.implicitWidth
                             Layout.preferredHeight: compactButtonHeight
+                            Layout.alignment: Qt.AlignRight | Qt.AlignTop
                         }
                     }
                     Item { // SEARCH FIELD (vertical view)

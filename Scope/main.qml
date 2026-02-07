@@ -33,28 +33,6 @@ ApplicationWindow {
     property bool level2LayoutUpdatePending: false
     property real level2RightButtonsWidth: 0
     property bool level2FlowOnSecondLine: false
-    QtObject {
-        id: theme
-        property color bg: darkTheme ? "#0f1014" : "#f3f4f8"
-        property color panel: darkTheme ? "#1b1d26" : "#e6e8f0"
-        property color panelAlt: darkTheme ? "#151821" : "#e9ecf5"
-        property color panelAlt2: darkTheme ? "#12141b" : "#eef1f8"
-        property color card: darkTheme ? "#0f1117" : "#ffffff"
-        property color pill: darkTheme ? "#2a2f40" : "#dfe3f0"
-        property color pillBorder: darkTheme ? "#3a4158" : "#c6ccdf"
-        property color accentPrimary: darkTheme ? "#524dbe" : "#6a5cff"
-        property color accentPrimaryText: "#ffffff"
-        property color accentSecondary: darkTheme ? "#3b476b" : "#b8c8ee"
-        property color accentSecondaryBorder: darkTheme ? "#58648a" : "#9fb1dd"
-        property color action: darkTheme ? "#39456b" : "#c8d2f0"
-        property color actionBorder: darkTheme ? "#56618a" : "#9aa7cf"
-        property color text: darkTheme ? "#e6e6e6" : "#1f2433"
-        // property color textMuted: darkTheme ? "#c9ccd7" : "#3b4152"
-        property color textMuted: darkTheme ? "#ff0000" : "#3b4152"
-        // property color textSoft: darkTheme ? "#00ff00" : "#2b3140"
-        property color textSoft: darkTheme ? "#cfd3df" : "#2b3140"
-        property color highlight: accentPrimary
-    }
 
     property string cwp: "/Projekte/Haus/Dach"
     property var subProjects: []
@@ -69,6 +47,32 @@ ApplicationWindow {
     // Browser visibility
     property bool projectsBrowserVisible: true
     property bool templatesBrowserVisible: true
+    property bool filesPanelHalfTransparent: false
+
+    QtObject {
+        id: theme
+        property color bg: darkTheme ? "#0f1014" : "#f3f4f8"
+        property color panel: darkTheme ? "#1b1d26" : "#e6e8f0"
+        property color panelAlt: darkTheme ? "#151821" : "#e9ecf5"
+        property color panelAlt2: darkTheme ? "#12141b" : "#eef1f8"
+        // property color card: darkTheme ? "#0f1117" : "#ffffff"
+        property color card: darkTheme ? "#aa0000" : "#ffffff"
+        property color pill: darkTheme ? "#00aa00" : "#dfe3f0"
+        // property color pill: darkTheme ? "#2a2f40" : "#dfe3f0"
+        property color pillBorder: darkTheme ? "#0000aa" : "#c6ccdf"
+        // property color pillBorder: darkTheme ? "#3a4158" : "#c6ccdf"
+        property color accentPrimary: darkTheme ? "#524dbe" : "#6a5cff"
+        property color accentPrimaryText: "#ffffff"
+        property color accentSecondary: darkTheme ? "#3b476b" : "#b8c8ee"
+        property color accentSecondaryBorder: darkTheme ? "#58648a" : "#9fb1dd"
+        property color action: darkTheme ? "#39456b" : "#c8d2f0"
+        property color actionBorder: darkTheme ? "#56618a" : "#9aa7cf"
+        property color text: darkTheme ? "#e6e6e6" : "#1f2433"
+        property color textMuted: darkTheme ? "#c9ccd7" : "#3b4152"
+        // property color textSoft: darkTheme ? "#00ff00" : "#2b3140"
+        property color textSoft: darkTheme ? "#cfd3df" : "#2b3140"
+        property color highlight: accentPrimary
+    }
 
 
 
@@ -382,6 +386,22 @@ ApplicationWindow {
     onLevel2VerticalViewChanged: scheduleBrowserLayoutRefresh()
     onProjectsBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
     onTemplatesBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
+    Connections {
+        target: projectsBrowser
+        function onImplicitWidthChanged() {
+            if (projectsBrowser && projectsBrowser.verticalView) {
+                scheduleBrowserLayoutRefresh()
+            }
+        }
+    }
+    Connections {
+        target: templatesBrowser
+        function onImplicitWidthChanged() {
+            if (templatesBrowser && templatesBrowser.verticalView) {
+                scheduleBrowserLayoutRefresh()
+            }
+        }
+    }
     onSearchTextChanged: updateSubProjects()
     onLevel2SearchTextChanged: updateStandardFolders()
     onSearchActiveChanged: {
@@ -461,7 +481,7 @@ ApplicationWindow {
             return
         }
         var isFolderBrowser = child.hasOwnProperty("verticalView")
-        var wantsFixedWidth = inRowLayout && isFolderBrowser && child.verticalView
+        var wantsFixedWidth = isFolderBrowser && child.verticalView
         var wantsFillHeight = isFilesPane
         if (wantsFixedWidth) {
             var preferred = (child.verticalPreferredWidth && child.verticalPreferredWidth > 0)
@@ -654,6 +674,24 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: templatesBrowserVisible = !templatesBrowserVisible
+                    }
+                }
+
+                Rectangle { // Files panel opacity toggle
+                    radius: 6
+                    height: compactButtonHeight
+                    color: filesPanelHalfTransparent ? theme.accentSecondary : theme.pill
+                    border.color: filesPanelHalfTransparent ? theme.accentSecondaryBorder : theme.pillBorder
+                    implicitWidth: 160
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Files 50%"
+                        color: theme.text
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: filesPanelHalfTransparent = !filesPanelHalfTransparent
                     }
                 }
                 
@@ -853,10 +891,11 @@ ApplicationWindow {
             id: filesPane
             parent: floatingPool
             radius: 8
-            color: "#333333"
+            color: "#ff0000"
             border.color: theme.pillBorder
             implicitWidth: 0
             implicitHeight: 0
+            opacity: filesPanelHalfTransparent ? 0.5 : 1
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 16
@@ -865,6 +904,12 @@ ApplicationWindow {
                     text: "Files Panel"
                     color: theme.textMuted
                     font.pixelSize: baseFont
+                }
+                Text {
+                    text: "FB widths: T=" + Math.round(templatesBrowser.implicitWidth) +
+                          " P=" + Math.round(projectsBrowser.implicitWidth)
+                    color: theme.text
+                    font.pixelSize: Math.max(10, baseFont - 2)
                 }
                 Repeater {
                     model: files
