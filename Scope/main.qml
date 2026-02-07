@@ -166,10 +166,21 @@ ApplicationWindow {
         updateSubProjects()
     }
 
+    function hasBackend() {
+        return typeof backend !== "undefined" && backend !== null
+    }
+
+    function listChildren(path) {
+        if (hasBackend()) {
+            return backend.listChildren(path)
+        }
+        return demoData.childrenOf(path)
+    }
+
     function updateSubProjects() {
         var query = searchText.trim()
         if (query.length === 0) {
-            subProjects = demoData.childrenOf(cwp)
+            subProjects = listChildren(cwp)
             return
         }
         var mode = "direct"
@@ -181,8 +192,11 @@ ApplicationWindow {
             query = query.slice(1).trim()
         }
         var lower = query.toLowerCase()
+        if (hasBackend() && mode !== "direct") {
+            mode = "direct"
+        }
         if (mode === "direct") {
-            var directItems = demoData.childrenOf(cwp)
+            var directItems = listChildren(cwp)
             if (lower.length === 0) {
                 subProjects = directItems
                 return
@@ -358,7 +372,8 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
-        setCwp(cwp)
+        var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
+        setCwp(startPath)
         updateBrowserLayout()
     }
     
