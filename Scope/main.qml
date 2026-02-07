@@ -410,6 +410,13 @@ ApplicationWindow {
     }
 
     function updateLevel2FlowPlacement() {
+        if (typeof standardTopRow === "undefined" ||
+            typeof standardPathRow === "undefined" ||
+            typeof level2TopFoldersRow === "undefined" ||
+            typeof level2RightButtons === "undefined" ||
+            typeof level2ToggleButton === "undefined") {
+            return
+        }
         if (!standardTopRow || !standardPathRow || !level2TopFoldersRow || !level2RightButtons || !level2ToggleButton) return
         var available = standardTopRow.width - level2RightButtonsWidth - level2ToggleButton.width - (standardTopRow.spacing * 3)
         if (available < 0) available = 0

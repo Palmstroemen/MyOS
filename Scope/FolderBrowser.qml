@@ -11,7 +11,7 @@ Item { // ROOT
     property int horizontalPreferredHeight: compactButtonHeight * 2 + (searchActive ? (compactButtonHeight + 8) : 0) + 24
     property int verticalPreferredHeight: 360
     implicitWidth: visible ? verticalAutoWidth : 0
-    implicitHeight: visible ? (mainColumn ? (mainColumn.implicitHeight + 24) : 0) : 0
+    implicitHeight: visible ? contentHeight : 0
     property string path: "/"
     property var folders: []
     property bool verticalView: false
@@ -78,6 +78,8 @@ Item { // ROOT
     property bool foldersInSecondColumn: false
     property int verticalAutoWidth: 0
     property bool verticalWidthUpdatePending: false
+    property int contentHeight: 0
+    property bool contentHeightUpdatePending: false
 
     TextMetrics {
         id: labelMetrics
@@ -122,6 +124,25 @@ Item { // ROOT
         return Math.min(verticalMaxWidth, Math.max(verticalMinWidth, padded))
     }
 
+    function calculateContentHeight() {
+        if (!mainColumn) return 0
+        if (verticalView) {
+            return Math.round(verticalMainColumn.childrenRect.height + 24)
+        }
+        var top = topRow ? topRow.implicitHeight : 0
+        var bottom = (bottomRow && bottomRow.visible) ? (bottomRow.implicitHeight + mainColumn.spacing) : 0
+        return Math.round(top + bottom + 24)
+    }
+
+    function scheduleContentHeightUpdate() {
+        if (contentHeightUpdatePending) return
+        contentHeightUpdatePending = true
+        Qt.callLater(function() {
+            contentHeight = calculateContentHeight()
+            contentHeightUpdatePending = false
+        })
+    }
+
     onVerticalButtonsOnSecondLineChanged: {
         if (verticalButtonsSlotTop) {
             setButtonsParent(verticalButtonsPanel, verticalButtonsSlotTop)
@@ -139,11 +160,13 @@ Item { // ROOT
         }
         scheduleVerticalLayoutUpdate()
         scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
     }
 
     onVisibleChanged: {
         scheduleVerticalLayoutUpdate()
         scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
     }
 
     onVerticalViewChanged: {
@@ -152,22 +175,46 @@ Item { // ROOT
         }
         scheduleVerticalLayoutUpdate()
         scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
     }
 
     onPathChanged: scheduleVerticalWidthUpdate()
     onFoldersChanged: scheduleVerticalWidthUpdate()
-    onButtonStyleChanged: scheduleVerticalWidthUpdate()
+    onButtonStyleChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
     onIconSizeSmallChanged: scheduleVerticalWidthUpdate()
     onIconSizeLargeChanged: scheduleVerticalWidthUpdate()
     onBaseFontChanged: scheduleVerticalWidthUpdate()
-    onCompactButtonHeightChanged: scheduleVerticalWidthUpdate()
-    onLargeButtonHeightChanged: scheduleVerticalWidthUpdate()
-    onLargeButtonPaddingChanged: scheduleVerticalWidthUpdate()
+    onCompactButtonHeightChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
+    onLargeButtonHeightChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
+    onLargeButtonPaddingChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
     onIndentChanged: scheduleVerticalWidthUpdate()
     onShowModeToggleChanged: scheduleVerticalWidthUpdate()
-    onShowStyleToggleChanged: scheduleVerticalWidthUpdate()
-    onShowSearchToggleChanged: scheduleVerticalWidthUpdate()
-    onFoldersInSecondColumnChanged: scheduleVerticalWidthUpdate()
+    onShowStyleToggleChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
+    onShowSearchToggleChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
+    onFoldersInSecondColumnChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
+    onSearchActiveChanged: scheduleContentHeightUpdate()
+    onFlowOnSecondLineChanged: scheduleContentHeightUpdate()
 
 
     function pathParts() {
@@ -571,8 +618,14 @@ Item { // ROOT
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     spacing: 8
-                    onImplicitHeightChanged: scheduleVerticalLayoutUpdate()
-                    onChildrenRectChanged: scheduleVerticalLayoutUpdate()
+                    onImplicitHeightChanged: {
+                        scheduleVerticalLayoutUpdate()
+                        scheduleContentHeightUpdate()
+                    }
+                    onChildrenRectChanged: {
+                        scheduleVerticalLayoutUpdate()
+                        scheduleContentHeightUpdate()
+                    }
                     Text {
                         visible: debugVerticalWrap
                         text: "V-wrap: avail=" + Math.round(verticalAvailableHeight) +
