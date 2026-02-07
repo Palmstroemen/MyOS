@@ -37,6 +37,7 @@ Rectangle { // Files panel
 
         Flow {
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
             spacing: 8
             width: parent.width
             Repeater {
