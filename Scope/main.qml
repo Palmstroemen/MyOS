@@ -49,7 +49,9 @@ ApplicationWindow {
         property color action: darkTheme ? "#39456b" : "#c8d2f0"
         property color actionBorder: darkTheme ? "#56618a" : "#9aa7cf"
         property color text: darkTheme ? "#e6e6e6" : "#1f2433"
-        property color textMuted: darkTheme ? "#c9ccd7" : "#3b4152"
+        // property color textMuted: darkTheme ? "#c9ccd7" : "#3b4152"
+        property color textMuted: darkTheme ? "#ff0000" : "#3b4152"
+        // property color textSoft: darkTheme ? "#00ff00" : "#2b3140"
         property color textSoft: darkTheme ? "#cfd3df" : "#2b3140"
         property color highlight: accentPrimary
     }
@@ -61,6 +63,14 @@ ApplicationWindow {
     property var standardFoldersFiltered: ["01", "02", "03", "04", "05"]
     property var userFolders: ["myFolder", "myOtherFolder"]
     property var files: ["Rechnung_001.pdf", "Angebot_Alpha.docx", "Note.md"]
+    property int maxVerticalParents: 4
+    property int verticalParentSpacing: 6
+
+    // Browser visibility
+    property bool projectsBrowserVisible: true
+    property bool templatesBrowserVisible: true
+
+
 
     QtObject {
         id: demoData
@@ -246,9 +256,6 @@ ApplicationWindow {
         return projectButtonStyle === "largeIcon" ? "text" : projectButtonStyle
     }
 
-    property int maxVerticalParents: 4
-    property int verticalParentSpacing: 6
-
     function lastPathSegment(path) {
         var parts = path.split("/").filter(function(p){ return p.length > 0 })
         return parts.length > 0 ? parts[parts.length - 1] : "/"
@@ -291,12 +298,7 @@ ApplicationWindow {
     function visibleParentPaths() {
         var parents = parentPaths()
         if (parents.length <= maxVerticalParents) return parents
-        var approxNeeded = parents.length * (compactButtonHeight + verticalParentSpacing)
-        var reserve = (compactButtonHeight + verticalParentSpacing) * 6
-        if (leftProjectPanel && (approxNeeded + reserve) > leftProjectPanel.height) {
-            return parents.slice(Math.max(0, parents.length - maxVerticalParents))
-        }
-        return parents
+        return parents.slice(Math.max(0, parents.length - maxVerticalParents))
     }
 
     function createSubproject(name) {
@@ -304,7 +306,6 @@ ApplicationWindow {
         if (trimmed.length === 0) return false
         if (demoData.addChild(cwp, trimmed)) {
             setCwp(cwp)
-            updateFlowPlacement()
             return true
         }
         return false
@@ -350,23 +351,13 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
-        rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
-        searchWidth = searchActive ? 520 : 0
-        topButtonsWidth = rightButtonsWidth + searchWidth + 6
         setCwp(cwp)
-        updateFlowPlacement()
         updateBrowserLayout()
     }
+    
     property bool newSubprojectEditing: false
     property string newSubprojectDraft: ""
-    property bool flowOnSecondLine: false
-    property real availableTopWidth: 0
-    property real cwpPreferredWidth: 0
-    property real flowPreferredWidth: 0
-    property bool layoutUpdatePending: false
-    property real rightButtonsWidth: 0
-    property real searchWidth: 0
-    property real topButtonsWidth: 0
+    // legacy layout properties removed
     property bool searchActive: false
     property string searchText: ""
     property bool level2SearchActive: false
@@ -375,32 +366,15 @@ ApplicationWindow {
     property string renameTargetPath: ""
     property string renameDraft: ""
 
-    onSubProjectsChanged: updateFlowPlacement()
-    onNewSubprojectEditingChanged: updateFlowPlacement()
-    onProjectButtonStyleChanged: {
-        rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
-        topButtonsWidth = rightButtonsWidth + searchWidth + 6
-        scheduleLayoutUpdate()
-    }
+    // legacy layout handlers removed
     onVerticalProjectViewChanged: updateBrowserLayout()
     onLevel2VerticalViewChanged: updateBrowserLayout()
     onSearchTextChanged: updateSubProjects()
     onLevel2SearchTextChanged: updateStandardFolders()
     onSearchActiveChanged: {
-        searchWidth = searchActive ? 520 : 0
-        rightButtonsWidth = topRightButtons ? topRightButtons.implicitWidth : rightButtonsWidth
-        topButtonsWidth = rightButtonsWidth + searchWidth + 6
         if (!searchActive) {
             searchText = ""
-        } else {
-            Qt.callLater(function() {
-                if (searchInputRef) {
-                    searchInputRef.forceActiveFocus()
-                    searchInputRef.selectAll()
-                }
-            })
         }
-        scheduleLayoutUpdate()
     }
     onLevel2SearchActiveChanged: {
         if (!level2SearchActive) {
@@ -408,46 +382,10 @@ ApplicationWindow {
         }
         updateStandardFolders()
     }
-    onSearchWidthChanged: {
-        topButtonsWidth = rightButtonsWidth + searchWidth + 6
-        scheduleLayoutUpdate()
-    }
+    // legacy search width handler removed
     onLevel2ButtonStyleChanged: scheduleLevel2LayoutUpdate()
 
-    function scheduleLayoutUpdate() {
-        if (layoutUpdatePending) return
-        layoutUpdatePending = true
-        Qt.callLater(function() {
-            layoutUpdatePending = false
-            updateFlowPlacement()
-        })
-    }
-
-    function updateFlowPlacement() {
-        if (!topSubprojectRow || !topProjectRow || !topRightButtons || !cwpRow) return
-        var available = topProjectRow.width - topButtonsWidth - (topProjectRow.spacing * 2)
-        if (available < 0) available = 0
-        if (availableTopWidth !== available) {
-            availableTopWidth = available
-        }
-        if (available === 0) {
-            if (!flowOnSecondLine) flowOnSecondLine = true
-            if (cwpPreferredWidth !== cwpRow.implicitWidth) cwpPreferredWidth = cwpRow.implicitWidth
-            if (flowPreferredWidth !== 0) flowPreferredWidth = 0
-            return
-        }
-        var shouldWrap = (cwpRow.implicitWidth + topSubprojectRow.implicitWidth) > available
-        if (flowOnSecondLine !== shouldWrap) flowOnSecondLine = shouldWrap
-        if (shouldWrap) {
-            if (cwpPreferredWidth !== available) cwpPreferredWidth = available
-            if (flowPreferredWidth !== 0) flowPreferredWidth = 0
-        } else {
-            var newCwp = Math.min(cwpRow.implicitWidth, available - topSubprojectRow.implicitWidth)
-            var newFlow = Math.max(0, available - newCwp)
-            if (cwpPreferredWidth !== newCwp) cwpPreferredWidth = newCwp
-            if (flowPreferredWidth !== newFlow) flowPreferredWidth = newFlow
-        }
-    }
+    // legacy layout update functions removed
 
     function scheduleLevel2LayoutUpdate() {
         if (level2LayoutUpdatePending) return
@@ -495,10 +433,13 @@ ApplicationWindow {
         var wantsFixedWidth = inRowLayout && isFolderBrowser && child.verticalView
         var wantsFillHeight = isFilesPane
         if (wantsFixedWidth) {
+            var preferred = (child.verticalPreferredWidth && child.verticalPreferredWidth > 0)
+                ? child.verticalPreferredWidth
+                : child.implicitWidth
             slot.Layout.fillWidth = false
-            slot.Layout.preferredWidth = child.verticalPreferredWidth
-            slot.Layout.minimumWidth = child.verticalPreferredWidth
-            slot.Layout.maximumWidth = child.verticalPreferredWidth
+            slot.Layout.preferredWidth = preferred
+            slot.Layout.minimumWidth = preferred
+            slot.Layout.maximumWidth = preferred
         } else {
             slot.Layout.fillWidth = true
             slot.Layout.preferredWidth = -1
@@ -526,48 +467,48 @@ ApplicationWindow {
     function updateBrowserLayout() {
         var templatesVertical = level2VerticalView
         var projectsVertical = verticalProjectView
-        var th_pv = (!templatesVertical && projectsVertical)
-        var th_ph = (!templatesVertical && !projectsVertical)
-        var tv_ph = (templatesVertical && !projectsVertical)
-        var tv_pv = (templatesVertical && projectsVertical)
+        var ph_th = (!templatesVertical && !projectsVertical)
+        var pv_th = (!templatesVertical && projectsVertical)
+        var ph_tv = (templatesVertical && !projectsVertical)
+        var pv_tv = (templatesVertical && projectsVertical)
 
-        caseTH_PV.visible = th_pv
-        caseTH_PH.visible = th_ph
-        caseTV_PH.visible = tv_ph
-        caseTV_PV.visible = tv_pv
+        case_PH_TH.visible = ph_th
+        case_PV_TH.visible = pv_th
+        case_PH_TV.visible = ph_tv
+        case_PV_TV.visible = pv_tv
 
-        if (th_pv) {
-            setBrowserParent(templatesBrowser, slotTemplates_TH_PV)
-            setBrowserParent(projectsBrowser, slotProjects_TH_PV)
-            setBrowserParent(filesPane, slotFiles_TH_PV)
-            setSlotSize(slotTemplates_TH_PV, templatesBrowser, false, false)
-            setSlotSize(slotProjects_TH_PV, projectsBrowser, true, false)
-            setSlotSize(slotFiles_TH_PV, filesPane, true, true)
-        } else if (th_ph) {
-            setBrowserParent(templatesBrowser, slotTemplates_TH_PH)
-            setBrowserParent(projectsBrowser, slotProjects_TH_PH)
-            setBrowserParent(filesPane, slotFiles_TH_PH)
-            setSlotSize(slotTemplates_TH_PH, templatesBrowser, false, false)
-            setSlotSize(slotProjects_TH_PH, projectsBrowser, false, false)
-            setSlotSize(slotFiles_TH_PH, filesPane, false, true)
-        } else if (tv_ph) {
-            setBrowserParent(projectsBrowser, slotProjects_TV_PH)
-            setBrowserParent(templatesBrowser, slotTemplates_TV_PH)
-            setBrowserParent(filesPane, slotFiles_TV_PH)
-            setSlotSize(slotProjects_TV_PH, projectsBrowser, false, false)
-            setSlotSize(slotTemplates_TV_PH, templatesBrowser, false, false)
-            setSlotSize(slotFiles_TV_PH, filesPane, false, true)
-        } else if (tv_pv) {
-            setBrowserParent(projectsBrowser, slotProjects_TV_PV)
-            setBrowserParent(templatesBrowser, slotTemplates_TV_PV)
-            setBrowserParent(filesPane, slotFiles_TV_PV)
-            setSlotSize(slotProjects_TV_PV, projectsBrowser, true, false)
-            setSlotSize(slotTemplates_TV_PV, templatesBrowser, true, false)
-            setSlotSize(slotFiles_TV_PV, filesPane, true, true)
+        if (ph_th) {
+            setBrowserParent(templatesBrowser, slotTemplates_PH_TH)
+            setBrowserParent(projectsBrowser, slotProjects_PH_TH)
+            setBrowserParent(filesPane, slotFiles_PH_TH)
+            setSlotSize(slotTemplates_PH_TH, templatesBrowser, false, false)
+            setSlotSize(slotProjects_PH_TH, projectsBrowser, false, false)
+            setSlotSize(slotFiles_PH_TH, filesPane, true, true)
+        } else if (pv_th) {
+            setBrowserParent(projectsBrowser, slotProjects_PV_TH)
+            setBrowserParent(templatesBrowser, slotTemplates_PV_TH)
+            setBrowserParent(filesPane, slotFiles_PV_TH)
+            setSlotSize(slotProjects_PV_TH, projectsBrowser, true, false)
+            setSlotSize(slotTemplates_PV_TH, templatesBrowser, false, false)
+            setSlotSize(slotFiles_PV_TH, filesPane, true, true)
+        } else if (ph_tv) {
+            setBrowserParent(projectsBrowser, slotProjects_PH_TV)
+            setBrowserParent(templatesBrowser, slotTemplates_PH_TV)
+            setBrowserParent(filesPane, slotFiles_PH_TV)
+            setSlotSize(slotProjects_PH_TV, projectsBrowser, false, false)
+            setSlotSize(slotTemplates_PH_TV, templatesBrowser, true, false)
+            setSlotSize(slotFiles_PH_TV, filesPane, true, true)
+        } else if (pv_tv) {
+            setBrowserParent(projectsBrowser, slotProjects_PV_TV)
+            setBrowserParent(templatesBrowser, slotTemplates_PV_TV)
+            setBrowserParent(filesPane, slotFiles_PV_TV)
+            setSlotSize(slotProjects_PV_TV, projectsBrowser, true, false)
+            setSlotSize(slotTemplates_PV_TV, templatesBrowser, true, false)
+            setSlotSize(slotFiles_PV_TV, filesPane, true, true)
         }
     }
 
-    Component {
+    Component { // SearchField Component
         id: searchFieldComponent
         Item {
             id: searchFieldRoot
@@ -619,15 +560,15 @@ ApplicationWindow {
     Rectangle {
         anchors.fill: parent
         color: theme.bg
-        ColumnLayout {
+        ColumnLayout { // MainRows
             anchors.fill: parent
             spacing: 12
             anchors.margins: 16
 
-            RowLayout {
+            RowLayout { // Buttonbar
                 Layout.fillWidth: true
                 spacing: 8
-                Rectangle {
+                Rectangle { // Theme Switch
                     radius: 6
                     height: compactButtonHeight
                     color: theme.accentPrimary
@@ -644,6 +585,47 @@ ApplicationWindow {
                         onClicked: darkTheme = !darkTheme
                     }
                 }
+
+                Rectangle { // Projects browser visibility toggle
+                    radius: 6
+                    height: compactButtonHeight
+                    color: projectsBrowserVisible ? theme.accentSecondary : theme.pill
+                    border.color: projectsBrowserVisible ? theme.accentSecondaryBorder : theme.pillBorder
+                    implicitWidth: 180
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Projects " + (projectsBrowserVisible ? "ON" : "OFF")
+                        color: theme.text
+                        font.pixelSize: baseFont
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: projectsBrowserVisible = !projectsBrowserVisible
+                    }
+                }
+                
+                Rectangle { // Templates browser visibility toggle
+                    radius: 6
+                    height: compactButtonHeight
+                    color: templatesBrowserVisible ? theme.accentSecondary : theme.pill
+                    border.color: templatesBrowserVisible ? theme.accentSecondaryBorder : theme.pillBorder
+                    implicitWidth: 180
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Templates " + (templatesBrowserVisible ? "ON" : "OFF")
+                        color: theme.text
+                        font.pixelSize: baseFont
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: templatesBrowserVisible = !templatesBrowserVisible
+                    }
+                }
+                
                 Item { Layout.fillWidth: true }
             }
 
@@ -652,49 +634,55 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                ColumnLayout {
-                    id: caseTH_PV
+                ColumnLayout { // Layout PH_TH   
+                    id: case_PH_TH
                     anchors.fill: parent
                     spacing: 12
                     visible: false
-                    Item { id: slotTemplates_TH_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotTemplates_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotProjects_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotFiles_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
+                }
+
+                ColumnLayout { // Layout PV_TH
+                    id: case_PV_TH
+                    anchors.fill: parent
+                    spacing: 12
+                    visible: false
+                    Item { id: slotTemplates_PV_TH; Layout.fillWidth: true; Layout.fillHeight: false }
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         spacing: 12
-                        Item { id: slotProjects_TH_PV; Layout.fillWidth: true; Layout.fillHeight: true }
-                        Item { id: slotFiles_TH_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                        Item { id: slotProjects_PV_TH; Layout.fillWidth: false; Layout.fillHeight: true }
+                        Item { id: slotFiles_PV_TH; Layout.fillWidth: true; Layout.fillHeight: true }
                     }
                 }
 
-                ColumnLayout {
-                    id: caseTH_PH
+
+                ColumnLayout { // Layout PH_TV
+                    id: case_PH_TV
                     anchors.fill: parent
                     spacing: 12
                     visible: false
-                    Item { id: slotTemplates_TH_PH; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotProjects_TH_PH; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotFiles_TH_PH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotProjects_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 12
+                        Item { id: slotTemplates_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
+                        Item { id: slotFiles_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    }
                 }
 
-                ColumnLayout {
-                    id: caseTV_PH
+                RowLayout {   // Layout PV_TV   
+                    id: case_PV_TV
                     anchors.fill: parent
                     spacing: 12
                     visible: false
-                    Item { id: slotProjects_TV_PH; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotTemplates_TV_PH; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotFiles_TV_PH; Layout.fillWidth: true; Layout.fillHeight: true }
-                }
-
-                RowLayout {
-                    id: caseTV_PV
-                    anchors.fill: parent
-                    spacing: 12
-                    visible: false
-                    Item { id: slotProjects_TV_PV; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotTemplates_TV_PV; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotFiles_TV_PV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotProjects_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotTemplates_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item { id: slotFiles_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
                 }
             }
 
@@ -722,7 +710,6 @@ ApplicationWindow {
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
             largeButtonPadding: window.largeButtonPadding
-            verticalPreferredWidth: Math.round(window.width * 0.25)
             iconSizeSmall: window.iconSizeSmall
             iconSizeLarge: window.iconSizeLarge
             iconFolder: window.iconFolder
@@ -777,7 +764,6 @@ ApplicationWindow {
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
             largeButtonPadding: window.largeButtonPadding
-            verticalPreferredWidth: Math.round(window.width * 0.25)
             iconSizeSmall: window.iconSizeSmall
             iconSizeLarge: window.iconSizeLarge
             iconFolder: window.iconFolder
@@ -834,7 +820,7 @@ ApplicationWindow {
             id: filesPane
             parent: floatingPool
             radius: 8
-            color: theme.card
+            color: theme.panelAlt
             border.color: theme.pillBorder
             implicitWidth: 0
             implicitHeight: 0
@@ -843,7 +829,7 @@ ApplicationWindow {
                 anchors.margins: 16
                 spacing: 8
                 Text {
-                    text: "Files (Roentgen view placeholder)"
+                    text: "Files Panel"
                     color: theme.textMuted
                     font.pixelSize: baseFont
                 }
@@ -868,6 +854,7 @@ ApplicationWindow {
             }
         }
 
+        /*
         RowLayout {
             visible: false
             anchors.fill: parent
@@ -2314,6 +2301,7 @@ ApplicationWindow {
                 }
             }
         }
+        */
     }
 }
-}
+

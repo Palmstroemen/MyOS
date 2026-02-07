@@ -2,13 +2,15 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
-Item {
+Item { // ROOT
     id: root
     property int horizontalPreferredWidth: 640
-    property int verticalPreferredWidth: 320
+    property int verticalPreferredWidth: 0
+    property int verticalMinWidth: 180
+    property int verticalMaxWidth: 560
     property int horizontalPreferredHeight: compactButtonHeight * 2 + (searchActive ? (compactButtonHeight + 8) : 0) + 24
     property int verticalPreferredHeight: 360
-    implicitWidth: 0
+    implicitWidth: verticalAutoWidth
     implicitHeight: mainColumn ? (mainColumn.implicitHeight + 24) : 0
     property string path: "/"
     property var folders: []
@@ -64,11 +66,103 @@ Item {
 
     property bool flowOnSecondLine: false
     property bool layoutUpdatePending: false
+    property int wrapSlackOn: 20
+    property int wrapSlackOff: 40
+    property bool verticalButtonsOnSecondLine: false
+    property bool verticalLayoutUpdatePending: false
+    property bool debugVerticalWrap: true
+    property real verticalAvailableHeight: 0
+    property real verticalDesiredHeight: 0
+    property real verticalOver: 0
+    property bool manualFoldersSecondColumn: false
+    property bool foldersInSecondColumn: false
+    property int verticalAutoWidth: 0
+    property bool verticalWidthUpdatePending: false
+
+    TextMetrics {
+        id: labelMetrics
+        font.pixelSize: baseFont
+    }
 
     function effectiveStyle() {
         if (!allowLargeIcons && buttonStyle === "largeIcon") return "text"
         return buttonStyle
     }
+
+    function estimateButtonWidth(label, styleName) {
+        labelMetrics.text = label
+        var textWidth = labelMetrics.width
+        if (styleName === "smallIcon") {
+            return Math.max(80, textWidth + iconSizeSmall + 30)
+        }
+        if (styleName === "largeIcon") {
+            return Math.max(80, Math.max(iconSizeLarge, textWidth) + 20)
+        }
+        return Math.max(80, textWidth + 24)
+    }
+
+    function calculateVerticalAutoWidth() {
+        if (!verticalView) return verticalPreferredWidth > 0 ? verticalPreferredWidth : verticalMinWidth
+        var maxWidth = 0
+        var pathStyle = (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
+        var parts = visibleParentPaths()
+        for (var i = 0; i < parts.length; i++) {
+            var label = parts[i].split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
+            maxWidth = Math.max(maxWidth, estimateButtonWidth(label, pathStyle))
+        }
+        var currentLabel = pathParts().length ? pathParts()[pathParts().length - 1] : "/"
+        maxWidth = Math.max(maxWidth, estimateButtonWidth(currentLabel, pathStyle))
+        var folderStyle = effectiveStyle()
+        for (var f = 0; f < folders.length; f++) {
+            maxWidth = Math.max(maxWidth, indent + estimateButtonWidth(folders[f], folderStyle))
+        }
+        var buttonsWidth = (showModeToggle ? compactButtonHeight + 6 : 0) + verticalButtonsPanel.implicitWidth
+        maxWidth = Math.max(maxWidth, buttonsWidth)
+        var padded = maxWidth + 12
+        return Math.min(verticalMaxWidth, Math.max(verticalMinWidth, padded))
+    }
+
+    onVerticalButtonsOnSecondLineChanged: {
+        if (verticalButtonsSlotTop) {
+            setButtonsParent(verticalButtonsPanel, verticalButtonsSlotTop)
+        }
+    }
+
+    onManualFoldersSecondColumnChanged: {
+        foldersInSecondColumn = manualFoldersSecondColumn
+        scheduleVerticalLayoutUpdate()
+    }
+
+    Component.onCompleted: {
+        if (verticalButtonsSlotTop) {
+            setButtonsParent(verticalButtonsPanel, verticalButtonsSlotTop)
+        }
+        scheduleVerticalLayoutUpdate()
+        scheduleVerticalWidthUpdate()
+    }
+
+    onVerticalViewChanged: {
+        if (!verticalView) {
+            verticalButtonsOnSecondLine = false
+        }
+        scheduleVerticalLayoutUpdate()
+        scheduleVerticalWidthUpdate()
+    }
+
+    onPathChanged: scheduleVerticalWidthUpdate()
+    onFoldersChanged: scheduleVerticalWidthUpdate()
+    onButtonStyleChanged: scheduleVerticalWidthUpdate()
+    onIconSizeSmallChanged: scheduleVerticalWidthUpdate()
+    onIconSizeLargeChanged: scheduleVerticalWidthUpdate()
+    onBaseFontChanged: scheduleVerticalWidthUpdate()
+    onCompactButtonHeightChanged: scheduleVerticalWidthUpdate()
+    onLargeButtonHeightChanged: scheduleVerticalWidthUpdate()
+    onLargeButtonPaddingChanged: scheduleVerticalWidthUpdate()
+    onIndentChanged: scheduleVerticalWidthUpdate()
+    onShowModeToggleChanged: scheduleVerticalWidthUpdate()
+    onShowStyleToggleChanged: scheduleVerticalWidthUpdate()
+    onShowSearchToggleChanged: scheduleVerticalWidthUpdate()
+    onFoldersInSecondColumnChanged: scheduleVerticalWidthUpdate()
 
 
     function pathParts() {
@@ -99,31 +193,162 @@ Item {
         })
     }
 
+    function scheduleVerticalWidthUpdate() {
+        if (verticalWidthUpdatePending) return
+        verticalWidthUpdatePending = true
+        Qt.callLater(function() {
+            verticalAutoWidth = calculateVerticalAutoWidth()
+            verticalPreferredWidth = verticalAutoWidth
+            verticalWidthUpdatePending = false
+        })
+    }
+
+    function scheduleVerticalLayoutUpdate() {
+        if (verticalLayoutUpdatePending) return
+        verticalLayoutUpdatePending = true
+        Qt.callLater(function() {
+            updateVerticalButtonsPlacement()
+            verticalLayoutUpdatePending = false
+        })
+    }
+
     function updateFlowPlacement() {
         if (!topFoldersRow || !topRow || !rightButtonsRow || !pathRow) return
+        if (topRow.width <= 0) return
         var toggleWidth = (showModeToggle && modeToggleButton) ? modeToggleButton.width : 0
-        var gapCount = showModeToggle ? 3 : 2
+        var gapCount = showModeToggle ? 4 : 3
         var rightWidth = rightButtonsRow.implicitWidth
         var used = pathRow.implicitWidth + topFoldersRow.implicitWidth + rightWidth + toggleWidth + (topRow.spacing * gapCount)
         var slack = topRow.width - used
-        var shouldWrap = slack < 20
+        var shouldWrap = flowOnSecondLine ? (slack < wrapSlackOff) : (slack < wrapSlackOn)
         if (flowOnSecondLine !== shouldWrap) flowOnSecondLine = shouldWrap
     }
 
+    function updateVerticalButtonsPlacement() {
+        if (!verticalView) return
+        if (!verticalMainColumn || !verticalContentRow || !verticalButtonsPanel) return
+        if (verticalContentRow.height <= 0) return
+        var available = verticalContentRow.height
+        var desired = verticalMainColumn.implicitHeight
+        var over = desired - available
+        verticalAvailableHeight = available
+        verticalDesiredHeight = desired
+        verticalOver = over
+        var remaining = available - desired
+        var shouldWrap = manualFoldersSecondColumn
+            ? true
+            : (foldersInSecondColumn ? (remaining < wrapSlackOff) : (remaining < wrapSlackOn))
+        if (verticalButtonsOnSecondLine !== shouldWrap) {
+            verticalButtonsOnSecondLine = shouldWrap
+            foldersInSecondColumn = shouldWrap
+        }
+    }
 
-    Rectangle {
+    function setButtonsParent(item, newParent) {
+        if (item && newParent && item.parent !== newParent) {
+            item.parent = newParent
+            item.anchors.fill = undefined
+            item.x = 0
+            item.y = 0
+        }
+    }
+
+
+    Rectangle { // buttonsPool (dynamic)
         anchors.fill: parent
         color: panelColor
         border.color: panelBorderColor
         radius: 8
+        Item {
+            id: buttonsPool
+            visible: false
+        }
 
-        ColumnLayout {
+        Item {              // VERTICAL: ButtonsPanel
+            id: verticalButtonsPanel
+            parent: buttonsPool
+            implicitWidth: verticalButtonsContent.implicitWidth
+            implicitHeight: verticalButtonsContent.implicitHeight
+            width: implicitWidth
+            height: compactButtonHeight
+            Row {           // VERTICAL: ButtonsContent
+                id: verticalButtonsContent
+                anchors.fill: parent
+                spacing: 6
+                Component.onCompleted: scheduleVerticalLayoutUpdate()
+                onImplicitWidthChanged: scheduleVerticalLayoutUpdate()
+                Rectangle { // VERTICAL: search toggle button (Lupe)
+                    visible: showSearchToggle
+                    width: compactButtonHeight
+                    height: compactButtonHeight
+                    radius: 4
+                    color: pill
+                    border.color: pillBorder
+                    Image {
+                        anchors.centerIn: parent
+                        source: iconSearch
+                        width: baseFont
+                        height: baseFont
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: toggleSearch()
+                    }
+                }
+                Repeater {  // VERTICAL: style buttons (t, G, k)
+                    model: showStyleToggle ? [
+                        { label: "t", style: "text" },
+                        { label: "G", style: "largeIcon" },
+                        { label: "k", style: "smallIcon" }
+                    ] : []
+                    delegate: Rectangle {
+                        width: compactButtonHeight
+                        height: compactButtonHeight
+                        radius: 4
+                        property bool isActive: buttonStyle === modelData.style
+                        color: isActive ? accentSecondary : pill
+                        border.color: isActive ? accentSecondaryBorder : pillBorder
+                        visible: allowLargeIcons || modelData.style !== "largeIcon"
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: text
+                            font.pixelSize: baseFont
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: styleChanged(modelData.style)
+                        }
+                    }
+                }
+                Rectangle { // VERTICAL: manual right-panel toggle
+                    width: compactButtonHeight
+                    height: compactButtonHeight
+                    radius: 4
+                    color: foldersInSecondColumn ? accentSecondary : pill
+                    border.color: foldersInSecondColumn ? accentSecondaryBorder : pillBorder
+                    Text {
+                        anchors.centerIn: parent
+                        text: "R"
+                        color: text
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: manualFoldersSecondColumn = !manualFoldersSecondColumn
+                    }
+                }
+            }
+        }
+
+        ColumnLayout {  // Which VIEW???:
             id: mainColumn
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
 
-            RowLayout { // HORIZONTAL VIEW: row 1 (path + folders + right buttons)
+            RowLayout { // HORIZONTAL: row 1 (path + folders + right buttons)
                 id: topRow
                 visible: !verticalView
                 Layout.fillWidth: true
@@ -151,7 +376,7 @@ Item {
                     }
                 }
 
-                Item { // HORIZONTAL: path segment row (breadcrumbs)
+                Item {  // HORIZONTAL: path segment row (breadcrumbs)
                     id: pathHost
                     Layout.fillWidth: flowOnSecondLine
                     Layout.preferredWidth: flowOnSecondLine ? 0 : pathRow.implicitWidth
@@ -187,7 +412,7 @@ Item {
                         }
                     }
                 }
-                Item { // HORIZONTAL: folders row (top line); hidden if wrapped
+                Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
                     id: topFlowHost
                     Layout.fillWidth: false
                     Layout.preferredWidth: topFoldersRow.implicitWidth
@@ -228,7 +453,7 @@ Item {
                 }
                 Item { Layout.fillWidth: true } // HORIZONTAL: spacer/feder between folders and right buttons
 
-                Item { // HORIZONTAL: right button cluster (search + style + optional theme)
+                Item {  // HORIZONTAL: right button cluster (search + style + optional theme)
                     id: rightButtonsHost
                     Layout.preferredWidth: rightButtonsRow.implicitWidth
                     Layout.minimumWidth: rightButtonsRow.implicitWidth
@@ -329,121 +554,260 @@ Item {
 
             }
 
-            RowLayout { // VERTICAL VIEW: top row (H/V toggle + right-side buttons)
-                id: topRowVertical
+            RowLayout { // VERTICAL VIEW: main column + right column for buttons
+                id: verticalContentRow
                 visible: verticalView
                 Layout.fillWidth: true
-                Layout.preferredHeight: compactButtonHeight
-                spacing: 6
-                Rectangle {
-                    visible: showModeToggle
-                    width: compactButtonHeight
-                    height: compactButtonHeight
-                    radius: 4
-                    color: pill
-                    border.color: accentSecondaryBorder
+                Layout.fillHeight: true
+                spacing: 12
+                onHeightChanged: scheduleVerticalLayoutUpdate()
+                ColumnLayout { // VERTICAL mainColumn
+                    id: verticalMainColumn
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 8
+                    onImplicitHeightChanged: scheduleVerticalLayoutUpdate()
+                    onChildrenRectChanged: scheduleVerticalLayoutUpdate()
                     Text {
-                        anchors.centerIn: parent
-                        text: verticalView ? "H" : "V"
-                        color: text
-                        font.pixelSize: baseFont
+                        visible: debugVerticalWrap
+                        text: "V-wrap: avail=" + Math.round(verticalAvailableHeight) +
+                              " desired=" + Math.round(verticalDesiredHeight) +
+                              " over=" + Math.round(verticalOver) +
+                              " wrap=" + (foldersInSecondColumn ? "yes" : "no")
+                        color: "#ff5c5c"
+                        font.pixelSize: Math.max(10, baseFont - 4)
                     }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: toggleMode()
-                    }
-                }
-                Item { Layout.fillWidth: true } // VERTICAL: spacer/feder between H/V toggle and right buttons
-                Row {
-                    spacing: 6
-                    Rectangle { // VERTICAL: search toggle button (Lupe)
-                        visible: showSearchToggle
-                        width: compactButtonHeight
-                        height: compactButtonHeight
-                        radius: 4
-                        color: pill
-                        border.color: pillBorder
-                        Image {
-                            anchors.centerIn: parent
-                            source: iconSearch
-                            width: baseFont
-                            height: baseFont
-                            fillMode: Image.PreserveAspectFit
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: toggleSearch()
-                        }
-                    }
-                    Repeater { // VERTICAL: style buttons (t, G, k)
-                        model: showStyleToggle ? [
-                            { label: "t", style: "text" },
-                            { label: "G", style: "largeIcon" },
-                            { label: "k", style: "smallIcon" }
-                        ] : []
-                        delegate: Rectangle {
+                    RowLayout { // VERTICAL VIEW: top row (H/V toggle + inline buttons)
+                        id: topRowVertical
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: compactButtonHeight
+                        spacing: 6
+                        onWidthChanged: scheduleVerticalLayoutUpdate()
+                        Rectangle {
+                            id: modeToggleButtonVertical
+                            visible: showModeToggle
                             width: compactButtonHeight
                             height: compactButtonHeight
                             radius: 4
-                            property bool isActive: buttonStyle === modelData.style
-                            color: isActive ? accentSecondary : pill
-                            border.color: isActive ? accentSecondaryBorder : pillBorder
-                            visible: allowLargeIcons || modelData.style !== "largeIcon"
+                            color: pill
+                            border.color: accentSecondaryBorder
                             Text {
                                 anchors.centerIn: parent
-                                text: modelData.label
+                                text: verticalView ? "H" : "V"
                                 color: text
                                 font.pixelSize: baseFont
                             }
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: styleChanged(modelData.style)
+                                onClicked: toggleMode()
+                            }
+                        }
+                        Item { Layout.fillWidth: true } // VERTICAL: spacer/feder between H/V toggle and right buttons
+                        Item {
+                            id: verticalButtonsSlotTop
+                            visible: true
+                            Layout.preferredWidth: verticalButtonsPanel.implicitWidth
+                            Layout.minimumWidth: verticalButtonsPanel.implicitWidth
+                            Layout.maximumWidth: verticalButtonsPanel.implicitWidth
+                            Layout.preferredHeight: compactButtonHeight
+                        }
+                    }
+                    Item { // SEARCH FIELD (vertical view)
+                        visible: searchActive && verticalView
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: compactButtonHeight
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 4
+                            color: card
+                            border.color: pillBorder
+                            TextField {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                text: searchText
+                                placeholderText: "Search      + deep    # all"
+                                font.pixelSize: baseFont
+                                selectByMouse: true
+                                color: root.text
+                                placeholderTextColor: root.textMuted
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 6
+                                rightPadding: 6
+                                topPadding: 1
+                                bottomPadding: 0
+                                background: Rectangle { color: "transparent" }
+                                onTextChanged: {
+                                    root.searchText = text
+                                    root.searchTextEdited(text)
+                                }
+                                onVisibleChanged: {
+                                    if (visible && searchActive) {
+                                        forceActiveFocus()
+                                        selectAll()
+                                    }
+                                }
+                                Keys.onEscapePressed: {
+                                    root.searchText = ""
+                                    root.searchActive = false
+                                }
+                            }
+                        }
+                    }
+                    ColumnLayout { // VERTICAL VIEW: section 1 (parent paths)
+                        id: verticalColumn
+                        Layout.fillWidth: true
+                        spacing: verticalParentSpacing
+                        Repeater { // PathButtons
+                            model: visibleParentPaths()
+                            delegate: ProjectButton {
+                                width: parent.width
+                                label: modelData.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
+                                style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
+                                compactHeight: compactButtonHeight
+                                largeHeight: largeButtonHeight
+                                largePadding: largeButtonPadding
+                                iconSmall: iconSizeSmall
+                                iconLarge: iconSizeLarge
+                                iconSource: iconFolder
+                                fillColor: pill
+                                strokeColor: pillBorder
+                                textColor: text
+                                textSize: baseFont
+                                renaming: false
+                                renameEnabled: false
+                                onActivate: pathSelected(modelData)
+                            }
+                        }
+                    }
+                    ProjectButton { // VERTICAL VIEW: section 2 (current path highlight)
+                        id: cwpButton
+                        width: parent.width
+                        label: pathParts().length ? pathParts()[pathParts().length - 1] : "/"
+                        style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
+                        compactHeight: compactButtonHeight
+                        largeHeight: largeButtonHeight
+                        largePadding: largeButtonPadding
+                        iconSmall: iconSizeSmall
+                        iconLarge: iconSizeLarge
+                        iconSource: iconFolder
+                        fillColor: accentPrimary
+                        strokeColor: accentPrimary
+                        textColor: accentPrimaryText
+                        textSize: baseFont + 1
+                        textBold: true
+                        renaming: false
+                        renameEnabled: false
+                        onActivate: {}
+                    }
+                Flickable { // VERTICAL VIEW: section 3 (folders list, scrollable)
+                    id: foldersColumn
+                    visible: !foldersInSecondColumn
+                    Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    Layout.preferredHeight: foldersContent.implicitHeight
+                    contentWidth: width
+                    contentHeight: foldersContent.implicitHeight
+                    clip: true
+                    Column {
+                        id: foldersContent
+                        width: parent.width
+                        spacing: 6
+                        Repeater {
+                            model: folders
+                            delegate: ProjectButton {
+                                x: indent
+                                width: parent.width - indent
+                                label: modelData
+                                style: effectiveStyle()
+                                largeIconAlignLeft: true
+                                compactHeight: compactButtonHeight
+                                largeHeight: largeButtonHeight
+                                largePadding: largeButtonPadding
+                                iconSmall: iconSizeSmall
+                                iconLarge: iconSizeLarge
+                                iconSource: iconFolder
+                                fillColor: accentSecondary
+                                strokeColor: accentSecondaryBorder
+                                textColor: textSoft
+                                textSize: baseFont
+                                textLeftInset: effectiveStyle() === "text" ? indent : 0
+                                renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                renameEnabled: allowRename
+                                renameText: renameDraft
+                                onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                onRenameTextEdited: renameTextEdited(text)
+                                onRenameAccepted: renameAccepted()
+                                onRenameCanceled: renameCanceled()
+                                onActivate: folderActivated(modelData)
                             }
                         }
                     }
                 }
+                Item {
+                    visible: foldersInSecondColumn
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                }
+                    Item { Layout.fillHeight: true }
+                }
+            ColumnLayout { // VERTICAL: right column for folders
+                id: verticalRightColumn
+                visible: foldersInSecondColumn
+                Layout.preferredWidth: verticalButtonsPanel.implicitWidth
+                Layout.minimumWidth: verticalButtonsPanel.implicitWidth
+                Layout.maximumWidth: verticalButtonsPanel.implicitWidth
+                Layout.fillHeight: true
+                spacing: 6
+                Rectangle { // Roter Indikator
+                    visible: debugVerticalWrap
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 14
+                    color: "#ff5c5c"
+                    radius: 3
+                }
+                Flickable { // VERTICAL: folders list (right column)
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    contentWidth: width
+                    contentHeight: foldersContentRight.height
+                    clip: true
+                    Column {
+                        id: foldersContentRight
+                        width: parent.width
+                        spacing: 6
+                        Repeater {
+                            model: folders
+                            delegate: ProjectButton {
+                                x: indent
+                                width: parent.width - indent
+                                label: modelData
+                                style: effectiveStyle()
+                                largeIconAlignLeft: true
+                                compactHeight: compactButtonHeight
+                                largeHeight: largeButtonHeight
+                                largePadding: largeButtonPadding
+                                iconSmall: iconSizeSmall
+                                iconLarge: iconSizeLarge
+                                iconSource: iconFolder
+                                fillColor: accentSecondary
+                                strokeColor: accentSecondaryBorder
+                                textColor: textSoft
+                                textSize: baseFont
+                                textLeftInset: effectiveStyle() === "text" ? indent : 0
+                                renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                renameEnabled: allowRename
+                                renameText: renameDraft
+                                onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                onRenameTextEdited: renameTextEdited(text)
+                                onRenameAccepted: renameAccepted()
+                                onRenameCanceled: renameCanceled()
+                                onActivate: folderActivated(modelData)
+                            }
+                        }
+                    }
+                }
+                Item { Layout.fillHeight: true }
             }
-
-            Item { // SEARCH FIELD (vertical view)
-                visible: searchActive && verticalView
-                Layout.fillWidth: true
-                Layout.preferredHeight: compactButtonHeight
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 4
-                    color: card
-                    border.color: pillBorder
-                    TextField {
-                        anchors.fill: parent
-                        anchors.margins: 4
-                        text: searchText
-                        placeholderText: "Search      + deep    # all"
-                        font.pixelSize: baseFont
-                        selectByMouse: true
-                        color: root.text
-                        placeholderTextColor: root.textMuted
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: 6
-                        rightPadding: 6
-                        topPadding: 1
-                        bottomPadding: 0
-                        background: Rectangle { color: "transparent" }
-                        onTextChanged: {
-                            root.searchText = text
-                            root.searchTextEdited(text)
-                        }
-                        onVisibleChanged: {
-                            if (visible && searchActive) {
-                                forceActiveFocus()
-                                selectAll()
-                            }
-                        }
-                        Keys.onEscapePressed: {
-                            root.searchText = ""
-                            root.searchActive = false
-                        }
-                    }
-                }
             }
 
             RowLayout { // HORIZONTAL VIEW: row 2 (wrapped folders flow)
@@ -492,102 +856,6 @@ Item {
                     }
                 }
             }
-
-            ColumnLayout { // VERTICAL VIEW: section 1 (parent paths)
-                id: verticalColumn
-                visible: verticalView
-                Layout.fillWidth: true
-                spacing: verticalParentSpacing
-                Repeater {
-                    model: visibleParentPaths()
-                    delegate: ProjectButton {
-                        width: parent.width
-                        label: modelData.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
-                        style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
-                        compactHeight: compactButtonHeight
-                        largeHeight: largeButtonHeight
-                        largePadding: largeButtonPadding
-                        iconSmall: iconSizeSmall
-                        iconLarge: iconSizeLarge
-                        iconSource: iconFolder
-                        fillColor: pill
-                        strokeColor: pillBorder
-                        textColor: text
-                        textSize: baseFont
-                        renaming: false
-                        renameEnabled: false
-                        onActivate: pathSelected(modelData)
-                    }
-                }
-            }
-
-            ProjectButton { // VERTICAL VIEW: section 2 (current path highlight)
-                id: cwpButton
-                visible: verticalView
-                width: parent.width
-                label: pathParts().length ? pathParts()[pathParts().length - 1] : "/"
-                style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
-                compactHeight: compactButtonHeight
-                largeHeight: largeButtonHeight
-                largePadding: largeButtonPadding
-                iconSmall: iconSizeSmall
-                iconLarge: iconSizeLarge
-                iconSource: iconFolder
-                fillColor: accentPrimary
-                strokeColor: accentPrimary
-                textColor: accentPrimaryText
-                textSize: baseFont + 1
-                textBold: true
-                renaming: false
-                renameEnabled: false
-                onActivate: {}
-            }
-
-            Flickable { // VERTICAL VIEW: section 3 (folders list, scrollable)
-                id: foldersColumn
-                visible: verticalView
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-                Layout.preferredHeight: foldersContent.implicitHeight
-                contentWidth: width
-                contentHeight: foldersContent.implicitHeight
-                clip: true
-                Column {
-                    id: foldersContent
-                    width: parent.width
-                    spacing: 6
-                    Repeater {
-                        model: folders
-                        delegate: ProjectButton {
-                            x: indent
-                            width: parent.width - indent
-                            label: modelData
-                            style: effectiveStyle()
-                            largeIconAlignLeft: true
-                            compactHeight: compactButtonHeight
-                            largeHeight: largeButtonHeight
-                            largePadding: largeButtonPadding
-                            iconSmall: iconSizeSmall
-                            iconLarge: iconSizeLarge
-                            iconSource: iconFolder
-                            fillColor: accentSecondary
-                            strokeColor: accentSecondaryBorder
-                            textColor: textSoft
-                            textSize: baseFont
-                            textLeftInset: effectiveStyle() === "text" ? indent : 0
-                            renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
-                            renameEnabled: allowRename
-                            renameText: renameDraft
-                            onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
-                            onRenameTextEdited: renameTextEdited(text)
-                            onRenameAccepted: renameAccepted()
-                            onRenameCanceled: renameCanceled()
-                            onActivate: folderActivated(modelData)
-                        }
-                    }
-                }
-            }
-            Item { Layout.fillHeight: true; visible: verticalView }
         }
     }
 }
