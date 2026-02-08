@@ -537,7 +537,7 @@ class PostFixWindow(QMainWindow):
         # Set application styles
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #2f2f2f;
+                background-color: #f0f0f0;
             }
             QPushButton {
                 font-size: 12px;
@@ -595,6 +595,46 @@ class PostFixWindow(QMainWindow):
         self.topbar_bg.setStyleSheet("QFrame { background-color: #ffffff; }")
         self.bottombar_bg = QFrame()
         self.bottombar_bg.setStyleSheet("QFrame { background-color: #ffffff; }")
+        self.bottom_shadow = QFrame()
+        self.bottom_shadow.setFixedHeight(60)
+        self.bottom_shadow.setStyleSheet(
+            "QFrame { "
+            "background: qlineargradient(x1:0,y1:0,x2:0,y2:1, "
+            "stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
+            "}"
+        )
+        self.right_shadow = QFrame()
+        self.right_shadow.setFixedWidth(60)
+        self.right_shadow.setStyleSheet(
+            "QFrame { "
+            "background: qlineargradient(x1:0,y1:0,x2:1,y2:0, "
+            "stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
+            "}"
+        )
+        self.corner_shadow = QFrame()
+        self.corner_shadow.setFixedSize(60, 60)
+        self.corner_shadow.setStyleSheet(
+            "QFrame { "
+            "background: qradialgradient(cx:0,cy:0, radius:1, "
+            "fx:0, fy:0, stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
+            "}"
+        )
+        self.right_shadow_bot = QFrame()
+        self.right_shadow_bot.setFixedWidth(60)
+        self.right_shadow_bot.setStyleSheet(
+            "QFrame { "
+            "background: qlineargradient(x1:0,y1:0,x2:1,y2:0, "
+            "stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
+            "}"
+        )
+        self.right_shadow_down = QFrame()
+        self.right_shadow_down.setFixedWidth(60)
+        self.right_shadow_down.setStyleSheet(
+            "QFrame { "
+            "background: qlineargradient(x1:0,y1:0,x2:1,y2:0, "
+            "stop:0 rgba(0,0,0,60), stop:1 rgba(0,0,0,0)); "
+            "}"
+        )
 
         self.left_mid_host = QFrame()
         left_mid_stack = QStackedLayout(self.left_mid_host)
@@ -603,6 +643,26 @@ class PostFixWindow(QMainWindow):
         left_mid_stack.addWidget(self.strip_left_mid_host)
         left_mid_stack.setAlignment(self.acl_host, Qt.AlignRight | Qt.AlignVCenter)
         left_mid_stack.setAlignment(self.strip_left_mid_host, Qt.AlignRight | Qt.AlignVCenter)
+
+        self.right_mid_host = QFrame()
+        right_mid_stack = QStackedLayout(self.right_mid_host)
+        right_mid_stack.setStackingMode(QStackedLayout.StackAll)
+        right_mid_stack.addWidget(self.strip_right_mid_host)
+        right_mid_stack.addWidget(self.right_shadow)
+        right_mid_stack.addWidget(self.right_sidebar)
+        right_mid_stack.setAlignment(self.right_shadow, Qt.AlignRight | Qt.AlignVCenter)
+        self.strip_right_mid_host.lower()
+        self.right_shadow.lower()
+        self.right_sidebar.raise_()
+
+        self.right_bot_host = QFrame()
+        right_bot_stack = QStackedLayout(self.right_bot_host)
+        right_bot_stack.setStackingMode(QStackedLayout.StackAll)
+        right_bot_stack.addWidget(self.strip_right_bot_host)
+        right_bot_stack.addWidget(self.right_shadow_bot)
+        right_bot_stack.setAlignment(self.right_shadow_bot, Qt.AlignRight | Qt.AlignVCenter)
+        self.strip_right_bot_host.lower()
+        self.right_shadow_bot.lower()
 
         self.corner_tl.setStyleSheet("QFrame { background-color: rgba(30, 30, 30, 128); }")
         self.strip_left_top.setStyleSheet("QFrame { background-color: #ffffff; }")
@@ -616,18 +676,22 @@ class PostFixWindow(QMainWindow):
 
         main_layout.addWidget(self.left_mid_host, 1, 0)
         main_layout.addWidget(self.editor, 1, 1)
-        main_layout.addWidget(self.strip_right_mid_host, 1, 2)
-        main_layout.addWidget(self.right_sidebar, 1, 2)
+        main_layout.addWidget(self.right_mid_host, 1, 2)
 
         main_layout.addWidget(self.strip_left_bot_host, 2, 0)
         main_layout.addWidget(self.bottombar_bg, 2, 1)
         main_layout.addWidget(self.bottom_toolbar, 2, 1)
-        main_layout.addWidget(self.strip_right_bot_host, 2, 2)
+        main_layout.addWidget(self.right_bot_host, 2, 2)
+        main_layout.addWidget(self.bottom_shadow, 3, 1)
+        main_layout.addWidget(self.right_shadow_down, 3, 2, Qt.AlignLeft | Qt.AlignVCenter)
+        main_layout.addWidget(self.corner_shadow, 3, 2, Qt.AlignLeft | Qt.AlignVCenter)
 
         main_layout.setRowStretch(1, 1)
+        main_layout.setRowStretch(3, 0)
         main_layout.setColumnStretch(1, 1)
         main_layout.setColumnMinimumWidth(0, 40)
         main_layout.setColumnMinimumWidth(2, 40)
+        main_layout.setRowMinimumHeight(3, 60)
         
         # Connect signals
         self.connect_signals()
