@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame, QColorDialog,
                                QPlainTextEdit, QTextBrowser, QStackedWidget,
-                               QSplitter, QGraphicsOpacityEffect)
+                               QSplitter, QGraphicsOpacityEffect, QStackedLayout)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation, QEvent
 from PySide6.QtGui import QColor, QPalette, QTextCursor, QIcon, QFont
 
@@ -56,8 +56,8 @@ class SidebarWidget(QWidget):
     def __init__(self, title="Sidebar", bg_color="rgba(200, 220, 240, 60)"):
         super().__init__()
         self.bg_color = bg_color
-        self.base_opacity = 0.6  # Half transparent when idle
-        self.hover_opacity = 0.9  # More visible on hover
+        self.base_opacity = 1.0  # Fully opaque
+        self.hover_opacity = 1.0
         
         # Set initial style
         self.update_background_style(bg_color)
@@ -202,6 +202,7 @@ class ACLSidebar(SidebarWidget):
         
     def setup_ui(self):
         layout = self.layout()
+        layout.setContentsMargins(0, 8, 0, 8)
         
         # Clear placeholder widgets
         while layout.count():
@@ -209,25 +210,30 @@ class ACLSidebar(SidebarWidget):
             if item.widget():
                 item.widget().deleteLater()
         
-        # Add ACL checkboxes (fake implementation)
-        acl_items = ["Alfred", "Bertha", "Christian", "Doris", 
-                    "Buchhaltung", "Entwicklung", "Dokumentation"]
+        # Add ACL buttons (people light gray, groups darker gray)
+        people = ["Alfred", "Bertha", "Christian", "Doris"]
+        groups = ["Buchhaltung", "Entwicklung", "Dokumentation"]
+        acl_items = [(name, "#d6d6d6") for name in people] + [(name, "#b5b5b5") for name in groups]
         
-        for item in acl_items:
-            # Using buttons for now, could be checkboxes
-            btn = QPushButton(f"○ {item}")
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
+        for item, bg in acl_items:
+            btn = QPushButton(f"{item}  ▸")
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {bg};
                     color: #333333;
                     border: none;
-                    text-align: left;
-                    padding: 5px;
-                }
-                QPushButton:hover {
-                    background-color: rgba(255, 255, 255, 50);
-                    border-radius: 3px;
-                }
+                    border-top-left-radius: 2px;
+                    border-bottom-left-radius: 2px;
+                    border-top-right-radius: 12px;
+                    border-bottom-right-radius: 12px;
+                    text-align: right;
+                    padding: 4px 8px;
+                    margin: 3px;
+                }}
+                QPushButton:hover {{
+                    background-color: {bg};
+                    border: 1px solid #9a9a9a;
+                }}
             """)
             btn.setCursor(Qt.PointingHandCursor)
             layout.addWidget(btn)
@@ -240,10 +246,13 @@ class BottomToolbar(QWidget):
     
     def __init__(self):
         super().__init__()
-        self.setMinimumHeight(30)
-        self.setMaximumHeight(30)  # Only primary level visible initially
-        self.theme_color = "#FFF740"
-        self.theme_border = "#d4c600"
+        self.setMinimumHeight(60)
+        self.setMaximumHeight(60)  # Only primary level visible initially
+        self.theme_color = "#ffffff"
+        self.theme_border = "#cfcfcf"
+        self.bg_layer = QFrame(self)
+        self.bg_layer.lower()
+        self.bg_layer.setStyleSheet("QFrame { background-color: #ffffff; }")
         
         # Main layout
         self.main_layout = QVBoxLayout(self)
@@ -265,6 +274,7 @@ class BottomToolbar(QWidget):
         )
         self.primary_layout = QHBoxLayout(self.primary_toolbar)
         self.primary_layout.setSpacing(15)
+        self.primary_layout.setContentsMargins(6, 3, 6, 3)
         
         # Add toolbars to main layout
         self.main_layout.addWidget(self.secondary_toolbar)
@@ -279,27 +289,31 @@ class BottomToolbar(QWidget):
         
     def setup_primary_toolbar(self):
         """Setup the always-visible primary toolbar."""
-        # Primary action buttons
-        actions = ["Send To", "Open In", "Print"]
+        # Primary action buttons (icons)
+        actions = [("↗", "Send To"), ("⇱", "Open In"), ("⎙", "Print")]
         
-        for action in actions:
-            btn = QPushButton(action)
+        for icon, label in actions:
+            btn = QPushButton(icon)
+            btn.setToolTip(label)
             btn.setStyleSheet("""
                 QPushButton {
-                    background-color: transparent;
+                    background-color: rgba(0, 0, 0, 0);
                     color: #333333;
-                    border: none;
-                    padding: 5px 10px;
+                    border: 1px solid rgba(0, 0, 0, 60);
+                    border-radius: 15px;
+                    padding: 0 10px;
+                    font-size: 14px;
+                    min-width: 30px;
+                    min-height: 30px;
                 }
                 QPushButton:hover {
-                    background-color: rgba(200, 200, 200, 100);
-                    border-radius: 3px;
+                    background-color: rgba(0, 0, 0, 25);
                 }
             """)
             btn.setCursor(Qt.PointingHandCursor)
             
             # Connect hover to show secondary toolbar
-            btn.enterEvent = lambda e, a=action: self.show_secondary(a)
+            btn.enterEvent = lambda e, a=label: self.show_secondary(a)
             btn.leaveEvent = lambda e: self.start_hide_timer()
             
             self.primary_layout.addWidget(btn)
@@ -364,12 +378,18 @@ class BottomToolbar(QWidget):
     def set_theme_color(self, color_hex: str):
         self.theme_color = color_hex
         self.theme_border = QColor(color_hex).darker(120).name()
+        self.bg_layer.setStyleSheet(f"QFrame {{ background-color: {self.theme_color}; }}")
         self.secondary_toolbar.setStyleSheet(
             f"QWidget {{ background-color: {self.theme_color}; border-bottom: 1px solid transparent; }}"
         )
         self.primary_toolbar.setStyleSheet(
             f"QWidget {{ background-color: {self.theme_color}; border-top: 1px solid transparent; }}"
         )
+        self.update()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.bg_layer.setGeometry(0, 0, self.width(), self.height())
 
 
 class SmartEditor(QWidget):
@@ -510,14 +530,14 @@ class PostFixWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("PostFix")
         self.setGeometry(100, 100, 900, 650)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self.setWindowOpacity(1.0)
         
         # Set application styles
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #f5f5f5;
+                background-color: #2f2f2f;
             }
             QPushButton {
                 font-size: 12px;
@@ -529,7 +549,7 @@ class PostFixWindow(QMainWindow):
         central_widget.setStyleSheet("QWidget { background: transparent; }")
         self.setCentralWidget(central_widget)
         
-        # Main layout (5x3 grid)
+        # Main layout (3x3 grid)
         main_layout = QGridLayout(central_widget)
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -547,8 +567,15 @@ class PostFixWindow(QMainWindow):
         self._theme_anim = None
         self._current_theme_color = self.editor.current_bg
 
+        self.acl_host = QFrame()
+        self.acl_host.setFixedWidth(120)
+        acl_layout = QVBoxLayout(self.acl_host)
+        acl_layout.setContentsMargins(0, 0, 0, 0)
+        acl_layout.addWidget(self.left_sidebar)
+
         # Bottom toolbar
         self.bottom_toolbar = BottomToolbar()
+        self.init_bottombar_fade()
 
         # Corner widgets (more transparent)
         self.corner_tl = self.make_corner_widget()
@@ -557,39 +584,50 @@ class PostFixWindow(QMainWindow):
         self.corner_br = self.make_corner_widget()
 
         # Inner side strips (theme-colored)
-        self.strip_left_top = self.make_strip_widget()
-        self.strip_left_mid = self.make_strip_widget()
-        self.strip_left_bot = self.make_strip_widget()
-        self.strip_right_top = self.make_strip_widget()
-        self.strip_right_mid = self.make_strip_widget()
-        self.strip_right_bot = self.make_strip_widget()
+        self.strip_left_top_host, self.strip_left_top = self.make_strip_host(align_right=True)
+        self.strip_left_mid_host, self.strip_left_mid = self.make_strip_host(align_right=True)
+        self.strip_left_bot_host, self.strip_left_bot = self.make_strip_host(align_right=True)
+        self.strip_right_top_host, self.strip_right_top = self.make_strip_host(align_right=False)
+        self.strip_right_mid_host, self.strip_right_mid = self.make_strip_host(align_right=False)
+        self.strip_right_bot_host, self.strip_right_bot = self.make_strip_host(align_right=False)
 
         self.topbar_bg = QFrame()
         self.topbar_bg.setStyleSheet("QFrame { background-color: #ffffff; }")
+        self.bottombar_bg = QFrame()
+        self.bottombar_bg.setStyleSheet("QFrame { background-color: #ffffff; }")
 
-        # Layout: 5x3 grid
-        main_layout.addWidget(self.corner_tl, 0, 0)
-        main_layout.addWidget(self.strip_left_top, 0, 1)
-        main_layout.addWidget(self.topbar_bg, 0, 2)
-        main_layout.addWidget(self.top_toolbar, 0, 2)
-        main_layout.addWidget(self.strip_right_top, 0, 3)
-        main_layout.addWidget(self.corner_tr, 0, 4)
+        self.left_mid_host = QFrame()
+        left_mid_stack = QStackedLayout(self.left_mid_host)
+        left_mid_stack.setStackingMode(QStackedLayout.StackAll)
+        left_mid_stack.addWidget(self.acl_host)
+        left_mid_stack.addWidget(self.strip_left_mid_host)
+        left_mid_stack.setAlignment(self.acl_host, Qt.AlignRight | Qt.AlignVCenter)
+        left_mid_stack.setAlignment(self.strip_left_mid_host, Qt.AlignRight | Qt.AlignVCenter)
 
-        main_layout.addWidget(self.left_sidebar, 1, 0)
-        main_layout.addWidget(self.strip_left_mid, 1, 1)
-        main_layout.addWidget(self.editor, 1, 2)
-        main_layout.addWidget(self.right_sidebar, 1, 3, 1, 2)
+        self.corner_tl.setStyleSheet("QFrame { background-color: rgba(30, 30, 30, 128); }")
+        self.strip_left_top.setStyleSheet("QFrame { background-color: #ffffff; }")
+        self.topbar_bg.setStyleSheet("QFrame { background-color: #ffffff; }")
 
-        main_layout.addWidget(self.corner_bl, 2, 0)
-        main_layout.addWidget(self.strip_left_bot, 2, 1)
-        main_layout.addWidget(self.bottom_toolbar, 2, 2)
-        main_layout.addWidget(self.strip_right_bot, 2, 3)
-        main_layout.addWidget(self.corner_br, 2, 4)
+        # Layout: 3x3 grid (no outer columns)
+        main_layout.addWidget(self.strip_left_top_host, 0, 0)
+        main_layout.addWidget(self.topbar_bg, 0, 1)
+        main_layout.addWidget(self.top_toolbar, 0, 1)
+        main_layout.addWidget(self.strip_right_top_host, 0, 2)
+
+        main_layout.addWidget(self.left_mid_host, 1, 0)
+        main_layout.addWidget(self.editor, 1, 1)
+        main_layout.addWidget(self.strip_right_mid_host, 1, 2)
+        main_layout.addWidget(self.right_sidebar, 1, 2)
+
+        main_layout.addWidget(self.strip_left_bot_host, 2, 0)
+        main_layout.addWidget(self.bottombar_bg, 2, 1)
+        main_layout.addWidget(self.bottom_toolbar, 2, 1)
+        main_layout.addWidget(self.strip_right_bot_host, 2, 2)
 
         main_layout.setRowStretch(1, 1)
-        main_layout.setColumnStretch(2, 1)
-        main_layout.setColumnMinimumWidth(1, 40)
-        main_layout.setColumnMinimumWidth(3, 40)
+        main_layout.setColumnStretch(1, 1)
+        main_layout.setColumnMinimumWidth(0, 40)
+        main_layout.setColumnMinimumWidth(2, 40)
         
         # Connect signals
         self.connect_signals()
@@ -822,8 +860,20 @@ class PostFixWindow(QMainWindow):
     def make_strip_widget(self) -> QWidget:
         strip = QFrame()
         strip.setFixedWidth(40)
-        strip.setStyleSheet("QFrame { background-color: #FFF740; }")
+        strip.setStyleSheet("QFrame { background-color: #ffffff; }")
         return strip
+
+    def make_strip_host(self, align_right: bool) -> tuple[QFrame, QFrame]:
+        host = QFrame()
+        layout = QHBoxLayout(host)
+        layout.setContentsMargins(0, 0, 0, 0)
+        if align_right:
+            layout.addStretch()
+        strip = self.make_strip_widget()
+        layout.addWidget(strip)
+        if not align_right:
+            layout.addStretch()
+        return host, strip
 
     def update_theme_color(self, color_hex: str):
         if color_hex == self._current_theme_color:
@@ -848,14 +898,21 @@ class PostFixWindow(QMainWindow):
         )
         self.bottom_toolbar.set_theme_color(color_hex)
         self.left_sidebar.update_background_style(f"rgba({color.red()}, {color.green()}, {color.blue()}, 128)")
-        self.left_sidebar.update_background_style(f"rgba({color.red()}, {color.green()}, {color.blue()}, 128)")
-        self.right_sidebar.update_background_style(f"rgba({color.red()}, {color.green()}, {color.blue()}, 128)")
+        self.left_sidebar.update_background_style(color_hex)
+        self.right_sidebar.update_background_style(color_hex)
         for strip in [
             self.strip_left_top, self.strip_left_mid, self.strip_left_bot,
             self.strip_right_top, self.strip_right_mid, self.strip_right_bot,
         ]:
             strip.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
+        self.strip_left_top.setStyleSheet(
+            f"QFrame {{ background-color: {color_hex}; }}"
+        )
+        self.topbar_bg.setStyleSheet(
+            f"QFrame {{ background-color: {color_hex}; }}"
+        )
         self.topbar_bg.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
+        self.bottombar_bg.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
         self.editor.setStyleSheet(
             f"QWidget {{ background-color: {color_hex}; }} QSplitter::handle {{ background-color: {color_hex}; }}"
         )
@@ -876,6 +933,11 @@ class PostFixWindow(QMainWindow):
                 self.fade_topbar(1.0)
             elif event.type() == QEvent.Leave:
                 self.fade_topbar(0.0)
+        if obj is self.bottom_toolbar:
+            if event.type() == QEvent.Enter:
+                self.fade_bottombar(1.0)
+            elif event.type() == QEvent.Leave:
+                self.fade_bottombar(0.0)
         return super().eventFilter(obj, event)
 
     def fade_topbar(self, target_opacity: float):
@@ -884,6 +946,24 @@ class PostFixWindow(QMainWindow):
         self._topbar_anim.setStartValue(self._topbar_effect.opacity())
         self._topbar_anim.setEndValue(target_opacity)
         self._topbar_anim.start()
+
+    def init_bottombar_fade(self):
+        effect = QGraphicsOpacityEffect(self.bottom_toolbar)
+        effect.setOpacity(0.0)
+        self.bottom_toolbar.setGraphicsEffect(effect)
+        self._bottombar_effect = effect
+        self._bottombar_anim = QPropertyAnimation(effect, b"opacity", self)
+        self._bottombar_anim.setDuration(500)
+        self._bottombar_anim.setEasingCurve(QEasingCurve.InOutQuad)
+        self.bottom_toolbar.installEventFilter(self)
+        self.bottom_toolbar.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+
+    def fade_bottombar(self, target_opacity: float):
+        if self._bottombar_anim.state() == QPropertyAnimation.Running:
+            self._bottombar_anim.stop()
+        self._bottombar_anim.setStartValue(self._bottombar_effect.opacity())
+        self._bottombar_anim.setEndValue(target_opacity)
+        self._bottombar_anim.start()
 
 
 def main():
