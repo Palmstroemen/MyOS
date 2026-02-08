@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QPlainTextEdit, QTextBrowser, QStackedWidget,
                                QSplitter, QGraphicsOpacityEffect, QStackedLayout)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation, QEvent, QRect, QTimer, Signal, QSize
-from PySide6.QtGui import QColor, QPalette, QTextCursor, QIcon, QFont, QGuiApplication, QTextDocument
+from PySide6.QtGui import QColor, QPalette, QTextCursor, QIcon, QFont, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
 
 FRONTMATTER_BOUNDARY = "---"
@@ -268,6 +268,11 @@ class BottomToolbar(QWidget):
         self._printers = self._load_printers()
         self._active_flyout = None
         self._primary_buttons = []
+        self._flyout_anim = None
+        self._primary_button_map = {}
+        self._flyout_height = 40
+        self.setMouseTracking(True)
+        self.setAttribute(Qt.WA_Hover, True)
         
         # Main layout
         self.main_layout = QVBoxLayout(self)
@@ -277,7 +282,7 @@ class BottomToolbar(QWidget):
         # Primary toolbar (always visible)
         self.primary_toolbar = QWidget()
         self.primary_toolbar.setStyleSheet(
-            f"QWidget {{ background-color: {self.theme_color}; border-top: 1px solid transparent; }}"
+            "QWidget { background-color: rgba(0, 0, 0, 13); border-top: 1px solid transparent; }"
         )
         self.primary_layout = QHBoxLayout(self.primary_toolbar)
         self.primary_layout.setSpacing(15)
@@ -316,32 +321,48 @@ class BottomToolbar(QWidget):
             """)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setFixedSize(30, 30)
-            btn.enterEvent = lambda e, name=label, anchor=btn: self.show_flyout(name, anchor)
-            btn.leaveEvent = lambda e: self.schedule_hide()
+            btn.setMouseTracking(True)
+            btn._flyout_label = label
             
             self.primary_layout.addWidget(btn)
             self._primary_buttons.append(btn)
+            self._primary_button_map[btn] = label
         
         # Add stretch
         self.primary_layout.addStretch()
         
     def setup_flyout(self):
         """Setup the hover flyout with larger icons."""
-        self.flyout = QFrame()
-        self.flyout.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
+        parent = self.window()
+        self.flyout = QFrame(parent)
+        self.flyout.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
+        self.flyout.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.flyout.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.flyout.setMouseTracking(True)
+        self.flyout.setAttribute(Qt.WA_Hover, True)
         self.flyout.setStyleSheet(
-            "QFrame { background-color: rgba(255,255,255,230); border: 1px solid #cfcfcf; border-radius: 10px; }"
+            "QFrame { background-color: rgba(255,255,255,235); border: none; }"
         )
         self.flyout_layout = QHBoxLayout(self.flyout)
-        self.flyout_layout.setContentsMargins(8, 8, 8, 8)
-        self.flyout_layout.setSpacing(8)
+        self.flyout_layout.setContentsMargins(12, 8, 12, 8)
+        self.flyout_layout.setSpacing(12)
+        self.flyout_layout.setAlignment(Qt.AlignHCenter)
         self.flyout.hide()
-        self.flyout.enterEvent = lambda e: self.cancel_hide()
-        self.flyout.leaveEvent = lambda e: self.schedule_hide()
+        self._flyout_effect = QGraphicsOpacityEffect(self.flyout)
+        self._flyout_effect.setOpacity(1.0)
+        self.flyout.setGraphicsEffect(self._flyout_effect)
+        self._flyout_anim = QPropertyAnimation(self._flyout_effect, b"opacity", self)
+        self._flyout_anim.setDuration(250)
+        self._flyout_anim.setEasingCurve(QEasingCurve.InOutQuad)
+        self._flyout_anim.finished.connect(self._on_flyout_fade_finished)
         
     def show_flyout(self, primary_action, anchor_btn: QPushButton):
+        if not hasattr(self, "flyout"):
+            return
+        if self._active_flyout == primary_action and self.flyout.isVisible():
+            return
         printer_items = [(p["label"], ["printer"], p["name"]) for p in self._printers] or [("Printer", ["printer"], "Printer")]
-        print_items = [("PDF", ["pdf"], "PDF")] + printer_items
+        print_items = [("PDF", ["application-pdf", "pdf", "evince", "okular"], "PDF")] + printer_items
         items = {
             "Send To": [("Mail", ["mail", "thunderbird", "evolution", "kmail", "geary"]),
                         ("WhatsApp", ["whatsapp"]),
@@ -370,20 +391,27 @@ class BottomToolbar(QWidget):
                     widget = self._make_flyout_item(label, names, lambda _, value=label: self.sendToRequested.emit(value))
             self.flyout_layout.addWidget(widget)
 
-        anchor_pos = anchor_btn.mapToGlobal(QPoint(0, 0))
+        self.flyout_layout.invalidate()
+        self.flyout_layout.activate()
         self.flyout.adjustSize()
-        x = max(6, anchor_pos.x() - self.flyout.width() // 2 + anchor_btn.width() // 2)
-        y = anchor_pos.y() - self.flyout.height() - 8
-        self.flyout.move(x, y)
+        width = self.primary_toolbar.width()
+        height = max(self._flyout_height, self.flyout.sizeHint().height())
+        self._flyout_height = height
+        bar_pos = self.primary_toolbar.mapToGlobal(QPoint(0, 0))
+        x = bar_pos.x()
+        y = bar_pos.y() - height - 6
+        if y < 0:
+            y = 0
+        self.flyout.setGeometry(x, y, width, height)
+        if self._flyout_anim.state() == QPropertyAnimation.Running:
+            self._flyout_anim.stop()
+        self._flyout_effect.setOpacity(1.0)
         self.flyout.show()
         self.flyout.raise_()
-        self.cancel_hide()
         self._active_flyout = primary_action
-        if hasattr(self.parent(), "fade_bottombar"):
-            self.parent().fade_bottombar(1.0)
             
     def schedule_hide(self):
-        self._hide_timer.start(1000)
+        QTimer.singleShot(1000, self._hide_if_not_over_area)
         
     def cancel_hide(self):
         if self._hide_timer.isActive():
@@ -392,19 +420,60 @@ class BottomToolbar(QWidget):
     def hide_flyout(self):
         if not hasattr(self, "flyout"):
             return
-        if self.flyout.underMouse():
+        if self.flyout.isVisible():
+            pass
+        if self._flyout_anim.state() == QPropertyAnimation.Running:
+            self._flyout_anim.stop()
+        self._flyout_anim.setStartValue(self._flyout_effect.opacity())
+        self._flyout_anim.setEndValue(0.0)
+        self._flyout_anim.start()
+        self._active_flyout = None
+
+    def _on_flyout_fade_finished(self):
+        if hasattr(self, "flyout"):
+            self.flyout.hide()
+
+    def _hide_if_not_over_area(self):
+        cursor_pos = QCursor.pos()
+        toolbar_rect = QRect(self.mapToGlobal(QPoint(0, 0)), self.size())
+        if toolbar_rect.contains(cursor_pos):
+            QTimer.singleShot(200, self._hide_if_not_over_area)
             return
-        for btn in self._primary_buttons:
-            if btn.underMouse():
+        if hasattr(self, "flyout") and self.flyout.isVisible():
+            flyout_rect = QRect(self.flyout.mapToGlobal(QPoint(0, 0)), self.flyout.size())
+            if flyout_rect.contains(cursor_pos):
+                QTimer.singleShot(200, self._hide_if_not_over_area)
                 return
-        self.flyout.hide()
+        self.hide_flyout()
+
+    def _button_from_widget(self, widget):
+        while widget and widget is not self:
+            if widget in self._primary_button_map:
+                return widget
+            widget = widget.parentWidget()
+        return None
+
+    def event(self, event):
+        if event.type() in (QEvent.MouseMove, QEvent.HoverMove):
+            pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+            child = self.childAt(pos)
+            if child is self.flyout or (hasattr(self, "flyout") and self.flyout.isAncestorOf(child)):
+                return super().event(event)
+            btn = self._button_from_widget(child)
+            if btn:
+                label = self._primary_button_map.get(btn)
+                if label:
+                    self.show_flyout(label, btn)
+        elif event.type() == QEvent.Leave:
+            self.schedule_hide()
+        return super().event(event)
 
     def set_theme_color(self, color_hex: str):
         self.theme_color = color_hex
         self.theme_border = QColor(color_hex).darker(120).name()
         self.bg_layer.setStyleSheet(f"QFrame {{ background-color: {self.theme_color}; }}")
         self.primary_toolbar.setStyleSheet(
-            f"QWidget {{ background-color: {self.theme_color}; border-top: 1px solid transparent; }}"
+            "QWidget { background-color: rgba(0, 0, 0, 13); border-top: 1px solid transparent; }"
         )
         self.update()
 
@@ -468,13 +537,14 @@ class BottomToolbar(QWidget):
         return printers
 
     def _make_flyout_item(self, label: str, names: list, on_click):
+        display_label = label.replace("_", " ")
         wrapper = QFrame()
         layout = QVBoxLayout(wrapper)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
         btn = QPushButton()
-        btn.setToolTip(label)
+        btn.setToolTip(display_label)
         btn.setFixedSize(44, 44)
         btn.setStyleSheet("""
             QPushButton {
@@ -493,10 +563,13 @@ class BottomToolbar(QWidget):
             btn.setIcon(icon)
             btn.setIconSize(QSize(28, 28))
         else:
-            btn.setText(label[:2].upper())
-        btn.clicked.connect(on_click)
+            btn.setText(display_label[:2].upper())
+        def _handle_click():
+            on_click(None)
+            self.hide_flyout()
+        btn.clicked.connect(_handle_click)
 
-        text = QLabel(label)
+        text = QLabel(display_label)
         text.setWordWrap(True)
         text.setAlignment(Qt.AlignHCenter)
         text.setStyleSheet("QLabel { font-size: 10px; color: #333333; }")
@@ -1165,7 +1238,7 @@ class PostFixWindow(QMainWindow):
             if event.type() == QEvent.Enter:
                 self.fade_bottombar(1.0)
             elif event.type() == QEvent.Leave:
-                self.fade_bottombar(0.0)
+                self._schedule_bottombar_hide()
         if obj in getattr(self, "_resize_targets", []):
             if event.type() in (QEvent.MouseMove, QEvent.HoverMove, QEvent.HoverEnter):
                 pos = obj.mapTo(self.centralWidget(), event.position().toPoint())
@@ -1205,6 +1278,17 @@ class PostFixWindow(QMainWindow):
         self._bottombar_anim.setStartValue(self._bottombar_effect.opacity())
         self._bottombar_anim.setEndValue(target_opacity)
         self._bottombar_anim.start()
+
+    def _schedule_bottombar_hide(self):
+        QTimer.singleShot(1000, self._hide_bottombar_if_idle)
+
+    def _hide_bottombar_if_idle(self):
+        if self.bottom_toolbar.underMouse():
+            return
+        flyout = getattr(self.bottom_toolbar, "flyout", None)
+        if flyout and flyout.underMouse():
+            return
+        self.fade_bottombar(0.0)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
