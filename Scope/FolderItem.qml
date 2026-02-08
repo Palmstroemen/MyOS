@@ -24,6 +24,7 @@ Rectangle {
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
     signal activate()
+    signal doubleActivate()
     signal renameRequested()
     signal renameTextEdited(string text)
     signal renameAccepted()
@@ -215,6 +216,10 @@ Rectangle {
         onClicked: {
             if (renaming) return
             root.activate()
+        }
+        onDoubleClicked: {
+            if (renaming) return
+            root.doubleActivate()
         }
         onPressAndHold: {
             if (renameEnabled) root.renameRequested()

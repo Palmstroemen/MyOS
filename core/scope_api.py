@@ -47,6 +47,8 @@ class ScopeApi:
         names: List[str] = []
         try:
             for child in sorted(target.iterdir()):
+                if child.name.startswith("."):
+                    continue
                 if child.is_dir():
                     names.append(child.name)
         except Exception:
@@ -61,3 +63,26 @@ class ScopeApi:
             names.sort()
 
         return names
+
+    def list_entries(self, path: str) -> List[dict]:
+        target = Path(path).expanduser().resolve()
+        entries: List[dict] = []
+        try:
+            for child in sorted(target.iterdir()):
+                entries.append({"name": child.name, "isDir": child.is_dir()})
+        except Exception:
+            return []
+
+        if self.blueprint and self.project_root and is_within(target, self.project_root):
+            rel = "" if target == self.project_root else str(target.relative_to(self.project_root))
+            embryos = self.blueprint.get_embryos_at(rel)
+            for name in embryos:
+                if not any(item["name"] == name for item in entries):
+                    entries.append({"name": name, "isDir": True})
+            entries.sort(key=lambda item: item["name"])
+
+        return entries
+
+    def has_myos_dir(self, path: str) -> bool:
+        target = Path(path).expanduser().resolve()
+        return (target / ".MyOS").is_dir()

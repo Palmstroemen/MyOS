@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import Qt.labs.folderlistmodel 2.15
 
 ApplicationWindow {
     id: window
@@ -12,11 +13,13 @@ ApplicationWindow {
     property int baseFont: Qt.application.font.pixelSize
     property bool darkTheme: true
     property string iconFolder: "Theme/icons/folder.svg"
+    property string iconFolderOff: "Theme/icons/folder_off.svg"
     property string iconSearch: "Theme/icons/search.svg"
     property string iconFile: "Theme/icons/file.svg"
+    property string iconGear: "Theme/icons/gear.svg"
     property string folderItemStyle: "text" // text | smallIcon | largeIcon
     property int iconSizeSmall: Math.round(baseFont * 1.35)
-    property int iconSizeLarge: 120
+    property int iconSizeLarge: 64
     property int compactButtonHeight: 32
     property int largeButtonPadding: 14
     property int largeButtonHeight: iconSizeLarge + baseFont + (largeButtonPadding * 2) + 2
@@ -75,6 +78,8 @@ ApplicationWindow {
     property var standardFoldersFiltered: ["01", "02", "03", "04", "05"]
     property var userFolders: ["myFolder", "myOtherFolder"]
     property var files: ["Rechnung_001.pdf", "Angebot_Alpha.docx", "Note.md"]
+    property var fileItems: []
+    property bool hasMyosInCwp: false
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
 
@@ -161,21 +166,113 @@ ApplicationWindow {
         }
     }
 
+    FolderListModel {
+        id: fsModel
+        showDirs: true
+        showFiles: true
+        showHidden: false
+        showDotAndDotDot: false
+        nameFilters: ["*"]
+        folder: toFileUrl(cwp)
+        onCountChanged: {
+            updateFiles()
+            updateSubProjects()
+        }
+    }
+
+    FolderListModel {
+        id: fsHiddenModel
+        showDirs: true
+        showFiles: false
+        showHidden: true
+        showDotAndDotDot: false
+        nameFilters: [".MyOS"]
+        folder: toFileUrl(cwp)
+        onCountChanged: {
+            if (!hasBackend()) {
+                hasMyosInCwp = fsHiddenModel.count > 0
+            }
+        }
+    }
+
     function setCwp(path) {
         cwp = path
         updateSubProjects()
+        updateFiles()
     }
 
     function hasBackend() {
         return typeof backend !== "undefined" && backend !== null
     }
 
+    function toFileUrl(path) {
+        if (path.indexOf("file://") === 0) return path
+        return "file://" + path
+    }
+
     function listChildren(path) {
         if (hasBackend()) {
             return backend.listChildren(path)
         }
+        if (path === cwp) {
+            var dirs = []
+            for (var i = 0; i < fsModel.count; i++) {
+                var isDir = fsModel.get(i, "fileIsDir")
+                if (isDir) {
+                    dirs.push(fsModel.get(i, "fileName"))
+                }
+            }
+            return dirs
+        }
         return demoData.childrenOf(path)
     }
+
+    function listEntries(path) {
+        if (hasBackend()) {
+            return backend.listEntries(path)
+        }
+        if (path === cwp) {
+            var items = []
+            for (var i = 0; i < fsModel.count; i++) {
+                items.push({
+                    name: fsModel.get(i, "fileName"),
+                    isDir: fsModel.get(i, "fileIsDir")
+                })
+            }
+            return items
+        }
+        var demoItems = demoData.childrenOf(path).map(function(name){
+            return { name: name, isDir: true }
+        })
+        for (var j = 0; j < files.length; j++) {
+            demoItems.push({ name: files[j], isDir: false })
+        }
+        return demoItems
+    }
+
+    function updateFiles() {
+        var entries = listEntries(cwp)
+        var filtered = []
+        var found = false
+        for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i]
+            if (entry.isDir && entry.name === ".MyOS") {
+                found = true
+            }
+            if (entry.name && entry.name.indexOf(".") === 0) {
+                continue
+            }
+            filtered.push(entry)
+        }
+        fileItems = filtered
+        if (hasBackend()) {
+            hasMyosInCwp = backend.hasMyosDir(cwp)
+        } else {
+            hasMyosInCwp = found
+        }
+    }
+
+    onCwpChanged: updateFiles()
 
     function updateSubProjects() {
         var query = searchText.trim()
@@ -373,6 +470,12 @@ ApplicationWindow {
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
         var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
+        if (!hasBackend() && (!startPath || startPath === cwp)) {
+            var resolved = Qt.resolvedUrl(".")
+            if (resolved.indexOf("file://") === 0) {
+                startPath = resolved.slice(7)
+            }
+        }
         setCwp(startPath)
         updateBrowserLayout()
     }
@@ -894,12 +997,12 @@ ApplicationWindow {
                 window.searchText = value
                 window.updateSubProjects()
             }
-            onPathSegmentActivated: {
+            onPathSegmentActivated: function(index) {
                 var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
                 setCwp("/" + parts.slice(0, index + 1).join("/"))
             }
             onPathSelected: setCwp(path)
-            onFolderActivated: {
+            onFolderActivated: function(name) {
                 if (name.indexOf("/") === 0) {
                     setCwp(name)
                 } else {
@@ -916,7 +1019,7 @@ ApplicationWindow {
         FilesPanel {
             id: filesPane
             parent: floatingPool
-            files: window.files
+            items: window.fileItems
             baseFont: window.baseFont
             text: theme.text
             textMuted: theme.textMuted
@@ -926,7 +1029,10 @@ ApplicationWindow {
             halfTransparent: filesPanelHalfTransparent
             templatesBrowserWidth: templatesBrowser.implicitWidth
             projectsBrowserWidth: projectsBrowser.implicitWidth
-            iconSource: window.iconFile
+            iconFolder: window.iconFolder
+            iconFolderOff: window.iconFolderOff
+            iconFile: window.iconFile
+            iconGear: window.iconGear
             itemStyle: "largeIcon"
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
@@ -935,6 +1041,25 @@ ApplicationWindow {
             iconSizeLarge: window.iconSizeLarge
             itemFillColor: "transparent"
             itemBorderColor: theme.pillBorder
+            smallButtonBg: theme.smallButtonBg
+            smallButtonBorder: theme.smallButtonBorder
+            smallButtonActiveBg: theme.smallButtonActiveBg
+            smallButtonActiveBorder: theme.smallButtonActiveBorder
+            smallButtonText: theme.smallButtonText
+            showMyosButton: window.hasMyosInCwp
+            onFolderActivated: function(name) {
+                if (name.indexOf("/") === 0) {
+                    setCwp(name)
+                } else {
+                    setCwp(cwp + "/" + name)
+                }
+                clearSearchAfterNavigate()
+            }
+            onOpenMyosFolder: {
+                var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
+                setCwp(base + "/.MyOS")
+                clearSearchAfterNavigate()
+            }
         }
 
     }
