@@ -4,6 +4,9 @@ PostFix - Main Application Entry Point
 Builds UI directly in Python without .ui files for full control.
 """
 import sys
+import glob
+import subprocess
+import tempfile
 from pathlib import Path
 
 import markdown2
@@ -13,8 +16,9 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QSpacerItem, QSizePolicy, QFrame, QColorDialog,
                                QPlainTextEdit, QTextBrowser, QStackedWidget,
                                QSplitter, QGraphicsOpacityEffect, QStackedLayout)
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation, QEvent
-from PySide6.QtGui import QColor, QPalette, QTextCursor, QIcon, QFont
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation, QEvent, QRect, QTimer, Signal, QSize
+from PySide6.QtGui import QColor, QPalette, QTextCursor, QIcon, QFont, QGuiApplication, QTextDocument
+from PySide6.QtPrintSupport import QPrinter
 
 FRONTMATTER_BOUNDARY = "---"
 
@@ -243,6 +247,10 @@ class ACLSidebar(SidebarWidget):
 
 class BottomToolbar(QWidget):
     """Two-level bottom toolbar with hover effect."""
+
+    printRequested = Signal(str)
+    openInRequested = Signal(str)
+    sendToRequested = Signal(str)
     
     def __init__(self):
         super().__init__()
@@ -253,19 +261,18 @@ class BottomToolbar(QWidget):
         self.bg_layer = QFrame(self)
         self.bg_layer.lower()
         self.bg_layer.setStyleSheet("QFrame { background-color: #ffffff; }")
+        self._hide_timer = QTimer(self)
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self.hide_flyout)
+        self._desktop_index = self._load_desktop_index()
+        self._printers = self._load_printers()
+        self._active_flyout = None
+        self._primary_buttons = []
         
         # Main layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setSpacing(0)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Secondary toolbar (hidden initially)
-        self.secondary_toolbar = QWidget()
-        self.secondary_toolbar.setStyleSheet(
-            f"QWidget {{ background-color: {self.theme_color}; border-bottom: 1px solid transparent; }}"
-        )
-        self.secondary_layout = QHBoxLayout(self.secondary_toolbar)
-        self.secondary_layout.setSpacing(15)
         
         # Primary toolbar (always visible)
         self.primary_toolbar = QWidget()
@@ -275,17 +282,14 @@ class BottomToolbar(QWidget):
         self.primary_layout = QHBoxLayout(self.primary_toolbar)
         self.primary_layout.setSpacing(15)
         self.primary_layout.setContentsMargins(6, 3, 6, 3)
+        self.primary_layout.addStretch()
         
-        # Add toolbars to main layout
-        self.main_layout.addWidget(self.secondary_toolbar)
+        # Add toolbar to main layout
         self.main_layout.addWidget(self.primary_toolbar)
-        
-        # Initially hide secondary toolbar
-        self.secondary_toolbar.hide()
         
         # Setup content
         self.setup_primary_toolbar()
-        self.setup_secondary_toolbar()
+        self.setup_flyout()
         
     def setup_primary_toolbar(self):
         """Setup the always-visible primary toolbar."""
@@ -301,7 +305,7 @@ class BottomToolbar(QWidget):
                     color: #333333;
                     border: 1px solid rgba(0, 0, 0, 60);
                     border-radius: 15px;
-                    padding: 0 10px;
+                    padding: 0;
                     font-size: 14px;
                     min-width: 30px;
                     min-height: 30px;
@@ -311,81 +315,196 @@ class BottomToolbar(QWidget):
                 }
             """)
             btn.setCursor(Qt.PointingHandCursor)
-            
-            # Connect hover to show secondary toolbar
-            btn.enterEvent = lambda e, a=label: self.show_secondary(a)
-            btn.leaveEvent = lambda e: self.start_hide_timer()
+            btn.setFixedSize(30, 30)
+            btn.enterEvent = lambda e, name=label, anchor=btn: self.show_flyout(name, anchor)
+            btn.leaveEvent = lambda e: self.schedule_hide()
             
             self.primary_layout.addWidget(btn)
+            self._primary_buttons.append(btn)
         
         # Add stretch
         self.primary_layout.addStretch()
         
-    def setup_secondary_toolbar(self):
-        """Setup the secondary toolbar that appears on hover."""
-        # Clear any existing widgets
-        while self.secondary_layout.count():
-            item = self.secondary_layout.takeAt(0)
+    def setup_flyout(self):
+        """Setup the hover flyout with larger icons."""
+        self.flyout = QFrame()
+        self.flyout.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
+        self.flyout.setStyleSheet(
+            "QFrame { background-color: rgba(255,255,255,230); border: 1px solid #cfcfcf; border-radius: 10px; }"
+        )
+        self.flyout_layout = QHBoxLayout(self.flyout)
+        self.flyout_layout.setContentsMargins(8, 8, 8, 8)
+        self.flyout_layout.setSpacing(8)
+        self.flyout.hide()
+        self.flyout.enterEvent = lambda e: self.cancel_hide()
+        self.flyout.leaveEvent = lambda e: self.schedule_hide()
+        
+    def show_flyout(self, primary_action, anchor_btn: QPushButton):
+        printer_items = [(p["label"], ["printer"], p["name"]) for p in self._printers] or [("Printer", ["printer"], "Printer")]
+        print_items = [("PDF", ["pdf"], "PDF")] + printer_items
+        items = {
+            "Send To": [("Mail", ["mail", "thunderbird", "evolution", "kmail", "geary"]),
+                        ("WhatsApp", ["whatsapp"]),
+                        ("Signal", ["signal"]),
+                        ("Telegram", ["telegram"]),
+                        ("Chat", ["slack", "discord", "threema"])],
+            "Open In": [("Obsidian", ["obsidian"]),
+                        ("LibreOffice Writer", ["libreoffice-writer", "writer"]),
+                        ("LibreOffice Impress", ["libreoffice-impress", "impress"])],
+            "Print": print_items,
+        }
+        for i in reversed(range(self.flyout_layout.count())):
+            item = self.flyout_layout.takeAt(i)
             if item.widget():
                 item.widget().deleteLater()
-        
-        # Add some example secondary actions
-        # In real implementation, this would change based on primary selection
-        example_actions = ["Email", "WhatsApp", "Telegram", "Obsidian", 
-                          "LibreOffice", "PDF Printer", "Network Printer"]
-        
-        for action in example_actions:
-            btn = QPushButton(action)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(100, 100, 100, 100);
-                    color: white;
-                    border: none;
-                    padding: 5px 10px;
-                    border-radius: 3px;
-                }
-                QPushButton:hover {
-                    background-color: rgba(150, 150, 150, 150);
-                }
-            """)
-            btn.setCursor(Qt.PointingHandCursor)
-            self.secondary_layout.addWidget(btn)
-        
-        self.secondary_layout.addStretch()
-        
-    def show_secondary(self, primary_action):
-        """Show secondary toolbar for the given primary action."""
-        # Update secondary toolbar based on primary action
-        self.setup_secondary_toolbar()  # Recreate with appropriate actions
-        
-        # Animate show
-        if not self.secondary_toolbar.isVisible():
-            self.secondary_toolbar.show()
-            self.setMaximumHeight(60)  # Expand to show both levels
+
+        for item in items.get(primary_action, []):
+            if primary_action == "Print":
+                label, names, printer_name = item
+                widget = self._make_flyout_item(label, names, lambda _, value=printer_name: self.printRequested.emit(value))
+            else:
+                label, names = item
+                if primary_action == "Open In":
+                    widget = self._make_flyout_item(label, names, lambda _, value=label: self.openInRequested.emit(value))
+                else:
+                    widget = self._make_flyout_item(label, names, lambda _, value=label: self.sendToRequested.emit(value))
+            self.flyout_layout.addWidget(widget)
+
+        anchor_pos = anchor_btn.mapToGlobal(QPoint(0, 0))
+        self.flyout.adjustSize()
+        x = max(6, anchor_pos.x() - self.flyout.width() // 2 + anchor_btn.width() // 2)
+        y = anchor_pos.y() - self.flyout.height() - 8
+        self.flyout.move(x, y)
+        self.flyout.show()
+        self.flyout.raise_()
+        self.cancel_hide()
+        self._active_flyout = primary_action
+        if hasattr(self.parent(), "fade_bottombar"):
+            self.parent().fade_bottombar(1.0)
             
-    def start_hide_timer(self):
-        """Start timer to hide secondary toolbar (simplified)."""
-        # For simplicity, we hide immediately when mouse leaves
-        # In production, you'd use a QTimer with short delay
-        self.hide_secondary()
+    def schedule_hide(self):
+        self._hide_timer.start(1000)
         
-    def hide_secondary(self):
-        """Hide secondary toolbar."""
-        if self.secondary_toolbar.isVisible():
-            self.secondary_toolbar.hide()
-            self.setMaximumHeight(30)  # Back to primary only
+    def cancel_hide(self):
+        if self._hide_timer.isActive():
+            self._hide_timer.stop()
+
+    def hide_flyout(self):
+        if not hasattr(self, "flyout"):
+            return
+        if self.flyout.underMouse():
+            return
+        for btn in self._primary_buttons:
+            if btn.underMouse():
+                return
+        self.flyout.hide()
 
     def set_theme_color(self, color_hex: str):
         self.theme_color = color_hex
         self.theme_border = QColor(color_hex).darker(120).name()
         self.bg_layer.setStyleSheet(f"QFrame {{ background-color: {self.theme_color}; }}")
-        self.secondary_toolbar.setStyleSheet(
-            f"QWidget {{ background-color: {self.theme_color}; border-bottom: 1px solid transparent; }}"
-        )
         self.primary_toolbar.setStyleSheet(
             f"QWidget {{ background-color: {self.theme_color}; border-top: 1px solid transparent; }}"
         )
         self.update()
+
+    def _load_desktop_index(self):
+        index = {}
+        paths = ["/usr/share/applications", str(Path.home() / ".local/share/applications")]
+        for folder in paths:
+            for file_path in glob.glob(str(Path(folder) / "*.desktop")):
+                name = ""
+                icon = ""
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as fh:
+                        for line in fh:
+                            if line.startswith("Name=") and not name:
+                                name = line.strip().split("=", 1)[1]
+                            elif line.startswith("Icon=") and not icon:
+                                icon = line.strip().split("=", 1)[1]
+                            if name and icon:
+                                break
+                except OSError:
+                    continue
+                if name and icon:
+                    index[name.lower()] = icon
+        return index
+
+    def _find_icon(self, names):
+        for name in names:
+            icon = QIcon.fromTheme(name)
+            if not icon.isNull():
+                return icon
+            for key, value in self._desktop_index.items():
+                if name in key:
+                    themed = QIcon.fromTheme(value)
+                    if not themed.isNull():
+                        return themed
+        return None
+
+    def _load_printers(self):
+        try:
+            result = subprocess.run(
+                ["lpstat", "-p"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            return []
+        printers = []
+        current = None
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if parts and parts[0].lower() in ("printer", "drucker") and len(parts) > 1:
+                if current:
+                    printers.append(current)
+                current = {"name": parts[1], "label": parts[1]}
+            if current and line.strip().startswith(("Location:", "Ort:")):
+                current["label"] = line.split(":", 1)[1].strip()
+        if current:
+            printers.append(current)
+        return printers
+
+    def _make_flyout_item(self, label: str, names: list, on_click):
+        wrapper = QFrame()
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+
+        btn = QPushButton()
+        btn.setToolTip(label)
+        btn.setFixedSize(44, 44)
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 0, 0, 0);
+                color: #333333;
+                border: 1px solid rgba(0, 0, 0, 60);
+                border-radius: 22px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 25);
+            }
+        """)
+        icon = self._find_icon(names)
+        if icon:
+            btn.setIcon(icon)
+            btn.setIconSize(QSize(28, 28))
+        else:
+            btn.setText(label[:2].upper())
+        btn.clicked.connect(on_click)
+
+        text = QLabel(label)
+        text.setWordWrap(True)
+        text.setAlignment(Qt.AlignHCenter)
+        text.setStyleSheet("QLabel { font-size: 10px; color: #333333; }")
+        text.setFixedWidth(90)
+
+        layout.addWidget(btn, alignment=Qt.AlignHCenter)
+        layout.addWidget(text, alignment=Qt.AlignHCenter)
+        return wrapper
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -406,6 +525,7 @@ class SmartEditor(QWidget):
         self._current_border = QColor(self.current_bg).darker(120).name()
         self._bg_anim = None
         self._bg_initialized = False
+        self.current_path = None
         self.setup_ui()
         self.apply_background(self.current_bg)
         self.render_preview()
@@ -453,6 +573,12 @@ class SmartEditor(QWidget):
             self.apply_background(bg)
         else:
             self.render_preview()
+
+    def set_path(self, path: Path):
+        self.current_path = path
+
+    def get_markdown(self) -> str:
+        return self.source_edit.toPlainText()
 
     def set_view_mode(self, mode: str):
         if mode == self.MODE_PREVIEW:
@@ -510,6 +636,20 @@ class SmartEditor(QWidget):
             f"QTextBrowser {{ background-color: {color_hex}; padding: 12px; }}"
         )
 
+    def update_window_metadata(self, width_px: int, height_px: int, x_permille: int, y_permille: int):
+        text = self.source_edit.toPlainText()
+        updated = self.metadata.update_field(text, "window_width_px", int(width_px))
+        updated = self.metadata.update_field(updated, "window_height_px", int(height_px))
+        updated = self.metadata.update_field(updated, "window_x_permille", int(x_permille))
+        updated = self.metadata.update_field(updated, "window_y_permille", int(y_permille))
+        cursor = self.source_edit.textCursor()
+        pos = cursor.position()
+        self.source_edit.blockSignals(True)
+        self.source_edit.setPlainText(updated)
+        self.source_edit.blockSignals(False)
+        cursor.setPosition(min(pos, len(updated)))
+        self.source_edit.setTextCursor(cursor)
+
     def wrap_selection(self, css_style: str):
         cursor = self.source_edit.textCursor()
         if not cursor.hasSelection():
@@ -547,6 +687,9 @@ class PostFixWindow(QMainWindow):
         # Create central widget
         central_widget = QWidget()
         central_widget.setStyleSheet("QWidget { background: transparent; }")
+        central_widget.setMouseTracking(True)
+        central_widget.setAttribute(Qt.WA_Hover, True)
+        central_widget.installEventFilter(self)
         self.setCentralWidget(central_widget)
         
         # Main layout (3x3 grid)
@@ -566,6 +709,9 @@ class PostFixWindow(QMainWindow):
         self.editor.on_theme_color_changed = self.update_theme_color
         self._theme_anim = None
         self._current_theme_color = self.editor.current_bg
+        self._meta_timer = QTimer(self)
+        self._meta_timer.setSingleShot(True)
+        self._meta_timer.timeout.connect(self._flush_window_metadata)
 
         self.acl_host = QFrame()
         self.acl_host.setFixedWidth(120)
@@ -576,6 +722,9 @@ class PostFixWindow(QMainWindow):
         # Bottom toolbar
         self.bottom_toolbar = BottomToolbar()
         self.init_bottombar_fade()
+        self.bottom_toolbar.printRequested.connect(self.print_to_printer)
+        self.bottom_toolbar.openInRequested.connect(self.open_in_app)
+        self.bottom_toolbar.sendToRequested.connect(self.send_to_app)
 
         # Corner widgets (more transparent)
         self.corner_tl = self.make_corner_widget()
@@ -635,6 +784,20 @@ class PostFixWindow(QMainWindow):
             "stop:0 rgba(0,0,0,60), stop:1 rgba(0,0,0,0)); "
             "}"
         )
+
+        self._init_paper_debug()
+        self._resize_targets = [
+            self.centralWidget(),
+            self.top_toolbar,
+            self.topbar_bg,
+            self.bottom_toolbar,
+            self.bottombar_bg,
+            self.editor,
+        ]
+        for target in self._resize_targets:
+            target.setMouseTracking(True)
+            target.setAttribute(Qt.WA_Hover, True)
+            target.installEventFilter(self)
 
         self.left_mid_host = QFrame()
         left_mid_stack = QStackedLayout(self.left_mid_host)
@@ -698,6 +861,7 @@ class PostFixWindow(QMainWindow):
         self.update_theme_color(self.editor.current_bg)
         if open_path and open_path.exists():
             self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
+            self.editor.set_path(open_path)
         
     def create_top_toolbar(self):
         """Create the top toolbar with all controls."""
@@ -992,16 +1156,29 @@ class PostFixWindow(QMainWindow):
         self.top_toolbar.installEventFilter(self)
 
     def eventFilter(self, obj, event):
-        if obj is self.top_toolbar:
+        if obj is getattr(self, "top_toolbar", None):
             if event.type() == QEvent.Enter:
                 self.fade_topbar(1.0)
             elif event.type() == QEvent.Leave:
                 self.fade_topbar(0.0)
-        if obj is self.bottom_toolbar:
+        if obj is getattr(self, "bottom_toolbar", None):
             if event.type() == QEvent.Enter:
                 self.fade_bottombar(1.0)
             elif event.type() == QEvent.Leave:
                 self.fade_bottombar(0.0)
+        if obj in getattr(self, "_resize_targets", []):
+            if event.type() in (QEvent.MouseMove, QEvent.HoverMove, QEvent.HoverEnter):
+                pos = obj.mapTo(self.centralWidget(), event.position().toPoint())
+                edges = self._paper_edges_at(pos)
+                self._update_paper_cursor(edges)
+                self._update_paper_debug(self._paper_rect())
+            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                pos = obj.mapTo(self.centralWidget(), event.position().toPoint())
+                edges = self._paper_edges_at(pos)
+                handle = self.windowHandle()
+                if handle and edges:
+                    handle.startSystemResize(edges)
+                    return True
         return super().eventFilter(obj, event)
 
     def fade_topbar(self, target_opacity: float):
@@ -1029,12 +1206,189 @@ class PostFixWindow(QMainWindow):
         self._bottombar_anim.setEndValue(target_opacity)
         self._bottombar_anim.start()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._meta_timer.start(200)
+        self._update_paper_debug(self._paper_rect())
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        self._meta_timer.start(200)
+
+    def _paper_rect(self) -> QRect:
+        top_left = self.topbar_bg.mapTo(self.centralWidget(), QPoint(0, 0))
+        bottom_right = self.bottombar_bg.mapTo(
+            self.centralWidget(), QPoint(self.bottombar_bg.width(), self.bottombar_bg.height())
+        )
+        return QRect(top_left, bottom_right)
+
+    def _paper_edges_at(self, pos: QPoint) -> Qt.Edges:
+        rect = self._paper_rect()
+        edges = Qt.Edges()
+        if not rect.contains(pos):
+            return edges
+        if abs(pos.x() - rect.left()) <= 8:
+            edges |= Qt.LeftEdge
+        if abs(pos.x() - rect.right()) <= 8:
+            edges |= Qt.RightEdge
+        if abs(pos.y() - rect.top()) <= 8:
+            edges |= Qt.TopEdge
+        if abs(pos.y() - rect.bottom()) <= 8:
+            edges |= Qt.BottomEdge
+        return edges
+
+    def _update_paper_cursor(self, edges: Qt.Edges):
+        if (edges & Qt.LeftEdge) and (edges & Qt.TopEdge):
+            self.centralWidget().setCursor(Qt.SizeFDiagCursor)
+        elif (edges & Qt.RightEdge) and (edges & Qt.BottomEdge):
+            self.centralWidget().setCursor(Qt.SizeFDiagCursor)
+        elif (edges & Qt.RightEdge) and (edges & Qt.TopEdge):
+            self.centralWidget().setCursor(Qt.SizeBDiagCursor)
+        elif (edges & Qt.LeftEdge) and (edges & Qt.BottomEdge):
+            self.centralWidget().setCursor(Qt.SizeBDiagCursor)
+        elif (edges & Qt.LeftEdge) or (edges & Qt.RightEdge):
+            self.centralWidget().setCursor(Qt.SizeHorCursor)
+        elif (edges & Qt.TopEdge) or (edges & Qt.BottomEdge):
+            self.centralWidget().setCursor(Qt.SizeVerCursor)
+        else:
+            self.centralWidget().unsetCursor()
+
+    def _flush_window_metadata(self):
+        geom = self.frameGeometry()
+        screen = QGuiApplication.screenAt(geom.center()) or QGuiApplication.primaryScreen()
+        if not screen:
+            return
+        available = screen.availableGeometry()
+        x_permille = int(((geom.x() - available.x()) / max(1, available.width())) * 1000)
+        y_permille = int(((geom.y() - available.y()) / max(1, available.height())) * 1000)
+        self.editor.update_window_metadata(geom.width(), geom.height(), x_permille, y_permille)
+
+    def print_to_printer(self, printer_name: str):
+        md_text = self.editor.get_markdown()
+        html = markdown2.markdown(md_text, extras=["fenced-code-blocks"])
+        doc = QTextDocument()
+        doc.setHtml(html)
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        tmp.close()
+        printer = QPrinter(QPrinter.HighResolution)
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(tmp.name)
+        doc.print_(printer)
+        try:
+            if printer_name == "PDF":
+                subprocess.Popen(["xdg-open", tmp.name])
+                return
+            subprocess.run(["lp", "-d", printer_name, tmp.name], check=False)
+        finally:
+            if printer_name != "PDF":
+                try:
+                    Path(tmp.name).unlink()
+                except OSError:
+                    pass
+
+    def open_in_app(self, app_label: str):
+        if app_label.lower().startswith("obsidian") and self.editor.current_path:
+            uri = f"obsidian://open?path={self.editor.current_path}"
+            subprocess.Popen(["xdg-open", uri])
+            return
+        if self.editor.current_path:
+            subprocess.Popen(["xdg-open", str(self.editor.current_path)])
+
+    def send_to_app(self, app_label: str):
+        if self.editor.current_path:
+            subprocess.Popen(["xdg-open", str(self.editor.current_path)])
+
+    def _init_paper_debug(self):
+        self._paper_debug = {
+            "left": QFrame(self.centralWidget()),
+            "right": QFrame(self.centralWidget()),
+            "top": QFrame(self.centralWidget()),
+            "bottom": QFrame(self.centralWidget()),
+        }
+        for frame in self._paper_debug.values():
+            frame.setStyleSheet("QFrame { background-color: rgba(80, 180, 255, 40); }")
+            frame.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            frame.show()
+            frame.raise_()
+
+    def _update_paper_debug(self, rect: QRect):
+        if not hasattr(self, "_paper_debug"):
+            return
+        edge = 8
+        self._paper_debug["left"].setGeometry(rect.left(), rect.top(), edge, rect.height())
+        self._paper_debug["right"].setGeometry(rect.right() - edge + 1, rect.top(), edge, rect.height())
+        self._paper_debug["top"].setGeometry(rect.left(), rect.top(), rect.width(), edge)
+        self._paper_debug["bottom"].setGeometry(rect.left(), rect.bottom() - edge + 1, rect.width(), edge)
+        for frame in self._paper_debug.values():
+            frame.raise_()
+
+
+class PaperResizeOverlay(QFrame):
+    """Transparent overlay to resize the window by paper edges."""
+
+    EDGE = 8
+
+    def __init__(self, window: QMainWindow):
+        super().__init__()
+        self._window = window
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.setMouseTracking(True)
+        self.setStyleSheet("QFrame { background: transparent; }")
+
+    def _hit_edges(self, pos):
+        rect = self.rect()
+        edges = Qt.Edges()
+        if pos.x() <= self.EDGE:
+            edges |= Qt.LeftEdge
+        if pos.x() >= rect.width() - self.EDGE:
+            edges |= Qt.RightEdge
+        if pos.y() <= self.EDGE:
+            edges |= Qt.TopEdge
+        if pos.y() >= rect.height() - self.EDGE:
+            edges |= Qt.BottomEdge
+        return edges
+
+    def _update_cursor(self, edges):
+        if edges.testFlag(Qt.LeftEdge) and edges.testFlag(Qt.TopEdge):
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif edges.testFlag(Qt.RightEdge) and edges.testFlag(Qt.BottomEdge):
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif edges.testFlag(Qt.RightEdge) and edges.testFlag(Qt.TopEdge):
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif edges.testFlag(Qt.LeftEdge) and edges.testFlag(Qt.BottomEdge):
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif edges.testFlag(Qt.LeftEdge) or edges.testFlag(Qt.RightEdge):
+            self.setCursor(Qt.SizeHorCursor)
+        elif edges.testFlag(Qt.TopEdge) or edges.testFlag(Qt.BottomEdge):
+            self.setCursor(Qt.SizeVerCursor)
+        else:
+            self.unsetCursor()
+
+    def mouseMoveEvent(self, event):
+        edges = self._hit_edges(event.position().toPoint())
+        self._update_cursor(edges)
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.button() != Qt.LeftButton:
+            return super().mousePressEvent(event)
+        edges = self._hit_edges(event.position().toPoint())
+        handle = self._window.windowHandle()
+        if handle and edges:
+            handle.startSystemResize(edges)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
 
 def main():
     """Application entry point."""
     app = QApplication(sys.argv)
     app.setApplicationName("PostFix")
     app.setOrganizationName("PostFixDev")
+    icon_path = Path(__file__).with_name("icons").joinpath("postit.svg")
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
     
     open_path = None
     if len(sys.argv) > 1:
