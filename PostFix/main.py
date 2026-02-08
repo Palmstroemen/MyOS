@@ -4,6 +4,7 @@ PostFix - Main Application Entry Point
 Builds UI directly in Python without .ui files for full control.
 """
 import sys
+import argparse
 import glob
 import subprocess
 import tempfile
@@ -282,7 +283,7 @@ class BottomToolbar(QWidget):
         # Primary toolbar (always visible)
         self.primary_toolbar = QWidget()
         self.primary_toolbar.setStyleSheet(
-            "QWidget { background-color: rgba(0, 0, 0, 13); border-top: 1px solid transparent; }"
+            "QWidget { background-color: transparent; border-top: 1px solid transparent; }"
         )
         self.primary_layout = QHBoxLayout(self.primary_toolbar)
         self.primary_layout.setSpacing(15)
@@ -473,7 +474,7 @@ class BottomToolbar(QWidget):
         self.theme_border = QColor(color_hex).darker(120).name()
         self.bg_layer.setStyleSheet(f"QFrame {{ background-color: {self.theme_color}; }}")
         self.primary_toolbar.setStyleSheet(
-            "QWidget { background-color: rgba(0, 0, 0, 13); border-top: 1px solid transparent; }"
+            "QWidget { background-color: transparent; border-top: 1px solid transparent; }"
         )
         self.update()
 
@@ -591,9 +592,11 @@ class SmartEditor(QWidget):
     MODE_SOURCE = "Edit Source"
     MODE_SPLIT = "Split View"
 
-    def __init__(self):
+    def __init__(self, show_frontmatter: bool = False):
         super().__init__()
         self.metadata = MetadataManager()
+        self._frontmatter = {}
+        self.show_frontmatter = show_frontmatter
         self.current_bg = "#ffffff"
         self._current_border = QColor(self.current_bg).darker(120).name()
         self._bg_anim = None
@@ -630,18 +633,22 @@ class SmartEditor(QWidget):
 
         layout.addWidget(self.stack)
 
-        initial_text = (
-            "---\n"
-            "title: PostFix Note\n"
-            "background_color: #ffffff\n"
-            "---\n"
-            "Start writing your note here.\n"
-        )
-        self.source_edit.setPlainText(initial_text)
+        self._frontmatter = {
+            "title": "PostFix Note",
+            "background_color": "#ffffff",
+        }
+        body_text = "Start writing your note here.\n"
+        if self.show_frontmatter:
+            initial_text = self.metadata.build_frontmatter(self._frontmatter, body_text)
+            self.source_edit.setPlainText(initial_text)
+        else:
+            self.source_edit.setPlainText(body_text)
 
     def load_markdown(self, text: str):
-        self.source_edit.setPlainText(text)
-        bg = self.metadata.get_field(text, "background_color")
+        meta, body = self.metadata.split_frontmatter(text)
+        self._frontmatter = meta
+        self.source_edit.setPlainText(text if self.show_frontmatter else body)
+        bg = self._frontmatter.get("background_color")
         if isinstance(bg, str) and bg.startswith("#"):
             self.apply_background(bg)
         else:
@@ -651,7 +658,10 @@ class SmartEditor(QWidget):
         self.current_path = path
 
     def get_markdown(self) -> str:
-        return self.source_edit.toPlainText()
+        if self.show_frontmatter:
+            return self.source_edit.toPlainText()
+        body = self.source_edit.toPlainText()
+        return self.metadata.build_frontmatter(self._frontmatter, body)
 
     def set_view_mode(self, mode: str):
         if mode == self.MODE_PREVIEW:
@@ -688,16 +698,13 @@ class SmartEditor(QWidget):
         if hasattr(self, "on_theme_color_changed"):
             self.on_theme_color_changed(color_hex)
         if update_frontmatter:
-            updated = self.metadata.update_field(
-                self.source_edit.toPlainText(), "background_color", color_hex
-            )
-            cursor = self.source_edit.textCursor()
-            pos = cursor.position()
-            self.source_edit.blockSignals(True)
-            self.source_edit.setPlainText(updated)
-            self.source_edit.blockSignals(False)
-            cursor.setPosition(min(pos, len(updated)))
-            self.source_edit.setTextCursor(cursor)
+            if self.show_frontmatter:
+                updated = self.metadata.update_field(
+                    self.source_edit.toPlainText(), "background_color", color_hex
+                )
+                self._replace_source_text(updated)
+            else:
+                self._frontmatter["background_color"] = color_hex
             self.render_preview()
 
     def apply_editor_background(self, color: QColor):
@@ -710,11 +717,20 @@ class SmartEditor(QWidget):
         )
 
     def update_window_metadata(self, width_px: int, height_px: int, x_permille: int, y_permille: int):
-        text = self.source_edit.toPlainText()
-        updated = self.metadata.update_field(text, "window_width_px", int(width_px))
-        updated = self.metadata.update_field(updated, "window_height_px", int(height_px))
-        updated = self.metadata.update_field(updated, "window_x_permille", int(x_permille))
-        updated = self.metadata.update_field(updated, "window_y_permille", int(y_permille))
+        if self.show_frontmatter:
+            text = self.source_edit.toPlainText()
+            updated = self.metadata.update_field(text, "window_width_px", int(width_px))
+            updated = self.metadata.update_field(updated, "window_height_px", int(height_px))
+            updated = self.metadata.update_field(updated, "window_x_permille", int(x_permille))
+            updated = self.metadata.update_field(updated, "window_y_permille", int(y_permille))
+            self._replace_source_text(updated)
+        else:
+            self._frontmatter["window_width_px"] = int(width_px)
+            self._frontmatter["window_height_px"] = int(height_px)
+            self._frontmatter["window_x_permille"] = int(x_permille)
+            self._frontmatter["window_y_permille"] = int(y_permille)
+
+    def _replace_source_text(self, updated: str):
         cursor = self.source_edit.textCursor()
         pos = cursor.position()
         self.source_edit.blockSignals(True)
@@ -739,18 +755,18 @@ class SmartEditor(QWidget):
 class PostFixWindow(QMainWindow):
     """Main application window."""
     
-    def __init__(self, open_path: Path | None = None):
+    def __init__(self, open_path: Path | None = None, debug: bool = False):
         super().__init__()
         self.setWindowTitle("PostFix")
         self.setGeometry(100, 100, 900, 650)
-        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self.setWindowOpacity(1.0)
         
         # Set application styles
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #f0f0f0;
+                background-color: transparent;
             }
             QPushButton {
                 font-size: 12px;
@@ -777,7 +793,7 @@ class PostFixWindow(QMainWindow):
 
         # Center area (editor + sidebars)
         self.left_sidebar = ACLSidebar()
-        self.editor = SmartEditor()
+        self.editor = SmartEditor(show_frontmatter=debug)
         self.right_sidebar = TagSidebar()
         self.editor.on_theme_color_changed = self.update_theme_color
         self._theme_anim = None
@@ -858,7 +874,7 @@ class PostFixWindow(QMainWindow):
             "}"
         )
 
-        self._init_paper_debug()
+        # Debug overlay disabled for production look.
         self._resize_targets = [
             self.centralWidget(),
             self.top_toolbar,
@@ -991,7 +1007,8 @@ class PostFixWindow(QMainWindow):
         self.btn_view_mode.setCursor(Qt.PointingHandCursor)
         self.apply_oval_button_style(self.btn_view_mode, "#FFF740", "#d4c600")
         
-        # Expanding spacer
+        # Center view mode button
+        layout.addStretch()
         layout.addWidget(self.btn_view_mode)
         layout.addStretch()
         
@@ -1013,7 +1030,7 @@ class PostFixWindow(QMainWindow):
         )
         
         self.btn_close = QPushButton("✕")
-        self.apply_round_button_style(self.btn_close, "#FFF740", "#d4c600")
+        self.apply_round_button_style(self.btn_close, "#ff5b5b", "#d64a4a")
         self.btn_close.setStyleSheet(
             self.btn_close.styleSheet()
             + "QPushButton { font-size: 14px; }"
@@ -1101,11 +1118,11 @@ class PostFixWindow(QMainWindow):
             f"""
             QPushButton {{
                 border-radius: 15px;
-                background-color: rgba(0, 0, 0, 0);
-                border: 1px solid rgba(0, 0, 0, 60);
+                background-color: {bg_color};
+                border: 1px solid {border_color};
             }}
             QPushButton:hover {{
-                background-color: rgba(0, 0, 0, 25);
+                background-color: {border_color};
             }}
             """
         )
@@ -1128,8 +1145,8 @@ class PostFixWindow(QMainWindow):
 
     def open_palette(self, initial_hex: str, on_color, anchor: QWidget):
         colors = [
-            "#fff8b0", "#ffe082", "#ffd54f", "#ffb74d", "#ff8a65",
-            "#f48fb1", "#ce93d8", "#90caf9", "#80cbc4", "#a5d6a7",
+            "#ffffff", "#fff8b0", "#ffe082", "#ffd54f", "#ffb74d", "#ff8a65",
+            "#e6f5a7", "#a5d6a7", "#80cbc4", "#90caf9", "#ce93d8", "#f48fb1",
         ]
         popup = QFrame(self)
         popup.setWindowFlags(Qt.Popup)
@@ -1146,7 +1163,7 @@ class PostFixWindow(QMainWindow):
                 f"QPushButton:hover {{ border: 2px solid #8c8c8c; }}"
             )
             btn.clicked.connect(lambda _, c=color: (on_color(QColor(c)), popup.close()))
-            grid.addWidget(btn, idx // 5, idx % 5)
+            grid.addWidget(btn, idx // 6, idx % 6)
 
         pos = anchor.mapToGlobal(anchor.rect().bottomLeft()) + QPoint(0, 6)
         popup.move(pos)
@@ -1304,7 +1321,9 @@ class PostFixWindow(QMainWindow):
         bottom_right = self.bottombar_bg.mapTo(
             self.centralWidget(), QPoint(self.bottombar_bg.width(), self.bottombar_bg.height())
         )
-        return QRect(top_left, bottom_right)
+        rect = QRect(top_left, bottom_right)
+        rect.adjust(-40, 0, 40, 0)
+        return rect
 
     def _paper_edges_at(self, pos: QPoint) -> Qt.Edges:
         rect = self._paper_rect()
@@ -1383,28 +1402,10 @@ class PostFixWindow(QMainWindow):
             subprocess.Popen(["xdg-open", str(self.editor.current_path)])
 
     def _init_paper_debug(self):
-        self._paper_debug = {
-            "left": QFrame(self.centralWidget()),
-            "right": QFrame(self.centralWidget()),
-            "top": QFrame(self.centralWidget()),
-            "bottom": QFrame(self.centralWidget()),
-        }
-        for frame in self._paper_debug.values():
-            frame.setStyleSheet("QFrame { background-color: rgba(80, 180, 255, 40); }")
-            frame.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-            frame.show()
-            frame.raise_()
+        return
 
     def _update_paper_debug(self, rect: QRect):
-        if not hasattr(self, "_paper_debug"):
-            return
-        edge = 8
-        self._paper_debug["left"].setGeometry(rect.left(), rect.top(), edge, rect.height())
-        self._paper_debug["right"].setGeometry(rect.right() - edge + 1, rect.top(), edge, rect.height())
-        self._paper_debug["top"].setGeometry(rect.left(), rect.top(), rect.width(), edge)
-        self._paper_debug["bottom"].setGeometry(rect.left(), rect.bottom() - edge + 1, rect.width(), edge)
-        for frame in self._paper_debug.values():
-            frame.raise_()
+        return
 
 
 class PaperResizeOverlay(QFrame):
@@ -1467,6 +1468,16 @@ class PaperResizeOverlay(QFrame):
 
 def main():
     """Application entry point."""
+    parser = argparse.ArgumentParser(description="PostFix Markdown editor")
+    parser.add_argument("path", nargs="?", help="Markdown file to open")
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="Show YAML frontmatter in the editor",
+    )
+    args = parser.parse_args()
+
     app = QApplication(sys.argv)
     app.setApplicationName("PostFix")
     app.setOrganizationName("PostFixDev")
@@ -1475,11 +1486,11 @@ def main():
         app.setWindowIcon(QIcon(str(icon_path)))
     
     open_path = None
-    if len(sys.argv) > 1:
-        candidate = Path(sys.argv[1]).expanduser()
+    if args.path:
+        candidate = Path(args.path).expanduser()
         if candidate.suffix.lower() == ".md":
             open_path = candidate
-    window = PostFixWindow(open_path=open_path)
+    window = PostFixWindow(open_path=open_path, debug=args.debug)
     window.show()
     
     sys.exit(app.exec())
