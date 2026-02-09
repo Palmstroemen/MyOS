@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import os
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,10 @@ class Backend(QObject):
     def hasMyosDir(self, path: str) -> bool:
         return self._api.has_myos_dir(path)
 
+    @Slot(str, result=bool)
+    def openMarkdown(self, path: str) -> bool:
+        return self._api.open_markdown(path)
+
     @Slot(result=str)
     def getStartPath(self) -> str:
         return self._api.get_start_path()
@@ -50,9 +55,12 @@ def main() -> int:
     engine = QQmlApplicationEngine()
 
     ctx = engine.rootContext()
-    ctx.setContextProperty("backend", Backend(api))
+    backend = Backend(api)
+    ctx.setContextProperty("backend", backend)
+    ctx.setContextProperty("scopeDebugOpen", os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"})
     ctx.setContextProperty("scopeStartPath", api.get_start_path())
     ctx.setContextProperty("scopeProjectRoot", api.get_project_root() or "")
+    engine._backend = backend
 
     qml_path = Path(__file__).with_name("main.qml").resolve()
     engine.load(QUrl.fromLocalFile(str(qml_path)))

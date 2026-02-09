@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
+import subprocess
+import sys
 from typing import List, Optional
 
 try:
@@ -86,3 +89,18 @@ class ScopeApi:
     def has_myos_dir(self, path: str) -> bool:
         target = Path(path).expanduser().resolve()
         return (target / ".MyOS").is_dir()
+
+    def open_markdown(self, path: str) -> bool:
+        target = Path(path).expanduser().resolve()
+        opener = Path(__file__).resolve().parent / "bin" / "open_md.py"
+        if not opener.exists():
+            return False
+        if os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}:
+            print(f"[scope_api] open_markdown: {target}")
+            print(f"[scope_api] opener: {opener}")
+        result = subprocess.run(
+            [sys.executable, str(opener), str(target)], check=False
+        )
+        if os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}:
+            print(f"[scope_api] returncode: {result.returncode}")
+        return result.returncode == 0

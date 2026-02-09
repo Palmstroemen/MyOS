@@ -8,6 +8,9 @@ import argparse
 import glob
 import subprocess
 import tempfile
+import shutil
+import shlex
+import urllib.parse
 from pathlib import Path
 
 import markdown2
@@ -18,7 +21,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QPlainTextEdit, QTextBrowser, QStackedWidget,
                                QSplitter, QGraphicsOpacityEffect, QStackedLayout)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QVariantAnimation, QEvent, QRect, QTimer, Signal, QSize
-from PySide6.QtGui import QColor, QPalette, QTextCursor, QIcon, QFont, QGuiApplication, QTextDocument, QCursor
+from PySide6.QtGui import QColor, QPalette, QTextCursor, QIcon, QFont, QGuiApplication, QTextDocument, QCursor, QWindow
 from PySide6.QtPrintSupport import QPrinter
 
 FRONTMATTER_BOUNDARY = "---"
@@ -626,12 +629,7 @@ class SmartEditor(QWidget):
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
 
-        self.stack = QStackedWidget()
-        self.stack.addWidget(self.preview)
-        self.stack.addWidget(self.source_edit)
-        self.stack.addWidget(self.splitter)
-
-        layout.addWidget(self.stack)
+        layout.addWidget(self.splitter)
 
         self._frontmatter = {
             "title": "PostFix Note",
@@ -665,11 +663,17 @@ class SmartEditor(QWidget):
 
     def set_view_mode(self, mode: str):
         if mode == self.MODE_PREVIEW:
-            self.stack.setCurrentWidget(self.preview)
+            self.source_edit.hide()
+            self.preview.show()
+            self.splitter.setSizes([0, 1])
         elif mode == self.MODE_SOURCE:
-            self.stack.setCurrentWidget(self.source_edit)
+            self.preview.hide()
+            self.source_edit.show()
+            self.splitter.setSizes([1, 0])
         else:
-            self.stack.setCurrentWidget(self.splitter)
+            self.source_edit.show()
+            self.preview.show()
+            self.splitter.setSizes([1, 1])
 
     def render_preview(self):
         text = self.source_edit.toPlainText()
@@ -752,10 +756,488 @@ class SmartEditor(QWidget):
         self.render_preview()
 
 
+class ObsidianEmbed(QWidget):
+    """Embed an external Obsidian window inside the editor area."""
+
+    def __init__(
+        self,
+        open_path: Path | None = None,
+        obsidian_path: str | None = None,
+        obsidian_command: str | None = None,
+        obsidian_view: str | None = None,
+        zen_hotkey: str | None = None,
+        zen_delay_ms: int = 2500,
+        hotkeys: list[str] | None = None,
+        hotkey_gap_ms: int = 300,
+        close_hotkey: str | None = "ctrl+shift+w",
+        obsidian_vault: str | None = None,
+        obsidian_file: str | None = None,
+        open_delay_ms: int = 1500,
+        no_open: bool = False,
+        debug_window_search: bool = False,
+        open_mode: str | None = None,
+        window_title: str | None = None,
+        close_other_windows: bool = False,
+        obsidian_vault_path: str | None = None,
+    ):
+        super().__init__()
+        self.current_bg = "#ffffff"
+        self.current_path = open_path
+        self._obsidian_cmd = self._resolve_obsidian_command(obsidian_path)
+        self._obsidian_command = obsidian_command
+        self._obsidian_view = obsidian_view
+        self._zen_hotkey = zen_hotkey
+        self._zen_delay_ms = zen_delay_ms
+        self._hotkeys = hotkeys or []
+        self._hotkey_gap_ms = hotkey_gap_ms
+        self._close_hotkey = close_hotkey
+        self._obsidian_vault = obsidian_vault
+        self._obsidian_file = obsidian_file
+        self._obsidian_vault_path = obsidian_vault_path
+        self._open_delay_ms = open_delay_ms
+        self._no_open = no_open
+        self._debug_window_search = debug_window_search
+        self._open_mode = open_mode
+        self._window_title = window_title
+        self._close_other_windows = close_other_windows
+        self._last_win_id = None
+        self._debug_printed = False
+        self._watch_timer = QTimer(self)
+        self._watch_timer.setInterval(1000)
+        self._watch_timer.timeout.connect(self._watch_embedded_window)
+        self._can_find_window = bool(
+            shutil.which("xdotool") or shutil.which("wmctrl") or shutil.which("xwininfo")
+        )
+        self._container = None
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(500)
+        self._poll_timer.timeout.connect(self._try_embed)
+        self._poll_attempts = 0
+        self._max_attempts = 60
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self._status = QLabel("Starting Obsidian...")
+        self._status.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._status)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setStyleSheet(
+            "QWidget { background-color: #ffffff; } QLabel { color: #333333; }"
+        )
+
+        if not self._obsidian_cmd:
+            self._status.setText("Obsidian not found in PATH. Install or provide --obsidian-path.")
+            return
+
+        self._launch_obsidian()
+        if not self._can_find_window:
+            self._status.setText(
+                "Install xdotool, wmctrl, or use xwininfo to embed Obsidian."
+            )
+            return
+        self._poll_timer.start()
+
+    def _launch_obsidian(self):
+        try:
+            subprocess.Popen(self._obsidian_cmd)
+        except OSError:
+            self._status.setText("Failed to start Obsidian.")
+            return
+
+        if not self._no_open:
+            uri = self._build_open_uri()
+            if uri:
+                QTimer.singleShot(self._open_delay_ms, lambda: subprocess.Popen(["xdg-open", uri]))
+        if self._obsidian_command or self._obsidian_view:
+            QTimer.singleShot(2500, self._send_advanced_uri)
+
+    def _try_embed(self):
+        self._poll_attempts += 1
+        require_title = bool(self._window_title)
+        win_id = self._find_obsidian_window_id(require_title=require_title)
+        if win_id:
+            self._poll_timer.stop()
+            self._last_win_id = win_id
+            self._embed_window(win_id)
+            self._watch_timer.start()
+            if self._close_other_windows:
+                QTimer.singleShot(self._zen_delay_ms, self._close_other_obsidian_windows)
+            if self._zen_hotkey:
+                QTimer.singleShot(self._zen_delay_ms, self._send_zen_hotkey)
+            if self._hotkeys and self.current_path:
+                QTimer.singleShot(self._zen_delay_ms, self._send_hotkeys)
+            return
+        if self._poll_attempts >= self._max_attempts:
+            self._poll_timer.stop()
+            self._status.setText(
+                "Unable to find Obsidian window. Install xdotool or wmctrl."
+            )
+
+    def _find_obsidian_window_id(self, require_title: bool = False) -> int | None:
+        if shutil.which("xdotool"):
+            for args in (["--classname", "obsidian"], ["--name", "Obsidian"]):
+                result = subprocess.run(
+                    ["xdotool", "search", "--onlyvisible", *args],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if self._debug_window_search and not self._debug_printed:
+                    print(f"[ObsidianEmbed] xdotool search {args}: {result.stdout.strip()}")
+                if result.stdout.strip():
+                    line = result.stdout.strip().splitlines()[0]
+                    try:
+                        return int(line, 0)
+                    except ValueError:
+                        return None
+        if shutil.which("wmctrl"):
+            result = subprocess.run(
+                ["wmctrl", "-lx"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if self._debug_window_search and not self._debug_printed:
+                print("[ObsidianEmbed] wmctrl -lx output:")
+                print(result.stdout)
+            for line in result.stdout.splitlines():
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                win_id, wm_class = parts[0], parts[2]
+                if "obsidian" in wm_class.lower():
+                    try:
+                        return int(win_id, 16)
+                    except ValueError:
+                        return None
+        if shutil.which("xwininfo"):
+            candidates: list[tuple[int, int, str]] = []
+            if self._debug_window_search and not self._debug_printed:
+                tree = subprocess.run(
+                    ["xwininfo", "-root", "-tree"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                print("[ObsidianEmbed] xwininfo -root -tree matches:")
+                for line in tree.stdout.splitlines():
+                    if "Obsidian" in line or "obsidian" in line:
+                        print(line.strip())
+            tree = subprocess.run(
+                ["xwininfo", "-root", "-tree"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            for line in tree.stdout.splitlines():
+                line = line.strip()
+                if not line.startswith("0x"):
+                    continue
+                if "Obsidian" not in line and "obsidian" not in line:
+                    continue
+                parts = line.split()
+                if not parts:
+                    continue
+                try:
+                    win_id = int(parts[0], 16)
+                except ValueError:
+                    continue
+                if "InputOnly" in line:
+                    continue
+                if "20x20" in line:
+                    continue
+                size = self._parse_window_size(line)
+                title = self._parse_window_title(line)
+                candidates.append((size, win_id, title))
+            if self._window_title:
+                title_lower = self._window_title.lower()
+                for _, win_id, title in sorted(candidates, reverse=True):
+                    if title_lower in title.lower():
+                        return win_id
+                if require_title:
+                    return None
+            for _, win_id, _ in sorted(candidates, reverse=True):
+                if self._is_window_mapped(win_id):
+                    return win_id
+            # Fallback: pick the largest candidate even if unmapped
+            if candidates:
+                return sorted(candidates, reverse=True)[0][1]
+            for name in ("Obsidian", "obsidian"):
+                result = subprocess.run(
+                    ["xwininfo", "-name", name],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if self._debug_window_search and not self._debug_printed:
+                    print(f"[ObsidianEmbed] xwininfo -name {name}: {result.stdout.strip()}")
+                for line in result.stdout.splitlines():
+                    if "Window id:" in line:
+                        parts = line.strip().split()
+                        try:
+                            win_id = parts[2]
+                        except IndexError:
+                            continue
+                        try:
+                            parsed_id = int(win_id, 16)
+                        except ValueError:
+                            continue
+                        if self._window_title and require_title:
+                            continue
+                        if self._is_window_mapped(parsed_id):
+                            return parsed_id
+                        return parsed_id
+            if self._debug_window_search and not self._debug_printed:
+                self._debug_printed = True
+        return None
+
+    def _is_window_mapped(self, win_id: int) -> bool:
+        if not shutil.which("xwininfo"):
+            return True
+        result = subprocess.run(
+            ["xwininfo", "-id", hex(win_id)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        for line in result.stdout.splitlines():
+            if "Map State:" in line:
+                return "IsViewable" in line
+        return False
+
+    def _parse_window_size(self, line: str) -> int:
+        # Try to extract width x height from xwininfo tree line for ranking
+        for token in line.split():
+            if "x" in token and "+" in token:
+                size = token.split("+", 1)[0]
+                try:
+                    width, height = size.split("x", 1)
+                    return int(width) * int(height)
+                except ValueError:
+                    continue
+        return 0
+
+    def _parse_window_title(self, line: str) -> str:
+        if "\"" not in line:
+            return ""
+        parts = line.split("\"", 2)
+        if len(parts) < 2:
+            return ""
+        return parts[1]
+
+    def _close_other_obsidian_windows(self):
+        if not shutil.which("xdotool"):
+            return
+        if not shutil.which("xwininfo"):
+            return
+        target_fragment = (self._window_title or "").lower()
+        tree = subprocess.run(
+            ["xwininfo", "-root", "-tree"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        for line in tree.stdout.splitlines():
+            line = line.strip()
+            if not line.startswith("0x"):
+                continue
+            if "Obsidian" not in line and "obsidian" not in line:
+                continue
+            win_id = line.split()[0]
+            title = self._parse_window_title(line).lower()
+            if target_fragment and target_fragment in title:
+                continue
+            if self._last_win_id and win_id == hex(self._last_win_id):
+                continue
+            subprocess.run(
+                ["xdotool", "windowactivate", "--sync", win_id, "key", "ctrl+shift+w"],
+                check=False,
+            )
+
+    def _send_advanced_uri(self):
+        params = {}
+        if self.current_path:
+            params["filepath"] = str(self.current_path)
+        if self._obsidian_view:
+            params["view"] = self._obsidian_view
+        if self._obsidian_command:
+            params["commandid"] = self._obsidian_command
+        query = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+        uri = f"obsidian://advanced-uri?{query}"
+        subprocess.Popen(["xdg-open", uri])
+
+    def _build_open_uri(self) -> str | None:
+        vault_info = self._resolve_vault_info()
+        vault_name = vault_info.get("vault")
+        vault_file = vault_info.get("file")
+        if self._obsidian_command or self._obsidian_view or self._open_mode:
+            params = {}
+            if vault_name and vault_file:
+                params["vault"] = vault_name
+                params["file"] = vault_file
+            elif self.current_path:
+                params["filepath"] = str(self.current_path)
+            if self._obsidian_view:
+                params["view"] = self._obsidian_view
+            if self._obsidian_command:
+                params["commandid"] = self._obsidian_command
+            if self._open_mode:
+                params["openmode"] = self._open_mode
+            if params:
+                query = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+                return f"obsidian://advanced-uri?{query}"
+        if vault_name and vault_file:
+            vault = urllib.parse.quote(vault_name)
+            file_path = urllib.parse.quote(vault_file)
+            return f"obsidian://open?vault={vault}&file={file_path}"
+        if self.current_path:
+            path = urllib.parse.quote(str(self.current_path))
+            return f"obsidian://open?path={path}"
+        return None
+
+    def _resolve_vault_info(self) -> dict:
+        if self._obsidian_vault and self._obsidian_file:
+            return {"vault": self._obsidian_vault, "file": self._obsidian_file}
+        if self._obsidian_vault_path and self.current_path:
+            vault_path = Path(self._obsidian_vault_path).expanduser().resolve()
+            try:
+                rel_path = self.current_path.resolve().relative_to(vault_path)
+            except ValueError:
+                return {}
+            return {"vault": vault_path.name, "file": rel_path.as_posix()}
+        return {}
+
+    def _watch_embedded_window(self):
+        if not self._last_win_id:
+            return
+        if self._is_window_mapped(self._last_win_id):
+            return
+        self._watch_timer.stop()
+        if self._container:
+            self._container.setVisible(False)
+        self._status.setText("Obsidian window lost. Waiting to re-attach...")
+        self._status.show()
+        self._last_win_id = None
+        if not self._poll_timer.isActive():
+            self._poll_timer.start()
+
+    def _send_zen_hotkey(self):
+        if not self._last_win_id:
+            return
+        if shutil.which("xdotool"):
+            subprocess.run(
+                [
+                    "xdotool",
+                    "windowactivate",
+                    "--sync",
+                    str(self._last_win_id),
+                    "key",
+                    self._zen_hotkey,
+                ],
+                check=False,
+            )
+
+    def _send_hotkeys(self):
+        if not self._last_win_id or not shutil.which("xdotool"):
+            return
+        for idx, hotkey in enumerate(self._hotkeys):
+            delay = idx * self._hotkey_gap_ms
+            QTimer.singleShot(
+                delay,
+                lambda hk=hotkey: subprocess.run(
+                    [
+                        "xdotool",
+                        "windowactivate",
+                        "--sync",
+                        str(self._last_win_id),
+                        "key",
+                        hk,
+                    ],
+                    check=False,
+                ),
+            )
+
+    def send_close_hotkey(self):
+        if not self._last_win_id or not self._close_hotkey:
+            return
+        if shutil.which("xdotool"):
+            subprocess.run(
+                [
+                    "xdotool",
+                    "windowactivate",
+                    "--sync",
+                    str(self._last_win_id),
+                    "key",
+                    self._close_hotkey,
+                ],
+                check=False,
+            )
+
+    def _resolve_obsidian_command(self, obsidian_path: str | None) -> list[str] | None:
+        if obsidian_path:
+            return shlex.split(obsidian_path)
+        found = shutil.which("obsidian")
+        if not found:
+            return None
+        return [found]
+
+    def _embed_window(self, win_id: int):
+        window = QWindow.fromWinId(win_id)
+        if not window:
+            self._status.setText("Failed to attach to Obsidian window.")
+            return
+        self._container = QWidget.createWindowContainer(window, self)
+        self.layout().addWidget(self._container)
+        self._status.hide()
+
+    def set_view_mode(self, mode: str):
+        return
+
+    def apply_background(self, color_hex: str):
+        return
+
+    def wrap_selection(self, *args, **kwargs):
+        return
+
+    def update_window_metadata(self, *args, **kwargs):
+        return
+
+    def get_markdown(self) -> str:
+        if self.current_path and self.current_path.exists():
+            return self.current_path.read_text(encoding="utf-8")
+        return ""
+
+    def set_path(self, path: Path):
+        self.current_path = path
+
+
 class PostFixWindow(QMainWindow):
     """Main application window."""
     
-    def __init__(self, open_path: Path | None = None, debug: bool = False):
+    def __init__(
+        self,
+        open_path: Path | None = None,
+        debug: bool = False,
+        embed_obsidian: bool = False,
+        obsidian_path: str | None = None,
+        obsidian_command: str | None = None,
+        obsidian_view: str | None = None,
+        zen_hotkey: str | None = None,
+        zen_delay_ms: int = 2500,
+        obsidian_hotkeys: list[str] | None = None,
+        obsidian_hotkey_gap_ms: int = 300,
+        obsidian_close_hotkey: str | None = "ctrl+shift+w",
+        obsidian_vault: str | None = None,
+        obsidian_file: str | None = None,
+        obsidian_open_delay_ms: int = 1500,
+        obsidian_no_open: bool = False,
+        obsidian_debug_window_search: bool = False,
+        obsidian_open_mode: str | None = None,
+        obsidian_window_title: str | None = None,
+        obsidian_close_other_windows: bool = False,
+        obsidian_vault_path: str | None = None,
+    ):
         super().__init__()
         self.setWindowTitle("PostFix")
         self.setGeometry(100, 100, 900, 650)
@@ -793,9 +1275,39 @@ class PostFixWindow(QMainWindow):
 
         # Center area (editor + sidebars)
         self.left_sidebar = ACLSidebar()
+        # Obsidian embed is paused for now. Keep the code here for later.
+        # self.editor = ObsidianEmbed(
+        #     open_path=open_path,
+        #     obsidian_path=obsidian_path,
+        #     obsidian_command=obsidian_command,
+        #     obsidian_view=obsidian_view,
+        #     zen_hotkey=zen_hotkey,
+        #     zen_delay_ms=zen_delay_ms,
+        #     hotkeys=obsidian_hotkeys,
+        #     hotkey_gap_ms=obsidian_hotkey_gap_ms,
+        #     close_hotkey=obsidian_close_hotkey,
+        #     obsidian_vault=obsidian_vault,
+        #     obsidian_file=obsidian_file,
+        #     open_delay_ms=obsidian_open_delay_ms,
+        #     no_open=obsidian_no_open,
+        #     debug_window_search=obsidian_debug_window_search,
+        #     open_mode=obsidian_open_mode,
+        #     window_title=obsidian_window_title,
+        #     close_other_windows=obsidian_close_other_windows,
+        #     obsidian_vault_path=obsidian_vault_path,
+        # )
         self.editor = SmartEditor(show_frontmatter=debug)
         self.right_sidebar = TagSidebar()
-        self.editor.on_theme_color_changed = self.update_theme_color
+        if hasattr(self.editor, "on_theme_color_changed"):
+            self.editor.on_theme_color_changed = self.update_theme_color
+        if hasattr(self.editor, "MODE_SPLIT"):
+            self.editor.set_view_mode(self.editor.MODE_SPLIT)
+            self.btn_view_mode.setText(self.editor.MODE_SPLIT)
+        elif embed_obsidian:
+            self.btn_view_mode.setText("Obsidian")
+            self.btn_view_mode.setEnabled(False)
+            for btn in [self.btn_bg_color, self.btn_text_color, self.btn_highlight]:
+                btn.setEnabled(False)
         self._theme_anim = None
         self._current_theme_color = self.editor.current_bg
         self._meta_timer = QTimer(self)
@@ -948,9 +1460,10 @@ class PostFixWindow(QMainWindow):
         # Connect signals
         self.connect_signals()
         self.update_theme_color(self.editor.current_bg)
-        if open_path and open_path.exists():
+        if open_path and open_path.exists() and hasattr(self.editor, "load_markdown"):
             self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
-            self.editor.set_path(open_path)
+            if hasattr(self.editor, "set_path"):
+                self.editor.set_path(open_path)
         
     def create_top_toolbar(self):
         """Create the top toolbar with all controls."""
@@ -1003,7 +1516,7 @@ class PostFixWindow(QMainWindow):
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Fixed, QSizePolicy.Minimum))
         
         # View mode button
-        self.btn_view_mode = QPushButton("Live Preview")
+        self.btn_view_mode = QPushButton("Split View")
         self.btn_view_mode.setCursor(Qt.PointingHandCursor)
         self.apply_oval_button_style(self.btn_view_mode, "#FFF740", "#d4c600")
         
@@ -1118,11 +1631,11 @@ class PostFixWindow(QMainWindow):
             f"""
             QPushButton {{
                 border-radius: 15px;
-                background-color: {bg_color};
-                border: 1px solid {border_color};
+                background-color: rgba(0, 0, 0, 0);
+                border: 1px solid rgba(0, 0, 0, 60);
             }}
             QPushButton:hover {{
-                background-color: {border_color};
+                background-color: rgba(0, 0, 0, 25);
             }}
             """
         )
@@ -1465,6 +1978,11 @@ class PaperResizeOverlay(QFrame):
             return
         super().mousePressEvent(event)
 
+    def closeEvent(self, event):
+        if hasattr(self.editor, "send_close_hotkey"):
+            self.editor.send_close_hotkey()
+        super().closeEvent(event)
+
 
 def main():
     """Application entry point."""
@@ -1475,6 +1993,92 @@ def main():
         "--debug",
         action="store_true",
         help="Show YAML frontmatter in the editor",
+    )
+    parser.add_argument(
+        "--embed-obsidian",
+        action="store_true",
+        help="Embed an existing Obsidian window into the editor area (X11 only)",
+    )
+    parser.add_argument(
+        "--obsidian-path",
+        help="Path to Obsidian executable (if not in PATH)",
+    )
+    parser.add_argument(
+        "--obsidian-command",
+        help="Advanced URI command name or id (requires Advanced URI plugin)",
+    )
+    parser.add_argument(
+        "--obsidian-view",
+        choices=["live", "source", "preview"],
+        help="Open Obsidian in a specific view (requires Advanced URI plugin)",
+    )
+    parser.add_argument(
+        "--obsidian-zen-hotkey",
+        help="Send a zen-mode hotkey via xdotool (e.g. ctrl+shift+z)",
+    )
+    parser.add_argument(
+        "--obsidian-zen-delay-ms",
+        type=int,
+        default=2500,
+        help="Delay before sending zen hotkey (ms)",
+    )
+    parser.add_argument(
+        "--obsidian-hotkey",
+        action="append",
+        help="Send additional hotkeys via xdotool (repeatable)",
+    )
+    parser.add_argument(
+        "--obsidian-hotkey-gap-ms",
+        type=int,
+        default=300,
+        help="Gap between additional hotkeys (ms)",
+    )
+    parser.add_argument(
+        "--obsidian-close-hotkey",
+        default="ctrl+shift+w",
+        help="Hotkey to close Obsidian window on exit",
+    )
+    parser.add_argument(
+        "--obsidian-vault",
+        help="Vault name to open (uses obsidian://open?vault=...&file=...)",
+    )
+    parser.add_argument(
+        "--obsidian-file",
+        help="File path inside vault (relative, without extension if desired)",
+    )
+    parser.add_argument(
+        "--obsidian-open-delay-ms",
+        type=int,
+        default=1500,
+        help="Delay before opening file via URI (ms)",
+    )
+    parser.add_argument(
+        "--obsidian-no-open",
+        action="store_true",
+        help="Do not open a file/vault via URI at startup",
+    )
+    parser.add_argument(
+        "--obsidian-debug-window-search",
+        action="store_true",
+        help="Print window search output for embedding Obsidian",
+    )
+    parser.add_argument(
+        "--obsidian-open-mode",
+        choices=["window", "split", "tab"],
+        help="Open mode for Advanced URI (requires plugin)",
+    )
+    parser.add_argument(
+        "--obsidian-window-title",
+        help="Prefer embedding window with this title fragment",
+    )
+    parser.add_argument(
+        "--obsidian-close-other-windows",
+        action="store_true",
+        help="Close other Obsidian windows after embed (requires xdotool)",
+    )
+    parser.add_argument(
+        "--obsidian-vault-path",
+        help="Vault base path (used to compute vault name + file path)",
     )
     args = parser.parse_args()
 
@@ -1490,7 +2094,28 @@ def main():
         candidate = Path(args.path).expanduser()
         if candidate.suffix.lower() == ".md":
             open_path = candidate
-    window = PostFixWindow(open_path=open_path, debug=args.debug)
+    window = PostFixWindow(
+        open_path=open_path,
+        debug=args.debug,
+        embed_obsidian=args.embed_obsidian,
+        obsidian_path=args.obsidian_path,
+        obsidian_command=args.obsidian_command,
+        obsidian_view=args.obsidian_view,
+        zen_hotkey=args.obsidian_zen_hotkey,
+        zen_delay_ms=args.obsidian_zen_delay_ms,
+        obsidian_hotkeys=args.obsidian_hotkey,
+        obsidian_hotkey_gap_ms=args.obsidian_hotkey_gap_ms,
+        obsidian_close_hotkey=args.obsidian_close_hotkey,
+        obsidian_vault=args.obsidian_vault,
+        obsidian_file=args.obsidian_file,
+        obsidian_open_delay_ms=args.obsidian_open_delay_ms,
+        obsidian_no_open=args.obsidian_no_open,
+        obsidian_debug_window_search=args.obsidian_debug_window_search,
+        obsidian_open_mode=args.obsidian_open_mode,
+        obsidian_window_title=args.obsidian_window_title,
+        obsidian_close_other_windows=args.obsidian_close_other_windows,
+        obsidian_vault_path=args.obsidian_vault_path,
+    )
     window.show()
     
     sys.exit(app.exec())

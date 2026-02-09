@@ -1,0 +1,65 @@
+// main.ts - Obsidian Plugin
+import { App, Plugin, TFile, Notice } from 'obsidian';
+
+export default class MDFirstWorkflowPlugin extends Plugin {
+  async onload() {
+    // Ribbon Icon für schnellen Export
+    this.addRibbonIcon('file-output', 'Export to Office', () => {
+      this.showExportMenu();
+    });
+    
+    // Editor Menu für Auswahl-Export
+    this.registerEvent(
+      this.app.workspace.on('editor-menu', (menu, editor, view) => {
+        const selection = editor.getSelection();
+        if (selection) {
+          menu.addItem((item) => {
+            item
+              .setTitle('Export selection to...')
+              .setIcon('external-link')
+              .onClick(async () => {
+                await this.exportSelection(selection, view.file);
+              });
+          });
+        }
+      })
+    );
+    
+    // Befehlspalette Befehle
+    this.addCommand({
+      id: 'export-to-pdf',
+      name: 'Export to PDF',
+      callback: () => this.exportCurrentFile('pdf')
+    });
+    
+    this.addCommand({
+      id: 'export-to-pptx',
+      name: 'Export to PowerPoint',
+      callback: () => this.exportCurrentFile('pptx')
+    });
+  }
+  
+  async exportCurrentFile(format: string) {
+    const file = this.app.workspace.getActiveFile();
+    if (!file) {
+      new Notice('No file active');
+      return;
+    }
+    
+    // Python-Skript aufrufen
+    const cmd = `python3 /path/to/folder_tags.py export --file "${file.name}" --format ${format}`;
+    
+    // In Terminal ausführen oder direkt mit Node
+    const result = await this.executeCommand(cmd);
+    new Notice(`Exported to ${format}: ${result.export}`);
+  }
+  
+  async exportSelection(selection: string, file: TFile) {
+    // Temporäre Datei mit Selection erstellen
+    const tempFile = `${file.basename}_selection_${Date.now()}.md`;
+    await this.app.vault.adapter.write(tempFile, selection);
+    
+    // Export Menu anzeigen
+    // ...
+  }
+}

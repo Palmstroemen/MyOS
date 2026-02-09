@@ -250,6 +250,21 @@ ApplicationWindow {
         return demoItems
     }
 
+    function openFileEntry(name) {
+        var fullPath = name.indexOf("/") === 0 ? name : (cwp + "/" + name)
+        var lower = fullPath.toLowerCase()
+        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
+            var backendAvailable = hasBackend()
+            var openMarkdownType = backendAvailable ? typeof backend.openMarkdown : "n/a"
+            console.log("[scope] openFileEntry", fullPath, "backend", backendAvailable, "openMarkdown", openMarkdownType)
+        }
+        if (lower.endsWith(".md") && hasBackend() && typeof backend.openMarkdown === "function") {
+            backend.openMarkdown(fullPath)
+            return
+        }
+        Qt.openUrlExternally(toFileUrl(fullPath))
+    }
+
     function updateFiles() {
         var entries = listEntries(cwp)
         var filtered = []
@@ -469,6 +484,11 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
+        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
+            var backendAvailable = hasBackend()
+            var openMarkdownType = backendAvailable ? typeof backend.openMarkdown : "n/a"
+            console.log("[scope] backend available", backendAvailable, "openMarkdown", openMarkdownType)
+        }
         var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
         if (!hasBackend() && (!startPath || startPath === cwp)) {
             var resolved = Qt.resolvedUrl(".")
@@ -1054,6 +1074,9 @@ ApplicationWindow {
                     setCwp(cwp + "/" + name)
                 }
                 clearSearchAfterNavigate()
+            }
+            onFileActivated: function(name) {
+                openFileEntry(name)
             }
             onOpenMyosFolder: {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp

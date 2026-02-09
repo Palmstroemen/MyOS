@@ -27,6 +27,7 @@ Rectangle { // Files panel
     property string iconGear: ""
     property string itemStyle: "largeIcon"
     signal folderActivated(string name)
+    signal fileActivated(string name)
     signal openMyosFolder()
     property bool showMyosButton: false
 
@@ -144,6 +145,8 @@ Rectangle { // Files panel
                     onDoubleActivate: {
                         if (modelData.isDir) {
                             root.folderActivated(modelData.name)
+                        } else {
+                            root.fileActivated(modelData.name)
                         }
                     }
                 }
