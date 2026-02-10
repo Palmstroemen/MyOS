@@ -108,6 +108,10 @@ Item { // ROOT
         return Math.max(80, textWidth + 24)
     }
 
+    function currentRowHeight() {
+        return effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
+    }
+
     function calculateVerticalAutoWidth() {
         if (!verticalView) return verticalPreferredWidth > 0 ? verticalPreferredWidth : verticalMinWidth
         var maxWidth = 0
@@ -451,7 +455,10 @@ Item { // ROOT
                 id: topRow
                 visible: !verticalView
                 Layout.fillWidth: true
-                Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
+                Layout.preferredHeight: currentRowHeight()
+                Layout.minimumHeight: currentRowHeight()
+                Layout.maximumHeight: currentRowHeight()
+                height: currentRowHeight()
                 spacing: 6
                 onWidthChanged: scheduleLayoutUpdate()
 
