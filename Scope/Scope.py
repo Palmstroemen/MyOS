@@ -172,13 +172,13 @@ class Backend(QObject):
         self._entries_cache: dict[str, list] = {}
         self._entries_pending: set[str] = set()
 
-    @Slot(str, result="QStringList")
-    def listChildren(self, path: str):
-        return self._api.list_children(path)
+    @Slot(str, bool, result="QStringList")
+    def listChildren(self, path: str, includeEmbryos: bool):
+        return self._api.list_children(path, includeEmbryos)
 
-    @Slot(str, result="QStringList")
-    def listTemplates(self, path: str):
-        return self._api.list_templates(path)
+    @Slot(str, bool, result="QStringList")
+    def listTemplates(self, path: str, includeEmbryos: bool):
+        return self._api.list_templates(path, includeEmbryos)
 
     @Slot(str, result="QVariantList")
     def listEntries(self, path: str):
@@ -232,6 +232,14 @@ class Backend(QObject):
     @Slot(str, result=bool)
     def hasMyosDir(self, path: str) -> bool:
         return self._api.has_myos_dir(path)
+
+    @Slot(str, result=bool)
+    def isProject(self, path: str) -> bool:
+        return self._api.is_project(path)
+
+    @Slot(str, result=bool)
+    def createProject(self, path: str) -> bool:
+        return self._api.create_project(path)
 
     @Slot(str, result=bool)
     def openMarkdown(self, path: str) -> bool:

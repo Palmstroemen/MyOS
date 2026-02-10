@@ -203,10 +203,7 @@ class Blueprint(Operations):
         if not self.config.is_valid():
             raise ValueError(f"Not a valid MyOS project: {self.project_root}")
         
-        self.templates_dir = Path(
-            os.environ.get("MYOS_TEMPLATES_DIR", 
-                          self.project_root / "Templates")
-        )
+        self.templates_dir = self._resolve_templates_dir()
         
         self.birth_clinic = BirthClinic(self)
         
@@ -225,6 +222,25 @@ class Blueprint(Operations):
         print(f"Blueprint: Mounted on {self.project_root}")
         print(f"Blueprint: Using templates from {self.templates_dir}")
         print(f"Blueprint: Active templates: {self.template_names}")
+
+    def _resolve_templates_dir(self) -> Path:
+        env_dir = os.environ.get("MYOS_TEMPLATES_DIR")
+        if env_dir:
+            return Path(env_dir).expanduser()
+
+        candidate = self.project_root / "Templates"
+        if candidate.exists():
+            return candidate
+
+        current = self.project_root.parent
+        while current and current != current.parent:
+            candidate = current / "Templates"
+            if candidate.exists():
+                print(f"[Blueprint] Using parent Templates at {candidate}")
+                return candidate
+            current = current.parent
+
+        return self.project_root / "Templates"
 
     def _find_project_root(self, start_path: Path) -> Path:
         """Find the nearest project root by searching for .MyOS/Project.md upwards."""

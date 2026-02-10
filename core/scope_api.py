@@ -8,6 +8,7 @@ from typing import List, Optional
 
 try:
     from core.localBlueprintLayer import Blueprint
+    from core.project import ProjectConfig
 except Exception:  # pragma: no cover - optional for non-MyOS paths
     Blueprint = None
 
@@ -56,7 +57,7 @@ class ScopeApi:
         if root != self.project_root:
             self._set_project_root(root)
 
-    def list_children(self, path: str) -> List[str]:
+    def list_children(self, path: str, include_embryos: bool = True) -> List[str]:
         target = Path(path).expanduser().resolve()
         names: List[str] = []
         try:
@@ -68,7 +69,7 @@ class ScopeApi:
         except Exception:
             return []
 
-        if self.blueprint and self.project_root and is_within(target, self.project_root):
+        if include_embryos and self.blueprint and self.project_root and is_within(target, self.project_root):
             rel = "" if target == self.project_root else str(target.relative_to(self.project_root))
             embryos = self.blueprint.get_embryos_at(rel)
             for name in embryos:
@@ -78,9 +79,13 @@ class ScopeApi:
 
         return names
 
-    def list_templates(self, path: str) -> List[str]:
+    def list_templates(self, path: str, include_embryos: bool = True) -> List[str]:
         target = Path(path).expanduser().resolve()
         debug = os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}
+        if not include_embryos:
+            if debug:
+                print(f"[scope_api] list_templates: include_embryos=False -> []")
+            return []
         if not self.blueprint or not self.project_root or not is_within(target, self.project_root):
             if debug:
                 print(
@@ -132,6 +137,14 @@ class ScopeApi:
     def has_myos_dir(self, path: str) -> bool:
         target = Path(path).expanduser().resolve()
         return (target / ".MyOS").is_dir()
+
+    def is_project(self, path: str) -> bool:
+        target = Path(path).expanduser().resolve()
+        return (target / ".MyOS" / "Project.md").is_file()
+
+    def create_project(self, path: str) -> bool:
+        target = Path(path).expanduser().resolve()
+        return ProjectConfig.make_project(target)
 
     def open_markdown(self, path: str) -> bool:
         target = Path(path).expanduser().resolve()

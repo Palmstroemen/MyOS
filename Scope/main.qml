@@ -83,6 +83,9 @@ ApplicationWindow {
     property int fileItemsOffset: 0
     property int fileItemsChunk: 160
     property bool hasMyosInCwp: false
+    property bool hasProjectInCwp: false
+    property bool projectsShowEmbryos: true
+    property bool templatesShowEmbryos: true
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
     ListModel { id: filesModel }
@@ -216,7 +219,7 @@ ApplicationWindow {
 
     function listChildren(path) {
         if (hasBackend()) {
-            return backend.listChildren(path)
+            return backend.listChildren(path, projectsShowEmbryos)
         }
         if (path === cwp) {
             var dirs = []
@@ -233,7 +236,7 @@ ApplicationWindow {
 
     function listTemplates(path) {
         if (hasBackend() && typeof backend.listTemplates === "function") {
-            return backend.listTemplates(path)
+            return backend.listTemplates(path, templatesShowEmbryos)
         }
         return []
     }
@@ -324,6 +327,11 @@ ApplicationWindow {
         applyEntries(entries)
         if (hasBackend()) {
             hasMyosInCwp = backend.hasMyosDir(cwp)
+            if (typeof backend.isProject === "function") {
+                hasProjectInCwp = backend.isProject(cwp)
+            } else {
+                hasProjectInCwp = false
+            }
         }
     }
 
@@ -1002,6 +1010,7 @@ ApplicationWindow {
             visible: templatesBrowserVisible
             path: standardPath
             pathDisplayPrefix: cwp
+        showEmbryos: window.templatesShowEmbryos
             folders: standardFoldersFiltered
             verticalView: level2VerticalView
             buttonStyle: level2ButtonStyle
@@ -1045,7 +1054,12 @@ ApplicationWindow {
                 level2SearchText = value
                 updateStandardFolders()
             }
-            onStyleChanged: level2ButtonStyle = style
+        onStyleChanged: level2ButtonStyle = style
+        onToggleEmbryos: {
+            window.templatesShowEmbryos = !window.templatesShowEmbryos
+            standardFolders = listTemplates(standardPath)
+            updateStandardFolders()
+        }
             onPathSegmentActivated: {
                 if (templatesBrowser.fullPathForDisplayIndex) {
                     standardPath = templatesBrowser.fullPathForDisplayIndex(index)
@@ -1067,6 +1081,7 @@ ApplicationWindow {
             visible: projectsBrowserVisible
             path: cwp
             folders: subProjects
+        showEmbryos: window.projectsShowEmbryos
             verticalView: verticalProjectView
             buttonStyle: folderItemStyle
             allowLargeIcons: true
@@ -1106,7 +1121,11 @@ ApplicationWindow {
             searchActive: window.searchActive
             searchText: window.searchText
             onToggleMode: verticalProjectView = !verticalProjectView
-            onStyleChanged: folderItemStyle = style
+        onStyleChanged: folderItemStyle = style
+        onToggleEmbryos: {
+            window.projectsShowEmbryos = !window.projectsShowEmbryos
+            updateSubProjects()
+        }
             onToggleSearch: window.searchActive = !window.searchActive
             onSearchTextChanged: {
                 window.searchText = projectsBrowser.searchText
@@ -1165,7 +1184,8 @@ ApplicationWindow {
             smallButtonActiveBg: theme.smallButtonActiveBg
             smallButtonActiveBorder: theme.smallButtonActiveBorder
             smallButtonText: theme.smallButtonText
-            showMyosButton: window.hasMyosInCwp
+        showMyosButton: window.hasProjectInCwp
+        showCreateProject: !window.hasProjectInCwp
         onRequestMore: appendNextChunk()
         onFilterChanged: filterEntries()
             onFolderActivated: function(name) {
@@ -1184,6 +1204,20 @@ ApplicationWindow {
                 setCwp(base + "/.MyOS")
                 clearSearchAfterNavigate()
             }
+        onCreateProject: {
+            if (hasBackend() && typeof backend.createProject === "function") {
+                var ok = backend.createProject(cwp)
+                if (ok) {
+                    if (typeof backend.setContext === "function") {
+                        backend.setContext(cwp)
+                    }
+                    updateFiles()
+                    updateTemplates()
+                    standardFolders = listTemplates(cwp)
+                    updateStandardFolders()
+                }
+            }
+        }
         }
 
     }

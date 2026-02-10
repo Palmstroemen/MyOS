@@ -29,7 +29,9 @@ Rectangle { // Files panel
     signal folderActivated(string name)
     signal fileActivated(string name)
     signal openMyosFolder()
+    signal createProject()
     property bool showMyosButton: false
+    property bool showCreateProject: false
 
     property int compactButtonHeight: 32
     property int largeButtonHeight: 88
@@ -52,7 +54,7 @@ Rectangle { // Files panel
 
     onShowFoldersChanged: filterChanged(showFolders)
 
-    Row {
+    Column {
         id: cornerButtons
         anchors.top: parent.top
         anchors.right: parent.right
@@ -60,6 +62,27 @@ Rectangle { // Files panel
         anchors.rightMargin: 8
         spacing: 6
         z: 2
+
+        Rectangle {
+            radius: 6
+            width: root.compactButtonHeight
+            height: root.compactButtonHeight
+            color: root.showFolders ? root.smallButtonActiveBg : root.smallButtonBg
+            border.color: root.showFolders ? root.smallButtonActiveBorder : root.smallButtonBorder
+            Image {
+                anchors.centerIn: parent
+                source: root.showFolders ? root.iconFolder : root.iconFolderOff
+                width: root.smallIconSize
+                height: root.smallIconSize
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: width
+                sourceSize.height: height
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: root.showFolders = !root.showFolders
+            }
+        }
 
         Rectangle {
             radius: 6
@@ -87,20 +110,19 @@ Rectangle { // Files panel
             radius: 6
             width: root.compactButtonHeight
             height: root.compactButtonHeight
-            color: root.showFolders ? root.smallButtonActiveBg : root.smallButtonBg
-            border.color: root.showFolders ? root.smallButtonActiveBorder : root.smallButtonBorder
-            Image {
+            color: "#d34b4b"
+            border.color: "#a63b3b"
+            visible: root.showCreateProject
+            Text {
                 anchors.centerIn: parent
-                source: root.showFolders ? root.iconFolder : root.iconFolderOff
-                width: root.smallIconSize
-                height: root.smallIconSize
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: width
-                sourceSize.height: height
+                text: "P"
+                color: "#ffffff"
+                font.pixelSize: Math.round(root.baseFont * 0.9)
+                font.bold: true
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: root.showFolders = !root.showFolders
+                onClicked: root.createProject()
             }
         }
     }

@@ -22,6 +22,8 @@ Item { // ROOT
     property bool showSearchToggle: false
     property bool showStyleToggle: true
     property bool showThemeToggle: false
+    property bool showEmbryos: true
+    property bool showEmbryoToggle: true
     property bool searchActive: false
     property string searchText: ""
     property bool allowRename: false
@@ -65,6 +67,7 @@ Item { // ROOT
     signal toggleSearch()
     signal toggleTheme()
     signal styleChanged(string style)
+    signal toggleEmbryos()
     signal renameRequested(string fullPath)
     signal renameTextEdited(string text)
     signal renameAccepted()
@@ -442,6 +445,25 @@ Item { // ROOT
                         }
                     }
                 }
+                Rectangle { // VERTICAL: embryo toggle (E)
+                    visible: showEmbryoToggle
+                    width: compactButtonHeight
+                    height: compactButtonHeight
+                    radius: 4
+                    color: showEmbryos ? smallButtonActiveBg : smallButtonBg
+                    border.color: showEmbryos ? smallButtonActiveBorder : smallButtonBorder
+                    Text {
+                        anchors.centerIn: parent
+                        text: "E"
+                        color: smallButtonText
+                        font.pixelSize: baseFont
+                        font.bold: true
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: toggleEmbryos()
+                    }
+                }
             }
         }
 
@@ -656,6 +678,25 @@ Item { // ROOT
                                     anchors.fill: parent
                                     onClicked: styleChanged(modelData.style)
                                 }
+                            }
+                        }
+                        Rectangle { // HORIZONTAL: embryo toggle (E)
+                            visible: showEmbryoToggle
+                            width: compactButtonHeight
+                            height: compactButtonHeight
+                            radius: 4
+                            color: showEmbryos ? smallButtonActiveBg : smallButtonBg
+                            border.color: showEmbryos ? smallButtonActiveBorder : smallButtonBorder
+                            Text {
+                                anchors.centerIn: parent
+                                text: "E"
+                                color: smallButtonText
+                                font.pixelSize: baseFont
+                                font.bold: true
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: toggleEmbryos()
                             }
                         }
                     }
