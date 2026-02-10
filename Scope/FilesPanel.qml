@@ -132,7 +132,7 @@ Rectangle { // Files panel
                 largePadding: root.largeButtonPadding
                 iconSmall: root.iconSizeSmall
                 iconLarge: root.iconSizeLarge
-                iconSource: model.isDir ? root.iconFolder : root.iconFile
+                iconSource: "image://theme/" + (model.iconName ? model.iconName : (model.isDir ? "folder" : "text-x-generic"))
                 thumbnailSource: model.thumb ? model.thumb : ""
                 fillColor: root.itemFillColor
                 strokeColor: root.itemBorderColor

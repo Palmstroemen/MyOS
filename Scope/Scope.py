@@ -14,8 +14,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from PySide6.QtCore import QObject, Slot, QUrl, Signal, QThreadPool, QRunnable, QSize, Qt
-from PySide6.QtGui import QGuiApplication, QIcon, QImageReader
+from PySide6.QtGui import QGuiApplication, QIcon, QImageReader, QImage
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickImageProvider
+from PySide6.QtCore import QMimeDatabase
 
 from core.scope_api import ScopeApi
 
@@ -237,20 +239,48 @@ class EntriesTask(QRunnable):
 
     def run(self) -> None:
         try:
+            mime_db = QMimeDatabase()
             entries = self._owner._api.list_entries(self._path)
             for entry in entries:
                 if entry.get("isDir"):
+                    entry["mime"] = "inode/directory"
+                    entry["iconName"] = "folder"
                     continue
                 raw_path = entry.get("path")
                 if not raw_path:
                     raw_path = os.path.join(self._path, entry.get("name", ""))
                     entry["path"] = raw_path
+                mime = mime_db.mimeTypeForFile(raw_path, QMimeDatabase.MatchExtension)
+                entry["mime"] = mime.name()
+                entry["iconName"] = mime.iconName() or mime.genericIconName() or "text-x-generic"
             self._owner._prime_thumbnails(entries)
             self._owner._store_entries(self._path, entries)
             self._owner.entriesReady.emit(self._path, entries)
         except Exception:
             self._owner._store_entries(self._path, [])
             self._owner.entriesReady.emit(self._path, [])
+
+
+class ThemeIconProvider(QQuickImageProvider):
+    def __init__(self) -> None:
+        super().__init__(QQuickImageProvider.Image)
+
+    def requestImage(self, icon_id: str, size: QSize, requested_size: QSize):
+        target_size = requested_size if requested_size.isValid() else QSize(64, 64)
+        icon = QIcon.fromTheme(icon_id)
+        if icon.isNull():
+            fallback = "folder" if icon_id == "folder" else "text-x-generic"
+            icon = QIcon.fromTheme(fallback)
+        pixmap = icon.pixmap(target_size) if not icon.isNull() else None
+        if pixmap is None or pixmap.isNull():
+            image = QImage(1, 1, QImage.Format_ARGB32_Premultiplied)
+            image.fill(Qt.transparent)
+        else:
+            image = pixmap.toImage()
+        if size is not None:
+            size.setWidth(image.width())
+            size.setHeight(image.height())
+        return image
 
 
 def main() -> int:
@@ -261,6 +291,7 @@ def main() -> int:
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
     engine = QQmlApplicationEngine()
+    engine.addImageProvider("theme", ThemeIconProvider())
 
     ctx = engine.rootContext()
     backend = Backend(api)

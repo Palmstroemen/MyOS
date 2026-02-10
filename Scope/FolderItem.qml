@@ -31,6 +31,31 @@ Rectangle {
     signal renameAccepted()
     signal renameCanceled()
 
+    function twoLineLabel(text, maxChars) {
+        if (!text) return ""
+        var clean = String(text)
+        var dotIndex = clean.lastIndexOf(".")
+        if (dotIndex > 0 && dotIndex < clean.length - 1) {
+            clean = clean.slice(0, dotIndex)
+        }
+        if (clean.length <= maxChars) {
+            return clean
+        }
+        if (clean.length <= (maxChars * 2)) {
+            var breakIdx = clean.lastIndexOf(" ", maxChars)
+            if (breakIdx < Math.max(1, maxChars - 6)) {
+                breakIdx = clean.indexOf(" ", maxChars)
+            }
+            if (breakIdx > 0 && breakIdx < clean.length - 1) {
+                return clean.slice(0, breakIdx) + "\n" + clean.slice(breakIdx + 1)
+            }
+            return clean.slice(0, maxChars) + "\n" + clean.slice(maxChars)
+        }
+        var head = clean.slice(0, maxChars)
+        var tail = clean.slice(Math.max(0, clean.length - maxChars))
+        return head + "...\n..." + tail
+    }
+
     radius: 6
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
@@ -108,16 +133,14 @@ Rectangle {
             sourceSize.height: height
         }
         Text {
-            text: label
+            text: twoLineLabel(label, 16)
             color: textColor
             font.pixelSize: largeTextSize
             font.bold: largeTextBold
             horizontalAlignment: largeIconAlignLeft ? Text.AlignLeft : Text.AlignHCenter
             width: parent.width
             visible: !renaming
-            wrapMode: Text.WordWrap
-            maximumLineCount: 2
-            elide: Text.ElideRight
+            wrapMode: Text.NoWrap
         }
     }
 
