@@ -572,6 +572,18 @@ ApplicationWindow {
         cancelRename()
     }
 
+    function warnIfMissing(target, propName, label) {
+        if (!target || !(propName in target)) {
+            console.warn("[scope] missing property", propName, "on", label)
+        }
+    }
+
+    function warnIfMissingAny(target, propNames, label) {
+        for (var i = 0; i < propNames.length; i++) {
+            warnIfMissing(target, propNames[i], label)
+        }
+    }
+
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
         if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
@@ -588,6 +600,25 @@ ApplicationWindow {
         }
         setCwp(startPath)
         updateBrowserLayout()
+        warnIfMissingAny(templatesBrowser, [
+            "projectColor",
+            "embryoColor",
+            "showEmbryos",
+            "showSearchToggle",
+            "showStyleToggle"
+        ], "templatesBrowser")
+        warnIfMissingAny(projectsBrowser, [
+            "projectColor",
+            "embryoColor",
+            "showEmbryos",
+            "showSearchToggle",
+            "showStyleToggle"
+        ], "projectsBrowser")
+        warnIfMissingAny(filesPane, [
+            "projectTint",
+            "projectTintBorder",
+            "showCreateProject"
+        ], "filesPane")
     }
     
     property bool newSubprojectEditing: false

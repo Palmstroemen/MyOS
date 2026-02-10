@@ -59,6 +59,8 @@ Item { // ROOT
     property color textSoft: "#cfd3df"
     property color textMuted: "#c9ccd7"
     property color card: "#0f1117"
+    property color projectTint: "#7b5bd6"
+    property color projectTintBorder: "#7b5bd6"
 
     signal pathSegmentActivated(int index)
     signal pathSelected(string path)
@@ -545,7 +547,9 @@ Item { // ROOT
                 Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
                     id: topFlowHost
                     Layout.fillWidth: false
-                    Layout.preferredWidth: topFoldersRow.implicitWidth
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
+                    Layout.minimumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
+                    Layout.maximumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
                     Layout.preferredHeight: compactButtonHeight
                     Layout.alignment: Qt.AlignTop
                     visible: !flowOnSecondLine
@@ -582,7 +586,12 @@ Item { // ROOT
                         }
                     }
                 }
-                Item { Layout.fillWidth: true } // HORIZONTAL: spacer/feder between folders and right buttons
+                Item { // HORIZONTAL: spacer/feder between folders and right buttons
+                    Layout.fillWidth: !flowOnSecondLine
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : -1
+                    Layout.minimumWidth: flowOnSecondLine ? 0 : 0
+                    Layout.maximumWidth: flowOnSecondLine ? 0 : -1
+                }
 
                 Item {  // HORIZONTAL: right button cluster (search + style + optional theme)
                     id: rightButtonsHost
