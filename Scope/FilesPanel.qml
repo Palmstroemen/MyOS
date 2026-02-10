@@ -37,6 +37,7 @@ Rectangle { // Files panel
     property int iconSizeSmall: 24
     property int iconSizeLarge: 64
     property int smallIconSize: Math.round(compactButtonHeight * 0.6)
+    property int gridSpacing: 8
 
     property var visibleItems: []
 
@@ -121,33 +122,40 @@ Rectangle { // Files panel
         anchors.margins: 16
         spacing: 8
 
-        Flow {
+        GridView {
+            id: filesGrid
             Layout.fillWidth: true
-            Layout.alignment: Qt.AlignTop
-            spacing: 8
-            width: parent.width
-            Repeater {
-                model: root.visibleItems
-                delegate: FolderItem {
-                    label: modelData.name
-                    style: root.itemStyle
-                    compactHeight: root.compactButtonHeight
-                    largeHeight: root.largeButtonHeight
-                    largePadding: root.largeButtonPadding
-                    iconSmall: root.iconSizeSmall
-                    iconLarge: root.iconSizeLarge
-                    iconSource: modelData.isDir ? root.iconFolder : root.iconFile
-                    fillColor: root.itemFillColor
-                    strokeColor: root.itemBorderColor
-                    textColor: root.text
-                    textSize: root.baseFont
-                    largeIconAlignLeft: false
-                    onDoubleActivate: {
-                        if (modelData.isDir) {
-                            root.folderActivated(modelData.name)
-                        } else {
-                            root.fileActivated(modelData.name)
-                        }
+            Layout.fillHeight: true
+            clip: true
+            model: root.visibleItems
+            cellWidth: root.itemStyle === "largeIcon"
+                ? (Math.max(120, root.iconSizeLarge + 36) + root.gridSpacing)
+                : width
+            cellHeight: root.itemStyle === "largeIcon"
+                ? (root.largeButtonHeight + root.gridSpacing)
+                : (root.compactButtonHeight + 4)
+            delegate: FolderItem {
+                width: filesGrid.cellWidth - root.gridSpacing
+                height: filesGrid.cellHeight - (root.itemStyle === "largeIcon" ? root.gridSpacing : 4)
+                label: modelData.name
+                style: root.itemStyle
+                compactHeight: root.compactButtonHeight
+                largeHeight: root.largeButtonHeight
+                largePadding: root.largeButtonPadding
+                iconSmall: root.iconSizeSmall
+                iconLarge: root.iconSizeLarge
+                iconSource: modelData.isDir ? root.iconFolder : root.iconFile
+                thumbnailSource: modelData.thumb ? modelData.thumb : ""
+                fillColor: root.itemFillColor
+                strokeColor: root.itemBorderColor
+                textColor: root.text
+                textSize: root.baseFont
+                largeIconAlignLeft: false
+                onDoubleActivate: {
+                    if (modelData.isDir) {
+                        root.folderActivated(modelData.name)
+                    } else {
+                        root.fileActivated(modelData.name)
                     }
                 }
             }

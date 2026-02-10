@@ -287,6 +287,25 @@ ApplicationWindow {
         }
     }
 
+    function updateThumbnail(fullPath, thumbUrl) {
+        if (!fullPath || !thumbUrl) return
+        var updated = fileItems.slice(0)
+        for (var i = 0; i < updated.length; i++) {
+            var item = updated[i]
+            var itemPath = item.path ? item.path : (cwp + "/" + item.name)
+            if (itemPath === fullPath) {
+                var next = {}
+                for (var key in item) {
+                    next[key] = item[key]
+                }
+                next.thumb = thumbUrl
+                updated[i] = next
+                fileItems = updated
+                return
+            }
+        }
+    }
+
     onCwpChanged: updateFiles()
 
     function updateSubProjects() {
@@ -538,6 +557,17 @@ ApplicationWindow {
         function onImplicitWidthChanged() {
             if (templatesBrowser && templatesBrowser.verticalView) {
                 scheduleBrowserLayoutRefresh()
+            }
+        }
+    }
+    Connections {
+        target: backend
+        function onThumbnailReady(path, thumbUrl) {
+            updateThumbnail(path, thumbUrl)
+        }
+        function onEntriesReady(path, entries) {
+            if (path === cwp) {
+                updateFiles()
             }
         }
     }

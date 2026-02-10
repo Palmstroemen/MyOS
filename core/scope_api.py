@@ -72,7 +72,9 @@ class ScopeApi:
         entries: List[dict] = []
         try:
             for child in sorted(target.iterdir()):
-                entries.append({"name": child.name, "isDir": child.is_dir()})
+                is_dir = child.is_dir()
+                entry = {"name": child.name, "isDir": is_dir, "path": str(child)}
+                entries.append(entry)
         except Exception:
             return []
 
@@ -81,7 +83,13 @@ class ScopeApi:
             embryos = self.blueprint.get_embryos_at(rel)
             for name in embryos:
                 if not any(item["name"] == name for item in entries):
-                    entries.append({"name": name, "isDir": True})
+                    entries.append(
+                        {
+                            "name": name,
+                            "isDir": True,
+                            "path": str(target / name),
+                        }
+                    )
             entries.sort(key=lambda item: item["name"])
 
         return entries

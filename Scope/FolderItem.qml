@@ -11,6 +11,7 @@ Rectangle {
     property int iconLarge: 64
     property int largePadding: 6
     property string iconSource: ""
+    property string thumbnailSource: ""
     property color fillColor: "#3b476b"
     property color strokeColor: "#58648a"
     property color textColor: "#cfd3df"
@@ -70,7 +71,7 @@ Rectangle {
         spacing: 6
         visible: style === "smallIcon"
         Image {
-            source: iconSource
+            source: thumbnailSource !== "" ? thumbnailSource : iconSource
             width: iconSmall
             height: iconSmall
             fillMode: Image.PreserveAspectFit
@@ -96,7 +97,7 @@ Rectangle {
         spacing: 2
         visible: style === "largeIcon"
         Image {
-            source: iconSource
+            source: thumbnailSource !== "" ? thumbnailSource : iconSource
             width: iconLarge
             height: iconLarge
             fillMode: Image.PreserveAspectFit
@@ -114,6 +115,9 @@ Rectangle {
             horizontalAlignment: largeIconAlignLeft ? Text.AlignLeft : Text.AlignHCenter
             width: parent.width
             visible: !renaming
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
         }
     }
 
