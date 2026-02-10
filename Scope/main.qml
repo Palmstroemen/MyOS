@@ -78,10 +78,13 @@ ApplicationWindow {
     property var standardFoldersFiltered: ["01", "02", "03", "04", "05"]
     property var userFolders: ["myFolder", "myOtherFolder"]
     property var files: ["Rechnung_001.pdf", "Angebot_Alpha.docx", "Note.md"]
-    property var fileItems: []
+    property var fileItemsRaw: []
+    property int fileItemsOffset: 0
+    property int fileItemsChunk: 160
     property bool hasMyosInCwp: false
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
+    ListModel { id: filesModel }
 
 
     QtObject {
@@ -250,6 +253,40 @@ ApplicationWindow {
         return demoItems
     }
 
+    function applyEntries(entries) {
+        var filtered = []
+        var found = false
+        for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i]
+            if (entry.isDir && entry.name === ".MyOS") {
+                found = true
+            }
+            if (entry.name && entry.name.indexOf(".") === 0) {
+                continue
+            }
+            if (!filesPane.showFolders && entry.isDir) {
+                continue
+            }
+            filtered.push(entry)
+        }
+        fileItemsRaw = filtered
+        fileItemsOffset = 0
+        filesModel.clear()
+        appendNextChunk()
+        if (!hasBackend()) {
+            hasMyosInCwp = found
+        }
+    }
+
+    function appendNextChunk() {
+        if (fileItemsOffset >= fileItemsRaw.length) return
+        var end = Math.min(fileItemsRaw.length, fileItemsOffset + fileItemsChunk)
+        for (var i = fileItemsOffset; i < end; i++) {
+            filesModel.append(fileItemsRaw[i])
+        }
+        fileItemsOffset = end
+    }
+
     function openFileEntry(name) {
         var fullPath = name.indexOf("/") === 0 ? name : (cwp + "/" + name)
         var lower = fullPath.toLowerCase()
@@ -267,23 +304,9 @@ ApplicationWindow {
 
     function updateFiles() {
         var entries = listEntries(cwp)
-        var filtered = []
-        var found = false
-        for (var i = 0; i < entries.length; i++) {
-            var entry = entries[i]
-            if (entry.isDir && entry.name === ".MyOS") {
-                found = true
-            }
-            if (entry.name && entry.name.indexOf(".") === 0) {
-                continue
-            }
-            filtered.push(entry)
-        }
-        fileItems = filtered
+        applyEntries(entries)
         if (hasBackend()) {
             hasMyosInCwp = backend.hasMyosDir(cwp)
-        } else {
-            hasMyosInCwp = found
         }
     }
 
@@ -567,7 +590,8 @@ ApplicationWindow {
         }
         function onEntriesReady(path, entries) {
             if (path === cwp) {
-                updateFiles()
+                applyEntries(entries)
+                hasMyosInCwp = backend.hasMyosDir(cwp)
             }
         }
     }
@@ -1069,7 +1093,7 @@ ApplicationWindow {
         FilesPanel {
             id: filesPane
             parent: floatingPool
-            items: window.fileItems
+        itemsModel: filesModel
             baseFont: window.baseFont
             text: theme.text
             textMuted: theme.textMuted
@@ -1097,6 +1121,8 @@ ApplicationWindow {
             smallButtonActiveBorder: theme.smallButtonActiveBorder
             smallButtonText: theme.smallButtonText
             showMyosButton: window.hasMyosInCwp
+        onRequestMore: appendNextChunk()
+        onFilterChanged: applyEntries(fileItemsRaw)
             onFolderActivated: function(name) {
                 if (name.indexOf("/") === 0) {
                     setCwp(name)

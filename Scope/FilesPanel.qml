@@ -3,7 +3,7 @@ import QtQuick.Layouts 1.15
 
 Rectangle { // Files panel
     id: root
-    property var items: []
+    property var itemsModel: null
     property int baseFont: 14
     property color text: "#e6e6e6"
     property color textMuted: "#c9ccd7"
@@ -38,20 +38,7 @@ Rectangle { // Files panel
     property int iconSizeLarge: 64
     property int smallIconSize: Math.round(compactButtonHeight * 0.6)
     property int gridSpacing: 8
-
-    property var visibleItems: []
-
-    function rebuildVisibleItems() {
-        var src = items || []
-        var out = []
-        for (var i = 0; i < src.length; i++) {
-            var entry = src[i]
-            if (showFolders || !entry.isDir) {
-                out.push(entry)
-            }
-        }
-        visibleItems = out
-    }
+    property int prefetchThreshold: 200
 
     radius: 8
     color: backgroundColor
@@ -60,9 +47,10 @@ Rectangle { // Files panel
     implicitHeight: 0
     opacity: halfTransparent ? 0.5 : 1
 
-    Component.onCompleted: rebuildVisibleItems()
-    onItemsChanged: rebuildVisibleItems()
-    onShowFoldersChanged: rebuildVisibleItems()
+    signal requestMore()
+    signal filterChanged(bool showFolders)
+
+    onShowFoldersChanged: filterChanged(showFolders)
 
     Row {
         id: cornerButtons
@@ -127,7 +115,7 @@ Rectangle { // Files panel
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: root.visibleItems
+            model: root.itemsModel
             cellWidth: root.itemStyle === "largeIcon"
                 ? (Math.max(120, root.iconSizeLarge + 36) + root.gridSpacing)
                 : width
@@ -137,26 +125,32 @@ Rectangle { // Files panel
             delegate: FolderItem {
                 width: filesGrid.cellWidth - root.gridSpacing
                 height: filesGrid.cellHeight - (root.itemStyle === "largeIcon" ? root.gridSpacing : 4)
-                label: modelData.name
+                label: model.name
                 style: root.itemStyle
                 compactHeight: root.compactButtonHeight
                 largeHeight: root.largeButtonHeight
                 largePadding: root.largeButtonPadding
                 iconSmall: root.iconSizeSmall
                 iconLarge: root.iconSizeLarge
-                iconSource: modelData.isDir ? root.iconFolder : root.iconFile
-                thumbnailSource: modelData.thumb ? modelData.thumb : ""
+                iconSource: model.isDir ? root.iconFolder : root.iconFile
+                thumbnailSource: model.thumb ? model.thumb : ""
                 fillColor: root.itemFillColor
                 strokeColor: root.itemBorderColor
                 textColor: root.text
                 textSize: root.baseFont
                 largeIconAlignLeft: false
                 onDoubleActivate: {
-                    if (modelData.isDir) {
-                        root.folderActivated(modelData.name)
+                    if (model.isDir) {
+                        root.folderActivated(model.name)
                     } else {
-                        root.fileActivated(modelData.name)
+                        root.fileActivated(model.name)
                     }
+                }
+            }
+            onContentYChanged: {
+                if (contentHeight <= height) return
+                if ((contentY + height + root.prefetchThreshold) >= contentHeight) {
+                    root.requestMore()
                 }
             }
         }
