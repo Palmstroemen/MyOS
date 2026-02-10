@@ -30,6 +30,7 @@ Item { // ROOT
     property int compactButtonHeight: 32
     property int largeButtonHeight: 72
     property int largeButtonPadding: 6
+    property int buttonTextYOffset: Math.round(compactButtonHeight * 0.05)
     property int iconSizeSmall: 20
     property int iconSizeLarge: 48
     property int maxParents: 4
@@ -393,8 +394,8 @@ Item { // ROOT
         ColumnLayout {  // Which VIEW???:
             id: mainColumn
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
+            anchors.margins: 6
+            spacing: 4
 
             RowLayout { // HORIZONTAL: row 1 (path + folders + right buttons)
                 id: topRow
@@ -449,6 +450,7 @@ Item { // ROOT
                                 largePadding: largeButtonPadding
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
+                                textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
                                 fillColor: isCurrent ? accentPrimary : pill
                                 strokeColor: isCurrent ? accentPrimary : pillBorder
@@ -483,6 +485,7 @@ Item { // ROOT
                                 largePadding: largeButtonPadding
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
+                                textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
                                 fillColor: accentSecondary
                                 strokeColor: accentSecondaryBorder
@@ -562,7 +565,7 @@ Item { // ROOT
                             border.color: smallButtonBorder
                             Image {
                                 anchors.centerIn: parent
-                                source: Qt.resolvedUrl(iconSearch)
+                                source: iconSearch
                                 width: baseFont
                                 height: baseFont
                                 fillMode: Image.PreserveAspectFit
@@ -718,6 +721,7 @@ Item { // ROOT
                                 largePadding: largeButtonPadding
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
+                                textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
                                 fillColor: pill
                                 strokeColor: pillBorder
@@ -739,6 +743,7 @@ Item { // ROOT
                         largePadding: largeButtonPadding
                         iconSmall: iconSizeSmall
                         iconLarge: iconSizeLarge
+                        textYOffset: buttonTextYOffset
                         iconSource: iconFolder
                         fillColor: accentPrimary
                         strokeColor: accentPrimary
@@ -775,6 +780,7 @@ Item { // ROOT
                                     largePadding: largeButtonPadding
                                     iconSmall: iconSizeSmall
                                     iconLarge: iconSizeLarge
+                                    textYOffset: buttonTextYOffset
                                     iconSource: iconFolder
                                     fillColor: accentSecondary
                                     strokeColor: accentSecondaryBorder
@@ -842,6 +848,7 @@ Item { // ROOT
                                         largePadding: largeButtonPadding
                                         iconSmall: iconSizeSmall
                                         iconLarge: iconSizeLarge
+                                    textYOffset: buttonTextYOffset
                                         iconSource: iconFolder
                                         fillColor: accentSecondary
                                         strokeColor: accentSecondaryBorder
@@ -892,6 +899,7 @@ Item { // ROOT
                                 largePadding: largeButtonPadding
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
+                                textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
                                 fillColor: accentSecondary
                                 strokeColor: accentSecondaryBorder

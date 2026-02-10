@@ -9,7 +9,7 @@ Rectangle {
     property int largeHeight: 88
     property int iconSmall: 24
     property int iconLarge: 64
-    property int largePadding: 6
+    property int largePadding: 3
     property string iconSource: ""
     property string thumbnailSource: ""
     property color fillColor: "#3b476b"
@@ -19,6 +19,7 @@ Rectangle {
     property int largeTextSize: textSize
     property bool textBold: false
     property bool largeTextBold: textBold
+    property int textYOffset: 0
     property bool renaming: false
     property bool renameEnabled: false
     property string renameText: ""
@@ -77,6 +78,7 @@ Rectangle {
         visible: !renaming && style === "text"
         Text {
             anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: textYOffset
             anchors.left: parent.left
             anchors.leftMargin: textLeftInset
             anchors.right: parent.right
@@ -108,6 +110,7 @@ Rectangle {
             color: textColor
             font.pixelSize: textSize
             font.bold: textBold
+            y: textYOffset
             visible: !renaming
         }
     }
@@ -141,6 +144,7 @@ Rectangle {
             width: parent.width
             visible: !renaming
             wrapMode: Text.NoWrap
+            y: textYOffset
         }
     }
 

@@ -12,16 +12,16 @@ ApplicationWindow {
 
     property int baseFont: Qt.application.font.pixelSize
     property bool darkTheme: true
-    property string iconFolder: "Theme/icons/folder.svg"
-    property string iconFolderOff: "Theme/icons/folder_off.svg"
-    property string iconSearch: "Theme/icons/search.svg"
-    property string iconFile: "Theme/icons/file.svg"
-    property string iconGear: "Theme/icons/gear.svg"
+    property string iconFolder: "image://theme/folder-open"
+    property string iconFolderOff: "image://theme/folder"
+    property string iconSearch: "image://theme/system-search"
+    property string iconFile: "image://theme/text-x-generic"
+    property string iconGear: "image://theme/preferences-system"
     property string folderItemStyle: "text" // text | smallIcon | largeIcon
-    property int iconSizeSmall: Math.round(baseFont * 1.35)
-    property int iconSizeLarge: 64
-    property int compactButtonHeight: 32
-    property int largeButtonPadding: 14
+    property int iconSizeSmall: Math.round(baseFont * 1.08)
+    property int iconSizeLarge: Math.round(64 * 0.8)
+    property int compactButtonHeight: 24
+    property int largeButtonPadding: 8
     property int largeButtonHeight: iconSizeLarge + baseFont + (largeButtonPadding * 2) + 2
     property int searchPathPrefixDepth: 2
     property bool verticalProjectView: false
@@ -813,7 +813,7 @@ ApplicationWindow {
         color: theme.bg
         ColumnLayout { // MainRows
             anchors.fill: parent
-            spacing: 12
+            spacing: 6
             anchors.margins: 16
 
             RowLayout { // Buttonbar
@@ -906,7 +906,7 @@ ApplicationWindow {
                 ColumnLayout { // Layout PH_TH   
                     id: case_PH_TH
                     anchors.fill: parent
-                    spacing: 12
+                    spacing: 6
                     visible: false
                     Item { id: slotTemplates_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
                     Item { id: slotProjects_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
@@ -922,7 +922,7 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        spacing: 12
+                        spacing: 6
                         Item { id: slotProjects_PV_TH; Layout.fillWidth: false; Layout.fillHeight: true }
                         Item { id: slotFiles_PV_TH; Layout.fillWidth: true; Layout.fillHeight: true }
                     }
@@ -938,7 +938,7 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        spacing: 12
+                        spacing: 6
                         Item { id: slotTemplates_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
                         Item { id: slotFiles_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
                     }
@@ -947,7 +947,7 @@ ApplicationWindow {
                 RowLayout {   // Layout PV_TV   
                     id: case_PV_TV
                     anchors.fill: parent
-                    spacing: 12
+                    spacing: 6
                     visible: false
                     Item { id: slotProjects_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
                     Item { id: slotTemplates_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
@@ -979,7 +979,7 @@ ApplicationWindow {
             baseFont: window.baseFont
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
-            largeButtonPadding: window.largeButtonPadding
+            largeButtonPadding: Math.round(window.largeButtonPadding * 0.5)
             iconSizeSmall: window.iconSizeSmall
             iconSizeLarge: window.iconSizeLarge
             iconFolder: window.iconFolder
@@ -1039,7 +1039,7 @@ ApplicationWindow {
             baseFont: window.baseFont
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
-            largeButtonPadding: window.largeButtonPadding
+            largeButtonPadding: Math.round(window.largeButtonPadding * 0.5)
             iconSizeSmall: window.iconSizeSmall
             iconSizeLarge: window.iconSizeLarge
             iconFolder: window.iconFolder
