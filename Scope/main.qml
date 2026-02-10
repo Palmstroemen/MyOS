@@ -231,6 +231,13 @@ ApplicationWindow {
         return demoData.childrenOf(path)
     }
 
+    function listTemplates(path) {
+        if (hasBackend() && typeof backend.listTemplates === "function") {
+            return backend.listTemplates(path)
+        }
+        return []
+    }
+
     function listEntries(path) {
         if (hasBackend()) {
             return backend.listEntries(path)
@@ -310,11 +317,21 @@ ApplicationWindow {
     }
 
     function updateFiles() {
+        if (hasBackend() && typeof backend.invalidateEntries === "function") {
+            backend.invalidateEntries(cwp)
+        }
         var entries = listEntries(cwp)
         applyEntries(entries)
         if (hasBackend()) {
             hasMyosInCwp = backend.hasMyosDir(cwp)
         }
+    }
+
+    function updateTemplates() {
+        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
+            console.log("[scope] updateTemplates cwp", cwp)
+        }
+        standardPath = cwp
     }
 
     function updateThumbnail(fullPath, thumbUrl) {
@@ -336,7 +353,23 @@ ApplicationWindow {
         }
     }
 
-    onCwpChanged: updateFiles()
+    onCwpChanged: {
+        if (hasBackend() && typeof backend.setContext === "function") {
+            backend.setContext(cwp)
+        }
+        updateFiles()
+        updateTemplates()
+    }
+    onStandardPathChanged: {
+        if (hasBackend() && typeof backend.invalidateEntries === "function") {
+            backend.invalidateEntries(standardPath)
+        }
+        standardFolders = listTemplates(standardPath)
+        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
+            console.log("[scope] templates", standardPath, standardFolders)
+        }
+        updateStandardFolders()
+    }
 
     function updateSubProjects() {
         var query = searchText.trim()
@@ -968,6 +1001,7 @@ ApplicationWindow {
             parent: floatingPool
             visible: templatesBrowserVisible
             path: standardPath
+            pathDisplayPrefix: cwp
             folders: standardFoldersFiltered
             verticalView: level2VerticalView
             buttonStyle: level2ButtonStyle
@@ -1013,6 +1047,10 @@ ApplicationWindow {
             }
             onStyleChanged: level2ButtonStyle = style
             onPathSegmentActivated: {
+                if (templatesBrowser.fullPathForDisplayIndex) {
+                    standardPath = templatesBrowser.fullPathForDisplayIndex(index)
+                    return
+                }
                 var parts = standardPath.split("/").filter(function(p){ return p.length > 0 })
                 standardPath = "/" + parts.slice(0, index + 1).join("/")
             }

@@ -176,6 +176,10 @@ class Backend(QObject):
     def listChildren(self, path: str):
         return self._api.list_children(path)
 
+    @Slot(str, result="QStringList")
+    def listTemplates(self, path: str):
+        return self._api.list_templates(path)
+
     @Slot(str, result="QVariantList")
     def listEntries(self, path: str):
         resolved = str(Path(path).expanduser().resolve())
@@ -188,6 +192,17 @@ class Backend(QObject):
             self._entries_pending.add(resolved)
         self._start_entries_task(resolved)
         return []
+
+    @Slot(str)
+    def setContext(self, path: str) -> None:
+        self._api.update_context(path)
+
+    @Slot(str)
+    def invalidateEntries(self, path: str) -> None:
+        resolved = str(Path(path).expanduser().resolve())
+        with self._entries_lock:
+            self._entries_cache.pop(resolved, None)
+            self._entries_pending.discard(resolved)
 
     @Slot(str, result=str)
     def requestThumbnail(self, path: str) -> str:

@@ -31,7 +31,12 @@ def is_within(path: Path, root: Path) -> bool:
 class ScopeApi:
     def __init__(self, start_path: str) -> None:
         self.start_path = Path(start_path).expanduser().resolve()
-        self.project_root = find_project_root(self.start_path)
+        self.project_root = None
+        self.blueprint = None
+        self._set_project_root(find_project_root(self.start_path))
+
+    def _set_project_root(self, root: Optional[Path]) -> None:
+        self.project_root = root
         self.blueprint = None
         if self.project_root and Blueprint is not None:
             try:
@@ -44,6 +49,12 @@ class ScopeApi:
 
     def get_project_root(self) -> Optional[str]:
         return str(self.project_root) if self.project_root else None
+
+    def update_context(self, path: str) -> None:
+        target = Path(path).expanduser().resolve()
+        root = find_project_root(target)
+        if root != self.project_root:
+            self._set_project_root(root)
 
     def list_children(self, path: str) -> List[str]:
         target = Path(path).expanduser().resolve()
@@ -66,6 +77,30 @@ class ScopeApi:
             names.sort()
 
         return names
+
+    def list_templates(self, path: str) -> List[str]:
+        target = Path(path).expanduser().resolve()
+        debug = os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}
+        if not self.blueprint or not self.project_root or not is_within(target, self.project_root):
+            if debug:
+                print(
+                    f"[scope_api] list_templates: blueprint={bool(self.blueprint)} "
+                    f"project_root={self.project_root} target={target} -> []"
+                )
+            return []
+        rel = "" if target == self.project_root else str(target.relative_to(self.project_root))
+        try:
+            result = sorted(self.blueprint.get_embryos_at(rel))
+            if debug:
+                print(
+                    f"[scope_api] list_templates: rel='{rel}' templates={self.blueprint.template_names} "
+                    f"result={result}"
+                )
+            return result
+        except Exception:
+            if debug:
+                print(f"[scope_api] list_templates: error for rel='{rel}'")
+            return []
 
     def list_entries(self, path: str) -> List[dict]:
         target = Path(path).expanduser().resolve()

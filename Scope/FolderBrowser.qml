@@ -13,6 +13,7 @@ Item { // ROOT
     implicitWidth: visible ? verticalAutoWidth : 0
     implicitHeight: visible ? contentHeight : 0
     property string path: "/"
+    property string pathDisplayPrefix: ""
     property var folders: []
     property bool verticalView: false
     property string buttonStyle: "text"
@@ -116,7 +117,8 @@ Item { // ROOT
             var label = parts[i].split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
             maxWidth = Math.max(maxWidth, estimateButtonWidth(label, pathStyle))
         }
-        var currentLabel = pathParts().length ? pathParts()[pathParts().length - 1] : "/"
+        var displayParts = pathPartsDisplay()
+        var currentLabel = displayParts.length ? displayParts[displayParts.length - 1] : "/"
         maxWidth = Math.max(maxWidth, estimateButtonWidth(currentLabel, pathStyle))
         var folderStyle = effectiveStyle()
         for (var f = 0; f < folders.length; f++) {
@@ -233,14 +235,62 @@ Item { // ROOT
     onFlowOnSecondLineChanged: scheduleContentHeightUpdate()
 
 
-    function pathParts() {
+    function pathPartsFull() {
         return path.split("/").filter(function(p){ return p.length > 0 })
     }
 
+    function prefixParts() {
+        if (!pathDisplayPrefix || pathDisplayPrefix.length === 0) return []
+        var prefix = pathDisplayPrefix
+        if (prefix.endsWith("/") && prefix.length > 1) {
+            prefix = prefix.slice(0, -1)
+        }
+        if (prefix === path) {
+            return prefix.split("/").filter(function(p){ return p.length > 0 })
+        }
+        if (path.indexOf(prefix + "/") === 0) {
+            return prefix.split("/").filter(function(p){ return p.length > 0 })
+        }
+        return []
+    }
+
+    function pathPartsDisplay() {
+        var fullParts = pathPartsFull()
+        var prefix = prefixParts()
+        if (prefix.length === 0) return fullParts
+        var remainder = fullParts.slice(prefix.length)
+        var root = prefix[prefix.length - 1]
+        if (remainder.length === 0) return [root]
+        return [root].concat(remainder)
+    }
+
+    function fullPathForDisplayIndex(index) {
+        var fullParts = pathPartsFull()
+        var prefix = prefixParts()
+        if (prefix.length === 0) {
+            return "/" + fullParts.slice(0, index + 1).join("/")
+        }
+        if (index <= 0) {
+            return "/" + prefix.join("/")
+        }
+        var remainder = fullParts.slice(prefix.length)
+        var target = prefix.concat(remainder.slice(0, index))
+        return "/" + target.join("/")
+    }
+
+    function pathParts() {
+        return pathPartsFull()
+    }
+
     function parentPaths() {
-        var parts = pathParts()
+        var parts = pathPartsFull()
+        var prefix = prefixParts()
+        var startIndex = 0
+        if (prefix.length > 0) {
+            startIndex = Math.max(0, prefix.length - 1)
+        }
         var paths = []
-        for (var i = 0; i < parts.length - 1; i++) {
+        for (var i = startIndex; i < parts.length - 1; i++) {
             paths.push("/" + parts.slice(0, i + 1).join("/"))
         }
         return paths
@@ -440,9 +490,9 @@ Item { // ROOT
                         anchors.right: pathRow.implicitWidth <= pathHost.width ? undefined : parent.right
                         onImplicitWidthChanged: scheduleLayoutUpdate()
                         Repeater {
-                            model: pathParts()
+                            model: pathPartsDisplay()
                             delegate: FolderItem {
-                                property bool isCurrent: index === pathParts().length - 1
+                                property bool isCurrent: index === (pathPartsDisplay().length - 1)
                                 label: modelData
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
@@ -736,7 +786,7 @@ Item { // ROOT
                     FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
                         width: parent.width
-                        label: pathParts().length ? pathParts()[pathParts().length - 1] : "/"
+                        label: pathPartsDisplay().length ? pathPartsDisplay()[pathPartsDisplay().length - 1] : "/"
                         style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
                         compactHeight: compactButtonHeight
                         largeHeight: largeButtonHeight
