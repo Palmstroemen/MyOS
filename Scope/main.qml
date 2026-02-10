@@ -78,6 +78,7 @@ ApplicationWindow {
     property var standardFoldersFiltered: ["01", "02", "03", "04", "05"]
     property var userFolders: ["myFolder", "myOtherFolder"]
     property var files: ["Rechnung_001.pdf", "Angebot_Alpha.docx", "Note.md"]
+    property var fileItemsAll: []
     property var fileItemsRaw: []
     property int fileItemsOffset: 0
     property int fileItemsChunk: 160
@@ -254,10 +255,16 @@ ApplicationWindow {
     }
 
     function applyEntries(entries) {
+        fileItemsAll = entries || []
+        filterEntries()
+    }
+
+    function filterEntries() {
         var filtered = []
         var found = false
-        for (var i = 0; i < entries.length; i++) {
-            var entry = entries[i]
+        var source = fileItemsAll || []
+        for (var i = 0; i < source.length; i++) {
+            var entry = source[i]
             if (entry.isDir && entry.name === ".MyOS") {
                 found = true
             }
@@ -1122,7 +1129,7 @@ ApplicationWindow {
             smallButtonText: theme.smallButtonText
             showMyosButton: window.hasMyosInCwp
         onRequestMore: appendNextChunk()
-        onFilterChanged: applyEntries(fileItemsRaw)
+        onFilterChanged: filterEntries()
             onFolderActivated: function(name) {
                 if (name.indexOf("/") === 0) {
                     setCwp(name)
