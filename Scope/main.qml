@@ -1085,9 +1085,10 @@ ApplicationWindow {
             projectTintBorder: window.currentProjectTint
             tintPathAsProject: false
             cwdOpacity: 1.0
-            pathProjectOpacity: 0.60
-            folderProjectOpacity: 0.45
-            embryoOpacity: 0.30
+            pathProjectOpacity: 0.7
+            folderProjectOpacity: 0.55
+            embryoOpacity: 0.4
+            debugLayout: typeof scopeDebugOpen !== "undefined" && scopeDebugOpen
             allowDrags: true
             allowDrops: true
             folders: standardFoldersFiltered
@@ -1133,17 +1134,17 @@ ApplicationWindow {
             onToggleMode: level2VerticalView = !level2VerticalView
             onToggleSearch: level2SearchActive = !level2SearchActive
             onSearchTextChanged: level2SearchText = templatesBrowser.searchText
-            onSearchTextEdited: {
+            onSearchTextEdited: function(value) {
                 level2SearchText = value
                 updateStandardFolders()
             }
-        onStyleChanged: level2ButtonStyle = style
+            onStyleChanged: function(style) { level2ButtonStyle = style }
         onToggleEmbryos: {
             window.templatesShowEmbryos = !window.templatesShowEmbryos
             standardFolders = listTemplates(standardPath)
             updateStandardFolders()
         }
-            onPathSegmentActivated: {
+            onPathSegmentActivated: function(index) {
                 if (templatesBrowser.fullPathForDisplayIndex) {
                     standardPath = templatesBrowser.fullPathForDisplayIndex(index)
                     return
@@ -1151,7 +1152,7 @@ ApplicationWindow {
                 var parts = standardPath.split("/").filter(function(p){ return p.length > 0 })
                 standardPath = "/" + parts.slice(0, index + 1).join("/")
             }
-            onPathSelected: standardPath = path
+            onPathSelected: function(path) { standardPath = path }
             onFolderActivated: {
                 var base = standardPath.endsWith("/") ? standardPath.slice(0, -1) : standardPath
                 standardPath = base + "/" + name
@@ -1170,9 +1171,10 @@ ApplicationWindow {
             projectTintBorder: window.currentProjectTint
             tintPathAsProject: true
             cwdOpacity: 1.0
-            pathProjectOpacity: 0.60
-            folderProjectOpacity: 0.45
-            embryoOpacity: 0.30
+            pathProjectOpacity: 0.7
+            folderProjectOpacity: 0.55
+            embryoOpacity: 0.4
+            debugLayout: typeof scopeDebugOpen !== "undefined" && scopeDebugOpen
             allowDrags: true
             allowDrops: true
             verticalView: verticalProjectView
@@ -1237,7 +1239,7 @@ ApplicationWindow {
             }
             // Ende Eingesetzt
 
-        onStyleChanged: folderItemStyle = style
+            onStyleChanged: function(style) { folderItemStyle = style }
         onToggleEmbryos: {
             window.projectsShowEmbryos = !window.projectsShowEmbryos
             updateSubProjects()
@@ -1247,7 +1249,7 @@ ApplicationWindow {
                 window.searchText = projectsBrowser.searchText
                 window.updateSubProjects()
             }
-            onSearchTextEdited: {
+            onSearchTextEdited: function(value) {
                 window.searchText = value
                 window.updateSubProjects()
             }
@@ -1255,7 +1257,7 @@ ApplicationWindow {
                 var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
                 setCwp("/" + parts.slice(0, index + 1).join("/"))
             }
-            onPathSelected: setCwp(path)
+            onPathSelected: function(path) { setCwp(path) }
             onFolderActivated: function(name) {
                 if (name.indexOf("/") === 0) {
                     setCwp(name)
@@ -1303,7 +1305,7 @@ ApplicationWindow {
             smallButtonText: theme.smallButtonText
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
-            projectTintOpacity: 1.0
+            projectTintOpacity: 0.75
         showMyosButton: window.hasProjectInCwp
         showCreateProject: !window.hasProjectInCwp
         onRequestMore: appendNextChunk()

@@ -6,9 +6,9 @@ Item { // ROOT
     id: root
     property int horizontalPreferredWidth: 640
     property int verticalPreferredWidth: 0
-    property int verticalMinWidth: 180
+    property int verticalMinWidth: 120
     property int verticalMaxWidth: 560
-    property int horizontalPreferredHeight: compactButtonHeight * 2 + (searchActive ? (compactButtonHeight + 8) : 0) + 24
+    property int horizontalPreferredHeight: compactButtonHeight * 2 + (searchActive ? (compactButtonHeight + 8) : 0) + 12
     property int verticalPreferredHeight: 360
     implicitWidth: visible ? verticalAutoWidth : 0
     implicitHeight: visible ? contentHeight : 0
@@ -70,9 +70,9 @@ Item { // ROOT
     property color folderButtonBorder: pillBorder
     property bool tintPathAsProject: false
     property real cwdOpacity: 1.0
-    property real pathProjectOpacity: 0.5
-    property real folderProjectOpacity: 0.25
-    property real embryoOpacity: 0.1
+    property real pathProjectOpacity: 0.7
+    property real folderProjectOpacity: 0.55
+    property real embryoOpacity: 0.4
 
     signal pathSegmentActivated(int index)
     signal pathSelected(string path)
@@ -91,6 +91,7 @@ Item { // ROOT
 
     property bool flowOnSecondLine: false
     property bool layoutUpdatePending: false
+    property bool debugLayout: false
     property int wrapSlackOn: 10
     property int wrapSlackOff: 60
     property bool verticalButtonsOnSecondLine: false
@@ -115,7 +116,7 @@ Item { // ROOT
     }
 
     function estimateButtonWidth(label, styleName) {
-        labelMetrics.text = label
+        labelMetrics.text = String(label === undefined || label === null ? "" : label)
         var textWidth = labelMetrics.width
         if (styleName === "smallIcon") {
             return Math.max(80, textWidth + iconSizeSmall + 30)
@@ -204,8 +205,10 @@ Item { // ROOT
         var currentLabel = displayParts.length ? displayParts[displayParts.length - 1] : "/"
         maxWidth = Math.max(maxWidth, estimateButtonWidth(currentLabel, pathStyle))
         var folderStyle = effectiveStyle()
-        for (var f = 0; f < folders.length; f++) {
-            maxWidth = Math.max(maxWidth, indent + estimateButtonWidth(folders[f], folderStyle))
+        if (!foldersInSecondColumn) {
+            for (var f = 0; f < folders.length; f++) {
+                maxWidth = Math.max(maxWidth, estimateButtonWidth(itemName(folders[f]), folderStyle))
+            }
         }
         var buttonsWidth = (showModeToggle ? compactButtonHeight + 6 : 0) + verticalButtonsPanel.implicitWidth
         maxWidth = Math.max(maxWidth, buttonsWidth + 12)
@@ -223,7 +226,7 @@ Item { // ROOT
         var maxWidth = 0
         var folderStyle = effectiveStyle()
         for (var f = 0; f < folders.length; f++) {
-            maxWidth = Math.max(maxWidth, indent + estimateButtonWidth(folders[f], folderStyle))
+            maxWidth = Math.max(maxWidth, estimateButtonWidth(itemName(folders[f]), folderStyle))
         }
         var padded = maxWidth + 32
         return Math.max(verticalMinWidth, padded)
@@ -232,11 +235,11 @@ Item { // ROOT
     function calculateContentHeight() {
         if (!mainColumn) return 0
         if (verticalView) {
-            return Math.round(verticalMainColumn.childrenRect.height + 24)
+            return Math.round(verticalMainColumn.childrenRect.height + 12)
         }
         var top = topRow ? topRow.implicitHeight : 0
         var bottom = (bottomRow && bottomRow.visible) ? (bottomRow.implicitHeight + mainColumn.spacing) : 0
-        return Math.round(top + bottom + 24)
+        return Math.round(top + bottom + 12)
     }
 
     function scheduleContentHeightUpdate() {
@@ -464,7 +467,12 @@ Item { // ROOT
         var used = pathRow.implicitWidth + topFoldersRow.implicitWidth + rightWidth + toggleWidth + (topRow.spacing * gapCount)
         var slack = topRow.width - used
         var shouldWrap = flowOnSecondLine ? (slack < wrapSlackOff) : (slack < wrapSlackOn)
-        if (flowOnSecondLine !== shouldWrap) flowOnSecondLine = shouldWrap
+        if (flowOnSecondLine !== shouldWrap) {
+            flowOnSecondLine = shouldWrap
+            if (debugLayout) {
+                console.log("[folderbrowser] wrap", path, "->", shouldWrap, "row", topRow.width, "used", used, "slack", slack)
+            }
+        }
     }
 
     function updateVerticalButtonsPlacement() {
@@ -588,7 +596,10 @@ Item { // ROOT
         ColumnLayout {  // Which VIEW???:
             id: mainColumn
             anchors.fill: parent
-            anchors.margins: 6
+            anchors.leftMargin: 6
+            anchors.rightMargin: 6
+            anchors.topMargin: 3
+            anchors.bottomMargin: 3
             spacing: 4
 
             RowLayout { // HORIZONTAL: row 1 (path + folders + right buttons)
@@ -641,9 +652,7 @@ Item { // ROOT
                             model: pathPartsDisplay()
                             delegate: FolderItem {
                                 property bool isCurrent: index === (pathPartsDisplay().length - 1)
-                                // property string fullPathForSegment: fullPathForDisplayIndex(index)
-                                property var segmentColors: getPathSegmentColor(fullPathForSegment, isCurrent)
-                                
+                                property string fullPathForSegment: fullPathForDisplayIndex(index)
                                 label: itemName(modelData)
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
@@ -653,25 +662,9 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
-                                property string fullPathForSegment: fullPathForDisplayIndex(index)
                                 property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, isCurrent) : null
                                 fillColor: customColors ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
-                                // fillColor: customColors ? customColors.fill : (isCurrent
-                                //    ? (tintPathAsProject
-                                //        ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
-                                //        : accentPrimary)
-                                //    : (tintPathAsProject
-                                //        ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
-                                //        : pathButtonFill))
-
                                 strokeColor: customColors ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
-                                // strokeColor: customColors ? customColors.stroke : (isCurrent
-                                //     ? (tintPathAsProject
-                                //         ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
-                                //         : accentPrimary)
-                                //     : (tintPathAsProject
-                                //         ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
-                                //         : pathButtonBorder))
                                 textColor: isCurrent ? accentPrimaryText : text
                                 textSize: baseFont
                                 renaming: false
@@ -1054,6 +1047,7 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
+                                textLeftInset: effectiveStyle() === "text" ? 8 : 0
                                 // fillColor: segmentColors.fill
                                 // strokeColor: segmentColors.stroke
                                 textColor: text
@@ -1107,6 +1101,7 @@ Item { // ROOT
                         iconLarge: iconSizeLarge
                         textYOffset: buttonTextYOffset
                         iconSource: iconFolder
+                        textLeftInset: effectiveStyle() === "text" ? 8 : 0
                         // fillColor: currentPathColors.fill
                         // Eingesetzt
                         // property string currentFullPath: path
@@ -1210,7 +1205,7 @@ Item { // ROOT
                                     strokeColor: folderStrokeColor(modelData)
                                     textColor: textSoft
                                     textSize: baseFont
-                                        textLeftInset: effectiveStyle() === "text" ? indent : 0
+                                        textLeftInset: effectiveStyle() === "text" ? 8 : 0
                                         dragEnabled: allowDrags && !itemIsEmbryo(modelData)
                                         dragPayload: fullPath
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
@@ -1276,8 +1271,8 @@ Item { // ROOT
                                         property string fullPath: itemName(modelData).indexOf("/") === 0
                                             ? itemName(modelData)
                                             : (path + "/" + itemName(modelData))
-                                        x: indent
-                                        width: parent.width - indent
+                                        x: 0
+                                        width: parent.width
                                         label: itemName(modelData)
                                         style: effectiveStyle()
                                         largeIconAlignLeft: effectiveStyle() !== "largeIcon"
@@ -1292,7 +1287,7 @@ Item { // ROOT
                                         strokeColor: folderStrokeColor(modelData)
                                         textColor: textSoft
                                         textSize: baseFont
-                                        textLeftInset: effectiveStyle() === "text" ? indent : 0
+                                        textLeftInset: effectiveStyle() === "text" ? 8 : 0
                                         dragEnabled: allowDrags && !itemIsEmbryo(modelData)
                                         dragPayload: fullPath
                                         renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))

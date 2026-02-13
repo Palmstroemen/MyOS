@@ -71,12 +71,13 @@ class ScopeApi:
                     continue
                 if child.is_dir():
                     is_project = self.is_project(str(child))
+                    project_color = self._resolve_direct_project_color(child) if is_project else None
                     entries.append(
                         {
                             "name": child.name,
                             "isProject": is_project,
                             "isEmbryo": False,
-                            "color": self._resolve_project_color(child) if is_project else None,
+                            "color": project_color,
                         }
                     )
         except Exception:
@@ -177,7 +178,14 @@ class ScopeApi:
         return (target / ".MyOS" / "Project.md").is_file()
 
     def get_project_color(self, path: str) -> Optional[str]:
-        return self._resolve_project_color(Path(path).expanduser().resolve())
+        target = Path(path).expanduser().resolve()
+        return self._resolve_direct_project_color(target)
+
+    def _resolve_direct_project_color(self, path: Path) -> Optional[str]:
+        color = self._read_color_file(path / ".MyOS" / "Color.md")
+        if color:
+            return color
+        return self._read_color_file(path / ".MyOS" / "Project.md")
 
     def _resolve_project_color(self, path: Path) -> Optional[str]:
         if not self.project_root:
