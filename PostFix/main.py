@@ -358,10 +358,11 @@ class BottomToolbar(QWidget):
         self.flyout.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
         self.flyout.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.flyout.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.flyout.setAttribute(Qt.WA_TranslucentBackground, True)
         self.flyout.setMouseTracking(True)
         self.flyout.setAttribute(Qt.WA_Hover, True)
         self.flyout.setStyleSheet(
-            "QFrame { background-color: rgba(255,255,255,235); border: none; }"
+            "QFrame { background-color: transparent; border: none; }"
         )
         self.flyout_layout = QHBoxLayout(self.flyout)
         self.flyout_layout.setContentsMargins(12, 8, 12, 8)
@@ -559,8 +560,21 @@ class BottomToolbar(QWidget):
     def _make_flyout_item(self, label: str, names: list, on_click):
         display_label = label.replace("_", " ")
         wrapper = QFrame()
+        wrapper.setObjectName("flyoutItemCard")
+        wrapper.setStyleSheet(
+            """
+            QFrame#flyoutItemCard {
+                background-color: rgba(255, 255, 255, 212);
+                border: 1px solid rgba(0, 0, 0, 30);
+                border-radius: 20px;
+            }
+            QFrame#flyoutItemCard:hover {
+                background-color: rgba(255, 255, 255, 235);
+            }
+            """
+        )
         layout = QVBoxLayout(wrapper)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(4)
 
         btn = QPushButton()
@@ -570,12 +584,12 @@ class BottomToolbar(QWidget):
             QPushButton {
                 background-color: rgba(0, 0, 0, 0);
                 color: #333333;
-                border: 1px solid rgba(0, 0, 0, 60);
-                border-radius: 22px;
+                border: none;
+                border-radius: 20px;
                 font-size: 14px;
             }
             QPushButton:hover {
-                background-color: rgba(0, 0, 0, 25);
+                background-color: rgba(0, 0, 0, 18);
             }
         """)
         icon = self._find_icon(names)
@@ -592,7 +606,7 @@ class BottomToolbar(QWidget):
         text = QLabel(display_label)
         text.setWordWrap(True)
         text.setAlignment(Qt.AlignHCenter)
-        text.setStyleSheet("QLabel { font-size: 10px; color: #333333; }")
+        text.setStyleSheet("QLabel { font-size: 10px; color: #333333; background: transparent; }")
         text.setFixedWidth(90)
 
         layout.addWidget(btn, alignment=Qt.AlignHCenter)
@@ -1076,7 +1090,39 @@ class SmartEditor(QWidget):
             f"QPlainTextEdit {{ background-color: {color_hex}; padding: 12px; }}"
         )
         self.preview.setStyleSheet(
-            f"QTextBrowser {{ background-color: {color_hex}; padding: 12px; }}"
+            f"""
+            QTextBrowser {{
+                background-color: {color_hex};
+                padding: 12px;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background: rgba(0, 0, 0, 12);
+                width: 11px;
+                margin: 2px 2px 2px 0;
+                border-radius: 5px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: rgba(40, 40, 40, 110);
+                min-height: 22px;
+                border-radius: 5px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: rgba(40, 40, 40, 145);
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                background: rgba(255, 255, 255, 120);
+                height: 10px;
+                border-radius: 5px;
+            }}
+            QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical {{
+                width: 0px;
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: transparent;
+            }}
+            """
         )
         self.focus_edit.setStyleSheet(
             f"""
@@ -1817,6 +1863,7 @@ class PostFixWindow(QMainWindow):
         main_layout.addWidget(self.topbar_bg, 0, 1)
         main_layout.addWidget(self.top_toolbar, 0, 1)
         main_layout.addWidget(self.strip_right_top_host, 0, 2)
+        main_layout.addWidget(self.btn_close, 0, 2, Qt.AlignLeft | Qt.AlignTop)
 
         main_layout.addWidget(self.left_mid_host, 1, 0)
         main_layout.addWidget(self.editor, 1, 1)
@@ -1858,6 +1905,7 @@ class PostFixWindow(QMainWindow):
         
         layout = QHBoxLayout(self.top_toolbar)
         layout.setSpacing(10)
+        layout.setContentsMargins(8, 0, 2, 0)
         
         # Burger menu button
         self.btn_menu = QPushButton("☰")
@@ -1901,10 +1949,7 @@ class PostFixWindow(QMainWindow):
         self.btn_view_mode = QPushButton("Focus Mode")
         self.btn_view_mode.setCursor(Qt.PointingHandCursor)
         self.apply_oval_button_style(self.btn_view_mode, "#FFF740", "#d4c600")
-        
-        # Center view mode button
-        layout.addStretch()
-        layout.addWidget(self.btn_view_mode)
+        self.btn_view_mode.hide()
         layout.addStretch()
         
         # Window control buttons
@@ -1934,7 +1979,6 @@ class PostFixWindow(QMainWindow):
         
         layout.addWidget(self.btn_minimize)
         layout.addWidget(self.btn_maximize)
-        layout.addWidget(self.btn_close)
         
     def connect_signals(self):
         """Connect all button signals."""
