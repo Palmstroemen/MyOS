@@ -11,6 +11,9 @@ import tempfile
 import shutil
 import shlex
 import urllib.parse
+import re
+import hashlib
+import difflib
 from pathlib import Path
 
 import markdown2
@@ -130,35 +133,37 @@ class TagSidebar(SidebarWidget):
     def __init__(self):
         super().__init__("Tags", "rgba(220, 240, 200, 60)")
         self.tags = []
+        self._tag_colors = {}
         self.setup_ui()
         
     def setup_ui(self):
-        # Get the layout from parent
+        self._rebuild()
+
+    def set_tags(self, tags):
+        cleaned = sorted({str(t).strip() for t in (tags or []) if str(t).strip()})
+        self.tags = cleaned
+        self._rebuild()
+
+    def _rebuild(self):
         layout = self.layout()
         layout.setContentsMargins(0, 8, 0, 8)
-        
-        # Clear placeholder widgets
         while layout.count():
             item = layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        
-        # Add tag buttons (example tags)
-        self.tag_buttons = []
-        example_tags = [
-            ("important", "#ff6b6b"),
-            ("urgent", "#ffa726"),
-            ("in process", "#ffd93d"),
-            ("done", "#6bcf7f"),
-            ("waiting", "#4d96ff")
-        ]
-        
-        for tag_text, color in example_tags:
-            btn = QPushButton(tag_text)
-            btn.setStyleSheet(f"""
+
+        for tag in self.tags:
+            color = self._color_for_tag(tag)
+            text_color = self._text_color_for_bg(color)
+            btn = QPushButton(f"#{tag}")
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(lambda _=False, t=tag: self._pick_tag_color(t))
+            btn.setToolTip("Click to change tag color")
+            btn.setStyleSheet(
+                f"""
                 QPushButton {{
                     background-color: {color};
-                    color: white;
+                    color: {text_color};
                     border: none;
                     border-top-left-radius: 2px;
                     border-bottom-left-radius: 2px;
@@ -166,39 +171,50 @@ class TagSidebar(SidebarWidget):
                     border-bottom-right-radius: 10px;
                     padding: 5px 10px;
                     margin: 2px;
+                    text-align: left;
                 }}
                 QPushButton:hover {{
-                    background-color: {color};
                     border: 1px solid white;
                 }}
-            """)
-            btn.setCursor(Qt.PointingHandCursor)
+                """
+            )
             layout.addWidget(btn)
-            self.tag_buttons.append(btn)
-        
-        # Add Tag button (always visible)
-        self.add_tag_btn = QPushButton("+ Add Tag")
-        self.add_tag_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(100, 100, 100, 100);
-                color: white;
-                border: 1px dashed white;
-                border-top-left-radius: 2px;
-                border-bottom-left-radius: 2px;
-                border-top-right-radius: 10px;
-                border-bottom-right-radius: 10px;
-                padding: 5px 10px;
-                margin: 5px;
-            }
-            QPushButton:hover {
-                background-color: rgba(150, 150, 150, 150);
-            }
-        """)
-        self.add_tag_btn.setCursor(Qt.PointingHandCursor)
-        layout.addWidget(self.add_tag_btn)
-        
-        # Add stretch at the bottom
         layout.addStretch()
+
+    def _color_for_tag(self, tag: str) -> str:
+        color_from_tag = self._hex_color_from_tag(tag)
+        if color_from_tag:
+            self._tag_colors[tag] = color_from_tag
+            return color_from_tag
+        if tag in self._tag_colors:
+            return self._tag_colors[tag]
+        palette = ["#ff6b6b", "#ffa726", "#ffd93d", "#6bcf7f", "#4d96ff", "#9c6bff", "#26c6da"]
+        idx = int(hashlib.md5(tag.encode("utf-8")).hexdigest(), 16) % len(palette)
+        self._tag_colors[tag] = palette[idx]
+        return palette[idx]
+
+    def _hex_color_from_tag(self, tag: str):
+        value = (tag or "").strip()
+        if len(value) == 3 and all(ch in "0123456789abcdefABCDEF" for ch in value):
+            return f"#{value[0]}{value[0]}{value[1]}{value[1]}{value[2]}{value[2]}".upper()
+        if len(value) == 6 and all(ch in "0123456789abcdefABCDEF" for ch in value):
+            return f"#{value}".upper()
+        return None
+
+    def _text_color_for_bg(self, color_hex: str) -> str:
+        color = QColor(color_hex)
+        if not color.isValid():
+            return "#ffffff"
+        # Perceived luminance for contrast decision
+        luminance = 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()
+        return "#1f2433" if luminance > 165 else "#ffffff"
+
+    def _pick_tag_color(self, tag: str):
+        chosen = QColorDialog.getColor(QColor(self._color_for_tag(tag)), self, f"Color for #{tag}")
+        if not chosen.isValid():
+            return
+        self._tag_colors[tag] = chosen.name()
+        self._rebuild()
 
 
 class ACLSidebar(SidebarWidget):
@@ -590,10 +606,12 @@ class BottomToolbar(QWidget):
 
 class SmartEditor(QWidget):
     """Central editor with source, preview, and split modes."""
+    tagsChanged = Signal(list)
 
-    MODE_PREVIEW = "Live Preview"
-    MODE_SOURCE = "Edit Source"
-    MODE_SPLIT = "Split View"
+    MODE_FOCUS = "Focus Mode"
+    MODE_PREVIEW = MODE_FOCUS
+    MODE_SOURCE = MODE_FOCUS
+    MODE_SPLIT = MODE_FOCUS
 
     def __init__(self, show_frontmatter: bool = False):
         super().__init__()
@@ -605,8 +623,14 @@ class SmartEditor(QWidget):
         self._bg_anim = None
         self._bg_initialized = False
         self.current_path = None
+        self._focus_spans = []
+        self._active_focus_idx = -1
+        self._syncing_focus = False
+        self._editing_focus = False
+        self._index_debug_visible = False
+        self._overlay_top_hint = None
         self.setup_ui()
-        self.apply_background(self.current_bg)
+        self.apply_background(self.current_bg, update_frontmatter=False, animate=False)
         self.render_preview()
 
     def setup_ui(self):
@@ -617,19 +641,45 @@ class SmartEditor(QWidget):
         self.source_edit.setPlaceholderText("Write your markdown here...")
         self.source_edit.setViewportMargins(12, 12, 12, 12)
         self.source_edit.setFrameStyle(QFrame.NoFrame)
-        self.source_edit.textChanged.connect(self.render_preview)
+        self.source_edit.textChanged.connect(self._on_source_changed)
+        self.source_edit.hide()
 
         self.preview = QTextBrowser()
         self.preview.setOpenExternalLinks(True)
         self.preview.setFrameStyle(QFrame.NoFrame)
+        self.preview.viewport().installEventFilter(self)
+        self.preview.verticalScrollBar().valueChanged.connect(self._sync_index_scroll)
+        self.preview.verticalScrollBar().valueChanged.connect(self._on_preview_scrolled)
 
-        self.splitter = QSplitter(Qt.Horizontal)
-        self.splitter.addWidget(self.source_edit)
-        self.splitter.addWidget(self.preview)
-        self.splitter.setStretchFactor(0, 1)
-        self.splitter.setStretchFactor(1, 1)
+        self.index_gutter = QPlainTextEdit()
+        self.index_gutter.setReadOnly(True)
+        self.index_gutter.setFrameStyle(QFrame.NoFrame)
+        self.index_gutter.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.index_gutter.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.index_gutter.setFixedWidth(54)
+        self.index_gutter.viewport().installEventFilter(self)
+        self.index_gutter.setVisible(self._index_debug_visible)
 
-        layout.addWidget(self.splitter)
+        preview_row = QWidget()
+        preview_layout = QHBoxLayout(preview_row)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(6)
+        preview_layout.addWidget(self.index_gutter)
+        preview_layout.addWidget(self.preview, 1)
+
+        self.focus_edit = QPlainTextEdit()
+        self.focus_edit.setPlaceholderText("")
+        self.focus_edit.setMaximumHeight(260)
+        self.focus_edit.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        self.focus_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.focus_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.focus_edit.setViewportMargins(0, 0, 0, 0)
+        self.focus_edit.textChanged.connect(self._on_focus_text_changed)
+        self.focus_edit.installEventFilter(self)
+        self.focus_edit.setParent(self.preview.viewport())
+        self.focus_edit.hide()
+
+        layout.addWidget(preview_row)
 
         self._frontmatter = {
             "title": "PostFix Note",
@@ -641,14 +691,16 @@ class SmartEditor(QWidget):
             self.source_edit.setPlainText(initial_text)
         else:
             self.source_edit.setPlainText(body_text)
+        self._rebuild_focus_spans()
 
     def load_markdown(self, text: str):
         meta, body = self.metadata.split_frontmatter(text)
         self._frontmatter = meta
         self.source_edit.setPlainText(text if self.show_frontmatter else body)
+        self._rebuild_focus_spans()
         bg = self._frontmatter.get("background_color")
         if isinstance(bg, str) and bg.startswith("#"):
-            self.apply_background(bg)
+            self.apply_background(bg, update_frontmatter=False, animate=False)
         else:
             self.render_preview()
 
@@ -662,45 +714,334 @@ class SmartEditor(QWidget):
         return self.metadata.build_frontmatter(self._frontmatter, body)
 
     def set_view_mode(self, mode: str):
-        if mode == self.MODE_PREVIEW:
-            self.source_edit.hide()
-            self.preview.show()
-            self.splitter.setSizes([0, 1])
-        elif mode == self.MODE_SOURCE:
-            self.preview.hide()
-            self.source_edit.show()
-            self.splitter.setSizes([1, 0])
+        self.source_edit.hide()
+        self.preview.show()
+        if self._active_focus_idx >= 0:
+            self.focus_edit.show()
         else:
-            self.source_edit.show()
-            self.preview.show()
-            self.splitter.setSizes([1, 1])
+            self.focus_edit.hide()
 
-    def render_preview(self):
+    def render_preview(self, sync_focus: bool = True):
         text = self.source_edit.toPlainText()
         _, body = self.metadata.split_frontmatter(text)
+        scroll_value = self.preview.verticalScrollBar().value()
         html = markdown2.markdown(body, extras=["fenced-code-blocks"])
         self.preview.setHtml(html)
+        self.preview.verticalScrollBar().setValue(scroll_value)
+        self._refresh_index_gutter()
+        self._rebuild_focus_spans()
+        tags = self.extract_tags(body)
+        self.tagsChanged.emit(tags)
+        if sync_focus and self._active_focus_idx >= 0:
+            self._apply_focus_text_from_source()
         self.apply_background(self.current_bg, update_frontmatter=False)
 
-    def apply_background(self, color_hex: str, update_frontmatter: bool = True):
+    def _on_source_changed(self):
+        if self._syncing_focus:
+            return
+        self.render_preview(sync_focus=not self._editing_focus)
+
+    def extract_tags(self, body: str):
+        found = re.findall(r"(?<!\w)#([a-zA-Z0-9_/\-äöüÄÖÜß]+)", body or "")
+        return sorted(set(found), key=lambda t: t.lower())
+
+    def _rebuild_focus_spans(self):
+        body = self._source_body()
+        lines = body.splitlines()
+        spans = [(idx, idx + 1) for idx in range(len(lines))]
+        if not spans:
+            spans = [(0, max(1, len(lines)))]
+        self._focus_spans = spans
+        if self._active_focus_idx >= len(spans):
+            self._active_focus_idx = len(spans) - 1
+
+    def _source_body(self) -> str:
+        text = self.source_edit.toPlainText()
+        if self.show_frontmatter:
+            _, body = self.metadata.split_frontmatter(text)
+            return body
+        return text
+
+    def _source_lines(self):
+        return self._source_body().splitlines()
+
+    def _refresh_index_gutter(self):
+        lines = self._source_lines()
+        if not lines:
+            self.index_gutter.setPlainText("0001")
+            return
+        markers = []
+        for idx in range(len(lines)):
+            markers.append(f"{idx + 1:04d} ·")
+        self.index_gutter.blockSignals(True)
+        self.index_gutter.setPlainText("\n".join(markers))
+        self.index_gutter.blockSignals(False)
+        self._sync_index_scroll()
+
+    def _sync_index_scroll(self):
+        if not self.index_gutter.isVisible():
+            return
+        pbar = self.preview.verticalScrollBar()
+        gbar = self.index_gutter.verticalScrollBar()
+        if pbar.maximum() <= 0 or gbar.maximum() <= 0:
+            gbar.setValue(0)
+            return
+        ratio = pbar.value() / max(1, pbar.maximum())
+        gbar.setValue(int(ratio * gbar.maximum()))
+
+    def _on_preview_scrolled(self):
+        if self.focus_edit.isVisible() and self._active_focus_idx >= 0:
+            self._position_focus_overlay()
+
+    def _normalize_for_match(self, text: str) -> str:
+        cleaned = (text or "").strip().lower()
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        cleaned = re.sub(r"[^a-z0-9äöüß _/\-:.]", "", cleaned)
+        return cleaned
+
+    def _set_source_body(self, body: str):
+        if self.show_frontmatter:
+            updated = self.metadata.build_frontmatter(self._frontmatter, body)
+            self._replace_source_text(updated)
+            return
+        self._replace_source_text(body)
+
+    def _apply_focus_text_from_source(self, preserve_cursor: bool = False):
+        if self._active_focus_idx < 0 or self._active_focus_idx >= len(self._focus_spans):
+            return
+        body_lines = self._source_body().splitlines()
+        start, end = self._focus_spans[self._active_focus_idx]
+        segment = "\n".join(body_lines[start:end]) if start < len(body_lines) else ""
+        cursor_pos = self.focus_edit.textCursor().position()
+        self._syncing_focus = True
+        self.focus_edit.blockSignals(True)
+        self.focus_edit.setPlainText(segment)
+        self.focus_edit.blockSignals(False)
+        if preserve_cursor:
+            cursor = self.focus_edit.textCursor()
+            cursor.setPosition(min(cursor_pos, len(segment)))
+            self.focus_edit.setTextCursor(cursor)
+        self._syncing_focus = False
+        self._position_focus_overlay()
+
+    def _position_focus_overlay(self):
+        viewport = self.preview.viewport()
+        if viewport is None:
+            return
+        count = max(1, len(self._focus_spans))
+        idx = max(0, min(self._active_focus_idx, count - 1))
+
+        doc = self.preview.document()
+        layout = doc.documentLayout() if doc else None
+        doc_height = layout.documentSize().height() if layout else 0.0
+        scroll = float(self.preview.verticalScrollBar().value())
+
+        if doc_height > 1.0 and count > 0:
+            # Anchor editor to the NEXT index (below selected line/segment).
+            next_idx = min(idx + 1, count - 1)
+            y_top = ((next_idx / float(count)) * doc_height) - scroll
+            y_bottom = (((next_idx + 1) / float(count)) * doc_height) - scroll
+            top = int(round(y_top))
+            bottom = int(round(y_bottom))
+        else:
+            line_h = max(18, self.preview.fontMetrics().lineSpacing() + 4)
+            top = min(idx + 1, count - 1) * line_h
+            bottom = top + line_h
+
+        if self._overlay_top_hint is not None:
+            top = int(self._overlay_top_hint)
+        top = max(0, min(top, viewport.height() - 1))
+
+        # True auto-height based on current text and current overlay width.
+        content_h = self._estimate_focus_height(self.focus_edit.toPlainText(), max(120, viewport.width()))
+        min_h = max(20, self.preview.fontMetrics().lineSpacing() + 4)
+        height = max(min_h, content_h + 2)
+        height = max(height, bottom - top)
+        if top + height > viewport.height():
+            top = max(0, viewport.height() - height)
+
+        self.focus_edit.setGeometry(0, top, max(120, viewport.width()), height)
+        self.focus_edit.setVisible(True)
+        self.focus_edit.raise_()
+
+    def _hide_focus_overlay(self):
+        self.focus_edit.hide()
+        self._overlay_top_hint = None
+        self.preview.setFocus()
+
+    def _estimate_focus_height(self, text: str, width: int) -> int:
+        fm = self.focus_edit.fontMetrics()
+        usable_w = max(40, width - 2)
+        lines = text.splitlines()
+        if not lines:
+            lines = [""]
+        total = 0
+        for line in lines:
+            probe = line if line else " "
+            rect = fm.boundingRect(QRect(0, 0, usable_w, 100000), Qt.TextWordWrap | Qt.TextExpandTabs, probe)
+            total += max(fm.lineSpacing(), rect.height())
+        return total + 4
+
+    def _on_focus_text_changed(self):
+        if self._syncing_focus:
+            return
+        if self._active_focus_idx < 0 or self._active_focus_idx >= len(self._focus_spans):
+            return
+        body_lines = self._source_body().splitlines()
+        start, end = self._focus_spans[self._active_focus_idx]
+        replacement = self.focus_edit.toPlainText().splitlines()
+        new_lines = body_lines[:start] + replacement + body_lines[end:]
+        self._syncing_focus = True
+        self._editing_focus = True
+        self._set_source_body("\n".join(new_lines) + ("\n" if self._source_body().endswith("\n") else ""))
+        self._editing_focus = False
+        self._syncing_focus = False
+        self.render_preview(sync_focus=False)
+        self._position_focus_overlay()
+
+    def _move_focus_line(self, delta: int):
+        if not self._focus_spans:
+            return
+        col = self.focus_edit.textCursor().positionInBlock()
+        step = max(18, self.preview.fontMetrics().lineSpacing() + 2)
+        if self._overlay_top_hint is not None:
+            self._overlay_top_hint += delta * step
+        if self._active_focus_idx < 0:
+            self._active_focus_idx = 0
+        else:
+            self._active_focus_idx = max(0, min(self._active_focus_idx + delta, len(self._focus_spans) - 1))
+        self._apply_focus_text_from_source()
+        cursor = self.focus_edit.textCursor()
+        cursor.setPosition(min(col, len(self.focus_edit.document().firstBlock().text())))
+        self.focus_edit.setTextCursor(cursor)
+        self.focus_edit.setFocus()
+
+    def eventFilter(self, watched, event):
+        focus_widget = getattr(self, "focus_edit", None)
+        preview_widget = getattr(self, "preview", None)
+        index_widget = getattr(self, "index_gutter", None)
+
+        if focus_widget is None or preview_widget is None or index_widget is None:
+            return super().eventFilter(watched, event)
+
+        if watched is preview_widget.viewport() and event.type() == QEvent.Resize:
+            if focus_widget.isVisible() and self._active_focus_idx >= 0:
+                self._position_focus_overlay()
+            return False
+
+        if watched is focus_widget and event.type() == QEvent.KeyPress:
+            key = event.key()
+            if key == Qt.Key_Up:
+                self._move_focus_line(-1)
+                return True
+            if key == Qt.Key_Down:
+                self._move_focus_line(1)
+                return True
+            if key in (Qt.Key_Return, Qt.Key_Enter):
+                self._hide_focus_overlay()
+                return True
+        if watched is preview_widget.viewport() and event.type() == QEvent.MouseButtonPress:
+            pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+            if focus_widget.isVisible() and not focus_widget.geometry().contains(pos):
+                self._hide_focus_overlay()
+            return False
+        if watched is preview_widget.viewport() and event.type() == QEvent.MouseButtonDblClick:
+            pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+            if self._focus_spans:
+                idx = self._line_index_from_preview_pos(pos)
+                self._active_focus_idx = idx
+                click_cursor = preview_widget.cursorForPosition(pos)
+                click_rect = preview_widget.cursorRect(click_cursor)
+                self._overlay_top_hint = click_rect.bottom() + 1
+                self._apply_focus_text_from_source()
+                focus_widget.setFocus()
+            return False
+        if watched is index_widget.viewport() and event.type() == QEvent.MouseButtonPress:
+            pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+            cursor = index_widget.cursorForPosition(pos)
+            idx = max(0, min(cursor.blockNumber(), len(self._focus_spans) - 1))
+            self._active_focus_idx = idx
+            self._overlay_top_hint = pos.y() + 1
+            self._apply_focus_text_from_source()
+            focus_widget.setFocus()
+            return True
+        return super().eventFilter(watched, event)
+
+    def _line_index_from_preview_pos(self, pos: QPoint) -> int:
+        count = len(self._focus_spans)
+        if count <= 0:
+            return 0
+
+        scroll = self.preview.verticalScrollBar().value()
+        abs_y = float(scroll + pos.y())
+        doc = self.preview.document()
+        layout = doc.documentLayout() if doc else None
+        height = layout.documentSize().height() if layout else 0.0
+
+        if height > 1.0:
+            ratio = max(0.0, min(1.0, abs_y / height))
+            idx = int(round(ratio * (count - 1)))
+            idx = max(0, min(idx, count - 1))
+            return self._refine_index_with_preview_text(pos, idx)
+
+        cursor = self.preview.cursorForPosition(pos)
+        idx = max(0, min(cursor.blockNumber(), count - 1))
+        return self._refine_index_with_preview_text(pos, idx)
+
+    def _refine_index_with_preview_text(self, pos: QPoint, estimated_idx: int) -> int:
+        cursor = self.preview.cursorForPosition(pos)
+        cursor.select(QTextCursor.LineUnderCursor)
+        clicked = self._normalize_for_match(cursor.selectedText())
+        if not clicked:
+            return estimated_idx
+
+        lines = self._source_lines()
+        if not lines:
+            return estimated_idx
+
+        window = 220
+        start = max(0, estimated_idx - window)
+        end = min(len(lines), estimated_idx + window + 1)
+        best_idx = estimated_idx
+        best_rank = -999.0
+        for i in range(start, end):
+            candidate = self._normalize_for_match(lines[i])
+            if not candidate:
+                continue
+            if clicked in candidate or candidate in clicked:
+                score = 1.0
+            else:
+                score = difflib.SequenceMatcher(None, clicked, candidate).ratio()
+            # Prefer close-by lines when text is similarly plausible.
+            distance = abs(i - estimated_idx)
+            rank = score - min(0.25, distance * 0.0025)
+            if rank > best_rank:
+                best_rank = rank
+                best_idx = i
+        if best_rank >= 0.50:
+            return best_idx
+        return estimated_idx
+
+    def apply_background(self, color_hex: str, update_frontmatter: bool = True, animate: bool = True):
         if color_hex == self.current_bg and self._bg_initialized:
             return
         start = QColor(self.current_bg)
         end = QColor(color_hex)
         if self._bg_anim and self._bg_anim.state() == QVariantAnimation.Running:
             self._bg_anim.stop()
-        self._bg_anim = QVariantAnimation(self)
-        self._bg_anim.setDuration(1000)
-        self._bg_anim.setStartValue(start)
-        self._bg_anim.setEndValue(end)
-        self._bg_anim.valueChanged.connect(self.apply_editor_background)
-        self._bg_anim.finished.connect(lambda: self.apply_editor_background(end))
-        self._bg_anim.start()
+        if animate:
+            self._bg_anim = QVariantAnimation(self)
+            self._bg_anim.setDuration(700)
+            self._bg_anim.setStartValue(start)
+            self._bg_anim.setEndValue(end)
+            self._bg_anim.valueChanged.connect(self.apply_editor_background)
+            self._bg_anim.finished.connect(lambda: self.apply_editor_background(end))
+            self._bg_anim.start()
+        else:
+            self.apply_editor_background(end)
         self.current_bg = color_hex
         self._current_border = QColor(color_hex).darker(120).name()
         self._bg_initialized = True
-        if hasattr(self, "on_theme_color_changed"):
-            self.on_theme_color_changed(color_hex)
         if update_frontmatter:
             if self.show_frontmatter:
                 updated = self.metadata.update_field(
@@ -713,12 +1054,48 @@ class SmartEditor(QWidget):
 
     def apply_editor_background(self, color: QColor):
         color_hex = color.name()
+        self.focus_edit.setFont(self.preview.font())
+
+        h, s, v, _ = color.getHsv()
+        if h < 0:
+            h = 0
+        if s < 0:
+            s = 0
+        if s < 12 and v > 235:
+            overlay = QColor("#f3d9ea")
+        else:
+            overlay = QColor(
+                int((color.red() + (255 * 3)) / 4),
+                int((color.green() + (255 * 3)) / 4),
+                int((color.blue() + (255 * 3)) / 4),
+            )
+        overlay_bg = f"rgba({overlay.red()}, {overlay.green()}, {overlay.blue()}, 228)"
+        overlay_border = overlay_bg
+
         self.source_edit.setStyleSheet(
             f"QPlainTextEdit {{ background-color: {color_hex}; padding: 12px; }}"
         )
         self.preview.setStyleSheet(
             f"QTextBrowser {{ background-color: {color_hex}; padding: 12px; }}"
         )
+        self.focus_edit.setStyleSheet(
+            f"""
+            QPlainTextEdit {{
+                background-color: {overlay_bg};
+                color: #1f2433;
+                border: 1px solid {overlay_border};
+                border-radius: 2px;
+                padding-top: 0px;
+                padding-bottom: 0px;
+                padding-left: 0px;
+                padding-right: 0px;
+                selection-background-color: #b7c7ea;
+                selection-color: #111111;
+            }}
+            """
+        )
+        if hasattr(self, "on_theme_color_changed"):
+            self.on_theme_color_changed(color_hex)
 
     def update_window_metadata(self, width_px: int, height_px: int, x_permille: int, y_permille: int):
         if self.show_frontmatter:
@@ -1298,11 +1675,14 @@ class PostFixWindow(QMainWindow):
         # )
         self.editor = SmartEditor(show_frontmatter=debug)
         self.right_sidebar = TagSidebar()
-        if hasattr(self.editor, "on_theme_color_changed"):
-            self.editor.on_theme_color_changed = self.update_theme_color
-        if hasattr(self.editor, "MODE_SPLIT"):
-            self.editor.set_view_mode(self.editor.MODE_SPLIT)
-            self.btn_view_mode.setText(self.editor.MODE_SPLIT)
+        # Always wire editor->window theme callback; dynamic attribute on SmartEditor.
+        self.editor.on_theme_color_changed = self.apply_theme_color_hex
+        if hasattr(self.editor, "MODE_FOCUS"):
+            self.editor.set_view_mode(self.editor.MODE_FOCUS)
+            self.btn_view_mode.setText(self.editor.MODE_FOCUS)
+            self.btn_view_mode.setEnabled(False)
+        if hasattr(self.editor, "tagsChanged"):
+            self.editor.tagsChanged.connect(self.right_sidebar.set_tags)
         elif embed_obsidian:
             self.btn_view_mode.setText("Obsidian")
             self.btn_view_mode.setEnabled(False)
@@ -1459,11 +1839,13 @@ class PostFixWindow(QMainWindow):
         
         # Connect signals
         self.connect_signals()
-        self.update_theme_color(self.editor.current_bg)
+        self.apply_theme_color_hex(self.editor.current_bg)
         if open_path and open_path.exists() and hasattr(self.editor, "load_markdown"):
             self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
             if hasattr(self.editor, "set_path"):
                 self.editor.set_path(open_path)
+        elif hasattr(self.editor, "tagsChanged"):
+            self.right_sidebar.set_tags([])
         
     def create_top_toolbar(self):
         """Create the top toolbar with all controls."""
@@ -1516,7 +1898,7 @@ class PostFixWindow(QMainWindow):
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Fixed, QSizePolicy.Minimum))
         
         # View mode button
-        self.btn_view_mode = QPushButton("Split View")
+        self.btn_view_mode = QPushButton("Focus Mode")
         self.btn_view_mode.setCursor(Qt.PointingHandCursor)
         self.apply_oval_button_style(self.btn_view_mode, "#FFF740", "#d4c600")
         
@@ -1606,19 +1988,9 @@ class PostFixWindow(QMainWindow):
         self.editor.wrap_selection(f"background-color: {color.name()};")
             
     def toggle_view_mode(self):
-        """Toggle between view modes."""
-        current_text = self.btn_view_mode.text()
-        modes = [SmartEditor.MODE_PREVIEW, SmartEditor.MODE_SOURCE, SmartEditor.MODE_SPLIT]
-        
-        try:
-            current_index = modes.index(current_text)
-            next_index = (current_index + 1) % len(modes)
-        except ValueError:
-            next_index = 0
-            
-        next_mode = modes[next_index]
-        self.btn_view_mode.setText(next_mode)
-        self.editor.set_view_mode(next_mode)
+        """Single-mode editor: keep focus mode active."""
+        self.btn_view_mode.setText(SmartEditor.MODE_FOCUS)
+        self.editor.set_view_mode(SmartEditor.MODE_FOCUS)
         
     def show_menu(self):
         """Show menu (placeholder)."""
@@ -1722,8 +2094,19 @@ class PostFixWindow(QMainWindow):
         self._theme_anim.start()
         self._current_theme_color = color_hex
 
+    def apply_theme_color_hex(self, color_hex: str):
+        self._current_theme_color = color_hex
+        self.apply_theme_color(QColor(color_hex))
+
     def apply_theme_color(self, color: QColor):
         color_hex = color.name()
+        dark_a = color.darker(185)
+        dark_b = color.darker(150)
+        rgba_strong = f"rgba({dark_a.red()}, {dark_a.green()}, {dark_a.blue()}, 110)"
+        rgba_mid = f"rgba({dark_b.red()}, {dark_b.green()}, {dark_b.blue()}, 80)"
+        rgba_soft = f"rgba({dark_b.red()}, {dark_b.green()}, {dark_b.blue()}, 0)"
+        corner_rgba = f"rgba({dark_b.red()}, {dark_b.green()}, {dark_b.blue()}, 128)"
+
         self.top_toolbar.setStyleSheet(
             f"QWidget {{ background-color: {color_hex}; border-bottom: 1px solid transparent; }}"
         )
@@ -1744,6 +2127,35 @@ class PostFixWindow(QMainWindow):
         )
         self.topbar_bg.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
         self.bottombar_bg.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
+        self.corner_tl.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
+        self.corner_tr.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
+        self.corner_bl.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
+        self.corner_br.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
+        self.bottom_shadow.setStyleSheet(
+            "QFrame { "
+            f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {rgba_strong}, stop:1 {rgba_soft}); "
+            "}"
+        )
+        self.right_shadow.setStyleSheet(
+            "QFrame { "
+            f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {rgba_strong}, stop:1 {rgba_soft}); "
+            "}"
+        )
+        self.right_shadow_bot.setStyleSheet(
+            "QFrame { "
+            f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {rgba_strong}, stop:1 {rgba_soft}); "
+            "}"
+        )
+        self.right_shadow_down.setStyleSheet(
+            "QFrame { "
+            f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {rgba_mid}, stop:1 {rgba_soft}); "
+            "}"
+        )
+        self.corner_shadow.setStyleSheet(
+            "QFrame { "
+            f"background: qradialgradient(cx:0,cy:0, radius:1, fx:0, fy:0, stop:0 {rgba_strong}, stop:1 {rgba_soft}); "
+            "}"
+        )
         self.editor.setStyleSheet(
             f"QWidget {{ background-color: {color_hex}; }} QSplitter::handle {{ background-color: {color_hex}; }}"
         )

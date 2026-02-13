@@ -161,6 +161,10 @@ def main() -> int:
 
     override_cmd = os.environ.get("MYOS_MD_EDITOR_CMD")
     force_override = os.environ.get("MYOS_MD_FORCE_EDITOR", "").strip().lower() in {"1", "true", "yes"}
+    use_postfix = os.environ.get("MYOS_MD_USE_POSTFIX", "").strip().lower() in {"1", "true", "yes"}
+
+    if use_postfix:
+        return open_with_postfix(file_path)
 
     vault_root = resolve_vault_root(file_path)
     if vault_root:

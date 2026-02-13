@@ -315,6 +315,7 @@ class ThemeIconProvider(QQuickImageProvider):
 
 
 def main() -> int:
+    os.environ.setdefault("MYOS_MD_USE_POSTFIX", "1")
     start_path = sys.argv[1] if len(sys.argv) > 1 else str(Path.cwd())
     api = ScopeApi(start_path)
     app = QGuiApplication(sys.argv)
