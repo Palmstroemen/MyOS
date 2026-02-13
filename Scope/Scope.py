@@ -172,13 +172,21 @@ class Backend(QObject):
         self._entries_cache: dict[str, list] = {}
         self._entries_pending: set[str] = set()
 
-    @Slot(str, bool, result="QStringList")
+    @Slot(str, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool):
         return self._api.list_children(path, includeEmbryos)
 
-    @Slot(str, bool, result="QStringList")
+    @Slot(str, bool, result="QVariantList")
     def listTemplates(self, path: str, includeEmbryos: bool):
         return self._api.list_templates(path, includeEmbryos)
+
+    @Slot(str, result="QString")
+    def projectColor(self, path: str) -> str:
+        return self._api.get_project_color(path) or ""
+
+    @Slot(str, str, result=bool)
+    def moveEntry(self, source: str, targetDir: str) -> bool:
+        return self._api.move_entry(source, targetDir)
 
     @Slot(str, result="QVariantList")
     def listEntries(self, path: str):

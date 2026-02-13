@@ -15,6 +15,7 @@ Item { // ROOT
     property string path: "/"
     property string pathDisplayPrefix: ""
     property var folders: []
+    property var pathColorFunction: null    
     property bool verticalView: false
     property string buttonStyle: "text"
     property bool allowLargeIcons: true
@@ -27,6 +28,8 @@ Item { // ROOT
     property bool searchActive: false
     property string searchText: ""
     property bool allowRename: false
+    property bool allowDrags: false
+    property bool allowDrops: false
     property string renameTargetPath: ""
     property string renameDraft: ""
     property int baseFont: 14
@@ -61,6 +64,15 @@ Item { // ROOT
     property color card: "#0f1117"
     property color projectTint: "#7b5bd6"
     property color projectTintBorder: "#7b5bd6"
+    property color pathButtonFill: pill
+    property color pathButtonBorder: pillBorder
+    property color folderButtonFill: pill
+    property color folderButtonBorder: pillBorder
+    property bool tintPathAsProject: false
+    property real cwdOpacity: 1.0
+    property real pathProjectOpacity: 0.5
+    property real folderProjectOpacity: 0.25
+    property real embryoOpacity: 0.1
 
     signal pathSegmentActivated(int index)
     signal pathSelected(string path)
@@ -75,6 +87,7 @@ Item { // ROOT
     signal renameAccepted()
     signal renameCanceled()
     signal searchTextEdited(string value)
+    signal moveEntryRequested(string sourcePath, string targetDir)
 
     property bool flowOnSecondLine: false
     property bool layoutUpdatePending: false
@@ -111,6 +124,67 @@ Item { // ROOT
             return Math.max(80, Math.max(iconSizeLarge, textWidth) + 20)
         }
         return Math.max(80, textWidth + 24)
+    }
+
+    function itemName(item) {
+        return (item && item.name) ? item.name : item
+    }
+
+    function itemIsProject(item) {
+        return item && item.isProject === true
+    }
+
+    function itemIsEmbryo(item) {
+        return item && item.isEmbryo === true
+    }
+
+    function normalizeColor(value) {
+        if (!value) return null
+        if (typeof value === "string") {
+            var hex = value.trim()
+            if (hex.length === 4) {
+                var r = parseInt(hex[1] + hex[1], 16) / 255
+                var g = parseInt(hex[2] + hex[2], 16) / 255
+                var b = parseInt(hex[3] + hex[3], 16) / 255
+                return { r: r, g: g, b: b }
+            }
+            if (hex.length === 7) {
+                var r6 = parseInt(hex.slice(1, 3), 16) / 255
+                var g6 = parseInt(hex.slice(3, 5), 16) / 255
+                var b6 = parseInt(hex.slice(5, 7), 16) / 255
+                return { r: r6, g: g6, b: b6 }
+            }
+        }
+        if (value.r !== undefined && value.g !== undefined && value.b !== undefined) {
+            return value
+        }
+        return null
+    }
+
+    function colorWithAlpha(value, alpha, fallback) {
+        var base = normalizeColor(value) || normalizeColor(fallback)
+        if (!base) return Qt.rgba(1, 1, 1, alpha)
+        return Qt.rgba(base.r, base.g, base.b, alpha)
+    }
+
+    function folderFillColor(item) {
+        if (itemIsProject(item)) {
+            return colorWithAlpha(item.color, folderProjectOpacity, projectTint)
+        }
+        if (itemIsEmbryo(item)) {
+            return colorWithAlpha(item.color, embryoOpacity, projectTint)
+        }
+        return folderButtonFill
+    }
+
+    function folderStrokeColor(item) {
+        if (itemIsProject(item)) {
+            return colorWithAlpha(item.color, folderProjectOpacity, projectTintBorder)
+        }
+        if (itemIsEmbryo(item)) {
+            return colorWithAlpha(item.color, embryoOpacity, projectTintBorder)
+        }
+        return folderButtonBorder
     }
 
     function currentRowHeight() {
@@ -273,6 +347,48 @@ Item { // ROOT
         return [root].concat(remainder)
     }
 
+    function getPathSegmentColor(fullPath, isCurrent) {
+        // Prüfe, ob dieser Pfad in der folders-Liste vorkommt
+        for (var i = 0; i < folders.length; i++) {
+            var folder = folders[i];
+            var folderPath = typeof folder === 'string' ? folder : folder.path || folder.name;
+            
+            // Vergleiche den vollen Pfad
+            if (fullPath === folderPath || 
+                (fullPath.endsWith("/" + folderPath) || fullPath === "/" + folderPath)) {
+                if (itemIsProject(folder)) {
+                    return {
+                        fill: colorWithAlpha(folder.color, isCurrent ? cwdOpacity : pathProjectOpacity, projectTint),
+                        stroke: colorWithAlpha(folder.color, isCurrent ? cwdOpacity : pathProjectOpacity, projectTintBorder)
+                    };
+                }
+            }
+        }
+        
+        // Fallback: Standard-Farben
+        return {
+            fill: isCurrent 
+                ? (tintPathAsProject
+                    ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
+                    : accentPrimary)
+                : (tintPathAsProject
+                    ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
+                    : pathButtonFill),
+            stroke: isCurrent
+                ? (tintPathAsProject
+                    ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
+                    : accentPrimary)
+                : (tintPathAsProject
+                    ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
+                    : pathButtonBorder)
+        };
+    }    
+    
+    function getFolderPath(folder) {
+        if (typeof folder === 'string') return folder;
+        return folder.path || folder.name || "";
+    }    
+    
     function fullPathForDisplayIndex(index) {
         var fullParts = pathPartsFull()
         var prefix = prefixParts()
@@ -407,8 +523,8 @@ Item { // ROOT
                     width: compactButtonHeight
                     height: compactButtonHeight
                     radius: 4
-                    color: smallButtonBg
-                    border.color: smallButtonBorder
+                    color: pill
+                    border.color: pillBorder
                     Image {
                         anchors.centerIn: parent
                         source: iconSearch
@@ -432,13 +548,13 @@ Item { // ROOT
                         height: compactButtonHeight
                         radius: 4
                         property bool isActive: buttonStyle === modelData.style
-                        color: isActive ? smallButtonActiveBg : smallButtonBg
-                        border.color: isActive ? smallButtonActiveBorder : smallButtonBorder
+                        color: isActive ? accentSecondary : pill
+                        border.color: isActive ? accentSecondaryBorder : pillBorder
                         visible: allowLargeIcons || modelData.style !== "largeIcon"
                         Text {
                             anchors.centerIn: parent
                             text: modelData.label
-                            color: smallButtonText
+                            color: textSoft
                             font.pixelSize: baseFont
                         }
                         MouseArea {
@@ -452,12 +568,12 @@ Item { // ROOT
                     width: compactButtonHeight
                     height: compactButtonHeight
                     radius: 4
-                    color: showEmbryos ? smallButtonActiveBg : smallButtonBg
-                    border.color: showEmbryos ? smallButtonActiveBorder : smallButtonBorder
+                    color: showEmbryos ? accentSecondary : pill
+                    border.color: showEmbryos ? accentSecondaryBorder : pillBorder
                     Text {
                         anchors.centerIn: parent
                         text: "E"
-                        color: smallButtonText
+                        color: textSoft
                         font.pixelSize: baseFont
                         font.bold: true
                     }
@@ -520,11 +636,15 @@ Item { // ROOT
                         anchors.left: pathRow.implicitWidth <= pathHost.width ? parent.left : undefined
                         anchors.right: pathRow.implicitWidth <= pathHost.width ? undefined : parent.right
                         onImplicitWidthChanged: scheduleLayoutUpdate()
+
                         Repeater {
                             model: pathPartsDisplay()
                             delegate: FolderItem {
                                 property bool isCurrent: index === (pathPartsDisplay().length - 1)
-                                label: modelData
+                                // property string fullPathForSegment: fullPathForDisplayIndex(index)
+                                property var segmentColors: getPathSegmentColor(fullPathForSegment, isCurrent)
+                                
+                                label: itemName(modelData)
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
                                 largeHeight: largeButtonHeight
@@ -533,15 +653,89 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
-                                fillColor: isCurrent ? accentPrimary : pill
-                                strokeColor: isCurrent ? accentPrimary : pillBorder
+                                property string fullPathForSegment: fullPathForDisplayIndex(index)
+                                property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, isCurrent) : null
+                                fillColor: customColors ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
+                                // fillColor: customColors ? customColors.fill : (isCurrent
+                                //    ? (tintPathAsProject
+                                //        ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
+                                //        : accentPrimary)
+                                //    : (tintPathAsProject
+                                //        ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
+                                //        : pathButtonFill))
+
+                                strokeColor: customColors ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
+                                // strokeColor: customColors ? customColors.stroke : (isCurrent
+                                //     ? (tintPathAsProject
+                                //         ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
+                                //         : accentPrimary)
+                                //     : (tintPathAsProject
+                                //         ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
+                                //         : pathButtonBorder))
                                 textColor: isCurrent ? accentPrimaryText : text
                                 textSize: baseFont
                                 renaming: false
                                 renameEnabled: false
                                 onActivate: pathSegmentActivated(index)
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: allowDrops
+                                    onDropped: {
+                                        if (!drop || !drop.text) return
+                                        var targetPath = fullPathForDisplayIndex(index)
+                                        if (!targetPath) return
+                                        moveEntryRequested(drop.text, targetPath)
+                                        drop.acceptProposedAction()
+                                    }
+                                }
                             }
                         }
+
+                        // Repeater {
+                        //     model: pathPartsDisplay()
+                        //     delegate: FolderItem {
+                        //         property bool isCurrent: index === (pathPartsDisplay().length - 1)
+                        //         label: itemName(modelData)
+                        //         style: effectiveStyle()
+                        //         compactHeight: compactButtonHeight
+                        //         largeHeight: largeButtonHeight
+                        //         largePadding: largeButtonPadding
+                        //         iconSmall: iconSizeSmall
+                        //         iconLarge: iconSizeLarge
+                        //         textYOffset: buttonTextYOffset
+                        //         iconSource: iconFolder
+                        //         fillColor: isCurrent
+                        //             ? (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
+                        //                 : accentPrimary)
+                        //             : (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
+                        //                 : pathButtonFill)
+                        //         strokeColor: isCurrent
+                        //             ? (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
+                        //                 : accentPrimary)
+                        //             : (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
+                        //                 : pathButtonBorder)
+                        //         textColor: isCurrent ? accentPrimaryText : text
+                        //         textSize: baseFont
+                        //         renaming: false
+                        //         renameEnabled: false
+                        //         onActivate: pathSegmentActivated(index)
+                        //         DropArea {
+                        //             anchors.fill: parent
+                        //             enabled: allowDrops
+                        //             onDropped: {
+                        //                 if (!drop || !drop.text) return
+                        //                 var targetPath = fullPathForDisplayIndex(index)
+                        //                 if (!targetPath) return
+                        //                 moveEntryRequested(drop.text, targetPath)
+                        //                 drop.acceptProposedAction()
+                        //             }
+                        //         }
+                        //     }
+                        // }
                     }
                 }
                 Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
@@ -561,7 +755,10 @@ Item { // ROOT
                         Repeater {
                             model: folders
                             delegate: FolderItem {
-                                label: modelData
+                                property string fullPath: itemName(modelData).indexOf("/") === 0
+                                    ? itemName(modelData)
+                                    : (path + "/" + itemName(modelData))
+                                label: itemName(modelData)
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
                                 largeHeight: largeButtonHeight
@@ -570,23 +767,34 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
-                                fillColor: accentSecondary
-                                strokeColor: accentSecondaryBorder
+                                fillColor: folderFillColor(modelData)
+                                strokeColor: folderStrokeColor(modelData)
                                 textColor: textSoft
                                 textSize: baseFont
-                                renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                dragEnabled: allowDrags && !itemIsEmbryo(modelData)
+                                dragPayload: fullPath
+                                renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
-                                onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 onRenameTextEdited: renameTextEdited(text)
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(modelData)
+                                onActivate: folderActivated(itemName(modelData))
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: allowDrops && !itemIsEmbryo(modelData)
+                                    onDropped: {
+                                        if (!drop || !drop.text) return
+                                        moveEntryRequested(drop.text, fullPath)
+                                        drop.acceptProposedAction()
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                Item { // HORIZONTAL: spacer/feder between folders and right buttons
+                Item {  // HORIZONTAL: spacer/feder between folders and right buttons
                     Layout.fillWidth: !flowOnSecondLine
                     Layout.preferredWidth: flowOnSecondLine ? 0 : -1
                     Layout.minimumWidth: flowOnSecondLine ? 0 : 0
@@ -649,8 +857,8 @@ Item { // ROOT
                             width: compactButtonHeight
                             height: compactButtonHeight
                             radius: 4
-                            color: smallButtonBg
-                            border.color: smallButtonBorder
+                            color: pill
+                            border.color: pillBorder
                             Image {
                                 anchors.centerIn: parent
                                 source: iconSearch
@@ -674,13 +882,13 @@ Item { // ROOT
                                 height: compactButtonHeight
                                 radius: 4
                                 property bool isActive: buttonStyle === modelData.style
-                                color: isActive ? smallButtonActiveBg : smallButtonBg
-                                border.color: isActive ? smallButtonActiveBorder : smallButtonBorder
+                                color: isActive ? accentSecondary : pill
+                                border.color: isActive ? accentSecondaryBorder : pillBorder
                                 visible: allowLargeIcons || modelData.style !== "largeIcon"
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData.label
-                                    color: smallButtonText
+                                    color: textSoft
                                     font.pixelSize: baseFont
                                 }
                                 MouseArea {
@@ -694,12 +902,12 @@ Item { // ROOT
                             width: compactButtonHeight
                             height: compactButtonHeight
                             radius: 4
-                            color: showEmbryos ? smallButtonActiveBg : smallButtonBg
-                            border.color: showEmbryos ? smallButtonActiveBorder : smallButtonBorder
+                            color: showEmbryos ? accentSecondary : pill
+                            border.color: showEmbryos ? accentSecondaryBorder : pillBorder
                             Text {
                                 anchors.centerIn: parent
                                 text: "E"
-                                color: smallButtonText
+                                color: textSoft
                                 font.pixelSize: baseFont
                                 font.bold: true
                             }
@@ -817,11 +1025,27 @@ Item { // ROOT
                         id: verticalColumn
                         Layout.fillWidth: true
                         spacing: verticalParentSpacing
+
                         Repeater { // PathButtons
                             model: visibleParentPaths()
                             delegate: FolderItem {
                                 width: parent.width
-                                label: modelData.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
+                                property string fullPathForSegment: modelData
+                                // property var segmentColors: getPathSegmentColor(fullPathForSegment, false)
+                                property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, false) : null
+
+
+                                fillColor: customColors ? customColors.fill : pathButtonFill
+                                strokeColor: customColors ? customColors.stroke : pathButtonBorder
+                                // fillColor: customColors ? customColors.fill : (tintPathAsProject
+                                //     ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
+                                //     : pathButtonFill)
+
+                                // strokeColor: customColors ? customColors.stroke : (tintPathAsProject
+                                //     ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
+                                //     : pathButtonBorder)                  
+
+                                label: itemName(modelData).split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
                                 style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
                                 compactHeight: compactButtonHeight
                                 largeHeight: largeButtonHeight
@@ -830,8 +1054,8 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
-                                fillColor: pill
-                                strokeColor: pillBorder
+                                // fillColor: segmentColors.fill
+                                // strokeColor: segmentColors.stroke
                                 textColor: text
                                 textSize: baseFont
                                 renaming: false
@@ -839,10 +1063,41 @@ Item { // ROOT
                                 onActivate: pathSelected(modelData)
                             }
                         }
+
+                        // Repeater { // PathButtons
+                        //     model: visibleParentPaths()
+                        //     delegate: FolderItem {
+                        //         width: parent.width
+                        //         label: itemName(modelData).split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
+                        //         style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
+                        //         compactHeight: compactButtonHeight
+                        //         largeHeight: largeButtonHeight
+                        //         largePadding: largeButtonPadding
+                        //         iconSmall: iconSizeSmall
+                        //         iconLarge: iconSizeLarge
+                        //         textYOffset: buttonTextYOffset
+                        //         iconSource: iconFolder
+                        //         fillColor: tintPathAsProject
+                        //             ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
+                        //             : pathButtonFill
+                        //         strokeColor: tintPathAsProject
+                        //             ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
+                        //             : pathButtonBorder
+                        //         textColor: text
+                        //         textSize: baseFont
+                        //         renaming: false
+                        //         renameEnabled: false
+                        //         onActivate: pathSelected(modelData)
+                        //     }
+                        // }
                     }
+            
                     FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
                         width: parent.width
+                        property string currentFullPath: path
+                        property var currentPathColors: getPathSegmentColor(currentFullPath, true)
+                        
                         label: pathPartsDisplay().length ? pathPartsDisplay()[pathPartsDisplay().length - 1] : "/"
                         style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
                         compactHeight: compactButtonHeight
@@ -852,15 +1107,74 @@ Item { // ROOT
                         iconLarge: iconSizeLarge
                         textYOffset: buttonTextYOffset
                         iconSource: iconFolder
-                        fillColor: accentPrimary
-                        strokeColor: accentPrimary
+                        // fillColor: currentPathColors.fill
+                        // Eingesetzt
+                        // property string currentFullPath: path
+                        property var customColors: pathColorFunction ? pathColorFunction(currentFullPath, true) : null
+
+                        fillColor: customColors ? customColors.fill : accentPrimary
+                        strokeColor: customColors ? customColors.stroke : accentPrimary
+                        // fillColor: customColors ? customColors.fill : (tintPathAsProject
+                        //     ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
+                        //     : accentPrimary)
+
+                        // strokeColor: customColors ? customColors.stroke : (tintPathAsProject
+                        //     ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
+                        //     : accentPrimary)
+                        // bis hier
+                        // strokeColor: currentPathColors.stroke
                         textColor: accentPrimaryText
                         textSize: baseFont + 1
                         textBold: true
                         renaming: false
                         renameEnabled: false
                         onActivate: {}
-                    }
+                        DropArea {
+                            anchors.fill: parent
+                            enabled: allowDrops
+                            onDropped: {
+                                if (!drop || !drop.text) return
+                                moveEntryRequested(drop.text, path)
+                                drop.acceptProposedAction()
+                            }
+                        }
+                    }            
+                    // Edit
+            
+                    // FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
+                    //     id: cwpButton
+                    //     width: parent.width
+                    //     label: pathPartsDisplay().length ? pathPartsDisplay()[pathPartsDisplay().length - 1] : "/"
+                    //     style: (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
+                    //     compactHeight: compactButtonHeight
+                    //     largeHeight: largeButtonHeight
+                    //     largePadding: largeButtonPadding
+                    //     iconSmall: iconSizeSmall
+                    //     iconLarge: iconSizeLarge
+                    //     textYOffset: buttonTextYOffset
+                    //     iconSource: iconFolder
+                    //     fillColor: tintPathAsProject
+                    //         ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
+                    //         : accentPrimary
+                    //     strokeColor: tintPathAsProject
+                    //         ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
+                    //         : accentPrimary
+                    //     textColor: accentPrimaryText
+                    //     textSize: baseFont + 1
+                    //     textBold: true
+                    //     renaming: false
+                    //     renameEnabled: false
+                    //     onActivate: {}
+                    //     DropArea {
+                    //         anchors.fill: parent
+                    //         enabled: allowDrops
+                    //         onDropped: {
+                    //             if (!drop || !drop.text) return
+                    //             moveEntryRequested(drop.text, path)
+                    //             drop.acceptProposedAction()
+                    //         }
+                    //     }
+                    // }
                     Flickable { // VERTICAL VIEW: section 3 (folders list, scrollable)
                         id: foldersColumn
                         visible: !foldersInSecondColumn
@@ -876,10 +1190,13 @@ Item { // ROOT
                             spacing: 6
                             Repeater {
                                 model: folders
-                                delegate: FolderItem {
+                                    delegate: FolderItem {
+                                        property string fullPath: itemName(modelData).indexOf("/") === 0
+                                            ? itemName(modelData)
+                                            : (path + "/" + itemName(modelData))
                                     x: indent
                                     width: parent.width - indent
-                                    label: modelData
+                                    label: itemName(modelData)
                                     style: effectiveStyle()
                                     largeIconAlignLeft: effectiveStyle() !== "largeIcon"
                                     compactHeight: compactButtonHeight
@@ -889,19 +1206,30 @@ Item { // ROOT
                                     iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
                                     iconSource: iconFolder
-                                    fillColor: accentSecondary
-                                    strokeColor: accentSecondaryBorder
+                                    fillColor: folderFillColor(modelData)
+                                    strokeColor: folderStrokeColor(modelData)
                                     textColor: textSoft
                                     textSize: baseFont
-                                    textLeftInset: effectiveStyle() === "text" ? indent : 0
-                                    renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                        textLeftInset: effectiveStyle() === "text" ? indent : 0
+                                        dragEnabled: allowDrags && !itemIsEmbryo(modelData)
+                                        dragPayload: fullPath
+                                renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                     renameEnabled: allowRename
                                     renameText: renameDraft
-                                    onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                     onRenameTextEdited: renameTextEdited(text)
                                     onRenameAccepted: renameAccepted()
                                     onRenameCanceled: renameCanceled()
-                                    onActivate: folderActivated(modelData)
+                                onActivate: folderActivated(itemName(modelData))
+                                        DropArea {
+                                            anchors.fill: parent
+                                            enabled: allowDrops && !itemIsEmbryo(modelData)
+                                            onDropped: {
+                                                if (!drop || !drop.text) return
+                                                moveEntryRequested(drop.text, fullPath)
+                                                drop.acceptProposedAction()
+                                            }
+                                        }
                                 }
                             }
                         }
@@ -945,9 +1273,12 @@ Item { // ROOT
                                 Repeater {
                                     model: folders
                                     delegate: FolderItem {
+                                        property string fullPath: itemName(modelData).indexOf("/") === 0
+                                            ? itemName(modelData)
+                                            : (path + "/" + itemName(modelData))
                                         x: indent
                                         width: parent.width - indent
-                                        label: modelData
+                                        label: itemName(modelData)
                                         style: effectiveStyle()
                                         largeIconAlignLeft: effectiveStyle() !== "largeIcon"
                                         compactHeight: compactButtonHeight
@@ -957,19 +1288,30 @@ Item { // ROOT
                                         iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
                                         iconSource: iconFolder
-                                        fillColor: accentSecondary
-                                        strokeColor: accentSecondaryBorder
+                                        fillColor: folderFillColor(modelData)
+                                        strokeColor: folderStrokeColor(modelData)
                                         textColor: textSoft
                                         textSize: baseFont
                                         textLeftInset: effectiveStyle() === "text" ? indent : 0
-                                        renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                        dragEnabled: allowDrags && !itemIsEmbryo(modelData)
+                                        dragPayload: fullPath
+                                        renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                         renameEnabled: allowRename
                                         renameText: renameDraft
-                                        onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                        onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                         onRenameTextEdited: renameTextEdited(text)
                                         onRenameAccepted: renameAccepted()
                                         onRenameCanceled: renameCanceled()
-                                        onActivate: folderActivated(modelData)
+                                        onActivate: folderActivated(itemName(modelData))
+                                        DropArea {
+                                            anchors.fill: parent
+                                            enabled: allowDrops && !itemIsEmbryo(modelData)
+                                            onDropped: {
+                                                if (!drop || !drop.text) return
+                                                moveEntryRequested(drop.text, fullPath)
+                                                drop.acceptProposedAction()
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -999,7 +1341,10 @@ Item { // ROOT
                         Repeater {
                             model: folders
                             delegate: FolderItem {
-                                label: modelData
+                                property string fullPath: itemName(modelData).indexOf("/") === 0
+                                    ? itemName(modelData)
+                                    : (path + "/" + itemName(modelData))
+                                label: itemName(modelData)
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
                                 largeHeight: largeButtonHeight
@@ -1008,18 +1353,29 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
-                                fillColor: accentSecondary
-                                strokeColor: accentSecondaryBorder
+                                fillColor: folderFillColor(modelData)
+                                strokeColor: folderStrokeColor(modelData)
                                 textColor: textSoft
                                 textSize: baseFont
-                                renaming: allowRename && renameTargetPath === (modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                dragEnabled: allowDrags && !itemIsEmbryo(modelData)
+                                dragPayload: fullPath
+                                renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
-                                onRenameRequested: renameRequested(modelData.indexOf("/") === 0 ? modelData : (path + "/" + modelData))
+                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 onRenameTextEdited: renameTextEdited(text)
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(modelData)
+                                onActivate: folderActivated(itemName(modelData))
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: allowDrops && !itemIsEmbryo(modelData)
+                                    onDropped: {
+                                        if (!drop || !drop.text) return
+                                        moveEntryRequested(drop.text, fullPath)
+                                        drop.acceptProposedAction()
+                                    }
+                                }
                             }
                         }
                     }

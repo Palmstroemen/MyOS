@@ -58,10 +58,13 @@ ApplicationWindow {
         property color smallButtonActiveBg: darkTheme ? "#4a5675" : "#c5d2ef"
         property color smallButtonActiveBorder: darkTheme ? "#6a779a" : "#9fb1dd"
         property color smallButtonText: darkTheme ? "#b4bac6" : "#4a5163"
-        property color accentPrimary: darkTheme ? "#524dbe" : "#6a5cff"
+        // property color accentPrimary: darkTheme ? "#524dbe" : "#6a5cff"
+        property color accentPrimary: darkTheme ? "#4a5675" : "#4a5163"
         property color accentPrimaryText: "#ffffff"
         property color accentSecondary: darkTheme ? "#3b476b" : "#b8c8ee"
         property color accentSecondaryBorder: darkTheme ? "#58648a" : "#9fb1dd"
+        property color projectFolderTint: darkTheme ? "#bb00aa" : "#6a5cff"
+        property color embryoFolderTint: darkTheme ? "#7b5bd6" : "#6a5cff"
         property color action: darkTheme ? "#39456b" : "#c8d2f0"
         property color actionBorder: darkTheme ? "#56618a" : "#9aa7cf"
         property color text: darkTheme ? "#e6e6e6" : "#1f2433"
@@ -70,6 +73,8 @@ ApplicationWindow {
         property color filesPaneBackground: darkTheme ? "#404040" : "#b0b0b0"
         property color highlight: accentPrimary
     }
+
+    property color currentProjectTint: theme.projectFolderTint
 
     property string cwp: "/Projekte/Haus/Dach"
     property var subProjects: []
@@ -212,6 +217,10 @@ ApplicationWindow {
         return typeof backend !== "undefined" && backend !== null
     }
 
+    function nameForItem(item) {
+        return (item && item.name) ? item.name : item
+    }
+
     function toFileUrl(path) {
         if (path.indexOf("file://") === 0) return path
         return "file://" + path
@@ -239,6 +248,35 @@ ApplicationWindow {
             return backend.listTemplates(path, templatesShowEmbryos)
         }
         return []
+    }
+
+    function updateCurrentProjectTint() {
+        if (hasBackend() && typeof backend.projectColor === "function") {
+            var color = backend.projectColor(cwp)
+            currentProjectTint = (color && color.length > 0) ? color : theme.projectFolderTint
+            if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
+                console.log("[scope] project color", cwp, currentProjectTint)
+            }
+            return
+        }
+        currentProjectTint = theme.projectFolderTint
+    }
+
+    function moveEntry(sourcePath, targetDir) {
+        if (!hasBackend() || typeof backend.moveEntry !== "function") {
+            return
+        }
+        if (!sourcePath || !targetDir) {
+            return
+        }
+        var ok = backend.moveEntry(sourcePath, targetDir)
+        if (ok) {
+            updateSubProjects()
+            updateFiles()
+            updateTemplates()
+            standardFolders = listTemplates(standardPath)
+            updateStandardFolders()
+        }
     }
 
     function listEntries(path) {
@@ -365,6 +403,7 @@ ApplicationWindow {
         if (hasBackend() && typeof backend.setContext === "function") {
             backend.setContext(cwp)
         }
+        updateCurrentProjectTint()
         updateFiles()
         updateTemplates()
     }
@@ -403,8 +442,8 @@ ApplicationWindow {
                 subProjects = directItems
                 return
             }
-            subProjects = directItems.filter(function(name){
-                return name.toLowerCase().indexOf(lower) !== -1
+            subProjects = directItems.filter(function(item){
+                return nameForItem(item).toLowerCase().indexOf(lower) !== -1
             })
             return
         }
@@ -447,8 +486,8 @@ ApplicationWindow {
             standardFoldersFiltered = standardFolders
             return
         }
-        standardFoldersFiltered = standardFolders.filter(function(name){
-            return name.toLowerCase().indexOf(lower) !== -1
+        standardFoldersFiltered = standardFolders.filter(function(item){
+            return nameForItem(item).toLowerCase().indexOf(lower) !== -1
         })
     }
 
@@ -601,15 +640,15 @@ ApplicationWindow {
         setCwp(startPath)
         updateBrowserLayout()
         warnIfMissingAny(templatesBrowser, [
-            "projectColor",
-            "embryoColor",
+            "projectTint",
+            "projectTintBorder",
             "showEmbryos",
             "showSearchToggle",
             "showStyleToggle"
         ], "templatesBrowser")
         warnIfMissingAny(projectsBrowser, [
-            "projectColor",
-            "embryoColor",
+            "projectTint",
+            "projectTintBorder",
             "showEmbryos",
             "showSearchToggle",
             "showStyleToggle"
@@ -1035,13 +1074,22 @@ ApplicationWindow {
             visible: false
         }
 
-        FolderBrowser {
+        FolderBrowser {  // TemplatesBrowser
             id: templatesBrowser
             parent: floatingPool
             visible: templatesBrowserVisible
             path: standardPath
             pathDisplayPrefix: cwp
-        showEmbryos: window.templatesShowEmbryos
+            showEmbryos: window.templatesShowEmbryos
+            projectTint: window.currentProjectTint
+            projectTintBorder: window.currentProjectTint
+            tintPathAsProject: false
+            cwdOpacity: 1.0
+            pathProjectOpacity: 0.60
+            folderProjectOpacity: 0.45
+            embryoOpacity: 0.30
+            allowDrags: true
+            allowDrops: true
             folders: standardFoldersFiltered
             verticalView: level2VerticalView
             buttonStyle: level2ButtonStyle
@@ -1065,6 +1113,10 @@ ApplicationWindow {
             accentPrimaryText: theme.accentPrimaryText
             pill: theme.pill
             pillBorder: theme.pillBorder
+            pathButtonFill: theme.pill
+            pathButtonBorder: theme.pillBorder
+            folderButtonFill: theme.smallButtonBg
+            folderButtonBorder: theme.smallButtonBorder
             smallButtonBg: theme.smallButtonBg
             smallButtonBorder: theme.smallButtonBorder
             smallButtonActiveBg: theme.smallButtonActiveBg
@@ -1104,15 +1156,25 @@ ApplicationWindow {
                 var base = standardPath.endsWith("/") ? standardPath.slice(0, -1) : standardPath
                 standardPath = base + "/" + name
             }
+            onMoveEntryRequested: moveEntry(sourcePath, targetDir)
         }
 
-        FolderBrowser {
+        FolderBrowser {  // ProjectsBrowser
             id: projectsBrowser
             parent: floatingPool
             visible: projectsBrowserVisible
             path: cwp
             folders: subProjects
-        showEmbryos: window.projectsShowEmbryos
+            showEmbryos: window.projectsShowEmbryos
+            projectTint: window.currentProjectTint
+            projectTintBorder: window.currentProjectTint
+            tintPathAsProject: true
+            cwdOpacity: 1.0
+            pathProjectOpacity: 0.60
+            folderProjectOpacity: 0.45
+            embryoOpacity: 0.30
+            allowDrags: true
+            allowDrops: true
             verticalView: verticalProjectView
             buttonStyle: folderItemStyle
             allowLargeIcons: true
@@ -1135,6 +1197,10 @@ ApplicationWindow {
             accentPrimaryText: theme.accentPrimaryText
             pill: theme.pill
             pillBorder: theme.pillBorder
+            pathButtonFill: theme.pill
+            pathButtonBorder: theme.pillBorder
+            folderButtonFill: theme.smallButtonBg
+            folderButtonBorder: theme.smallButtonBorder
             smallButtonBg: theme.smallButtonBg
             smallButtonBorder: theme.smallButtonBorder
             smallButtonActiveBg: theme.smallButtonActiveBg
@@ -1152,6 +1218,25 @@ ApplicationWindow {
             searchActive: window.searchActive
             searchText: window.searchText
             onToggleMode: verticalProjectView = !verticalProjectView
+            // Eingesetzt
+            pathColorFunction: function(path, isCurrent) {
+                if (!hasBackend()) return null;
+
+                // 👇 Nur echte Projekte bekommen eine Farbe
+                if (!backend.isProject(path)) return null;
+
+                var color = backend.projectColor(path);
+                if (color && color.length > 0) {
+                    var opacity = isCurrent ? projectsBrowser.cwdOpacity : projectsBrowser.pathProjectOpacity;
+                    return {
+                        fill:   projectsBrowser.colorWithAlpha(color, opacity, projectsBrowser.projectTint),
+                        stroke: projectsBrowser.colorWithAlpha(color, opacity, projectsBrowser.projectTintBorder)
+                    };
+                }
+                return null;
+            }
+            // Ende Eingesetzt
+
         onStyleChanged: folderItemStyle = style
         onToggleEmbryos: {
             window.projectsShowEmbryos = !window.projectsShowEmbryos
@@ -1183,9 +1268,10 @@ ApplicationWindow {
             onRenameTextEdited: renameDraft = text
             onRenameAccepted: commitRename()
             onRenameCanceled: cancelRename()
+            onMoveEntryRequested: moveEntry(sourcePath, targetDir)
         }
 
-        FilesPanel {
+        FilesPanel {  // FilesPanel
             id: filesPane
             parent: floatingPool
         itemsModel: filesModel
@@ -1215,6 +1301,9 @@ ApplicationWindow {
             smallButtonActiveBg: theme.smallButtonActiveBg
             smallButtonActiveBorder: theme.smallButtonActiveBorder
             smallButtonText: theme.smallButtonText
+            projectTint: window.currentProjectTint
+            projectTintBorder: window.currentProjectTint
+            projectTintOpacity: 1.0
         showMyosButton: window.hasProjectInCwp
         showCreateProject: !window.hasProjectInCwp
         onRequestMore: appendNextChunk()

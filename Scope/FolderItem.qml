@@ -25,6 +25,8 @@ Rectangle {
     property string renameText: ""
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
+    property bool dragEnabled: false
+    property string dragPayload: ""
     signal activate()
     signal doubleActivate()
     signal renameRequested()
@@ -61,6 +63,17 @@ Rectangle {
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
     border.color: strokeColor
+
+    DragHandler {
+        id: dragHandler
+        enabled: dragEnabled
+    }
+
+    Drag.active: dragEnabled && dragHandler.active
+    Drag.hotSpot.x: width / 2
+    Drag.hotSpot.y: height / 2
+    Drag.mimeData: (dragEnabled && dragPayload.length > 0) ? { "text/plain": dragPayload } : {}
+    Drag.supportedActions: Qt.MoveAction
 
     implicitWidth: {
         var base = textMeasure.width + 24

@@ -17,6 +17,10 @@ Rectangle { // Files panel
     property color smallButtonActiveBg: "#4a5675"
     property color smallButtonActiveBorder: "#6a779a"
     property color smallButtonText: "#b4bac6"
+    property color projectTint: "#7b5bd6"
+    property color projectTintBorder: "#7b5bd6"
+    property real projectTintOpacity: 1.0
+    property bool allowDrags: true
     property bool halfTransparent: false
     property bool showFolders: false
     property real templatesBrowserWidth: 0
@@ -110,8 +114,8 @@ Rectangle { // Files panel
             radius: 6
             width: root.compactButtonHeight
             height: root.compactButtonHeight
-            color: "#d34b4b"
-            border.color: "#a63b3b"
+            color: Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, root.projectTintOpacity)
+            border.color: Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, root.projectTintOpacity)
             visible: root.showCreateProject
             Text {
                 anchors.centerIn: parent
@@ -161,6 +165,11 @@ Rectangle { // Files panel
                 textColor: root.text
                 textSize: root.baseFont
                 largeIconAlignLeft: false
+                dragEnabled: root.allowDrags
+                    && (!model.isEmbryo)
+                    && model.path !== undefined
+                    && model.path.length > 0
+                dragPayload: model.path ? model.path : ""
                 onDoubleActivate: {
                     if (model.isDir) {
                         root.folderActivated(model.name)
