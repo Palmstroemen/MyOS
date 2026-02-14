@@ -372,8 +372,10 @@ class BottomToolbar(QWidget):
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self.hide_flyout)
-        self._desktop_index = self._load_desktop_index()
-        self._printers = self._load_printers()
+        # Lazy-load expensive OS scans (desktop files, printers) on demand.
+        self._desktop_index = None
+        self._printers = None
+        self._runtime_resources_loaded = False
         self._active_flyout = None
         self._primary_buttons = []
         self._flyout_anim = None
@@ -403,6 +405,13 @@ class BottomToolbar(QWidget):
         # Setup content
         self.setup_primary_toolbar()
         self.setup_flyout()
+
+    def _ensure_runtime_resources(self):
+        if self._runtime_resources_loaded:
+            return
+        self._desktop_index = self._load_desktop_index()
+        self._printers = self._load_printers()
+        self._runtime_resources_loaded = True
         
     def setup_primary_toolbar(self):
         """Setup the always-visible primary toolbar."""
@@ -470,7 +479,8 @@ class BottomToolbar(QWidget):
             return
         if self._active_flyout == primary_action and self.flyout.isVisible():
             return
-        printer_items = [(p["label"], ["printer"], p["name"]) for p in self._printers] or [("Printer", ["printer"], "Printer")]
+        self._ensure_runtime_resources()
+        printer_items = [(p["label"], ["printer"], p["name"]) for p in (self._printers or [])] or [("Printer", ["printer"], "Printer")]
         print_items = [("PDF", ["application-pdf", "pdf", "evince", "okular"], "PDF")] + printer_items
         items = {
             "Send To": [("Mail", ["mail", "thunderbird", "evolution", "kmail", "geary"]),
@@ -613,7 +623,7 @@ class BottomToolbar(QWidget):
             icon = QIcon.fromTheme(name)
             if not icon.isNull():
                 return icon
-            for key, value in self._desktop_index.items():
+            for key, value in (self._desktop_index or {}).items():
                 if name in key:
                     themed = QIcon.fromTheme(value)
                     if not themed.isNull():
@@ -2229,12 +2239,20 @@ class PostFixWindow(QMainWindow):
         
         # Connect signals
         self.connect_signals()
-        self.apply_theme_color_hex(self.editor.current_bg)
         if open_path and open_path.exists() and hasattr(self.editor, "load_markdown"):
             self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
             if hasattr(self.editor, "set_path"):
                 self.editor.set_path(open_path)
-                self._reload_tag_context()
+        self._defer_noncritical_startup()
+
+    def _defer_noncritical_startup(self):
+        # First paint: show markdown quickly, then warm up non-critical UI.
+        QTimer.singleShot(0, self._finish_noncritical_startup)
+
+    def _finish_noncritical_startup(self):
+        self.apply_theme_color_hex(self.editor.current_bg)
+        if getattr(self.editor, "current_path", None):
+            self._reload_tag_context()
         elif hasattr(self.editor, "tagsChanged"):
             self.right_sidebar.set_tags([])
         
