@@ -213,6 +213,12 @@ class Backend(QObject):
     def moveEntry(self, source: str, targetDir: str) -> bool:
         return self._api.move_entry(source, targetDir)
 
+    @Slot("QVariantList", str, result="QVariantMap")
+    def moveEntries(self, sources, targetDir: str):
+        cleaned = [str(item or "").strip() for item in (sources or [])]
+        cleaned = [item for item in cleaned if item]
+        return self._api.move_entries(cleaned, targetDir)
+
     @Slot(str, result="QVariantList")
     def listEntries(self, path: str):
         resolved = str(Path(path).expanduser().resolve())

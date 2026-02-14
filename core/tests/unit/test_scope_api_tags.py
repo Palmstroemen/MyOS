@@ -54,3 +54,40 @@ def test_list_entries_filtered_supports_or_and_modes(tmp_path, monkeypatch):
 
     assert names_or == ["a.md", "b.md", "c.md"]
     assert names_and == ["a.md"]
+
+
+def test_move_entries_moves_multiple_sources(tmp_path):
+    root = tmp_path / "Lab"
+    root.mkdir()
+    src_a = root / "a.txt"
+    src_b = root / "b.txt"
+    dst = root / "Target"
+    dst.mkdir()
+    src_a.write_text("A", encoding="utf-8")
+    src_b.write_text("B", encoding="utf-8")
+
+    api = ScopeApi(str(root))
+    result = api.move_entries([str(src_a), str(src_b)], str(dst))
+
+    assert result["ok"] is True
+    assert len(result["moved"]) == 2
+    assert not src_a.exists()
+    assert not src_b.exists()
+    assert (dst / "a.txt").exists()
+    assert (dst / "b.txt").exists()
+
+
+def test_move_entries_skips_invalid_target_inside_source(tmp_path):
+    root = tmp_path / "Lab"
+    root.mkdir()
+    parent = root / "Parent"
+    nested = parent / "Nested"
+    parent.mkdir()
+    nested.mkdir()
+
+    api = ScopeApi(str(root))
+    result = api.move_entries([str(parent)], str(nested))
+
+    assert result["ok"] is False
+    assert result["moved"] == []
+    assert any(item["reason"] == "target_inside_source" for item in result["errors"])

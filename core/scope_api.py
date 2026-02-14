@@ -364,6 +364,62 @@ class ScopeApi:
         except Exception:
             return False
 
+    def move_entries(self, sources: List[str], target_dir: str) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
+            "ok": True,
+            "moved": [],
+            "skipped": [],
+            "errors": [],
+        }
+        dst_dir = Path(target_dir).expanduser().resolve()
+        if not dst_dir.is_dir():
+            result["ok"] = False
+            result["errors"].append({"source": "", "reason": "target_not_directory", "target": str(dst_dir)})
+            return result
+
+        seen: set[str] = set()
+        for raw in (sources or []):
+            source_text = str(raw or "").strip()
+            if not source_text:
+                continue
+
+            src = Path(source_text).expanduser().resolve()
+            src_key = str(src)
+            if src_key in seen:
+                result["skipped"].append({"source": src_key, "reason": "duplicate_source"})
+                continue
+            seen.add(src_key)
+
+            if not src.exists():
+                result["errors"].append({"source": src_key, "reason": "source_missing"})
+                continue
+            if src == dst_dir:
+                result["skipped"].append({"source": src_key, "reason": "same_as_target"})
+                continue
+            if is_within(dst_dir, src):
+                result["errors"].append({"source": src_key, "reason": "target_inside_source"})
+                continue
+
+            destination = dst_dir / src.name
+            if destination.exists():
+                result["errors"].append(
+                    {
+                        "source": src_key,
+                        "reason": "destination_exists",
+                        "destination": str(destination),
+                    }
+                )
+                continue
+
+            try:
+                shutil.move(str(src), str(destination))
+                result["moved"].append({"source": src_key, "destination": str(destination)})
+            except Exception:
+                result["errors"].append({"source": src_key, "reason": "move_failed"})
+
+        result["ok"] = len(result["errors"]) == 0
+        return result
+
     def open_markdown(self, path: str) -> bool:
         target = Path(path).expanduser().resolve()
         opener = Path(__file__).resolve().parent / "bin" / "open_md.py"

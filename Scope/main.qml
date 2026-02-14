@@ -99,6 +99,7 @@ ApplicationWindow {
     property var pendingMoveSources: []
     property string pendingMoveTargetDir: ""
     property string pendingMoveMessage: ""
+    property string moveReportMessage: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
     ListModel { id: filesModel }
@@ -307,10 +308,53 @@ ApplicationWindow {
     }
 
     function _performMove(sources, targetDir) {
-        if (!hasBackend() || typeof backend.moveEntry !== "function") {
+        if (!hasBackend()) {
             return
         }
         if (!sources || sources.length === 0 || !targetDir) {
+            return
+        }
+        if (typeof backend.moveEntries === "function") {
+            var batch = backend.moveEntries(sources, targetDir)
+            var skipped = (batch && batch.skipped) ? batch.skipped : []
+            var errors = (batch && batch.errors) ? batch.errors : []
+            if (batch && batch.moved && batch.moved.length > 0) {
+                selectedEntryPaths = []
+                updateSubProjects()
+                updateFiles()
+                updateTemplates()
+                standardFolders = listTemplates(standardPath)
+                updateStandardFolders()
+            }
+            if (errors.length > 0 || skipped.length > 0) {
+                var lines = []
+                if (errors.length > 0) {
+                    lines.push("Some items could not be moved:")
+                    for (var e = 0; e < errors.length; e++) {
+                        var err = errors[e]
+                        var errSource = err && err.source ? err.source : "(unknown)"
+                        var errReason = err && err.reason ? err.reason : "error"
+                        lines.push("- " + errSource + " (" + errReason + ")")
+                    }
+                }
+                if (skipped.length > 0) {
+                    if (lines.length > 0) {
+                        lines.push("")
+                    }
+                    lines.push("Skipped:")
+                    for (var s = 0; s < skipped.length; s++) {
+                        var skip = skipped[s]
+                        var skipSource = skip && skip.source ? skip.source : "(unknown)"
+                        var skipReason = skip && skip.reason ? skip.reason : "skipped"
+                        lines.push("- " + skipSource + " (" + skipReason + ")")
+                    }
+                }
+                moveReportMessage = lines.join("\n")
+                moveReportDialog.open()
+            }
+            return
+        }
+        if (typeof backend.moveEntry !== "function") {
             return
         }
         var movedAny = false
@@ -1202,6 +1246,24 @@ ApplicationWindow {
         }
         contentItem: Text {
             text: pendingMoveMessage
+            wrapMode: Text.WordWrap
+            color: theme.text
+            font.pixelSize: baseFont
+        }
+    }
+
+    Dialog {
+        id: moveReportDialog
+        title: "Move Report"
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(520, Math.round(window.width * 0.42))
+        onAccepted: moveReportMessage = ""
+        onRejected: moveReportMessage = ""
+        contentItem: Text {
+            text: moveReportMessage
             wrapMode: Text.WordWrap
             color: theme.text
             font.pixelSize: baseFont
