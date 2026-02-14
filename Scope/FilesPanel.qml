@@ -144,6 +144,7 @@ Rectangle { // Files panel
         anchors.rightMargin: 8
         width: Math.max(96, Math.min(180, Math.round(parent.width * 0.22)))
         height: Math.max(80, parent.height - cornerButtons.height - 24)
+        visible: (root.availableTags && root.availableTags.length > 0)
         radius: 8
         color: Qt.rgba(root.panelAlt.r, root.panelAlt.g, root.panelAlt.b, 0.36)
         border.color: Qt.rgba(root.pillBorder.r, root.pillBorder.g, root.pillBorder.b, 0.6)
@@ -249,7 +250,7 @@ Rectangle { // Files panel
         anchors.leftMargin: 16
         anchors.topMargin: 16
         anchors.bottomMargin: 16
-        anchors.rightMargin: tagBar.width + 16
+        anchors.rightMargin: tagBar.visible ? (tagBar.width + 16) : 16
         spacing: 8
 
         GridView {
