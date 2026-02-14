@@ -1194,6 +1194,24 @@ class SmartEditor(QWidget):
         self.focus_edit.setTextCursor(cursor)
         self.focus_edit.setFocus()
 
+    def _select_word_in_focus(self, word: str):
+        token = (word or "").strip()
+        if not token:
+            return
+        text = self.focus_edit.toPlainText()
+        if not text:
+            return
+        start = text.find(token)
+        if start < 0:
+            start = text.lower().find(token.lower())
+        if start < 0:
+            return
+        cursor = self.focus_edit.textCursor()
+        cursor.setPosition(start)
+        cursor.setPosition(start + len(token), QTextCursor.KeepAnchor)
+        self.focus_edit.setTextCursor(cursor)
+        self.focus_edit.setFocus()
+
     def eventFilter(self, watched, event):
         focus_widget = getattr(self, "focus_edit", None)
         preview_widget = getattr(self, "preview", None)
@@ -1215,6 +1233,16 @@ class SmartEditor(QWidget):
             if key == Qt.Key_Down:
                 self._move_focus_line(1)
                 return True
+            if key == Qt.Key_Backspace:
+                cursor = self.focus_edit.textCursor()
+                at_start = cursor.position() == 0 and not cursor.hasSelection()
+                if at_start and self._active_focus_idx > 0:
+                    self._move_focus_line(-1)
+                    jump_cursor = self.focus_edit.textCursor()
+                    jump_cursor.movePosition(QTextCursor.End)
+                    self.focus_edit.setTextCursor(jump_cursor)
+                    self.focus_edit.setFocus()
+                    return True
             if key in (Qt.Key_Return, Qt.Key_Enter):
                 return False
         if watched is preview_widget.viewport() and event.type() == QEvent.MouseButtonPress:
@@ -1228,10 +1256,13 @@ class SmartEditor(QWidget):
                 idx = self._line_index_from_preview_pos(pos)
                 self._active_focus_idx = idx
                 click_cursor = preview_widget.cursorForPosition(pos)
+                click_cursor.select(QTextCursor.WordUnderCursor)
+                selected_word = click_cursor.selectedText().strip()
                 click_rect = preview_widget.cursorRect(click_cursor)
                 self._overlay_top_hint = click_rect.bottom() + 1
                 self._apply_focus_text_from_source()
                 focus_widget.setFocus()
+                self._select_word_in_focus(selected_word)
             return False
         if watched is index_widget.viewport() and event.type() == QEvent.MouseButtonPress:
             pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
@@ -2171,6 +2202,7 @@ class PostFixWindow(QMainWindow):
         close_corner_layout.addWidget(self.btn_close, 0, Qt.AlignLeft | Qt.AlignTop)
         close_corner_layout.addStretch(1)
         main_layout.addWidget(self.close_corner_host, 0, 2)
+        self._init_close_corner_fade()
 
         main_layout.addWidget(self.left_mid_host, 1, 0)
         main_layout.addWidget(self.editor, 1, 1)
@@ -2796,15 +2828,18 @@ class PostFixWindow(QMainWindow):
         self._topbar_anim.setDuration(500)
         self._topbar_anim.setEasingCurve(QEasingCurve.InOutQuad)
         self.top_toolbar.installEventFilter(self)
-        if hasattr(self, "close_corner_host"):
-            close_effect = QGraphicsOpacityEffect(self.close_corner_host)
-            close_effect.setOpacity(0.0)
-            self.close_corner_host.setGraphicsEffect(close_effect)
-            self._close_corner_effect = close_effect
-            self._close_corner_anim = QPropertyAnimation(close_effect, b"opacity", self)
-            self._close_corner_anim.setDuration(500)
-            self._close_corner_anim.setEasingCurve(QEasingCurve.InOutQuad)
-            self.close_corner_host.installEventFilter(self)
+
+    def _init_close_corner_fade(self):
+        if not hasattr(self, "close_corner_host"):
+            return
+        close_effect = QGraphicsOpacityEffect(self.close_corner_host)
+        close_effect.setOpacity(getattr(self, "_topbar_effect", None).opacity() if hasattr(self, "_topbar_effect") else 0.0)
+        self.close_corner_host.setGraphicsEffect(close_effect)
+        self._close_corner_effect = close_effect
+        self._close_corner_anim = QPropertyAnimation(close_effect, b"opacity", self)
+        self._close_corner_anim.setDuration(500)
+        self._close_corner_anim.setEasingCurve(QEasingCurve.InOutQuad)
+        self.close_corner_host.installEventFilter(self)
 
     def eventFilter(self, obj, event):
         if obj in (getattr(self, "top_toolbar", None), getattr(self, "close_corner_host", None)):
