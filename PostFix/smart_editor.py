@@ -142,6 +142,7 @@ class SmartEditor(QWidget):
         scroll_value = self.preview.verticalScrollBar().value()
         render_body = self._prepare_markdown_for_render(body)
         html = markdown2.markdown(render_body, extras=["fenced-code-blocks", "break-on-newline"])
+        html = self._sanitize_rendered_html(html)
         self.preview.setHtml(html)
         self.preview.verticalScrollBar().setValue(scroll_value)
         self._refresh_index_gutter()
@@ -265,6 +266,43 @@ class SmartEditor(QWidget):
                 segments[idx] = "".join(chunks)
             prepared.append("`".join(segments))
         return "".join(prepared)
+
+    def _sanitize_rendered_html(self, html: str) -> str:
+        """Best-effort sanitization against active/scripted content in preview."""
+        out = html or ""
+        # // Security: Remove high-risk active content blocks entirely.
+        out = re.sub(r"<\s*(script|style|iframe|object|embed)\b[^>]*>.*?<\s*/\s*\1\s*>", "", out, flags=re.IGNORECASE | re.DOTALL)
+        out = re.sub(r"<\s*(script|style|iframe|object|embed)\b[^>]*/\s*>", "", out, flags=re.IGNORECASE)
+        # // Security: Remove inline event handlers (onclick/onerror/...) to prevent script execution.
+        out = re.sub(r"(?i)\s+on[a-z0-9_-]+\s*=\s*\"[^\"]*\"", "", out)
+        out = re.sub(r"(?i)\s+on[a-z0-9_-]+\s*=\s*'[^']*'", "", out)
+        out = re.sub(r"(?i)\s+on[a-z0-9_-]+\s*=\s*[^\s>]+", "", out)
+
+        def _sanitize_attr(match):
+            attr = match.group(1)
+            value = (match.group(2) or "").strip()
+            lower = value.lower()
+            if lower.startswith(("javascript:", "vbscript:", "data:")):
+                return f'{attr}="#"'
+            return match.group(0)
+
+        def _sanitize_unquoted_attr(match):
+            attr = match.group(1)
+            value = (match.group(2) or "").strip()
+            lower = value.lower()
+            if lower.startswith(("javascript:", "vbscript:", "data:")):
+                return f'{attr}="#"'
+            return match.group(0)
+
+        # // Security: Neutralize unsafe URI payloads across link-like attributes.
+        out = re.sub(r'(?i)\b(href|src|formaction|xlink:href|poster)\s*=\s*"([^"]*)"', _sanitize_attr, out)
+        out = re.sub(r"(?i)\b(href|src|formaction|xlink:href|poster)\s*=\s*'([^']*)'", _sanitize_attr, out)
+        out = re.sub(r"(?i)\b(href|src|formaction|xlink:href|poster)\s*=\s*([^\s\"'>]+)", _sanitize_unquoted_attr, out)
+        # // Security: Strip srcdoc to avoid injecting executable HTML payloads in embedded contexts.
+        out = re.sub(r"(?i)\s+srcdoc\s*=\s*\"[^\"]*\"", "", out)
+        out = re.sub(r"(?i)\s+srcdoc\s*=\s*'[^']*'", "", out)
+        out = re.sub(r"(?i)\s+srcdoc\s*=\s*[^\s>]+", "", out)
+        return out
 
     def replace_color_definition(self, key: str, old_hex: str, new_hex: str) -> bool:
         key_s = (key or "").strip()

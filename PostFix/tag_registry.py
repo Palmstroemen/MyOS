@@ -1,9 +1,24 @@
 """Tag registry and scope tag utilities for PostFix."""
 
 import json
+import re
 from pathlib import Path
 
 from PySide6.QtGui import QColor
+
+TAG_NAME_RE = re.compile(r"^[a-zA-Z0-9_/\-äöüÄÖÜß]+$")
+
+
+def normalize_tag_name(tag: str | None) -> str | None:
+    candidate = str(tag or "").strip().lstrip("#")
+    if not candidate:
+        return None
+    # // Security: Prevent line-injection and control character abuse in Tags.md / app.json fields.
+    if any(ch in candidate for ch in ("\n", "\r", "\t", "\x00")):
+        return None
+    if not TAG_NAME_RE.fullmatch(candidate):
+        return None
+    return candidate
 
 
 def find_vault_root(file_path: Path | None) -> Path | None:
@@ -27,14 +42,15 @@ def parse_scope_tags(tags_md_path: Path) -> list[str]:
         if not line or line.lower() == "# tags":
             continue
         if line.startswith("#"):
-            tag = line[1:].strip()
+            tag = normalize_tag_name(line[1:].strip())
             if tag:
                 tags.append(tag)
     return tags
 
 
 def write_scope_tags(tags_md_path: Path, tags: list[str]) -> bool:
-    cleaned = [str(t).strip().lstrip("#") for t in (tags or []) if str(t).strip().lstrip("#")]
+    cleaned = [normalize_tag_name(t) for t in (tags or [])]
+    cleaned = [t for t in cleaned if t]
     unique = list(dict.fromkeys(cleaned))
     content = "# Tags\n" + "\n".join(f"#{tag}" for tag in unique) + ("\n" if unique else "")
     try:
@@ -77,8 +93,10 @@ def flatten_tag_colors(app_json_data: dict) -> dict[str, str]:
         color = str(entry.get("color", "")).strip()
         if not color:
             continue
-        for tag in [p.strip() for p in names_raw.split(";") if p.strip()]:
-            mapping[tag] = color
+        for part in [p.strip() for p in names_raw.split(";") if p.strip()]:
+            safe_tag = normalize_tag_name(part)
+            if safe_tag:
+                mapping[safe_tag] = color
     return mapping
 
 
@@ -93,7 +111,8 @@ def lighten_hex(color_hex: str, factor: float = 0.72) -> str:
 
 
 def assign_tag_color_in_registry(app_json_data: dict, tag: str, color_hex: str) -> bool:
-    if not tag:
+    safe_tag = normalize_tag_name(tag)
+    if not safe_tag:
         return False
     root = app_json_data if isinstance(app_json_data, dict) else {}
     plugin = root.setdefault("colored-tags-wrangler", {})
@@ -115,14 +134,15 @@ def assign_tag_color_in_registry(app_json_data: dict, tag: str, color_hex: str) 
     for idx, entry in enumerate(entries):
         if not isinstance(entry, dict):
             continue
-        names = [p.strip() for p in str(entry.get("name", "")).split(";") if p.strip()]
-        if tag in names:
+        names = [normalize_tag_name(p.strip()) for p in str(entry.get("name", "")).split(";") if p.strip()]
+        names = [n for n in names if n]
+        if safe_tag in names:
             target_idx = idx
             target_names = names
             break
 
     if target_idx is None:
-        new_entry = {"name": tag, "color": color_hex, "luminanceOffset": 15}
+        new_entry = {"name": safe_tag, "color": color_hex, "luminanceOffset": 15}
         if separate_background:
             new_entry["background"] = lighten_hex(color_hex)
         entries.append(new_entry)
@@ -137,9 +157,9 @@ def assign_tag_color_in_registry(app_json_data: dict, tag: str, color_hex: str) 
             entry.pop("background", None)
         return True
 
-    remaining = [n for n in target_names if n != tag]
+    remaining = [n for n in target_names if n != safe_tag]
     entry["name"] = ";".join(remaining)
-    new_entry = {"name": tag, "color": color_hex, "luminanceOffset": int(entry.get("luminanceOffset", 15))}
+    new_entry = {"name": safe_tag, "color": color_hex, "luminanceOffset": int(entry.get("luminanceOffset", 15))}
     if separate_background:
         new_entry["background"] = lighten_hex(color_hex)
     entries.append(new_entry)
