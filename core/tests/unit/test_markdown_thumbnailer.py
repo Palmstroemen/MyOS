@@ -1,4 +1,5 @@
 from core.thumbnailer.markdown_thumbnailer import (
+    detect_note_style,
     extract_background_color,
     markdown_to_snippet,
     normalize_hex_color,
@@ -53,3 +54,28 @@ Paragraph line.
     assert "Heading" in snippet
     assert "item 1" in snippet
     assert "Paragraph line." in snippet
+
+
+def test_detect_note_style_uses_line_thresholds():
+    short = "\n".join(f"line {i}" for i in range(9))
+    medium = "\n".join(f"line {i}" for i in range(10))
+    long_note = "\n".join(f"line {i}" for i in range(100))
+    assert detect_note_style(short) == "postit"
+    assert detect_note_style(medium) == "sheet"
+    assert detect_note_style(long_note) == "notebook"
+
+
+def test_detect_note_style_prefers_config_inside_myos_folder(tmp_path):
+    path = tmp_path / "Project" / ".MyOS" / "Manifest.md"
+    path.parent.mkdir(parents=True)
+    text = "\n".join(f"line {i}" for i in range(50))
+    assert detect_note_style(text, input_path=path) == "config"
+
+
+def test_detect_note_style_detects_long_structured_ai_chat():
+    lines = []
+    for i in range(10):
+        lines.append(f"User: question {i}")
+        lines.append(f"Assistant: answer {i}")
+    md = "\n".join(lines)
+    assert detect_note_style(md) == "chat"
