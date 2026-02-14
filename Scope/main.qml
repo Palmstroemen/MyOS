@@ -307,6 +307,36 @@ ApplicationWindow {
         return false
     }
 
+    function _basename(path) {
+        var text = String(path || "")
+        if (text.length === 0) {
+            return "(unknown)"
+        }
+        var parts = text.split("/")
+        return parts.length > 0 ? (parts[parts.length - 1] || text) : text
+    }
+
+    function _moveReasonText(code) {
+        switch (String(code || "")) {
+        case "target_not_directory":
+            return "Target is not a folder."
+        case "source_missing":
+            return "Item no longer exists."
+        case "target_inside_source":
+            return "Cannot move a folder into itself."
+        case "destination_exists":
+            return "Destination already contains an item with this name."
+        case "move_failed":
+            return "Move operation failed."
+        case "same_as_target":
+            return "Item is already in the target folder."
+        case "duplicate_source":
+            return "Item was selected more than once."
+        default:
+            return "Move was skipped."
+        }
+    }
+
     function _performMove(sources, targetDir) {
         if (!hasBackend()) {
             return
@@ -328,13 +358,20 @@ ApplicationWindow {
             }
             if (errors.length > 0 || skipped.length > 0) {
                 var lines = []
+                var movedCount = (batch && batch.moved) ? batch.moved.length : 0
+                if (movedCount > 0) {
+                    lines.push("Moved: " + movedCount + " item" + (movedCount === 1 ? "" : "s"))
+                }
                 if (errors.length > 0) {
-                    lines.push("Some items could not be moved:")
+                    if (lines.length > 0) {
+                        lines.push("")
+                    }
+                    lines.push("Could not move:")
                     for (var e = 0; e < errors.length; e++) {
                         var err = errors[e]
-                        var errSource = err && err.source ? err.source : "(unknown)"
+                        var errSource = _basename(err && err.source ? err.source : "")
                         var errReason = err && err.reason ? err.reason : "error"
-                        lines.push("- " + errSource + " (" + errReason + ")")
+                        lines.push("- " + errSource + ": " + _moveReasonText(errReason))
                     }
                 }
                 if (skipped.length > 0) {
@@ -344,9 +381,9 @@ ApplicationWindow {
                     lines.push("Skipped:")
                     for (var s = 0; s < skipped.length; s++) {
                         var skip = skipped[s]
-                        var skipSource = skip && skip.source ? skip.source : "(unknown)"
+                        var skipSource = _basename(skip && skip.source ? skip.source : "")
                         var skipReason = skip && skip.reason ? skip.reason : "skipped"
-                        lines.push("- " + skipSource + " (" + skipReason + ")")
+                        lines.push("- " + skipSource + ": " + _moveReasonText(skipReason))
                     }
                 }
                 moveReportMessage = lines.join("\n")
