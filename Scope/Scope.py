@@ -50,6 +50,7 @@ class Thumbnailer(QObject):
         self._cache_root = Path("~/.cache/myos-scope/thumbnails").expanduser()
         self._freedesktop_cache = Path("~/.cache/thumbnails").expanduser()
         self._pdftoppm = shutil.which("pdftoppm")
+        self._md_thumbnailer = Path(__file__).resolve().parents[1] / "core" / "bin" / "myos-md-thumbnailer"
         self._size_px = 256
 
     def request_thumbnail(self, file_path: Path) -> str:
@@ -87,6 +88,10 @@ class Thumbnailer(QObject):
         if mime.startswith("image/"):
             return True
         if mime == "application/pdf" or file_path.suffix.lower() == ".pdf":
+            return True
+        if mime in {"text/markdown", "text/x-markdown"}:
+            return True
+        if file_path.suffix.lower() in {".md", ".markdown"}:
             return True
         return False
 
@@ -154,6 +159,26 @@ class Thumbnailer(QObject):
                 if result.returncode == 0 and cache_path.exists():
                     return cache_path.as_uri()
                 return ""
+
+            if mime in {"text/markdown", "text/x-markdown"} or file_path.suffix.lower() in {".md", ".markdown"}:
+                if not self._md_thumbnailer.exists():
+                    return ""
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(self._md_thumbnailer),
+                        str(file_path),
+                        str(cache_path),
+                        str(self._size_px),
+                    ],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                if result.returncode == 0 and cache_path.exists():
+                    return cache_path.as_uri()
+                return ""
         except Exception:
             return ""
         return ""
@@ -201,6 +226,19 @@ class Backend(QObject):
         self._start_entries_task(resolved)
         return []
 
+    @Slot(str, "QVariantList", bool, result="QVariantList")
+    def listEntriesFiltered(self, path: str, tags, matchAll: bool):
+        resolved = str(Path(path).expanduser().resolve())
+        selected = [str(tag or "").strip() for tag in (tags or [])]
+        selected = [tag for tag in selected if tag]
+        entries = self._api.list_entries_filtered(resolved, selected, bool(matchAll))
+        self._enrich_entries(entries, resolved)
+        return entries
+
+    @Slot(str, result="QVariantList")
+    def listProjectTags(self, path: str):
+        return self._api.list_project_tags(path)
+
     @Slot(str)
     def setContext(self, path: str) -> None:
         self._api.update_context(path)
@@ -236,6 +274,22 @@ class Backend(QObject):
             thumb = self._thumbnailer.request_thumbnail(file_path)
             if thumb:
                 entry["thumb"] = thumb
+
+    def _enrich_entries(self, entries: list, base_path: str) -> None:
+        mime_db = QMimeDatabase()
+        for entry in entries:
+            if entry.get("isDir"):
+                entry["mime"] = "inode/directory"
+                entry["iconName"] = "folder"
+                continue
+            raw_path = entry.get("path")
+            if not raw_path:
+                raw_path = os.path.join(base_path, entry.get("name", ""))
+                entry["path"] = raw_path
+            mime = mime_db.mimeTypeForFile(raw_path, QMimeDatabase.MatchExtension)
+            entry["mime"] = mime.name()
+            entry["iconName"] = mime.iconName() or mime.genericIconName() or "text-x-generic"
+        self._prime_thumbnails(entries)
 
     @Slot(str, result=bool)
     def hasMyosDir(self, path: str) -> bool:
@@ -274,21 +328,8 @@ class EntriesTask(QRunnable):
 
     def run(self) -> None:
         try:
-            mime_db = QMimeDatabase()
             entries = self._owner._api.list_entries(self._path)
-            for entry in entries:
-                if entry.get("isDir"):
-                    entry["mime"] = "inode/directory"
-                    entry["iconName"] = "folder"
-                    continue
-                raw_path = entry.get("path")
-                if not raw_path:
-                    raw_path = os.path.join(self._path, entry.get("name", ""))
-                    entry["path"] = raw_path
-                mime = mime_db.mimeTypeForFile(raw_path, QMimeDatabase.MatchExtension)
-                entry["mime"] = mime.name()
-                entry["iconName"] = mime.iconName() or mime.genericIconName() or "text-x-generic"
-            self._owner._prime_thumbnails(entries)
+            self._owner._enrich_entries(entries, self._path)
             self._owner._store_entries(self._path, entries)
             self._owner.entriesReady.emit(self._path, entries)
         except Exception:
