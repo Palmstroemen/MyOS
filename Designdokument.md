@@ -164,6 +164,33 @@ This keeps perceived startup responsive.
 
 This is especially important because large PySide refactors can create transient crash-prone states.
 
+## Scope Drag-and-Drop Status
+
+Current Scope behavior is intentionally conservative and safety-oriented.
+
+### Implemented
+- Multi-selection in `FilesPanel`:
+  - `Ctrl+Click` toggles item selection.
+  - Rectangle selection (marquee) on free panel area.
+- Batch drag payloads from current selection.
+- Drop targets in Scope folder views and file panel folders.
+- Batch move backend with structured result reporting:
+  - `moved`
+  - `skipped`
+  - `errors`
+- Safety prompt only when at least one moved item is a folder.
+- Human-readable post-move report messages (English).
+
+### Interaction Policy
+- File-only moves execute directly (no confirmation dialog).
+- Folder-involved moves require confirmation.
+- Moving into invalid targets is blocked and reported.
+
+### Follow-up Refinement Targets
+- Optional OR/AND toggle visibility polish in the tag rail if needed.
+- Additional UI affordances for move progress and undo strategy.
+- Broader integration tests for mixed source payloads (folders + files).
+
 ## Minimal Smoke Test Checklist
 - Open a Markdown file from Scope/PostFix.
 - Verify top-panel interactions (including window move on top free area).
