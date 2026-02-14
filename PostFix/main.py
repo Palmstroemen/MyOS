@@ -129,6 +129,7 @@ class SidebarWidget(QWidget):
 
 class TagSidebar(SidebarWidget):
     """Right sidebar for tags with interactive tag buttons."""
+    tagHexColorChangeRequested = Signal(str, str)
     
     def __init__(self):
         super().__init__("Tags", "rgba(220, 240, 200, 60)")
@@ -210,9 +211,12 @@ class TagSidebar(SidebarWidget):
         return "#1f2433" if luminance > 165 else "#ffffff"
 
     def _pick_tag_color(self, tag: str):
+        was_hex_tag = self._hex_color_from_tag(tag) is not None
         chosen = QColorDialog.getColor(QColor(self._color_for_tag(tag)), self, f"Color for #{tag}")
         if not chosen.isValid():
             return
+        if was_hex_tag:
+            self.tagHexColorChangeRequested.emit(tag, chosen.name())
         self._tag_colors[tag] = chosen.name()
         self._rebuild()
 
@@ -643,6 +647,7 @@ class SmartEditor(QWidget):
         self._editing_focus = False
         self._index_debug_visible = False
         self._overlay_top_hint = None
+        self._focus_dynamic_end = None
         self.setup_ui()
         self.apply_background(self.current_bg, update_frontmatter=False, animate=False)
         self.render_preview()
@@ -739,7 +744,8 @@ class SmartEditor(QWidget):
         text = self.source_edit.toPlainText()
         _, body = self.metadata.split_frontmatter(text)
         scroll_value = self.preview.verticalScrollBar().value()
-        html = markdown2.markdown(body, extras=["fenced-code-blocks"])
+        render_body = self._prepare_markdown_for_render(body)
+        html = markdown2.markdown(render_body, extras=["fenced-code-blocks", "break-on-newline"])
         self.preview.setHtml(html)
         self.preview.verticalScrollBar().setValue(scroll_value)
         self._refresh_index_gutter()
@@ -778,6 +784,26 @@ class SmartEditor(QWidget):
 
     def _source_lines(self):
         return self._source_body().splitlines()
+
+    def _prepare_markdown_for_render(self, body: str) -> str:
+        """
+        Keep hashtag tags (e.g. #team, #ffcc00) as plain text.
+        markdown2 can interpret '#tag' at line start as heading.
+        """
+        prepared = []
+        in_fence = False
+        tag_heading_re = re.compile(r"^(\s{0,3})#([A-Za-z0-9_/\-äöüÄÖÜß]+)\b")
+        for line in (body or "").splitlines(keepends=True):
+            stripped = line.lstrip()
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                in_fence = not in_fence
+                prepared.append(line)
+                continue
+            if in_fence:
+                prepared.append(line)
+                continue
+            prepared.append(tag_heading_re.sub(r"\1\\#\2", line))
+        return "".join(prepared)
 
     def _refresh_index_gutter(self):
         lines = self._source_lines()
@@ -825,6 +851,7 @@ class SmartEditor(QWidget):
             return
         body_lines = self._source_body().splitlines()
         start, end = self._focus_spans[self._active_focus_idx]
+        self._focus_dynamic_end = end
         segment = "\n".join(body_lines[start:end]) if start < len(body_lines) else ""
         cursor_pos = self.focus_edit.textCursor().position()
         self._syncing_focus = True
@@ -881,6 +908,7 @@ class SmartEditor(QWidget):
     def _hide_focus_overlay(self):
         self.focus_edit.hide()
         self._overlay_top_hint = None
+        self._focus_dynamic_end = None
         self.preview.setFocus()
 
     def _estimate_focus_height(self, text: str, width: int) -> int:
@@ -902,9 +930,11 @@ class SmartEditor(QWidget):
         if self._active_focus_idx < 0 or self._active_focus_idx >= len(self._focus_spans):
             return
         body_lines = self._source_body().splitlines()
-        start, end = self._focus_spans[self._active_focus_idx]
-        replacement = self.focus_edit.toPlainText().splitlines()
+        start, span_end = self._focus_spans[self._active_focus_idx]
+        end = self._focus_dynamic_end if self._focus_dynamic_end is not None else span_end
+        replacement = self.focus_edit.toPlainText().split("\n")
         new_lines = body_lines[:start] + replacement + body_lines[end:]
+        self._focus_dynamic_end = start + len(replacement)
         self._syncing_focus = True
         self._editing_focus = True
         self._set_source_body("\n".join(new_lines) + ("\n" if self._source_body().endswith("\n") else ""))
@@ -930,6 +960,42 @@ class SmartEditor(QWidget):
         self.focus_edit.setTextCursor(cursor)
         self.focus_edit.setFocus()
 
+    def replace_hex_tag_color(self, old_hex_tag: str, new_color_hex: str) -> bool:
+        old_value = (old_hex_tag or "").strip().lstrip("#")
+        new_value = (new_color_hex or "").strip().lstrip("#")
+        if len(old_value) not in (3, 6) or len(new_value) not in (3, 6):
+            return False
+        hex_chars = "0123456789abcdefABCDEF"
+        if any(ch not in hex_chars for ch in old_value + new_value):
+            return False
+        body = self._source_body()
+        pattern = re.compile(rf"(?<!\w)#{re.escape(old_value)}\b", re.IGNORECASE)
+        replacement = f"#{new_value.lower()}"
+        in_fence = False
+        changed = 0
+        updated_parts = []
+        for line in body.splitlines(keepends=True):
+            stripped = line.lstrip()
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                in_fence = not in_fence
+                updated_parts.append(line)
+                continue
+            if in_fence:
+                updated_parts.append(line)
+                continue
+            # Skip inline-code fragments wrapped in single backticks.
+            segments = line.split("`")
+            for idx in range(0, len(segments), 2):
+                segments[idx], local_changed = pattern.subn(replacement, segments[idx])
+                changed += local_changed
+            updated_parts.append("`".join(segments))
+        updated_body = "".join(updated_parts)
+        if changed <= 0:
+            return False
+        self._set_source_body(updated_body)
+        self.render_preview(sync_focus=False)
+        return True
+
     def eventFilter(self, watched, event):
         focus_widget = getattr(self, "focus_edit", None)
         preview_widget = getattr(self, "preview", None)
@@ -952,8 +1018,7 @@ class SmartEditor(QWidget):
                 self._move_focus_line(1)
                 return True
             if key in (Qt.Key_Return, Qt.Key_Enter):
-                self._hide_focus_overlay()
-                return True
+                return False
         if watched is preview_widget.viewport() and event.type() == QEvent.MouseButtonPress:
             pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
             if focus_widget.isVisible() and not focus_widget.geometry().contains(pos):
@@ -1734,6 +1799,8 @@ class PostFixWindow(QMainWindow):
             self.btn_view_mode.setEnabled(False)
             for btn in [self.btn_bg_color, self.btn_text_color, self.btn_highlight]:
                 btn.setEnabled(False)
+        if hasattr(self.right_sidebar, "tagHexColorChangeRequested"):
+            self.right_sidebar.tagHexColorChangeRequested.connect(self._on_hex_tag_color_change)
         self._theme_anim = None
         self._current_theme_color = self.editor.current_bg
         self._meta_timer = QTimer(self)
@@ -1863,7 +1930,13 @@ class PostFixWindow(QMainWindow):
         main_layout.addWidget(self.topbar_bg, 0, 1)
         main_layout.addWidget(self.top_toolbar, 0, 1)
         main_layout.addWidget(self.strip_right_top_host, 0, 2)
-        main_layout.addWidget(self.btn_close, 0, 2, Qt.AlignLeft | Qt.AlignTop)
+        self.close_corner_host = QWidget()
+        close_corner_layout = QHBoxLayout(self.close_corner_host)
+        close_corner_layout.setContentsMargins(5, 5, 0, 0)
+        close_corner_layout.setSpacing(0)
+        close_corner_layout.addWidget(self.btn_close, 0, Qt.AlignLeft | Qt.AlignTop)
+        close_corner_layout.addStretch(1)
+        main_layout.addWidget(self.close_corner_host, 0, 2)
 
         main_layout.addWidget(self.left_mid_host, 1, 0)
         main_layout.addWidget(self.editor, 1, 1)
@@ -1970,11 +2043,22 @@ class PostFixWindow(QMainWindow):
         )
         
         self.btn_close = QPushButton("✕")
-        self.apply_round_button_style(self.btn_close, "#ff5b5b", "#d64a4a")
         self.btn_close.setStyleSheet(
-            self.btn_close.styleSheet()
-            + "QPushButton { font-size: 14px; }"
+            """
+            QPushButton {
+                border-radius: 15px;
+                background-color: #ff5b5b;
+                color: #ffffff;
+                border: 1px solid #d64a4a;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #e24a4a;
+                border: 1px solid #c23d3d;
+            }
+            """
         )
+        self.btn_close.setFixedSize(30, 30)
         self.btn_close.setCursor(Qt.PointingHandCursor)
         
         layout.addWidget(self.btn_minimize)
@@ -1999,6 +2083,11 @@ class PostFixWindow(QMainWindow):
         
         # Menu button (placeholder)
         self.btn_menu.clicked.connect(self.show_menu)
+
+    def _on_hex_tag_color_change(self, old_hex_tag: str, new_color_hex: str):
+        if not hasattr(self, "editor"):
+            return
+        self.editor.replace_hex_tag_color(old_hex_tag, new_color_hex)
         
     def toggle_maximize(self):
         """Toggle between normal and maximized window state."""
@@ -2213,9 +2302,18 @@ class PostFixWindow(QMainWindow):
         self._topbar_anim.setDuration(500)
         self._topbar_anim.setEasingCurve(QEasingCurve.InOutQuad)
         self.top_toolbar.installEventFilter(self)
+        if hasattr(self, "close_corner_host"):
+            close_effect = QGraphicsOpacityEffect(self.close_corner_host)
+            close_effect.setOpacity(0.0)
+            self.close_corner_host.setGraphicsEffect(close_effect)
+            self._close_corner_effect = close_effect
+            self._close_corner_anim = QPropertyAnimation(close_effect, b"opacity", self)
+            self._close_corner_anim.setDuration(500)
+            self._close_corner_anim.setEasingCurve(QEasingCurve.InOutQuad)
+            self.close_corner_host.installEventFilter(self)
 
     def eventFilter(self, obj, event):
-        if obj is getattr(self, "top_toolbar", None):
+        if obj in (getattr(self, "top_toolbar", None), getattr(self, "close_corner_host", None)):
             if event.type() == QEvent.Enter:
                 self.fade_topbar(1.0)
             elif event.type() == QEvent.Leave:
@@ -2246,6 +2344,14 @@ class PostFixWindow(QMainWindow):
         self._topbar_anim.setStartValue(self._topbar_effect.opacity())
         self._topbar_anim.setEndValue(target_opacity)
         self._topbar_anim.start()
+        close_anim = getattr(self, "_close_corner_anim", None)
+        close_effect = getattr(self, "_close_corner_effect", None)
+        if close_anim and close_effect:
+            if close_anim.state() == QPropertyAnimation.Running:
+                close_anim.stop()
+            close_anim.setStartValue(close_effect.opacity())
+            close_anim.setEndValue(target_opacity)
+            close_anim.start()
 
     def init_bottombar_fade(self):
         effect = QGraphicsOpacityEffect(self.bottom_toolbar)
