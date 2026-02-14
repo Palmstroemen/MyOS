@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import os
 import re
 from pathlib import Path
 from textwrap import wrap
@@ -46,6 +47,19 @@ SPEAKER_LINE_RE = re.compile(
     r"^\s*(user|assistant|system|human|ai|prompt|frage|antwort|ich|du|you)\s*[:\-]\s+",
     re.IGNORECASE,
 )
+SAFE_MAX_INPUT_BYTES = 2_000_000
+SAFE_MAX_INPUT_LINES = 5_000
+SAFE_MAX_LINE_LENGTH = 4_000
+FALLBACK_PNG_1X1 = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0cIDATx\x9cc```\x00"
+    b"\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def _debug(message: str) -> None:
+    if os.environ.get("MYOS_THUMBNAILER_DEBUG") == "1":
+        print(f"[myos-md-thumbnailer] {message}", file=os.sys.stderr)
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -169,6 +183,21 @@ def _looks_like_ai_chat(markdown_text: str) -> bool:
     return speaker_lines >= 8 and len(speakers) >= 2
 
 
+def _is_myos_path(input_path: Path | None) -> bool:
+    if not input_path:
+        return False
+
+    def _contains_myos(parts: tuple[str, ...]) -> bool:
+        return any(part.lower() == ".myos" for part in parts)
+
+    if _contains_myos(input_path.parts):
+        return True
+    try:
+        return _contains_myos(input_path.resolve(strict=False).parts)
+    except Exception:
+        return False
+
+
 def detect_note_style(markdown_text: str, input_path: Path | None = None) -> str:
     """Resolve note style from explicit metadata or conservative autodetect rules."""
     meta = _parse_frontmatter(markdown_text)
@@ -176,7 +205,7 @@ def detect_note_style(markdown_text: str, input_path: Path | None = None) -> str
     if explicit:
         return explicit
 
-    if input_path and ".MyOS" in input_path.parts:
+    if _is_myos_path(input_path):
         return "config"
     if _looks_like_ai_chat(markdown_text):
         return "chat"
@@ -284,12 +313,47 @@ def render_note_thumbnail(markdown_text: str, output_path: Path, size: int = 256
     img.save(output_path, format="PNG")
 
 
+def _read_markdown_safely(input_file: Path) -> tuple[str, bool]:
+    with input_file.open("rb") as handle:
+        raw = handle.read(SAFE_MAX_INPUT_BYTES + 1)
+    truncated = len(raw) > SAFE_MAX_INPUT_BYTES
+    if truncated:
+        raw = raw[:SAFE_MAX_INPUT_BYTES]
+        _debug(f"Input truncated to {SAFE_MAX_INPUT_BYTES} bytes: {input_file}")
+    text = raw.decode("utf-8", errors="replace")
+
+    cleaned_lines: list[str] = []
+    for idx, line in enumerate(text.splitlines()):
+        if idx >= SAFE_MAX_INPUT_LINES:
+            truncated = True
+            _debug(f"Input line-count clipped at {SAFE_MAX_INPUT_LINES}: {input_file}")
+            break
+        if len(line) > SAFE_MAX_LINE_LENGTH:
+            truncated = True
+            line = line[: SAFE_MAX_LINE_LENGTH - 1] + "…"
+        cleaned_lines.append(line)
+    return "\n".join(cleaned_lines), truncated
+
+
+def _write_fallback_png(output_file: Path) -> None:
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_bytes(FALLBACK_PNG_1X1)
+
+
 def generate_thumbnail(input_file: Path, output_file: Path, size: int) -> int:
+    requested = max(64, min(1024, int(size)))
     try:
-        text = input_file.read_text(encoding="utf-8", errors="replace")
-        render_note_thumbnail(text, output_file, size=max(64, min(1024, int(size))), input_path=input_file)
+        text, truncated = _read_markdown_safely(input_file)
+        if Image is None:
+            _debug("Pillow missing, writing fallback PNG")
+            _write_fallback_png(output_file)
+            return 0
+        render_note_thumbnail(text, output_file, size=requested, input_path=input_file)
+        if truncated:
+            _debug("Rendered from truncated input to enforce safety limits")
         return 0
-    except Exception:
+    except Exception as exc:
+        _debug(f"Render failed for {input_file}: {exc!r}")
         return 1
 
 
