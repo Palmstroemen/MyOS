@@ -47,6 +47,12 @@ Primary storage uses filesystem metadata:
 
 Fallback storage (if metadata is unavailable) may use `.MyOS/Tags.md`, but MVP will prefer native metadata and may not support tags on filesystems without it.
 
+Folder tagging is prepared via a non-project sidecar file:
+- `/.MyOS/myTags.md` on the tagged folder itself
+- this sidecar does **not** make a folder a MyOS project (`Project.md` remains the project marker)
+
+For MVP, this sidecar path is considered an optional technical bridge and is not actively expanded in UI/semantics yet.
+
 ---
 
 ## **6. Open Questions**
@@ -61,3 +67,10 @@ Fallback storage (if metadata is unavailable) may use `.MyOS/Tags.md`, but MVP w
 
 ## **7. Summary**
 Tags are text-first labels with optional color and icon hints. They remain readable without UI decoration and align with the MyOS “self-explanatory” principle.
+
+---
+
+## **8. MVP Checkpoint**
+- File tags via xattr are the primary shipped behavior.
+- Folder-tag sidecar support (`/.MyOS/myTags.md`) is prepared but intentionally not pushed further for now.
+- Reason: keep MVP focused and avoid premature divergence from Obsidian’s tag model (which is primarily note-centric, not native folder-tag-centric).
