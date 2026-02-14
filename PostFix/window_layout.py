@@ -5,6 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QPushButton,
     QSpacerItem,
@@ -60,6 +61,43 @@ class WindowLayoutMixin:
         layout.addWidget(self.btn_bg_color)
         layout.addWidget(self.btn_text_color)
         layout.addWidget(self.btn_highlight)
+
+        self.note_style_combo = QComboBox()
+        self.note_style_combo.setCursor(Qt.PointingHandCursor)
+        self.note_style_combo.setFixedHeight(30)
+        self.note_style_combo.setMinimumWidth(170)
+        self.note_style_combo.addItem("Style: Auto", "")
+        self.note_style_combo.addItem("Kurznotiz / Post-it", "postit")
+        self.note_style_combo.addItem("Mitschrift / A4", "sheet")
+        self.note_style_combo.addItem("Konzept / Heft", "notebook")
+        self.note_style_combo.addItem("Gedankenskizze / Cloud", "cloud")
+        self.note_style_combo.addItem("AI-Chat / Bubble", "chat")
+        self.note_style_combo.addItem("Config / Settings", "config")
+        self.note_style_combo.setStyleSheet(
+            """
+            QComboBox {
+                background-color: #fff740;
+                border: 1px solid #d4c600;
+                border-radius: 15px;
+                padding: 4px 10px;
+                color: #333333;
+                font-size: 12px;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border: none;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #fff9b0;
+                border: 1px solid #d4c600;
+                selection-background-color: #ffe76b;
+                color: #222222;
+            }
+            """
+        )
+        layout.addWidget(self.note_style_combo)
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Fixed, QSizePolicy.Minimum))
 
         self.btn_view_mode = QPushButton("Focus Mode")
@@ -112,5 +150,6 @@ class WindowLayoutMixin:
         self.btn_bg_color.clicked.connect(self.pick_background_color)
         self.btn_text_color.clicked.connect(self.pick_text_color)
         self.btn_highlight.clicked.connect(self.pick_highlight_color)
+        self.note_style_combo.currentIndexChanged.connect(self.on_note_style_selected)
         self.btn_view_mode.clicked.connect(self.toggle_view_mode)
         self.btn_menu.clicked.connect(self.show_menu)

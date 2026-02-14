@@ -1,0 +1,1 @@
+"""Thumbnail utilities for MyOS."""

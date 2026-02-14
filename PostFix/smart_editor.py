@@ -780,6 +780,33 @@ class SmartEditor(QWidget):
             self._frontmatter["window_x_permille"] = int(x_permille)
             self._frontmatter["window_y_permille"] = int(y_permille)
 
+    def get_frontmatter_field(self, key: str):
+        key_s = str(key or "").strip()
+        if not key_s:
+            return None
+        if self.show_frontmatter:
+            return self.metadata.get_field(self.source_edit.toPlainText(), key_s)
+        return self._frontmatter.get(key_s)
+
+    def set_frontmatter_field(self, key: str, value):
+        key_s = str(key or "").strip()
+        if not key_s:
+            return
+        if self.show_frontmatter:
+            text = self.source_edit.toPlainText()
+            meta, body = self.metadata.split_frontmatter(text)
+            if value is None or value == "":
+                meta.pop(key_s, None)
+                updated = self.metadata.build_frontmatter(meta, body)
+            else:
+                updated = self.metadata.update_field(text, key_s, value)
+            self._replace_source_text(updated)
+            return
+        if value is None or value == "":
+            self._frontmatter.pop(key_s, None)
+        else:
+            self._frontmatter[key_s] = value
+
     def _replace_source_text(self, updated: str):
         cursor = self.source_edit.textCursor()
         pos = cursor.position()

@@ -5,6 +5,7 @@ Builds UI directly in Python without .ui files for full control.
 """
 import subprocess
 import tempfile
+import re
 from pathlib import Path
 
 import markdown2
@@ -30,6 +31,28 @@ from PySide6.QtPrintSupport import QPrinter
 
 class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainWindow):
     """Main application window."""
+    NOTE_STYLE_ALIASES = {
+        "postit": "postit",
+        "kurznotiz": "postit",
+        "sticky": "postit",
+        "sheet": "sheet",
+        "a4": "sheet",
+        "blatt": "sheet",
+        "mitschrift": "sheet",
+        "notebook": "notebook",
+        "heft": "notebook",
+        "konzept": "notebook",
+        "cloud": "cloud",
+        "gedankenskizze": "cloud",
+        "chat": "chat",
+        "aichat": "chat",
+        "aichatbubble": "chat",
+        "sprechblase": "chat",
+        "config": "config",
+        "konfig": "config",
+        "konfiguration": "config",
+        "settings": "config",
+    }
     
     def __init__(
         self,
@@ -144,6 +167,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         if hasattr(self.right_sidebar, "colorDefinitionSearchRequested"):
             self.right_sidebar.colorDefinitionSearchRequested.connect(self._on_color_definition_search)
         self._theme_anim = None
+        self._syncing_note_style_combo = False
         self._current_theme_color = self.editor.current_bg
         self._meta_timer = QTimer(self)
         self._meta_timer.setSingleShot(True)
@@ -318,6 +342,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
             if hasattr(self.editor, "set_path"):
                 self.editor.set_path(open_path)
+        self._sync_note_style_selector_from_document()
         self._defer_noncritical_startup()
 
     def _defer_noncritical_startup(self):
@@ -389,6 +414,45 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         """Show menu (placeholder)."""
         print("Menu clicked - will show settings/options")
         # TODO: Implement menu functionality
+
+    def _normalize_note_style(self, raw) -> str:
+        text = str(raw or "").strip().lower()
+        if not text:
+            return ""
+        key = re.sub(r"[^a-z0-9]+", "", text)
+        return self.NOTE_STYLE_ALIASES.get(key, "")
+
+    def _sync_note_style_selector_from_document(self):
+        combo = getattr(self, "note_style_combo", None)
+        editor = getattr(self, "editor", None)
+        if combo is None or editor is None:
+            return
+        raw = editor.get_frontmatter_field("note_style")
+        if raw in (None, ""):
+            raw = editor.get_frontmatter_field("myos_note_style")
+        normalized = self._normalize_note_style(raw)
+        idx = combo.findData(normalized)
+        if idx < 0:
+            idx = combo.findData("")
+        self._syncing_note_style_combo = True
+        combo.setCurrentIndex(max(0, idx))
+        self._syncing_note_style_combo = False
+
+    def on_note_style_selected(self, _index: int):
+        if self._syncing_note_style_combo:
+            return
+        combo = getattr(self, "note_style_combo", None)
+        if combo is None:
+            return
+        normalized = self._normalize_note_style(combo.currentData())
+        if normalized:
+            self.editor.set_frontmatter_field("note_style", normalized)
+            # Keep a single canonical key in frontmatter.
+            self.editor.set_frontmatter_field("myos_note_style", None)
+        else:
+            self.editor.set_frontmatter_field("note_style", None)
+            self.editor.set_frontmatter_field("myos_note_style", None)
+        self._schedule_save()
 
     def eventFilter(self, obj, event):
         if obj in (getattr(self, "top_toolbar", None), getattr(self, "close_corner_host", None)):

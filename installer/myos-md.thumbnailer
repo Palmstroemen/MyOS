@@ -1,0 +1,8 @@
+[Thumbnailer Entry]
+Version=1.0
+Type=X-Thumbnailer
+Name=MyOS Markdown Thumbnailer
+Comment=Renders markdown notes as Post-it or notebook previews
+MimeType=text/markdown;text/x-markdown;
+TryExec=python3
+Exec=python3 __MYOS_ROOT__/scripts/myos_md_thumbnailer.py %i %o %s
