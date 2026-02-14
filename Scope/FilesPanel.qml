@@ -25,6 +25,7 @@ Rectangle { // Files panel
     property bool showFolders: false
     property var availableTags: []
     property var selectedTags: []
+    property var selectedPaths: []
     property string tagSource: "project"
     property real templatesBrowserWidth: 0
     property real projectsBrowserWidth: 0
@@ -60,8 +61,29 @@ Rectangle { // Files panel
     signal filterChanged(bool showFolders)
     signal tagToggled(string tag)
     signal requestTagSourceChange(string source)
+    signal itemActivated(string path, bool ctrlPressed)
+    signal selectionBoxApplied(var paths, bool additive)
+    signal moveEntriesRequested(string payload, string targetDir)
 
     onShowFoldersChanged: filterChanged(showFolders)
+
+    function selectedPayloadFor(itemPath, itemIsSelected) {
+        var paths = []
+        if (itemIsSelected && selectedPaths && selectedPaths.length > 0) {
+            for (var i = 0; i < selectedPaths.length; i++) {
+                var p = selectedPaths[i]
+                if (p && p.length > 0) {
+                    paths.push(p)
+                }
+            }
+        } else if (itemPath && itemPath.length > 0) {
+            paths = [itemPath]
+        }
+        if (paths.length <= 1) {
+            return paths.length === 1 ? paths[0] : ""
+        }
+        return "__MYOS_PATHS__" + JSON.stringify(paths)
+    }
 
     Column {
         id: cornerButtons
@@ -266,6 +288,8 @@ Rectangle { // Files panel
                 ? (root.largeButtonHeight + root.gridSpacing)
                 : (root.compactButtonHeight + 4)
             delegate: FolderItem {
+                readonly property string itemPath: (model.path && model.path.length > 0) ? model.path : ""
+                readonly property bool selected: root.selectedPaths && itemPath.length > 0 && root.selectedPaths.indexOf(itemPath) !== -1
                 width: filesGrid.cellWidth - root.gridSpacing
                 height: filesGrid.cellHeight - (root.itemStyle === "largeIcon" ? root.gridSpacing : 4)
                 label: model.name
@@ -277,21 +301,32 @@ Rectangle { // Files panel
                 iconLarge: root.iconSizeLarge
                 iconSource: "image://theme/" + (model.iconName ? model.iconName : (model.isDir ? "folder" : "text-x-generic"))
                 thumbnailSource: model.thumb ? model.thumb : ""
-                fillColor: root.itemFillColor
-                strokeColor: root.itemBorderColor
+                fillColor: selected ? Qt.rgba(0.58, 0.60, 0.64, 0.34) : root.itemFillColor
+                strokeColor: selected ? Qt.rgba(0.74, 0.76, 0.80, 0.92) : root.itemBorderColor
                 textColor: root.text
                 textSize: root.baseFont
                 largeIconAlignLeft: false
                 dragEnabled: root.allowDrags
                     && (!model.isEmbryo)
-                    && model.path !== undefined
-                    && model.path.length > 0
-                dragPayload: model.path ? model.path : ""
+                    && itemPath.length > 0
+                dragPayload: root.selectedPayloadFor(itemPath, selected)
+                onActivate: function(ctrlPressed) {
+                    root.itemActivated(itemPath, ctrlPressed)
+                }
                 onDoubleActivate: {
                     if (model.isDir) {
                         root.folderActivated(model.name)
                     } else {
                         root.fileActivated(model.name)
+                    }
+                }
+                DropArea {
+                    anchors.fill: parent
+                    enabled: model.isDir && !model.isEmbryo
+                    onDropped: {
+                        if (!drop || !drop.text || itemPath.length === 0) return
+                        root.moveEntriesRequested(drop.text, itemPath)
+                        drop.acceptProposedAction()
                     }
                 }
             }
@@ -300,6 +335,110 @@ Rectangle { // Files panel
                 if ((contentY + height + root.prefetchThreshold) >= contentHeight) {
                     root.requestMore()
                 }
+            }
+        }
+
+        Item {
+            id: selectionOverlay
+            anchors.fill: filesGrid
+            z: 20
+
+            property bool marqueeActive: false
+            property real startX: 0
+            property real startY: 0
+            property real endX: 0
+            property real endY: 0
+            property bool additiveSelection: false
+
+            function rectX() { return Math.min(startX, endX) }
+            function rectY() { return Math.min(startY, endY) }
+            function rectW() { return Math.abs(endX - startX) }
+            function rectH() { return Math.abs(endY - startY) }
+
+            function intersects(aX, aY, aW, aH, bX, bY, bW, bH) {
+                return aX < (bX + bW) && (aX + aW) > bX && aY < (bY + bH) && (aY + aH) > bY
+            }
+
+            function collectSelectionPaths() {
+                var selected = []
+                var rx = rectX()
+                var ry = rectY()
+                var rw = rectW()
+                var rh = rectH()
+                var count = filesGrid.count || 0
+                for (var i = 0; i < count; i++) {
+                    var item = filesGrid.itemAtIndex(i)
+                    if (!item || !item.itemPath || item.itemPath.length === 0) {
+                        continue
+                    }
+                    var ix = item.x - filesGrid.contentX
+                    var iy = item.y - filesGrid.contentY
+                    if (intersects(rx, ry, rw, rh, ix, iy, item.width, item.height)) {
+                        selected.push(item.itemPath)
+                    }
+                }
+                return selected
+            }
+
+            MouseArea {
+                id: selectionArea
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton
+                hoverEnabled: false
+                preventStealing: true
+
+                onPressed: function(mouse) {
+                    var idx = filesGrid.indexAt(mouse.x + filesGrid.contentX, mouse.y + filesGrid.contentY)
+                    if (idx >= 0) {
+                        mouse.accepted = false
+                        return
+                    }
+                    selectionOverlay.additiveSelection = (mouse.modifiers & Qt.ControlModifier) !== 0
+                    selectionOverlay.marqueeActive = true
+                    selectionOverlay.startX = mouse.x
+                    selectionOverlay.startY = mouse.y
+                    selectionOverlay.endX = mouse.x
+                    selectionOverlay.endY = mouse.y
+                    filesGrid.interactive = false
+                }
+
+                onPositionChanged: function(mouse) {
+                    if (!selectionOverlay.marqueeActive) {
+                        return
+                    }
+                    selectionOverlay.endX = mouse.x
+                    selectionOverlay.endY = mouse.y
+                }
+
+                onReleased: {
+                    if (!selectionOverlay.marqueeActive) {
+                        return
+                    }
+                    filesGrid.interactive = true
+                    var moved = selectionOverlay.rectW() > 6 || selectionOverlay.rectH() > 6
+                    if (moved) {
+                        var paths = selectionOverlay.collectSelectionPaths()
+                        root.selectionBoxApplied(paths, selectionOverlay.additiveSelection)
+                    }
+                    selectionOverlay.marqueeActive = false
+                }
+
+                onCanceled: {
+                    filesGrid.interactive = true
+                    selectionOverlay.marqueeActive = false
+                }
+            }
+
+            Rectangle {
+                visible: selectionOverlay.marqueeActive && (selectionOverlay.rectW() > 1 || selectionOverlay.rectH() > 1)
+                x: selectionOverlay.rectX()
+                y: selectionOverlay.rectY()
+                width: selectionOverlay.rectW()
+                height: selectionOverlay.rectH()
+                color: Qt.rgba(0.66, 0.69, 0.74, 0.18)
+                border.color: Qt.rgba(0.80, 0.82, 0.86, 0.85)
+                border.width: 1
+                radius: 3
             }
         }
     }

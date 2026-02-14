@@ -300,6 +300,10 @@ class Backend(QObject):
         return self._api.is_project(path)
 
     @Slot(str, result=bool)
+    def isDir(self, path: str) -> bool:
+        return self._api.is_dir(path)
+
+    @Slot(str, result=bool)
     def createProject(self, path: str) -> bool:
         return self._api.create_project(path)
 

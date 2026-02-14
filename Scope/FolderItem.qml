@@ -27,7 +27,7 @@ Rectangle {
     property bool largeIconAlignLeft: false
     property bool dragEnabled: false
     property string dragPayload: ""
-    signal activate()
+    signal activate(bool ctrlPressed)
     signal doubleActivate()
     signal renameRequested()
     signal renameTextEdited(string text)
@@ -257,9 +257,9 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: {
+        onClicked: function(mouse) {
             if (renaming) return
-            root.activate()
+            root.activate((mouse.modifiers & Qt.ControlModifier) !== 0)
         }
         onDoubleClicked: {
             if (renaming) return

@@ -85,6 +85,7 @@ ApplicationWindow {
     property var files: ["Rechnung_001.pdf", "Angebot_Alpha.docx", "Note.md"]
     property var fileItemsAll: []
     property var fileItemsRaw: []
+    property var selectedEntryPaths: []
     property int fileItemsOffset: 0
     property int fileItemsChunk: 160
     property bool hasMyosInCwp: false
@@ -95,6 +96,9 @@ ApplicationWindow {
     property string tagMatchMode: "or" // or | and
     property bool projectsShowEmbryos: true
     property bool templatesShowEmbryos: true
+    property var pendingMoveSources: []
+    property string pendingMoveTargetDir: ""
+    property string pendingMoveMessage: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
     ListModel { id: filesModel }
@@ -266,21 +270,94 @@ ApplicationWindow {
         currentProjectTint = theme.projectFolderTint
     }
 
-    function moveEntry(sourcePath, targetDir) {
+    function _decodeDragPayload(payload) {
+        var text = String(payload || "").trim()
+        if (text.length === 0) {
+            return []
+        }
+        if (text.indexOf("__MYOS_PATHS__") === 0) {
+            var raw = text.slice("__MYOS_PATHS__".length)
+            try {
+                var arr = JSON.parse(raw)
+                return (arr && arr.length) ? arr : []
+            } catch (e) {
+                return []
+            }
+        }
+        return [text]
+    }
+
+    function _containsDirectory(paths) {
+        if (!paths || paths.length === 0) {
+            return false
+        }
+        if (!hasBackend() || typeof backend.isDir !== "function") {
+            return false
+        }
+        for (var i = 0; i < paths.length; i++) {
+            var p = String(paths[i] || "").trim()
+            if (!p) {
+                continue
+            }
+            if (backend.isDir(p)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    function _performMove(sources, targetDir) {
         if (!hasBackend() || typeof backend.moveEntry !== "function") {
             return
         }
-        if (!sourcePath || !targetDir) {
+        if (!sources || sources.length === 0 || !targetDir) {
             return
         }
-        var ok = backend.moveEntry(sourcePath, targetDir)
-        if (ok) {
+        var movedAny = false
+        var seen = {}
+        for (var i = 0; i < sources.length; i++) {
+            var src = String(sources[i] || "").trim()
+            if (!src || seen[src]) {
+                continue
+            }
+            seen[src] = true
+            if (src === targetDir) {
+                continue
+            }
+            var ok = backend.moveEntry(src, targetDir)
+            if (ok) {
+                movedAny = true
+            }
+        }
+        if (movedAny) {
+            selectedEntryPaths = []
             updateSubProjects()
             updateFiles()
             updateTemplates()
             standardFolders = listTemplates(standardPath)
             updateStandardFolders()
         }
+    }
+
+    function moveEntry(sourcePath, targetDir) {
+        if (!sourcePath || !targetDir) {
+            return
+        }
+        var sources = _decodeDragPayload(sourcePath)
+        if (!sources || sources.length === 0) {
+            return
+        }
+        if (_containsDirectory(sources)) {
+            pendingMoveSources = sources
+            pendingMoveTargetDir = targetDir
+            var count = sources.length
+            pendingMoveMessage = "Are you sure you want to move " + count
+                + (count === 1 ? " folder" : " folders")
+                + " to \"" + targetDir + "\"?"
+            folderMoveConfirmDialog.open()
+            return
+        }
+        _performMove(sources, targetDir)
     }
 
     function listEntries(path) {
@@ -310,6 +387,78 @@ ApplicationWindow {
         fileItemsAll = entries || []
         recomputeAvailableTags()
         filterEntries()
+    }
+
+    function entryPath(entry) {
+        if (!entry) {
+            return ""
+        }
+        if (entry.path && entry.path.length > 0) {
+            return entry.path
+        }
+        if (entry.name && entry.name.length > 0) {
+            if (entry.name.indexOf("/") === 0) {
+                return entry.name
+            }
+            var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
+            return base + "/" + entry.name
+        }
+        return ""
+    }
+
+    function toggleEntrySelection(path, ctrlPressed) {
+        if (!path || path.length === 0) {
+            return
+        }
+        if (ctrlPressed) {
+            var toggled = selectedEntryPaths ? selectedEntryPaths.slice(0) : []
+            var idx = toggled.indexOf(path)
+            if (idx === -1) {
+                toggled.push(path)
+            } else {
+                toggled.splice(idx, 1)
+            }
+            selectedEntryPaths = toggled
+            return
+        }
+        selectedEntryPaths = [path]
+    }
+
+    function applySelectionBox(paths, additive) {
+        var incoming = paths || []
+        if (!additive) {
+            selectedEntryPaths = incoming
+            return
+        }
+        var merged = selectedEntryPaths ? selectedEntryPaths.slice(0) : []
+        for (var i = 0; i < incoming.length; i++) {
+            var value = incoming[i]
+            if (value && merged.indexOf(value) === -1) {
+                merged.push(value)
+            }
+        }
+        selectedEntryPaths = merged
+    }
+
+    function pruneEntrySelectionToVisible() {
+        var source = fileItemsRaw || []
+        var visible = {}
+        for (var i = 0; i < source.length; i++) {
+            var p = entryPath(source[i])
+            if (p.length > 0) {
+                visible[p] = true
+            }
+        }
+        var next = []
+        for (var j = 0; j < selectedEntryPaths.length; j++) {
+            var selected = selectedEntryPaths[j]
+            if (visible[selected]) {
+                next.push(selected)
+            }
+        }
+        if (next.length !== selectedEntryPaths.length) {
+            selectedEntryPaths = next
+        }
     }
 
     function filterEntries() {
@@ -369,6 +518,13 @@ ApplicationWindow {
             }
         }
         fileItemsRaw = filtered
+        for (var m = 0; m < fileItemsRaw.length; m++) {
+            var path = entryPath(fileItemsRaw[m])
+            if (path.length > 0 && (!fileItemsRaw[m].path || fileItemsRaw[m].path.length === 0)) {
+                fileItemsRaw[m].path = path
+            }
+        }
+        pruneEntrySelectionToVisible()
         fileItemsOffset = 0
         filesModel.clear()
         appendNextChunk()
@@ -498,6 +654,7 @@ ApplicationWindow {
     }
 
     onCwpChanged: {
+        selectedEntryPaths = []
         selectedTags = []
         if (hasBackend() && typeof backend.setContext === "function") {
             backend.setContext(cwp)
@@ -1024,6 +1181,33 @@ ApplicationWindow {
         }
     }
 
+    Dialog {
+        id: folderMoveConfirmDialog
+        title: "Confirm Folder Move"
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(440, Math.round(window.width * 0.34))
+        onAccepted: {
+            _performMove(pendingMoveSources, pendingMoveTargetDir)
+            pendingMoveSources = []
+            pendingMoveTargetDir = ""
+            pendingMoveMessage = ""
+        }
+        onRejected: {
+            pendingMoveSources = []
+            pendingMoveTargetDir = ""
+            pendingMoveMessage = ""
+        }
+        contentItem: Text {
+            text: pendingMoveMessage
+            wrapMode: Text.WordWrap
+            color: theme.text
+            font.pixelSize: baseFont
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: theme.bg
@@ -1403,6 +1587,7 @@ ApplicationWindow {
             iconSizeLarge: window.iconSizeLarge
             itemFillColor: "transparent"
             itemBorderColor: theme.pillBorder
+            allowDrags: true
             smallButtonBg: theme.smallButtonBg
             smallButtonBorder: theme.smallButtonBorder
             smallButtonActiveBg: theme.smallButtonActiveBg
@@ -1414,10 +1599,14 @@ ApplicationWindow {
         showMyosButton: window.hasProjectInCwp
         showCreateProject: !window.hasProjectInCwp
         availableTags: window.availableTags
+        selectedPaths: window.selectedEntryPaths
         selectedTags: window.selectedTags
         tagSource: window.tagFilterSource
         onRequestMore: appendNextChunk()
         onFilterChanged: filterEntries()
+        onItemActivated: function(path, ctrlPressed) { toggleEntrySelection(path, ctrlPressed) }
+        onSelectionBoxApplied: function(paths, additive) { applySelectionBox(paths, additive) }
+        onMoveEntriesRequested: function(payload, targetDir) { moveEntry(payload, targetDir) }
         onTagToggled: function(tag) { toggleTagSelection(tag) }
         onRequestTagSourceChange: function(source) { tagFilterSource = source }
             onFolderActivated: function(name) {

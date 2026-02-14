@@ -236,6 +236,10 @@ class ScopeApi:
         target = Path(path).expanduser().resolve()
         return (target / ".MyOS" / "Project.md").is_file()
 
+    def is_dir(self, path: str) -> bool:
+        target = Path(path).expanduser().resolve()
+        return target.is_dir()
+
     def get_project_color(self, path: str) -> Optional[str]:
         target = Path(path).expanduser().resolve()
         return self._resolve_direct_project_color(target)
