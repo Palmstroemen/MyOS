@@ -33,11 +33,18 @@ From project root:
 
 ```bash
 chmod +x installer/install-thumbnailer.sh scripts/myos_md_thumbnailer.py
-./installer/install-thumbnailer.sh
+./installer/install-thumbnailer.sh install
 rm -rf ~/.cache/thumbnails/*
 ```
 
 Then restart/reopen your file browser.
+
+## Verify / remove
+
+```bash
+./installer/install-thumbnailer.sh check
+./installer/install-thumbnailer.sh uninstall
+```
 
 ## Frontmatter example
 
@@ -54,6 +61,7 @@ Nudeln
 
 ## Notes
 
-- Renderer tries Pillow first, then falls back to PySide6.
-- If both are missing, thumbnail generation fails silently for the browser.
+- Installer is idempotent: running `install` repeatedly is safe.
+- Thumbnailer writes a tiny fallback PNG if Pillow is unavailable.
+- Enable diagnostics via `MYOS_THUMBNAILER_DEBUG=1`.
 - Thumbnailers are asynchronous: previews may appear with a short delay.

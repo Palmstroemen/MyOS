@@ -1,3 +1,4 @@
+import core.thumbnailer.markdown_thumbnailer as thumb
 from core.thumbnailer.markdown_thumbnailer import (
     SAFE_MAX_INPUT_BYTES,
     SAFE_MAX_INPUT_LINES,
@@ -126,3 +127,26 @@ def test_read_markdown_safely_clips_bytes_lines_and_line_length(tmp_path):
     lines = text.splitlines()
     assert len(lines) <= SAFE_MAX_INPUT_LINES
     assert max(len(line) for line in lines) <= SAFE_MAX_LINE_LENGTH
+
+
+def test_generate_thumbnail_writes_fallback_png_when_pillow_missing(tmp_path, monkeypatch):
+    src = tmp_path / "note.md"
+    out = tmp_path / "thumb.png"
+    src.write_text("tiny note", encoding="utf-8")
+
+    monkeypatch.setattr(thumb, "Image", None)
+    monkeypatch.setattr(thumb, "ImageDraw", None)
+    monkeypatch.setattr(thumb, "ImageFont", None)
+
+    code = thumb.generate_thumbnail(src, out, 256)
+    assert code == 0
+    assert out.exists()
+    assert out.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_generate_thumbnail_returns_error_for_missing_input_file(tmp_path):
+    missing = tmp_path / "does-not-exist.md"
+    out = tmp_path / "thumb.png"
+    code = thumb.generate_thumbnail(missing, out, 256)
+    assert code == 1
+    assert not out.exists()
