@@ -23,6 +23,9 @@ Rectangle { // Files panel
     property bool allowDrags: true
     property bool halfTransparent: false
     property bool showFolders: false
+    property var availableTags: []
+    property var selectedTags: []
+    property string tagSource: "project"
     property real templatesBrowserWidth: 0
     property real projectsBrowserWidth: 0
     property string iconFolder: ""
@@ -55,6 +58,8 @@ Rectangle { // Files panel
 
     signal requestMore()
     signal filterChanged(bool showFolders)
+    signal tagToggled(string tag)
+    signal requestTagSourceChange(string source)
 
     onShowFoldersChanged: filterChanged(showFolders)
 
@@ -131,9 +136,120 @@ Rectangle { // Files panel
         }
     }
 
+    Rectangle {
+        id: tagBar
+        anchors.top: cornerButtons.bottom
+        anchors.right: parent.right
+        anchors.topMargin: 8
+        anchors.rightMargin: 8
+        width: Math.max(96, Math.min(180, Math.round(parent.width * 0.22)))
+        height: Math.max(80, parent.height - cornerButtons.height - 24)
+        radius: 8
+        color: Qt.rgba(root.panelAlt.r, root.panelAlt.g, root.panelAlt.b, 0.36)
+        border.color: Qt.rgba(root.pillBorder.r, root.pillBorder.g, root.pillBorder.b, 0.6)
+        z: 2
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 6
+
+            Row {
+                width: parent.width
+                spacing: 6
+
+                Rectangle {
+                    width: (parent.width - 6) / 2
+                    height: root.compactButtonHeight
+                    radius: 6
+                    color: root.tagSource === "project" ? root.smallButtonActiveBg : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.65)
+                    border.color: root.tagSource === "project" ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Project"
+                        color: root.smallButtonText
+                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.requestTagSourceChange("project")
+                    }
+                }
+
+                Rectangle {
+                    width: (parent.width - 6) / 2
+                    height: root.compactButtonHeight
+                    radius: 6
+                    color: root.tagSource === "visible" ? root.smallButtonActiveBg : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.65)
+                    border.color: root.tagSource === "visible" ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Visible"
+                        color: root.smallButtonText
+                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.requestTagSourceChange("visible")
+                    }
+                }
+            }
+
+            Flickable {
+                width: parent.width
+                height: parent.height - root.compactButtonHeight - 6
+                contentWidth: width
+                contentHeight: tagsColumn.height
+                clip: true
+
+                Column {
+                    id: tagsColumn
+                    width: parent.width
+                    spacing: 4
+
+                    Repeater {
+                        model: root.availableTags ? root.availableTags : []
+                        delegate: Rectangle {
+                            width: tagsColumn.width
+                            height: Math.max(22, Math.round(root.compactButtonHeight * 0.84))
+                            radius: 6
+                            readonly property string tagValue: modelData
+                            readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
+                            color: selected
+                                ? Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, 0.70)
+                                : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.45)
+                            border.color: selected
+                                ? Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, 0.9)
+                                : Qt.rgba(root.smallButtonBorder.r, root.smallButtonBorder.g, root.smallButtonBorder.b, 0.7)
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.leftMargin: 8
+                                anchors.right: parent.right
+                                anchors.rightMargin: 6
+                                text: "#" + tagValue
+                                color: selected ? "#ffffff" : root.textMuted
+                                font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                                elide: Text.ElideRight
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.tagToggled(parent.tagValue)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
+        anchors.leftMargin: 16
+        anchors.topMargin: 16
+        anchors.bottomMargin: 16
+        anchors.rightMargin: tagBar.width + 16
         spacing: 8
 
         GridView {

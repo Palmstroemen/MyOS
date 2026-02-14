@@ -89,6 +89,10 @@ ApplicationWindow {
     property int fileItemsChunk: 160
     property bool hasMyosInCwp: false
     property bool hasProjectInCwp: false
+    property string tagFilterSource: "project" // project | visible
+    property var availableTags: []
+    property var selectedTags: []
+    property string tagMatchMode: "or" // or | and
     property bool projectsShowEmbryos: true
     property bool templatesShowEmbryos: true
     property int maxVerticalParents: 4
@@ -304,11 +308,12 @@ ApplicationWindow {
 
     function applyEntries(entries) {
         fileItemsAll = entries || []
+        recomputeAvailableTags()
         filterEntries()
     }
 
     function filterEntries() {
-        var filtered = []
+        var baseFiltered = []
         var found = false
         var source = fileItemsAll || []
         for (var i = 0; i < source.length; i++) {
@@ -322,7 +327,46 @@ ApplicationWindow {
             if (!filesPane.showFolders && entry.isDir) {
                 continue
             }
-            filtered.push(entry)
+            baseFiltered.push(entry)
+        }
+
+        var filtered = baseFiltered
+        var useTagFilter = selectedTags && selectedTags.length > 0
+        if (useTagFilter) {
+            var matchAll = tagMatchMode === "and"
+            if (hasBackend() && typeof backend.listEntriesFiltered === "function") {
+                var coreFiltered = backend.listEntriesFiltered(cwp, selectedTags, matchAll)
+                filtered = []
+                for (var j = 0; j < coreFiltered.length; j++) {
+                    var coreEntry = coreFiltered[j]
+                    if (coreEntry.name && coreEntry.name.indexOf(".") === 0) {
+                        continue
+                    }
+                    if (!filesPane.showFolders && coreEntry.isDir) {
+                        continue
+                    }
+                    filtered.push(coreEntry)
+                }
+            } else {
+                filtered = []
+                for (var k = 0; k < baseFiltered.length; k++) {
+                    var item = baseFiltered[k]
+                    var tags = item.tags || []
+                    if (tags.length === 0) {
+                        continue
+                    }
+                    var hits = 0
+                    for (var t = 0; t < selectedTags.length; t++) {
+                        if (tags.indexOf(selectedTags[t]) !== -1) {
+                            hits++
+                        }
+                    }
+                    var ok = matchAll ? (hits === selectedTags.length) : (hits > 0)
+                    if (ok) {
+                        filtered.push(item)
+                    }
+                }
+            }
         }
         fileItemsRaw = filtered
         fileItemsOffset = 0
@@ -331,6 +375,60 @@ ApplicationWindow {
         if (!hasBackend()) {
             hasMyosInCwp = found
         }
+    }
+
+    function recomputeAvailableTags() {
+        var tags = []
+        if (tagFilterSource === "project" && hasBackend() && typeof backend.listProjectTags === "function") {
+            tags = backend.listProjectTags(cwp) || []
+        } else {
+            var source = fileItemsAll || []
+            var bag = {}
+            for (var i = 0; i < source.length; i++) {
+                var entry = source[i]
+                if (entry.name && entry.name.indexOf(".") === 0) {
+                    continue
+                }
+                if (!filesPane.showFolders && entry.isDir) {
+                    continue
+                }
+                var entryTags = entry.tags || []
+                for (var j = 0; j < entryTags.length; j++) {
+                    var value = entryTags[j]
+                    if (value && value.length > 0) {
+                        bag[value] = true
+                    }
+                }
+            }
+            tags = Object.keys(bag)
+            tags.sort(function(a, b) { return a.localeCompare(b) })
+        }
+        availableTags = tags
+
+        var nextSelected = []
+        for (var s = 0; s < selectedTags.length; s++) {
+            var selected = selectedTags[s]
+            if (tags.indexOf(selected) !== -1) {
+                nextSelected.push(selected)
+            }
+        }
+        if (nextSelected.length !== selectedTags.length) {
+            selectedTags = nextSelected
+        }
+    }
+
+    function toggleTagSelection(tag) {
+        if (!tag || tag.length === 0) {
+            return
+        }
+        var next = selectedTags ? selectedTags.slice(0) : []
+        var idx = next.indexOf(tag)
+        if (idx === -1) {
+            next.push(tag)
+        } else {
+            next.splice(idx, 1)
+        }
+        selectedTags = next
     }
 
     function appendNextChunk() {
@@ -400,6 +498,7 @@ ApplicationWindow {
     }
 
     onCwpChanged: {
+        selectedTags = []
         if (hasBackend() && typeof backend.setContext === "function") {
             backend.setContext(cwp)
         }
@@ -715,6 +814,12 @@ ApplicationWindow {
     }
     onSearchTextChanged: updateSubProjects()
     onLevel2SearchTextChanged: updateStandardFolders()
+    onTagFilterSourceChanged: {
+        selectedTags = []
+        recomputeAvailableTags()
+        filterEntries()
+    }
+    onSelectedTagsChanged: filterEntries()
     onSearchActiveChanged: {
         if (!searchActive) {
             searchText = ""
@@ -1308,8 +1413,13 @@ ApplicationWindow {
             projectTintOpacity: 0.75
         showMyosButton: window.hasProjectInCwp
         showCreateProject: !window.hasProjectInCwp
+        availableTags: window.availableTags
+        selectedTags: window.selectedTags
+        tagSource: window.tagFilterSource
         onRequestMore: appendNextChunk()
         onFilterChanged: filterEntries()
+        onTagToggled: function(tag) { toggleTagSelection(tag) }
+        onRequestTagSourceChange: function(source) { tagFilterSource = source }
             onFolderActivated: function(name) {
                 if (name.indexOf("/") === 0) {
                     setCwp(name)

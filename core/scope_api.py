@@ -7,6 +7,7 @@ import sys
 import re
 import shutil
 from typing import List, Optional, Dict, Any
+from core.tags import read_tags
 
 try:
     from core.localBlueprintLayer import Blueprint
@@ -148,7 +149,13 @@ class ScopeApi:
         try:
             for child in sorted(target.iterdir()):
                 is_dir = child.is_dir()
-                entry = {"name": child.name, "isDir": is_dir, "path": str(child)}
+                entry_tags = self._read_entry_tags(child)
+                entry = {
+                    "name": child.name,
+                    "isDir": is_dir,
+                    "path": str(child),
+                    "tags": entry_tags,
+                }
                 entries.append(entry)
         except Exception:
             return []
@@ -164,11 +171,62 @@ class ScopeApi:
                             "isDir": True,
                             "isEmbryo": True,
                             "path": str(target / name),
+                            "tags": [],
                         }
                     )
             entries.sort(key=lambda item: item["name"])
 
         return entries
+
+    def list_entries_filtered(self, path: str, tags: List[str], match_all: bool = False) -> List[dict]:
+        selected = [str(tag or "").strip() for tag in (tags or [])]
+        selected = [tag for tag in selected if tag]
+        if not selected:
+            return self.list_entries(path)
+
+        selected_set = set(selected)
+        filtered: List[dict] = []
+        for entry in self.list_entries(path):
+            entry_tags = set(entry.get("tags") or [])
+            if not entry_tags:
+                continue
+            if match_all:
+                if selected_set.issubset(entry_tags):
+                    filtered.append(entry)
+            else:
+                if entry_tags.intersection(selected_set):
+                    filtered.append(entry)
+        return filtered
+
+    def list_project_tags(self, path: str) -> List[str]:
+        target = Path(path).expanduser().resolve()
+        root = find_project_root(target)
+        if not root:
+            return []
+        tags_file = root / ".MyOS" / "Tags.md"
+        if not tags_file.exists():
+            return []
+        tags: List[str] = []
+        try:
+            for raw in tags_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = raw.strip()
+                if not line.startswith("#"):
+                    continue
+                tag = line.lstrip("#").strip()
+                if tag:
+                    tags.append(tag)
+        except Exception:
+            return []
+        return sorted(set(tags), key=str.lower)
+
+    def _read_entry_tags(self, entry_path: Path) -> List[str]:
+        try:
+            tags_map = read_tags(entry_path)
+        except Exception:
+            return []
+        tags = [str(tag).strip() for tag in tags_map.keys()]
+        tags = [tag for tag in tags if tag]
+        return sorted(set(tags), key=str.lower)
 
     def has_myos_dir(self, path: str) -> bool:
         target = Path(path).expanduser().resolve()
