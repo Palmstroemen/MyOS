@@ -422,15 +422,27 @@ class ProjectConfig:
             logger.debug("Section '%s' not found in config", section_name)
             return results
         
-        # Find and update child projects
-        children = self.get_child_projects()
-        for child in children:
-            child_inherit = child.get_inherit_status(section_name)
-            if child_inherit == "fix":
-                results[str(child.path)] = "skipped_fix"
-                continue
-            success = child._update_from_parent(self, section_name, dry_run)
-            results[str(child.path)] = success
+        # Recursively update child projects.
+        # Important: descendants inherit from their direct parent, not always from root.
+        def _propagate_from(parent_cfg: 'ProjectConfig') -> None:
+            children = parent_cfg.get_child_projects()
+            for child in children:
+                child_inherit = child.get_inherit_status(section_name)
+                child_key = str(child.path)
+                if child_inherit == "not":
+                    results[child_key] = "skipped_not"
+                    # inherit:not stops propagation in this branch.
+                    continue
+                if child_inherit == "fix":
+                    results[child_key] = "skipped_fix"
+                    # Keep propagating to descendants from this fixed child.
+                    _propagate_from(child)
+                    continue
+                success = child._update_from_parent(parent_cfg, section_name, dry_run)
+                results[child_key] = success
+                _propagate_from(child)
+
+        _propagate_from(self)
         return results
 
     def _update_from_parent(self, parent: 'ProjectConfig', section_name: str, dry_run: bool = False) -> bool:
@@ -589,6 +601,58 @@ class ProjectConfig:
             # Catch any other errors
             logger.exception("Unexpected error creating project at %s: %s", dir_path, e)
             return False
+
+
+def notify_config_changed(changed_file: Union[str, Path], dry_run: bool = False) -> Dict[str, Any]:
+    """
+    Core-level entry point for config propagation after a file change.
+
+    - Only reacts to files inside a `.MyOS/` directory.
+    - `.MyOS/<Section>.md` triggers propagation for `<Section>`.
+    - `.MyOS/Config.md` triggers propagation for all sections currently present.
+    """
+    changed_path = Path(changed_file).expanduser().resolve()
+    results: Dict[str, Any] = {"ok": False, "sections": {}, "reason": ""}
+
+    if not changed_path.exists():
+        results["reason"] = "missing_file"
+        return results
+
+    parent = changed_path.parent
+    if parent.name != ".MyOS":
+        results["reason"] = "outside_myos"
+        return results
+
+    project_dir = parent.parent
+    config = ProjectConfig(project_dir)
+    if not config.is_valid():
+        results["reason"] = "invalid_project"
+        return results
+
+    section_names: List[str] = []
+    if changed_path.name == "Project.md":
+        results["reason"] = "project_marker_only"
+        return results
+    elif changed_path.name == "Config.md":
+        config._load_config_data()
+        section_names = sorted(config.config_data.keys()) if config.config_data else []
+    elif changed_path.suffix.lower() == ".md":
+        section_names = [changed_path.stem]
+    else:
+        results["reason"] = "unsupported_file"
+        return results
+
+    if not section_names:
+        results["reason"] = "no_sections"
+        return results
+
+    sections_result: Dict[str, Any] = {}
+    for section in section_names:
+        sections_result[section] = config.propagate_config(section, dry_run=dry_run)
+
+    results["ok"] = True
+    results["sections"] = sections_result
+    return results
 
 
 class ProjectFinder:

@@ -14,10 +14,15 @@ import urllib.parse
 import re
 import hashlib
 import difflib
+import json
 from pathlib import Path
 
 import markdown2
 import yaml
+try:
+    from core.project import notify_config_changed
+except Exception:
+    notify_config_changed = None
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame, QColorDialog,
@@ -127,13 +132,39 @@ class SidebarWidget(QWidget):
         self.animation.start()
 
 
+class ChipButton(QPushButton):
+    """Button with distinct single- and double-click signals."""
+    singleClicked = Signal()
+    doubleClicked = Signal()
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._single_timer = QTimer(self)
+        self._single_timer.setSingleShot(True)
+        self._single_timer.setInterval(220)
+        self._single_timer.timeout.connect(self.singleClicked.emit)
+        self.clicked.connect(self._on_clicked)
+
+    def _on_clicked(self):
+        self._single_timer.start()
+
+    def mouseDoubleClickEvent(self, event):
+        if self._single_timer.isActive():
+            self._single_timer.stop()
+        self.doubleClicked.emit()
+        event.accept()
+
+
 class TagSidebar(SidebarWidget):
     """Right sidebar for tags with interactive tag buttons."""
-    tagHexColorChangeRequested = Signal(str, str)
+    tagColorChangeRequested = Signal(str, str)
+    colorDefinitionChangeRequested = Signal(str, str, str)
+    colorDefinitionSearchRequested = Signal(str, str)
     
     def __init__(self):
         super().__init__("Tags", "rgba(220, 240, 200, 60)")
         self.tags = []
+        self.color_entries = []
         self._tag_colors = {}
         self.setup_ui()
         
@@ -145,6 +176,26 @@ class TagSidebar(SidebarWidget):
         self.tags = cleaned
         self._rebuild()
 
+    def set_color_entries(self, entries):
+        normalized = []
+        for item in entries or []:
+            if isinstance(item, dict):
+                key = str(item.get("key", "")).strip()
+                value = str(item.get("hex", "")).strip()
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                key = str(item[0]).strip()
+                value = str(item[1]).strip()
+            else:
+                continue
+            if key and value:
+                normalized.append({"key": key, "hex": value})
+        self.color_entries = normalized
+        self._rebuild()
+
+    def set_tag_colors(self, tag_colors: dict[str, str] | None):
+        self._tag_colors = dict(tag_colors or {})
+        self._rebuild()
+
     def _rebuild(self):
         layout = self.layout()
         layout.setContentsMargins(0, 8, 0, 8)
@@ -152,6 +203,35 @@ class TagSidebar(SidebarWidget):
             item = layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+
+        for item in self.color_entries:
+            key = item["key"]
+            value = item["hex"]
+            chip_bg = value if QColor(value).isValid() else "#777777"
+            chip_fg = self._text_color_for_bg(chip_bg)
+            btn = ChipButton(f"{key}: {value}")
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.singleClicked.connect(lambda k=key, v=value: self.colorDefinitionSearchRequested.emit(k, v))
+            btn.doubleClicked.connect(lambda k=key, v=value: self._pick_color_definition(k, v))
+            btn.setToolTip("Click: next match | Double-click: change color")
+            btn.setStyleSheet(
+                f"""
+                QPushButton {{
+                    background-color: {chip_bg};
+                    color: {chip_fg};
+                    border: 1px solid rgba(0,0,0,120);
+                    border-radius: 10px;
+                    padding: 5px 10px;
+                    margin: 2px;
+                    text-align: left;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    border: 1px solid white;
+                }}
+                """
+            )
+            layout.addWidget(btn)
 
         for tag in self.tags:
             color = self._color_for_tag(tag)
@@ -211,14 +291,18 @@ class TagSidebar(SidebarWidget):
         return "#1f2433" if luminance > 165 else "#ffffff"
 
     def _pick_tag_color(self, tag: str):
-        was_hex_tag = self._hex_color_from_tag(tag) is not None
         chosen = QColorDialog.getColor(QColor(self._color_for_tag(tag)), self, f"Color for #{tag}")
         if not chosen.isValid():
             return
-        if was_hex_tag:
-            self.tagHexColorChangeRequested.emit(tag, chosen.name())
+        self.tagColorChangeRequested.emit(tag, chosen.name())
         self._tag_colors[tag] = chosen.name()
         self._rebuild()
+
+    def _pick_color_definition(self, key: str, old_hex: str):
+        chosen = QColorDialog.getColor(QColor(old_hex), self, f"Color for {key}")
+        if not chosen.isValid():
+            return
+        self.colorDefinitionChangeRequested.emit(key, old_hex, chosen.name())
 
 
 class ACLSidebar(SidebarWidget):
@@ -625,6 +709,7 @@ class BottomToolbar(QWidget):
 class SmartEditor(QWidget):
     """Central editor with source, preview, and split modes."""
     tagsChanged = Signal(list)
+    colorDefinitionsChanged = Signal(list)
 
     MODE_FOCUS = "Focus Mode"
     MODE_PREVIEW = MODE_FOCUS
@@ -648,6 +733,7 @@ class SmartEditor(QWidget):
         self._index_debug_visible = False
         self._overlay_top_hint = None
         self._focus_dynamic_end = None
+        self._render_tag_colors = {}
         self.setup_ui()
         self.apply_background(self.current_bg, update_frontmatter=False, animate=False)
         self.render_preview()
@@ -751,7 +837,9 @@ class SmartEditor(QWidget):
         self._refresh_index_gutter()
         self._rebuild_focus_spans()
         tags = self.extract_tags(body)
+        color_defs = self.extract_color_definitions(body)
         self.tagsChanged.emit(tags)
+        self.colorDefinitionsChanged.emit(color_defs)
         if sync_focus and self._active_focus_idx >= 0:
             self._apply_focus_text_from_source()
         self.apply_background(self.current_bg, update_frontmatter=False)
@@ -762,8 +850,34 @@ class SmartEditor(QWidget):
         self.render_preview(sync_focus=not self._editing_focus)
 
     def extract_tags(self, body: str):
-        found = re.findall(r"(?<!\w)#([a-zA-Z0-9_/\-äöüÄÖÜß]+)", body or "")
+        filtered_lines = []
+        for line in (body or "").splitlines():
+            if self._parse_color_definition_line(line):
+                continue
+            filtered_lines.append(line)
+        found = re.findall(r"(?<!\w)#([a-zA-Z0-9_/\-äöüÄÖÜß]+)", "\n".join(filtered_lines))
         return sorted(set(found), key=lambda t: t.lower())
+
+    def extract_color_definitions(self, body: str):
+        entries = []
+        seen = set()
+        for line in (body or "").splitlines():
+            parsed = self._parse_color_definition_line(line)
+            if not parsed:
+                continue
+            key, value = parsed
+            marker = (key.lower(), value.lower())
+            if marker in seen:
+                continue
+            seen.add(marker)
+            entries.append({"key": key, "hex": value})
+        return entries
+
+    def _parse_color_definition_line(self, line: str):
+        match = re.match(r"^\s*([A-Za-z][\w-]*)\s*:\s*(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6})\s*$", line or "")
+        if not match:
+            return None
+        return match.group(1), match.group(2).lower()
 
     def _rebuild_focus_spans(self):
         body = self._source_body()
@@ -785,6 +899,20 @@ class SmartEditor(QWidget):
     def _source_lines(self):
         return self._source_body().splitlines()
 
+    def set_render_tag_colors(self, tag_colors: dict[str, str] | None):
+        new_map = dict(tag_colors or {})
+        if self._render_tag_colors == new_map:
+            return
+        self._render_tag_colors = new_map
+        self.render_preview(sync_focus=False)
+
+    def _text_color_for_bg(self, color_hex: str) -> str:
+        color = QColor(color_hex)
+        if not color.isValid():
+            return "#ffffff"
+        luminance = 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()
+        return "#1f2433" if luminance > 165 else "#ffffff"
+
     def _prepare_markdown_for_render(self, body: str) -> str:
         """
         Keep hashtag tags (e.g. #team, #ffcc00) as plain text.
@@ -793,6 +921,8 @@ class SmartEditor(QWidget):
         prepared = []
         in_fence = False
         tag_heading_re = re.compile(r"^(\s{0,3})#([A-Za-z0-9_/\-äöüÄÖÜß]+)\b")
+        any_tag_re = re.compile(r"(?<!\w)#([A-Za-z0-9_/\-äöüÄÖÜß]+)\b")
+        render_colors = {str(k).lower(): v for k, v in (self._render_tag_colors or {}).items()}
         for line in (body or "").splitlines(keepends=True):
             stripped = line.lstrip()
             if stripped.startswith("```") or stripped.startswith("~~~"):
@@ -802,8 +932,112 @@ class SmartEditor(QWidget):
             if in_fence:
                 prepared.append(line)
                 continue
-            prepared.append(tag_heading_re.sub(r"\1\\#\2", line))
+            if self._parse_color_definition_line(line):
+                prepared.append(line)
+                continue
+            safe_line = tag_heading_re.sub(r"\1\\#\2", line)
+
+            segments = safe_line.split("`")
+            for idx in range(0, len(segments), 2):
+                chunks = re.split(r"(<[^>]+>)", segments[idx])
+                for cidx, chunk in enumerate(chunks):
+                    if chunk.startswith("<") and chunk.endswith(">"):
+                        continue
+
+                    def _replace_tag(match):
+                        tag_name = match.group(1)
+                        color_hex = render_colors.get(tag_name.lower())
+                        if not color_hex:
+                            return match.group(0)
+                        text_color = self._text_color_for_bg(color_hex)
+                        return (
+                            f"<span style=\"background-color: {color_hex}; color: {text_color}; "
+                            f"border: 1px solid #222222; border-radius: 999px; padding: 1px 8px;\">"
+                            f"#{tag_name}</span>"
+                        )
+
+                    chunks[cidx] = any_tag_re.sub(_replace_tag, chunk)
+                segments[idx] = "".join(chunks)
+            prepared.append("`".join(segments))
         return "".join(prepared)
+
+    def replace_color_definition(self, key: str, old_hex: str, new_hex: str) -> bool:
+        key_s = (key or "").strip()
+        old_s = (old_hex or "").strip().lower()
+        new_s = (new_hex or "").strip().lower()
+        if not key_s or not QColor(new_s).isValid():
+            return False
+
+        body = self._source_body()
+        exact_re = re.compile(
+            rf"^(\s*{re.escape(key_s)}\s*:\s*){re.escape(old_s)}(\s*)$",
+            re.IGNORECASE,
+        )
+        generic_re = re.compile(
+            rf"^(\s*{re.escape(key_s)}\s*:\s*)(#[0-9a-fA-F]{{3}}|#[0-9a-fA-F]{{6}})(\s*)$",
+            re.IGNORECASE,
+        )
+        changed = False
+        out_lines = []
+        for line in body.splitlines(keepends=True):
+            base = line[:-1] if line.endswith("\n") else line
+            m = exact_re.match(base)
+            if m:
+                suffix_nl = "\n" if line.endswith("\n") else ""
+                out_lines.append(f"{m.group(1)}{new_s}{m.group(2)}{suffix_nl}")
+                changed = True
+                continue
+            if not changed:
+                m2 = generic_re.match(base)
+                if m2:
+                    suffix_nl = "\n" if line.endswith("\n") else ""
+                    out_lines.append(f"{m2.group(1)}{new_s}{m2.group(3)}{suffix_nl}")
+                    changed = True
+                    continue
+            out_lines.append(line)
+        if not changed:
+            return False
+        self._set_source_body("".join(out_lines))
+        self.render_preview(sync_focus=False)
+        return True
+
+    def jump_to_color_definition(self, key: str, hex_value: str) -> bool:
+        key_s = (key or "").strip()
+        hex_s = (hex_value or "").strip().lower()
+        if not key_s:
+            return False
+        body_lines = self._source_body().splitlines()
+        if not body_lines:
+            return False
+
+        exact_re = re.compile(
+            rf"^\s*{re.escape(key_s)}\s*:\s*{re.escape(hex_s)}\s*$",
+            re.IGNORECASE,
+        )
+        key_re = re.compile(
+            rf"^\s*{re.escape(key_s)}\s*:\s*(#[0-9a-fA-F]{{3}}|#[0-9a-fA-F]{{6}})\s*$",
+            re.IGNORECASE,
+        )
+        indices = [i for i, line in enumerate(body_lines) if exact_re.match(line)]
+        if not indices:
+            indices = [i for i, line in enumerate(body_lines) if key_re.match(line)]
+        if not indices:
+            return False
+
+        current = self._active_focus_idx if self._active_focus_idx >= 0 else -1
+        next_idx = None
+        for i in indices:
+            if i > current:
+                next_idx = i
+                break
+        if next_idx is None:
+            next_idx = indices[0]
+
+        self._active_focus_idx = max(0, min(next_idx, len(self._focus_spans) - 1))
+        self._overlay_top_hint = None
+        self._apply_focus_text_from_source()
+        self.focus_edit.setFocus()
+        return True
 
     def _refresh_index_gutter(self):
         lines = self._source_lines()
@@ -959,42 +1193,6 @@ class SmartEditor(QWidget):
         cursor.setPosition(min(col, len(self.focus_edit.document().firstBlock().text())))
         self.focus_edit.setTextCursor(cursor)
         self.focus_edit.setFocus()
-
-    def replace_hex_tag_color(self, old_hex_tag: str, new_color_hex: str) -> bool:
-        old_value = (old_hex_tag or "").strip().lstrip("#")
-        new_value = (new_color_hex or "").strip().lstrip("#")
-        if len(old_value) not in (3, 6) or len(new_value) not in (3, 6):
-            return False
-        hex_chars = "0123456789abcdefABCDEF"
-        if any(ch not in hex_chars for ch in old_value + new_value):
-            return False
-        body = self._source_body()
-        pattern = re.compile(rf"(?<!\w)#{re.escape(old_value)}\b", re.IGNORECASE)
-        replacement = f"#{new_value.lower()}"
-        in_fence = False
-        changed = 0
-        updated_parts = []
-        for line in body.splitlines(keepends=True):
-            stripped = line.lstrip()
-            if stripped.startswith("```") or stripped.startswith("~~~"):
-                in_fence = not in_fence
-                updated_parts.append(line)
-                continue
-            if in_fence:
-                updated_parts.append(line)
-                continue
-            # Skip inline-code fragments wrapped in single backticks.
-            segments = line.split("`")
-            for idx in range(0, len(segments), 2):
-                segments[idx], local_changed = pattern.subn(replacement, segments[idx])
-                changed += local_changed
-            updated_parts.append("`".join(segments))
-        updated_body = "".join(updated_parts)
-        if changed <= 0:
-            return False
-        self._set_source_body(updated_body)
-        self.render_preview(sync_focus=False)
-        return True
 
     def eventFilter(self, watched, event):
         focus_widget = getattr(self, "focus_edit", None)
@@ -1232,6 +1430,20 @@ class SmartEditor(QWidget):
         self.source_edit.setTextCursor(cursor)
 
     def wrap_selection(self, css_style: str):
+        # Prefer active focus overlay selection for inline edit mode.
+        if self.focus_edit.isVisible() and (self.focus_edit.hasFocus() or self.focus_edit.textCursor().hasSelection()):
+            cursor = self.focus_edit.textCursor()
+            if not cursor.hasSelection():
+                return
+            selected = cursor.selectedText().replace("\u2029", "\n")
+            wrapped = f"<span style=\"{css_style}\">{selected}</span>"
+            cursor.beginEditBlock()
+            cursor.removeSelectedText()
+            cursor.insertText(wrapped)
+            cursor.endEditBlock()
+            self.focus_edit.setTextCursor(cursor)
+            return
+
         cursor = self.source_edit.textCursor()
         if not cursor.hasSelection():
             return
@@ -1786,6 +1998,14 @@ class PostFixWindow(QMainWindow):
         # )
         self.editor = SmartEditor(show_frontmatter=debug)
         self.right_sidebar = TagSidebar()
+        self._doc_tags = []
+        self._doc_color_defs = []
+        self._scope_tags = []
+        self._scope_tags_path = None
+        self._tag_color_map = {}
+        self._vault_root = None
+        self._app_json_path = None
+        self._app_json_data = {}
         # Always wire editor->window theme callback; dynamic attribute on SmartEditor.
         self.editor.on_theme_color_changed = self.apply_theme_color_hex
         if hasattr(self.editor, "MODE_FOCUS"):
@@ -1793,19 +2013,33 @@ class PostFixWindow(QMainWindow):
             self.btn_view_mode.setText(self.editor.MODE_FOCUS)
             self.btn_view_mode.setEnabled(False)
         if hasattr(self.editor, "tagsChanged"):
-            self.editor.tagsChanged.connect(self.right_sidebar.set_tags)
+            self.editor.tagsChanged.connect(self._on_editor_tags_changed)
+        if hasattr(self.editor, "colorDefinitionsChanged"):
+            self.editor.colorDefinitionsChanged.connect(self._on_editor_color_definitions_changed)
         elif embed_obsidian:
             self.btn_view_mode.setText("Obsidian")
             self.btn_view_mode.setEnabled(False)
             for btn in [self.btn_bg_color, self.btn_text_color, self.btn_highlight]:
                 btn.setEnabled(False)
-        if hasattr(self.right_sidebar, "tagHexColorChangeRequested"):
-            self.right_sidebar.tagHexColorChangeRequested.connect(self._on_hex_tag_color_change)
+        if hasattr(self.right_sidebar, "tagColorChangeRequested"):
+            self.right_sidebar.tagColorChangeRequested.connect(self._on_tag_color_change)
+        if hasattr(self.right_sidebar, "colorDefinitionChangeRequested"):
+            self.right_sidebar.colorDefinitionChangeRequested.connect(self._on_color_definition_change)
+        if hasattr(self.right_sidebar, "colorDefinitionSearchRequested"):
+            self.right_sidebar.colorDefinitionSearchRequested.connect(self._on_color_definition_search)
         self._theme_anim = None
         self._current_theme_color = self.editor.current_bg
         self._meta_timer = QTimer(self)
         self._meta_timer.setSingleShot(True)
         self._meta_timer.timeout.connect(self._flush_window_metadata)
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.timeout.connect(self._save_current_document)
+        self._scope_sync_timer = QTimer(self)
+        self._scope_sync_timer.setSingleShot(True)
+        self._scope_sync_timer.timeout.connect(self._sync_scope_tags_from_document)
+        if hasattr(self.editor, "source_edit"):
+            self.editor.source_edit.textChanged.connect(self._schedule_save)
 
         self.acl_host = QFrame()
         self.acl_host.setFixedWidth(120)
@@ -1964,6 +2198,7 @@ class PostFixWindow(QMainWindow):
             self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
             if hasattr(self.editor, "set_path"):
                 self.editor.set_path(open_path)
+                self._reload_tag_context()
         elif hasattr(self.editor, "tagsChanged"):
             self.right_sidebar.set_tags([])
         
@@ -2084,10 +2319,269 @@ class PostFixWindow(QMainWindow):
         # Menu button (placeholder)
         self.btn_menu.clicked.connect(self.show_menu)
 
-    def _on_hex_tag_color_change(self, old_hex_tag: str, new_color_hex: str):
+    def _on_editor_tags_changed(self, tags: list[str]):
+        self._doc_tags = sorted({str(t).strip() for t in (tags or []) if str(t).strip()})
+        # Debounce scope-tag updates to avoid transient tags while typing/deleting.
+        self._scope_sync_timer.start(1200)
+        self._refresh_tag_ui()
+
+    def _on_editor_color_definitions_changed(self, items: list):
+        normalized = []
+        for item in items or []:
+            if isinstance(item, dict):
+                key = str(item.get("key", "")).strip()
+                value = str(item.get("hex", "")).strip()
+                if key and value:
+                    normalized.append({"key": key, "hex": value})
+        self._doc_color_defs = normalized
+        self._refresh_tag_ui()
+
+    def _find_vault_root(self, file_path: Path | None) -> Path | None:
+        if not file_path:
+            return None
+        start = file_path if file_path.is_dir() else file_path.parent
+        for parent in [start, *start.parents]:
+            if (parent / "app.json").exists() or (parent / ".obsidian" / "app.json").exists() or (parent / ".obsidian").exists():
+                return parent
+        return None
+
+    def _parse_scope_tags(self, tags_md_path: Path) -> list[str]:
+        try:
+            content = tags_md_path.read_text(encoding="utf-8")
+        except OSError:
+            return []
+        tags = []
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line or line.lower() == "# tags":
+                continue
+            if line.startswith("#"):
+                tag = line[1:].strip()
+                if tag:
+                    tags.append(tag)
+        return tags
+
+    def _write_scope_tags(self, tags_md_path: Path, tags: list[str]) -> bool:
+        cleaned = [str(t).strip().lstrip("#") for t in (tags or []) if str(t).strip().lstrip("#")]
+        unique = list(dict.fromkeys(cleaned))
+        content = "# Tags\n" + "\n".join(f"#{tag}" for tag in unique) + ("\n" if unique else "")
+        try:
+            tags_md_path.parent.mkdir(parents=True, exist_ok=True)
+            tags_md_path.write_text(content, encoding="utf-8")
+            return True
+        except OSError:
+            return False
+
+    def _load_tag_registry(self) -> dict:
+        path = self._app_json_path
+        if not path or not path.exists():
+            self._app_json_data = {}
+            return self._app_json_data
+        try:
+            self._app_json_data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            self._app_json_data = {}
+        return self._app_json_data
+
+    def _save_tag_registry(self) -> bool:
+        path = self._app_json_path
+        if not path:
+            return False
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(self._app_json_data, ensure_ascii=False, indent=2), encoding="utf-8")
+            return True
+        except OSError:
+            return False
+
+    def _flatten_tag_colors(self) -> dict[str, str]:
+        root = self._app_json_data if isinstance(self._app_json_data, dict) else {}
+        plugin = root.get("colored-tags-wrangler", {})
+        entries = plugin.get("tags", []) if isinstance(plugin, dict) else []
+        mapping = {}
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            names_raw = str(entry.get("name", ""))
+            color = str(entry.get("color", "")).strip()
+            if not color:
+                continue
+            for tag in [p.strip() for p in names_raw.split(";") if p.strip()]:
+                mapping[tag] = color
+        return mapping
+
+    def _lighten_hex(self, color_hex: str, factor: float = 0.72) -> str:
+        color = QColor(color_hex)
+        if not color.isValid():
+            return color_hex
+        r = int(color.red() + (255 - color.red()) * factor)
+        g = int(color.green() + (255 - color.green()) * factor)
+        b = int(color.blue() + (255 - color.blue()) * factor)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def _assign_tag_color_in_registry(self, tag: str, color_hex: str) -> bool:
+        if not tag:
+            return False
+        root = self._app_json_data if isinstance(self._app_json_data, dict) else {}
+        plugin = root.setdefault("colored-tags-wrangler", {})
+        if not isinstance(plugin, dict):
+            plugin = {}
+            root["colored-tags-wrangler"] = plugin
+        entries = plugin.setdefault("tags", [])
+        if not isinstance(entries, list):
+            entries = []
+            plugin["tags"] = entries
+        settings = plugin.setdefault("settings", {})
+        if not isinstance(settings, dict):
+            settings = {}
+            plugin["settings"] = settings
+        separate_background = bool(settings.get("separateBackground", True))
+
+        target_idx = None
+        target_names = []
+        for idx, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            names = [p.strip() for p in str(entry.get("name", "")).split(";") if p.strip()]
+            if tag in names:
+                target_idx = idx
+                target_names = names
+                break
+
+        if target_idx is None:
+            new_entry = {"name": tag, "color": color_hex, "luminanceOffset": 15}
+            if separate_background:
+                new_entry["background"] = self._lighten_hex(color_hex)
+            entries.append(new_entry)
+            return True
+
+        entry = entries[target_idx]
+        if len(target_names) <= 1:
+            entry["color"] = color_hex
+            if separate_background:
+                entry["background"] = self._lighten_hex(color_hex)
+            elif "background" in entry:
+                entry.pop("background", None)
+            return True
+
+        remaining = [n for n in target_names if n != tag]
+        entry["name"] = ";".join(remaining)
+        new_entry = {"name": tag, "color": color_hex, "luminanceOffset": int(entry.get("luminanceOffset", 15))}
+        if separate_background:
+            new_entry["background"] = self._lighten_hex(color_hex)
+        entries.append(new_entry)
+        return True
+
+    def _reload_tag_context(self):
+        file_path = getattr(self.editor, "current_path", None)
+        self._vault_root = self._find_vault_root(file_path)
+        if self._vault_root:
+            root_app = self._vault_root / "app.json"
+            obs_app = self._vault_root / ".obsidian" / "app.json"
+            if root_app.exists():
+                self._app_json_path = root_app
+            elif obs_app.exists():
+                self._app_json_path = obs_app
+            else:
+                self._app_json_path = root_app
+        else:
+            self._app_json_path = None
+        self._load_tag_registry()
+
+        self._scope_tags = []
+        self._scope_tags_path = None
+        if file_path:
+            current_dir = file_path.parent
+            nearest_myos_dir = None
+            for parent in [current_dir, *current_dir.parents]:
+                myos_dir = parent / ".MyOS"
+                if nearest_myos_dir is None and myos_dir.exists():
+                    nearest_myos_dir = myos_dir
+                tags_md = myos_dir / "Tags.md"
+                if tags_md.exists():
+                    self._scope_tags_path = tags_md
+                    self._scope_tags = self._parse_scope_tags(tags_md)
+                    break
+            if self._scope_tags_path is None and nearest_myos_dir is not None:
+                # No explicit project tag config yet; keep a writable target.
+                self._scope_tags_path = nearest_myos_dir / "Tags.md"
+
+        self._sync_scope_tags_from_document()
+
+        self._tag_color_map = self._flatten_tag_colors()
+        self._refresh_tag_ui()
+
+    def _sync_scope_tags_from_document(self):
+        if not self._scope_tags_path:
+            return
+        scope_set = {t for t in self._scope_tags}
+        missing = [t for t in self._doc_tags if t not in scope_set]
+        if not missing:
+            return
+        merged = self._scope_tags + missing
+        if self._write_scope_tags(self._scope_tags_path, merged):
+            self._scope_tags = merged
+            self._propagate_scope_tags_update()
+
+    def _propagate_scope_tags_update(self):
+        if notify_config_changed is None or not self._scope_tags_path:
+            return
+        try:
+            notify_config_changed(self._scope_tags_path, dry_run=False)
+        except Exception:
+            pass
+
+    def _refresh_tag_ui(self):
+        visible_tags = list(self._doc_tags)
+
+        sidebar_colors = {t: self._tag_color_map[t] for t in visible_tags if t in self._tag_color_map}
+        self.right_sidebar.set_tag_colors(sidebar_colors)
+        self.right_sidebar.set_tags(visible_tags)
+        self.right_sidebar.set_color_entries(self._doc_color_defs)
+        if hasattr(self.editor, "set_render_tag_colors"):
+            self.editor.set_render_tag_colors(self._tag_color_map)
+
+    def _on_tag_color_change(self, tag: str, color_hex: str):
+        if not tag or not color_hex:
+            return
+        if not self._vault_root:
+            self._reload_tag_context()
+        changed = self._assign_tag_color_in_registry(tag, color_hex)
+        if not changed:
+            return
+        self._save_tag_registry()
+        self._tag_color_map = self._flatten_tag_colors()
+        self._refresh_tag_ui()
+
+    def _on_color_definition_change(self, key: str, old_hex: str, new_hex: str):
         if not hasattr(self, "editor"):
             return
-        self.editor.replace_hex_tag_color(old_hex_tag, new_color_hex)
+        changed = self.editor.replace_color_definition(key, old_hex, new_hex)
+        if changed:
+            self._save_current_document()
+
+    def _on_color_definition_search(self, key: str, hex_value: str):
+        if not hasattr(self, "editor"):
+            return
+        self.editor.jump_to_color_definition(key, hex_value)
+
+    def _schedule_save(self):
+        self._save_timer.start(250)
+
+    def _save_current_document(self) -> bool:
+        if not hasattr(self, "editor"):
+            return False
+        path = getattr(self.editor, "current_path", None)
+        if not path:
+            return False
+        # Finalize scoped tag list using stable editor state at save time.
+        self._sync_scope_tags_from_document()
+        try:
+            content = self.editor.get_markdown()
+            path.write_text(content, encoding="utf-8")
+            return True
+        except OSError:
+            return False
         
     def toggle_maximize(self):
         """Toggle between normal and maximized window state."""
@@ -2440,6 +2934,11 @@ class PostFixWindow(QMainWindow):
         x_permille = int(((geom.x() - available.x()) / max(1, available.width())) * 1000)
         y_permille = int(((geom.y() - available.y()) / max(1, available.height())) * 1000)
         self.editor.update_window_metadata(geom.width(), geom.height(), x_permille, y_permille)
+        self._save_current_document()
+
+    def closeEvent(self, event):
+        self._save_current_document()
+        super().closeEvent(event)
 
     def print_to_printer(self, printer_name: str):
         md_text = self.editor.get_markdown()

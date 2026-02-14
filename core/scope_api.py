@@ -10,9 +10,10 @@ from typing import List, Optional, Dict, Any
 
 try:
     from core.localBlueprintLayer import Blueprint
-    from core.project import ProjectConfig
+    from core.project import ProjectConfig, notify_config_changed as notify_project_config_changed
 except Exception:  # pragma: no cover - optional for non-MyOS paths
     Blueprint = None
+    notify_project_config_changed = None
 
 
 def find_project_root(start_path: Path) -> Optional[Path]:
@@ -315,3 +316,13 @@ class ScopeApi:
         if os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}:
             print(f"[scope_api] returncode: {result.returncode}")
         return result.returncode == 0
+
+    def notify_config_changed(self, path: str) -> bool:
+        target = Path(path).expanduser().resolve()
+        if notify_project_config_changed is None:
+            return False
+        try:
+            result = notify_project_config_changed(target, dry_run=False)
+            return bool(result.get("ok"))
+        except Exception:
+            return False
