@@ -2073,10 +2073,12 @@ class PostFixWindow(QMainWindow):
             self.editor.source_edit.textChanged.connect(self._schedule_save)
 
         self.acl_host = QFrame()
-        self.acl_host.setFixedWidth(120)
+        self._show_acl_dummy = False
+        self.acl_host.setFixedWidth(120 if self._show_acl_dummy else 0)
         acl_layout = QVBoxLayout(self.acl_host)
         acl_layout.setContentsMargins(0, 0, 0, 0)
         acl_layout.addWidget(self.left_sidebar)
+        self.acl_host.setVisible(self._show_acl_dummy)
 
         # Bottom toolbar
         self.bottom_toolbar = BottomToolbar()
@@ -2161,9 +2163,11 @@ class PostFixWindow(QMainWindow):
         self.left_mid_host = QFrame()
         left_mid_stack = QStackedLayout(self.left_mid_host)
         left_mid_stack.setStackingMode(QStackedLayout.StackAll)
-        left_mid_stack.addWidget(self.acl_host)
+        if self._show_acl_dummy:
+            left_mid_stack.addWidget(self.acl_host)
         left_mid_stack.addWidget(self.strip_left_mid_host)
-        left_mid_stack.setAlignment(self.acl_host, Qt.AlignRight | Qt.AlignVCenter)
+        if self._show_acl_dummy:
+            left_mid_stack.setAlignment(self.acl_host, Qt.AlignRight | Qt.AlignVCenter)
         left_mid_stack.setAlignment(self.strip_left_mid_host, Qt.AlignRight | Qt.AlignVCenter)
 
         self.right_mid_host = QFrame()
