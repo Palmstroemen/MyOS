@@ -1,72 +1,167 @@
-Project: PostFix - Intelligent Post-It Editor with Metadata
-Goal: Phase 1 & 2 MVP (Minimal Viable Product)
-Core Tech Stack: Python, PySide6 (Qt for Python), PyYAML, markdown2
-Target OS: Linux Mint (Primary), cross-platform compatible where possible
+# PostFix Design Document
 
-A) Core Architectural Decisions
-Window Management: Start with a standard decorated window. Track moveEvent and resizeEvent. Save geometry (x, y, width, height) to YAML frontmatter on mouse release.
+## Purpose
+This document helps new contributors quickly understand PostFix:
+- architecture and module boundaries,
+- runtime flow,
+- design principles for safe changes.
 
-Document Modes: Implement three toggleable modes for the central editor via topbar button or shortcut (Ctrl+M):
+PostFix is a focused Markdown editor inside MyOS, optimized for fast reading/editing and project-aware tag workflows.
 
-LIVE_PREVIEW: Rendered HTML (default).
+## Product Goals
+- Fast time-to-first-readable-content.
+- Inline "focus editing" with minimal UI friction.
+- Strong Markdown compatibility.
+- Obsidian-friendly tag color interoperability.
+- Predictable behavior with incremental, low-risk evolution.
 
-EDIT_SOURCE: Pure Markdown source.
+## Design Principles
 
-SPLIT_VIEW: Vertical split between source and preview.
+### 1) Fast First Paint
+Render readable content first, then initialize non-critical UI/context.
 
-Metadata Flow: A single MetadataManager class handles all YAML frontmatter operations (load, update, save) for the current document. It ensures atomic writes.
+### 2) Editor-Centric Interaction
+Core editing logic belongs to the editor module, not to window orchestration.
 
-B) Component Specifications
-1. MainWindow (PostFixWindow)
+### 3) Explicit Tag Pipeline
+Tag extraction, scope sync, and color-registry writes are separate steps with clear ownership.
 
-Inherits from QMainWindow.
+### 4) Safe Refactoring
+Small modular steps, compile checks, and smoke tests after each step.
 
-Manages the overall layout and all child widgets.
+### 5) Interoperability Over Lock-in
+Use portable, file-based formats and compatible registry structures.
 
-Connects UI signals to the MetadataManager and core logic slots.
+## Current Module Architecture
 
-2. CentralEditor (SmartMarkdownEditor)
+### `main.py`
+- Contains `PostFixWindow` and app orchestration.
+- Wires editor, sidebars, toolbars, and mixins.
+- Handles lifecycle events (save, print, open/send actions).
 
-A QTabWidget or QStackedWidget to switch between the three view modes.
+### `smart_editor.py`
+- Owns document editing and preview rendering.
+- Implements focus-line editing behavior.
+- Parses document tags and color definitions.
+- Applies runtime tag color rendering in preview.
 
-MarkdownSourceWidget: A QPlainTextEdit for raw Markdown.
+### `ui_panels.py`
+- Reusable UI components:
+  - `TagSidebar`
+  - `ACLSidebar` (currently hidden dummy)
+  - `BottomToolbar`
 
-HtmlPreviewWidget: A QTextBrowser to display HTML rendered via markdown2. Links are made clickable (open with QDesktopServices).
+### `window_layout.py`
+- Window layout and composition helper logic.
 
-Synchronizes scroll positions in SPLIT_VIEW.
+### `window_theme.py`
+- Theme/color transitions and visual synchronization.
 
-3. SidebarWidgets (TagSidebar, ACLSidebar)
+### `window_tags.py`
+- Tag-context orchestration:
+  - reacts to editor tag/color events,
+  - syncs project scope tags (`.MyOS/Tags.md`),
+  - updates sidebar tag UI,
+  - writes registry-backed tag colors.
 
-Inherit from QWidget. Use QVBoxLayout with a QScrollArea.
+### `tag_registry.py`
+- Pure data-layer helpers for:
+  - scope tag file parsing/writing,
+  - vault root discovery,
+  - tag color registry load/save/flatten/update.
 
-TagSidebar: Dynamically creates QPushButton for each tag. Includes an "Add Tag" button that opens a QMenu with predefined tags (important, urgent, etc.).
+### `metadata.py`
+- Frontmatter parsing/building helpers.
 
-ACLSidebar: A static list of checkboxes or buttons for Alfred, Bertha, Christian, Doris, Accounting, Development, Documentation. This is a fake implementation for Phase 1.
+### `obsidian_embed.py`
+- Optional embed integration behavior.
 
-Visual Design: Opacity controlled via setStyleSheet. Use enterEvent and leaveEvent to animate opacity for a "fade-in on hover" effect.
+### `resize_overlay.py`
+- Frameless window edge resize behavior.
 
-4. TopToolbar & BottomToolbar
+### `cli.py`
+- CLI argument parsing and app bootstrap.
 
-TopToolbar: A QWidget with QHBoxLayout. Contains:
+## Runtime Flow (High Level)
+1. `PostFixWindow` initializes UI and editor.
+2. Markdown is loaded and rendered early.
+3. Deferred startup initializes non-critical context.
+4. `SmartEditor` emits tag/color-definition signals.
+5. `WindowTagsMixin` updates scope/config/sidebar state.
+6. Save pipeline writes document and synced tag scope.
 
-Burger QPushButton (for future menu).
+## Data and Config Model
 
-Color picker QPushButton with a QColorDialog.
+### Document Level
+- Markdown content (+ optional frontmatter).
+- Inline color definitions parsed as UI "color chips".
 
-Text format QPushButtons (color, background) that wrap selected text in HTML <span>.
+### Project Level
+- `.MyOS/Tags.md` as scope tag list/filter.
+- Missing document tags can be added into scope automatically.
 
-Table QPushButton that inserts Markdown table snippet.
+### Vault Level
+- Obsidian-compatible tag color registry structures.
+- Tag color changes write back to registry data.
 
-View mode toggle QPushButton (icon changes).
+## Note Style and Thumbnail Rules
 
-Window control buttons (min, max, close).
+PostFix stores note style intent in frontmatter and the thumbnail pipeline consumes the same semantics.
 
-BottomToolbar: A two-layer system. A thin, always-visible QWidget (BottomBarLayer1) with action category buttons ("Send To", "Open In", "Print"). On hover, a second QWidget (BottomBarLayer2) slides up with the specific sub-actions as buttons.
+### Manual style selection (preferred)
+- Canonical key: `note_style`.
+- Legacy fallback key: `myos_note_style` (read for compatibility, written back to canonical key).
+- Explicit style always wins over autodetection.
 
-5. MetadataManager
+### Conservative autodetection policy
+Autodetection is intentionally narrow and predictable:
 
-Single Source of Truth for the document's YAML frontmatter.
+1. If file path is inside `/.MyOS/`, style is `config`.
+2. Else if content looks like a long structured dialog, style is `chat`.
+3. Else line-count thresholds apply:
+   - fewer than 10 content lines -> `postit`
+   - fewer than 100 content lines -> `sheet` (A4-like)
+   - 100 or more content lines -> `notebook`
 
-Methods: load(filepath), update_field(key, value), save().
+No other styles are auto-selected by default.
 
-Handles the logic for choosing between embedded frontmatter (for .md) and sidecar files (for others) as per our previous discussion.
+### Why these rules
+- They are deterministic and easy to reason about.
+- They map visual density to document size.
+- They keep "smart" behavior limited, so users can still trust what happens.
+
+## Contributor Rules of Thumb
+
+### Put new code where responsibility already exists
+- Editor behavior -> `smart_editor.py`
+- Tag sync/registry behavior -> `window_tags.py` / `tag_registry.py`
+- Pure widget behavior -> `ui_panels.py`
+- Window visuals/layout -> `window_theme.py` / `window_layout.py`
+- Cross-module wiring only -> `main.py`
+
+### Avoid
+- Re-centralizing logic into `main.py`.
+- Mixing data parsing into visual widgets.
+- Large multi-concern refactors in a single commit.
+
+## Minimal Smoke Test Checklist
+- Open markdown file.
+- Verify top-panel drag-to-move and window controls.
+- Verify focus editing and cursor movement behavior.
+- Verify tag sidebar reflects document tags.
+- Verify color chip click/double-click behavior.
+- Verify style selector persists via frontmatter `note_style`.
+- Verify thumbnail style thresholds:
+  - 9 lines -> post-it
+  - 10 lines -> A4 sheet
+  - 100 lines -> notebook
+- Verify files inside `/.MyOS/` render as config style.
+- Verify save, close, reopen persistence.
+- Verify startup remains fast.
+
+## Definition of Done for Changes
+A change is acceptable when:
+- no functional regressions in core flows,
+- module boundaries are clearer or unchanged,
+- startup/editing responsiveness is not degraded,
+- the change location is obvious to the next contributor.
