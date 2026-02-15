@@ -112,7 +112,9 @@ class WindowLayoutMixin:
             }
             """
         )
-        layout.addWidget(self.note_style_combo)
+        # Keep combo hidden; opened via burger button only.
+        self.note_style_combo.setParent(self.top_toolbar)
+        self.note_style_combo.hide()
         self.file_name_edit = QLineEdit()
         self.file_name_edit.setPlaceholderText(self.tr("Dateiname"))
         self.file_name_edit.setFixedHeight(30)

@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 import markdown2
-from PySide6.QtCore import Qt, QEvent, QRect, Signal, QVariantAnimation, QPoint
+from PySide6.QtCore import Qt, QEvent, QRect, Signal, QVariantAnimation, QPoint, QUrl
 from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QPlainTextEdit, QFrame, QTextBrowser
 
@@ -25,6 +25,7 @@ class SmartEditor(QWidget):
     MODE_PREVIEW = MODE_FOCUS
     MODE_SOURCE = MODE_FOCUS
     MODE_SPLIT = MODE_FOCUS
+    MARKDOWN_EXTRAS = ["fenced-code-blocks", "break-on-newline", "tables"]
 
     def __init__(self, show_frontmatter: bool = False):
         super().__init__()
@@ -143,9 +144,12 @@ class SmartEditor(QWidget):
         text = self.source_edit.toPlainText()
         _, body = self.metadata.split_frontmatter(text)
         scroll_value = self.preview.verticalScrollBar().value()
-        render_body = self._prepare_markdown_for_render(body)
-        html = markdown2.markdown(render_body, extras=["fenced-code-blocks", "break-on-newline"])
+        render_body = self._preserve_extra_blank_lines(body)
+        render_body = self._prepare_markdown_for_render(render_body)
+        html = markdown2.markdown(render_body, extras=self.MARKDOWN_EXTRAS)
         html = self._sanitize_rendered_html(html)
+        base_dir = Path(self.current_path).parent if self.current_path else Path.cwd()
+        self.preview.document().setBaseUrl(QUrl.fromLocalFile(f"{base_dir.resolve()}/"))
         self.preview.setHtml(html)
         self.preview.verticalScrollBar().setValue(scroll_value)
         self._refresh_index_gutter()
@@ -169,7 +173,8 @@ class SmartEditor(QWidget):
             if self._parse_color_definition_line(line):
                 continue
             filtered_lines.append(line)
-        found = re.findall(r"(?<!\w)#([a-zA-Z0-9_/\-äöüÄÖÜß]+)", "\n".join(filtered_lines))
+        cleaned = self._strip_markdown_link_targets("\n".join(filtered_lines))
+        found = re.findall(r"(?<!\w)#([a-zA-Z0-9_/\-äöüÄÖÜß]+)\b", cleaned)
         return sorted(set(found), key=lambda t: t.lower())
 
     def extract_color_definitions(self, body: str):
@@ -232,6 +237,7 @@ class SmartEditor(QWidget):
         in_fence = False
         tag_heading_re = re.compile(r"^(\s{0,3})#([A-Za-z0-9_/\-äöüÄÖÜß]+)\b")
         any_tag_re = re.compile(r"(?<!\w)#([A-Za-z0-9_/\-äöüÄÖÜß]+)\b")
+        link_token_re = re.compile(r"!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\)")
         render_colors = {str(k).lower(): v for k, v in (self._render_tag_colors or {}).items()}
         for line in (body or "").splitlines(keepends=True):
             stripped = line.lstrip()
@@ -253,22 +259,59 @@ class SmartEditor(QWidget):
                     if chunk.startswith("<") and chunk.endswith(">"):
                         continue
 
-                    def _replace_tag(match):
-                        tag_name = match.group(1)
-                        color_hex = render_colors.get(tag_name.lower())
-                        if not color_hex:
-                            return match.group(0)
-                        text_color = self._text_color_for_bg(color_hex)
-                        return (
-                            f"<span style=\"background-color: {color_hex}; color: {text_color}; "
-                            f"border: 1px solid #222222; border-radius: 999px; padding: 1px 8px;\">"
-                            f"#{tag_name}</span>"
-                        )
+                    token_parts = re.split(r"(!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))", chunk)
+                    for pidx, part in enumerate(token_parts):
+                        if link_token_re.fullmatch(part or ""):
+                            continue
 
-                    chunks[cidx] = any_tag_re.sub(_replace_tag, chunk)
+                        def _replace_tag(match):
+                            tag_name = match.group(1)
+                            color_hex = render_colors.get(tag_name.lower())
+                            if not color_hex:
+                                return match.group(0)
+                            text_color = self._text_color_for_bg(color_hex)
+                            return (
+                                f"<span style=\"background-color: {color_hex}; color: {text_color}; "
+                                f"border: 1px solid #222222; border-radius: 999px; padding: 1px 8px;\">"
+                                f"#{tag_name}</span>"
+                            )
+
+                        token_parts[pidx] = any_tag_re.sub(_replace_tag, part)
+                    chunks[cidx] = "".join(token_parts)
                 segments[idx] = "".join(chunks)
             prepared.append("`".join(segments))
         return "".join(prepared)
+
+    def _strip_markdown_link_targets(self, text: str) -> str:
+        cleaned = text or ""
+        cleaned = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", cleaned)
+        cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cleaned)
+        return cleaned
+
+    def _preserve_extra_blank_lines(self, body: str) -> str:
+        out = []
+        in_fence = False
+        blank_run = 0
+        for line in (body or "").splitlines():
+            stripped = line.lstrip()
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                in_fence = not in_fence
+                blank_run = 0
+                out.append(line)
+                continue
+            if in_fence:
+                out.append(line)
+                continue
+            if not line.strip():
+                blank_run += 1
+                if blank_run == 1:
+                    out.append("")
+                else:
+                    out.append("<br>")
+                continue
+            blank_run = 0
+            out.append(line)
+        return "\n".join(out)
 
     def _sanitize_rendered_html(self, html: str) -> str:
         """Best-effort sanitization against active/scripted content in preview."""

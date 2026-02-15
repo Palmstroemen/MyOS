@@ -24,8 +24,8 @@ except ImportError:
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
-                               QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication)
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator
+                               QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication, QMenu)
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl
 from PySide6.QtGui import QColor, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
 
@@ -172,6 +172,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self.right_sidebar.colorDefinitionSearchRequested.connect(self._on_color_definition_search)
         self._theme_anim = None
         self._syncing_note_style_combo = False
+        self._current_note_style = ""
         self._current_theme_color = self.editor.current_bg
         self._meta_timer = QTimer(self)
         self._meta_timer.setSingleShot(True)
@@ -487,9 +488,20 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self.editor.set_view_mode(SmartEditor.MODE_FOCUS)
         
     def show_menu(self):
-        """Show menu (placeholder)."""
-        print("Menu clicked - will show settings/options")
-        # TODO: Implement menu functionality
+        """Open style picker as burger menu."""
+        combo = getattr(self, "note_style_combo", None)
+        btn = getattr(self, "btn_menu", None)
+        if combo is None or btn is None:
+            return
+        menu = QMenu(self)
+        current_idx = combo.currentIndex()
+        for idx in range(combo.count()):
+            text = combo.itemText(idx)
+            action = menu.addAction(text)
+            action.setCheckable(True)
+            action.setChecked(idx == current_idx)
+            action.triggered.connect(lambda checked=False, i=idx: combo.setCurrentIndex(i))
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def _normalize_note_style(self, raw) -> str:
         text = str(raw or "").strip().lower()
@@ -513,6 +525,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self._syncing_note_style_combo = True
         combo.setCurrentIndex(max(0, idx))
         self._syncing_note_style_combo = False
+        self.set_note_style_visual(normalized)
+        self._update_style_menu_tooltip()
 
     def _sync_filename_field_from_path(self, select_all: bool = False):
         field = getattr(self, "file_name_edit", None)
@@ -573,6 +587,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         if combo is None:
             return
         normalized = self._normalize_note_style(combo.currentData())
+        self.set_note_style_visual(normalized)
         if normalized:
             self.editor.set_frontmatter_field("note_style", normalized)
             # Keep a single canonical key in frontmatter.
@@ -581,6 +596,15 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self.editor.set_frontmatter_field("note_style", None)
             self.editor.set_frontmatter_field("myos_note_style", None)
         self._schedule_save()
+        self._update_style_menu_tooltip()
+
+    def _update_style_menu_tooltip(self):
+        combo = getattr(self, "note_style_combo", None)
+        btn = getattr(self, "btn_menu", None)
+        if combo is None or btn is None:
+            return
+        label = combo.currentText() or self.tr("Stil: Auto")
+        btn.setToolTip(label)
 
     def eventFilter(self, obj, event):
         if obj in (getattr(self, "top_toolbar", None), getattr(self, "close_corner_host", None)):
@@ -690,8 +714,11 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
 
     def print_to_printer(self, printer_name: str):
         md_text = self.editor.get_markdown()
-        html = markdown2.markdown(md_text, extras=["fenced-code-blocks"])
+        html = markdown2.markdown(md_text, extras=SmartEditor.MARKDOWN_EXTRAS)
         doc = QTextDocument()
+        if getattr(self.editor, "current_path", None):
+            base_dir = Path(self.editor.current_path).parent
+            doc.setBaseUrl(QUrl.fromLocalFile(f"{base_dir.resolve()}/"))
         doc.setHtml(html)
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         tmp.close()

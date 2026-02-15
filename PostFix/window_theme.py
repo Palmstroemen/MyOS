@@ -15,6 +15,162 @@ from PySide6.QtWidgets import (
 class WindowThemeMixin:
     """Styling, palette, and top/bottom bar fade helpers."""
 
+    def set_note_style_visual(self, note_style: str):
+        self._current_note_style = str(note_style or "").strip().lower()
+        color_hex = getattr(self, "_current_theme_color", "#ffffff")
+        self.apply_theme_color(QColor(color_hex))
+
+    def _build_note_style_visuals(self, base: QColor) -> dict:
+        style = str(getattr(self, "_current_note_style", "") or "").strip().lower()
+        visuals = {
+            "panel": QColor(base),
+            "left_strip": QColor(base),
+            "right_strip": QColor(base),
+            "corner": QColor(base).darker(150),
+            "shadow_a": QColor(base).darker(185),
+            "shadow_b": QColor(base).darker(150),
+            "left_border": "",
+            "right_border": "",
+            "top_border": "",
+            "left_strip_css_override": "",
+            "right_strip_css_override": "",
+            "corner_tl_css": "",
+            "corner_tr_css": "",
+            "corner_bl_css": "",
+            "corner_br_css": "",
+            "left_top_strip_css": "",
+            "right_top_strip_css": "",
+            "left_bottom_strip_css": "",
+            "right_bottom_strip_css": "",
+            "topbar_bg_css": "",
+            "bottombar_bg_css": "",
+        }
+        if style == "postit":
+            # Same as auto, plus a subtle dog-ear fold in the bottom-left corner.
+            fold_dark = base.darker(166)
+            fold_mid_dark = base.darker(108)
+            visuals["left_bottom_strip_css"] = (
+                "QFrame {"
+                "background: qlineargradient(x1:0,y1:1,x2:1,y2:0, "
+                "stop:0.00 rgba(0,0,0,0), "
+                "stop:0.499 rgba(0,0,0,0), "
+                f"stop:0.501 {fold_dark.name()}, "
+                f"stop:0.76 {fold_mid_dark.name()}, "
+                f"stop:1.00 {fold_mid_dark.name()});"
+                "border-top: 1px solid rgba(120, 98, 30, 45);"
+                "border-right: 1px solid rgba(120, 98, 30, 40);"
+                "}"
+            )
+        elif style == "sheet":
+            # A4 stays plain like auto (no clip decoration).
+            pass
+        elif style == "notebook":
+            # Heft: sheet color stays uniform, left textile binding.
+            weave_a = base.darker(118)
+            weave_b = base.lighter(110)
+            weave_c = base.darker(128)
+            visuals["left_strip_css_override"] = (
+                "QFrame {"
+                "background: qlineargradient(x1:0,y1:0,x2:1,y2:0, "
+                f"stop:0.00 {weave_a.name()}, "
+                f"stop:0.15 {weave_b.name()}, "
+                f"stop:0.24 {weave_c.name()}, "
+                f"stop:0.43 {weave_a.name()}, "
+                f"stop:0.55 {weave_b.name()}, "
+                f"stop:0.71 {weave_c.name()}, "
+                f"stop:0.84 {weave_a.name()}, "
+                f"stop:1.00 {weave_b.name()});"
+                "border-right: 2px solid rgba(60, 70, 90, 80);"
+                "}"
+            )
+        elif style == "cloud":
+            # Gedankenskizze: center color inside, transparent fade outwards.
+            in_rgba = f"rgba({base.red()}, {base.green()}, {base.blue()}, 255)"
+            out_rgba = f"rgba({base.red()}, {base.green()}, {base.blue()}, 0)"
+            visuals["left_strip_css_override"] = (
+                "QFrame {"
+                f"background: qlineargradient(x1:1,y1:0,x2:0,y2:0, stop:0 {in_rgba}, stop:0.22 {in_rgba}, stop:1 {out_rgba});"
+                "border: none;"
+                "}"
+            )
+            visuals["right_strip_css_override"] = (
+                "QFrame {"
+                f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {in_rgba}, stop:0.22 {in_rgba}, stop:1 {out_rgba});"
+                "border: none;"
+                "}"
+            )
+            visuals["left_top_strip_css"] = (
+                "QFrame {"
+                f"background: qlineargradient(x1:1,y1:0,x2:0,y2:0, stop:0 {in_rgba}, stop:0.22 {in_rgba}, stop:1 {out_rgba});"
+                "border-top-left-radius: 40px;"
+                "}"
+            )
+            visuals["right_top_strip_css"] = (
+                "QFrame {"
+                f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {in_rgba}, stop:0.22 {in_rgba}, stop:1 {out_rgba});"
+                "border-top-right-radius: 40px;"
+                "}"
+            )
+            visuals["left_bottom_strip_css"] = (
+                "QFrame {"
+                f"background: qlineargradient(x1:1,y1:0,x2:0,y2:0, stop:0 {in_rgba}, stop:0.22 {in_rgba}, stop:1 {out_rgba});"
+                "border-bottom-left-radius: 40px;"
+                "}"
+            )
+            visuals["right_bottom_strip_css"] = (
+                "QFrame {"
+                f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 {in_rgba}, stop:0.22 {in_rgba}, stop:1 {out_rgba});"
+                "border-bottom-right-radius: 40px;"
+                "}"
+            )
+            visuals["corner_tl_css"] = f"QFrame {{ background-color: {out_rgba}; border: none; }}"
+            visuals["corner_tr_css"] = f"QFrame {{ background-color: {out_rgba}; border: none; }}"
+            visuals["corner_bl_css"] = f"QFrame {{ background-color: {out_rgba}; border: none; }}"
+            visuals["corner_br_css"] = f"QFrame {{ background-color: {out_rgba}; border: none; }}"
+            visuals["shadow_a"] = base.darker(140)
+            visuals["shadow_b"] = base.darker(125)
+        elif style == "chat":
+            # Chat: color to the edge, bubble-like asymmetric corners.
+            visuals["corner"] = QColor(base).darker(120)
+            visuals["shadow_a"] = QColor(base).darker(150)
+            visuals["shadow_b"] = QColor(base).darker(130)
+            chat_bg = base.name()
+            visuals["left_top_strip_css"] = (
+                "QFrame {"
+                f"background-color: {chat_bg};"
+                "border-top-left-radius: 40px;"
+                "}"
+            )
+            visuals["right_top_strip_css"] = (
+                "QFrame {"
+                f"background-color: {chat_bg};"
+                "border-top-right-radius: 40px;"
+                "}"
+            )
+            visuals["left_bottom_strip_css"] = (
+                "QFrame {"
+                f"background-color: {chat_bg};"
+                "border-bottom-left-radius: 0px;"
+                "}"
+            )
+            visuals["right_bottom_strip_css"] = (
+                "QFrame {"
+                f"background-color: {chat_bg};"
+                "border-bottom-right-radius: 40px;"
+                "}"
+            )
+        elif style == "config":
+            visuals["panel"] = QColor("#121416")
+            visuals["left_strip"] = QColor("#1a1e22")
+            visuals["right_strip"] = QColor("#1a1e22")
+            visuals["corner"] = QColor("#1f5b34")
+            visuals["shadow_a"] = QColor("#2fd47d")
+            visuals["shadow_b"] = QColor("#2ea467")
+            visuals["left_border"] = "border-right: 2px dashed rgba(80, 220, 130, 120);"
+            visuals["right_border"] = "border-left: 2px dashed rgba(80, 220, 130, 120);"
+            visuals["top_border"] = "border-top: 1px solid rgba(80, 220, 130, 120);"
+        return visuals
+
     def apply_round_button_style(self, button: QPushButton, bg_color: str, border_color: str):
         button.setFixedSize(30, 30)
         button.setStyleSheet(
@@ -118,13 +274,28 @@ class WindowThemeMixin:
         self.apply_theme_color(QColor(color_hex))
 
     def apply_theme_color(self, color: QColor):
-        color_hex = color.name()
-        dark_a = color.darker(185)
-        dark_b = color.darker(150)
+        visuals = self._build_note_style_visuals(color)
+        panel_color = visuals["panel"]
+        left_strip_color = visuals["left_strip"]
+        right_strip_color = visuals["right_strip"]
+        corner_color = visuals["corner"]
+        dark_a = visuals["shadow_a"]
+        dark_b = visuals["shadow_b"]
+        color_hex = panel_color.name()
         rgba_strong = f"rgba({dark_a.red()}, {dark_a.green()}, {dark_a.blue()}, 110)"
         rgba_mid = f"rgba({dark_b.red()}, {dark_b.green()}, {dark_b.blue()}, 80)"
         rgba_soft = f"rgba({dark_b.red()}, {dark_b.green()}, {dark_b.blue()}, 0)"
-        corner_rgba = f"rgba({dark_b.red()}, {dark_b.green()}, {dark_b.blue()}, 128)"
+        corner_rgba = f"rgba({corner_color.red()}, {corner_color.green()}, {corner_color.blue()}, 140)"
+        left_strip_css = (
+            f"QFrame {{ background-color: {left_strip_color.name()}; {visuals['left_border']} {visuals['top_border']} }}"
+        )
+        right_strip_css = (
+            f"QFrame {{ background-color: {right_strip_color.name()}; {visuals['right_border']} {visuals['top_border']} }}"
+        )
+        if visuals["left_strip_css_override"]:
+            left_strip_css = visuals["left_strip_css_override"]
+        if visuals["right_strip_css_override"]:
+            right_strip_css = visuals["right_strip_css_override"]
 
         self.top_toolbar.setStyleSheet(
             f"QWidget {{ background-color: {color_hex}; border-bottom: 1px solid transparent; }}"
@@ -133,18 +304,36 @@ class WindowThemeMixin:
         self.left_sidebar.update_background_style(f"rgba({color.red()}, {color.green()}, {color.blue()}, 128)")
         self.left_sidebar.update_background_style(color_hex)
         self.right_sidebar.update_background_style(color_hex)
-        for strip in [
-            self.strip_left_top, self.strip_left_mid, self.strip_left_bot,
-            self.strip_right_top, self.strip_right_mid, self.strip_right_bot,
-        ]:
-            strip.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
-        self.strip_left_top.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
-        self.topbar_bg.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
-        self.bottombar_bg.setStyleSheet(f"QFrame {{ background-color: {color_hex}; }}")
-        self.corner_tl.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
-        self.corner_tr.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
-        self.corner_bl.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
-        self.corner_br.setStyleSheet(f"QFrame {{ background-color: {corner_rgba}; }}")
+        for strip in [self.strip_left_top, self.strip_left_mid, self.strip_left_bot]:
+            strip.setStyleSheet(left_strip_css)
+        for strip in [self.strip_right_top, self.strip_right_mid, self.strip_right_bot]:
+            strip.setStyleSheet(right_strip_css)
+        if visuals["left_top_strip_css"]:
+            self.strip_left_top.setStyleSheet(visuals["left_top_strip_css"])
+        if visuals["right_top_strip_css"]:
+            self.strip_right_top.setStyleSheet(visuals["right_top_strip_css"])
+        if visuals["left_bottom_strip_css"]:
+            self.strip_left_bot.setStyleSheet(visuals["left_bottom_strip_css"])
+        if visuals["right_bottom_strip_css"]:
+            self.strip_right_bot.setStyleSheet(visuals["right_bottom_strip_css"])
+        self.topbar_bg.setStyleSheet(
+            visuals["topbar_bg_css"] or f"QFrame {{ background-color: {color_hex}; }}"
+        )
+        self.bottombar_bg.setStyleSheet(
+            visuals["bottombar_bg_css"] or f"QFrame {{ background-color: {color_hex}; }}"
+        )
+        self.corner_tl.setStyleSheet(
+            visuals["corner_tl_css"] or f"QFrame {{ background-color: {corner_rgba}; }}"
+        )
+        self.corner_tr.setStyleSheet(
+            visuals["corner_tr_css"] or f"QFrame {{ background-color: {corner_rgba}; }}"
+        )
+        self.corner_bl.setStyleSheet(
+            visuals["corner_bl_css"] or f"QFrame {{ background-color: {corner_rgba}; }}"
+        )
+        self.corner_br.setStyleSheet(
+            visuals["corner_br_css"] or f"QFrame {{ background-color: {corner_rgba}; }}"
+        )
         self.bottom_shadow.setStyleSheet(
             "QFrame { "
             f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 {rgba_strong}, stop:1 {rgba_soft}); "
