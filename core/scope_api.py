@@ -71,6 +71,15 @@ def _longest_common_prefix(values: List[str]) -> str:
     return prefix
 
 
+def _clean_entry_name(name: str, *, allow_empty: bool = False) -> Optional[str]:
+    cleaned = str(name or "").strip()
+    if not cleaned:
+        return "" if allow_empty else None
+    if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
+        return None
+    return cleaned
+
+
 class ScopeApi:
     def __init__(self, start_path: str) -> None:
         self.start_path = Path(start_path).expanduser().resolve()
@@ -96,13 +105,22 @@ class ScopeApi:
         return str(self.project_root) if self.project_root else None
 
     def update_context(self, path: str) -> None:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_path(path)
         root = find_project_root(target)
         if root != self.project_root:
             self._set_project_root(root)
 
+    def _resolve_path(self, path: str) -> Path:
+        return Path(path).expanduser().resolve()
+
+    def _resolve_dir(self, path: str) -> Optional[Path]:
+        target = self._resolve_path(path)
+        return target if target.is_dir() else None
+
     def list_children(self, path: str, include_embryos: bool = True) -> List[Dict[str, Any]]:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_dir(path)
+        if target is None:
+            return []
         entries: List[Dict[str, Any]] = []
         parent_color = self._resolve_project_color(target)
         try:
@@ -142,7 +160,9 @@ class ScopeApi:
         return entries
 
     def list_templates(self, path: str, include_embryos: bool = True) -> List[Dict[str, Any]]:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_dir(path)
+        if target is None:
+            return []
         debug = os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}
         if not include_embryos:
             if debug:
@@ -182,7 +202,9 @@ class ScopeApi:
             return []
 
     def list_entries(self, path: str) -> List[dict]:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_dir(path)
+        if target is None:
+            return []
         entries: List[dict] = []
         try:
             for child in sorted(target.iterdir()):
@@ -238,7 +260,7 @@ class ScopeApi:
         return filtered
 
     def list_project_tags(self, path: str) -> List[str]:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_path(path)
         root = find_project_root(target)
         if not root:
             return []
@@ -259,26 +281,23 @@ class ScopeApi:
         return sorted(set(tags), key=str.lower)
 
     def has_myos_dir(self, path: str) -> bool:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_path(path)
         return (target / ".MyOS").is_dir()
 
     def is_project(self, path: str) -> bool:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_path(path)
         return (target / ".MyOS" / "Project.md").is_file()
 
     def is_dir(self, path: str) -> bool:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_path(path)
         return target.is_dir()
 
     def get_project_color(self, path: str) -> Optional[str]:
-        target = Path(path).expanduser().resolve()
+        target = self._resolve_path(path)
         return self._resolve_direct_project_color(target)
 
     def _resolve_direct_project_color(self, path: Path) -> Optional[str]:
-        color = self._read_color_file(path / ".MyOS" / "Color.md")
-        if color:
-            return color
-        return self._read_color_file(path / ".MyOS" / "Project.md")
+        return self._read_first_color(path, [".MyOS/Color.md", ".MyOS/Project.md"])
 
     def _resolve_project_color(self, path: Path) -> Optional[str]:
         if not self.project_root:
@@ -286,17 +305,14 @@ class ScopeApi:
         cache_key = str(path)
         if cache_key in self._color_cache:
             return self._color_cache[cache_key]
-        current = path
-        while True:
-            color = self._read_color_file(current / ".MyOS" / "Color.md")
-            if not color:
-                color = self._read_color_file(current / ".MyOS" / "Project.md")
-            if color:
-                self._color_cache[cache_key] = color
-                return color
-            if current == self.project_root or current == current.parent:
-                break
-            current = current.parent
+        color = self._find_first_color_upwards(
+            path,
+            self.project_root,
+            [".MyOS/Color.md", ".MyOS/Project.md"],
+        )
+        if color:
+            self._color_cache[cache_key] = color
+            return color
         self._color_cache[cache_key] = None
         return None
 
@@ -316,11 +332,19 @@ class ScopeApi:
         return None
 
     def _find_color_upwards(self, start: Path, stop: Path) -> Optional[str]:
+        return self._find_first_color_upwards(start, stop, [".MyOS/Color.md", "Color.md"])
+
+    def _read_first_color(self, base: Path, relative_paths: List[str]) -> Optional[str]:
+        for rel in relative_paths:
+            color = self._read_color_file(base / rel)
+            if color:
+                return color
+        return None
+
+    def _find_first_color_upwards(self, start: Path, stop: Path, relative_paths: List[str]) -> Optional[str]:
         current = start
         while True:
-            color = self._read_color_file(current / ".MyOS" / "Color.md")
-            if not color:
-                color = self._read_color_file(current / "Color.md")
+            color = self._read_first_color(current, relative_paths)
             if color:
                 return color
             if current == stop or current == current.parent:
@@ -370,13 +394,11 @@ class ScopeApi:
         return ProjectConfig.make_project(target)
 
     def create_folder(self, path: str, name: str) -> Optional[str]:
-        base = Path(path).expanduser().resolve()
-        if not base.is_dir():
+        base = self._resolve_dir(path)
+        if base is None:
             return None
-        cleaned = str(name or "").strip()
-        if not cleaned:
-            return None
-        if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
+        cleaned = _clean_entry_name(name)
+        if cleaned is None:
             return None
         target = base / cleaned
         if target.exists():
@@ -388,15 +410,15 @@ class ScopeApi:
         return str(target)
 
     def create_note(self, path: str, name: str) -> Optional[str]:
-        base = Path(path).expanduser().resolve()
-        if not base.is_dir():
+        base = self._resolve_dir(path)
+        if base is None:
             return None
 
-        cleaned = str(name or "").strip()
+        cleaned = _clean_entry_name(name, allow_empty=True)
+        if cleaned is None:
+            return None
         if not cleaned:
             cleaned = "New Note"
-        if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
-            return None
         if not cleaned.lower().endswith(".md"):
             cleaned = f"{cleaned}.md"
 
@@ -419,19 +441,20 @@ class ScopeApi:
         return str(target)
 
     def rename_entry(self, path: str, new_name: str) -> Optional[str]:
-        source = Path(path).expanduser().resolve()
+        source = self._resolve_path(path)
         if not source.exists():
             return None
-        cleaned = str(new_name or "").strip()
-        if not cleaned:
-            return None
-        if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
+        return self._rename_one(source, new_name)
+
+    def _rename_one(self, source: Path, target_name: str) -> Optional[str]:
+        cleaned = _clean_entry_name(target_name)
+        if cleaned is None:
             return None
 
-        target_name = cleaned
+        resolved_target_name = cleaned
         if source.is_file() and "." not in cleaned and source.suffix:
-            target_name = f"{cleaned}{source.suffix}"
-        target = source.with_name(target_name)
+            resolved_target_name = f"{cleaned}{source.suffix}"
+        target = source.with_name(resolved_target_name)
         if target == source:
             return str(source)
         if target.exists():
@@ -441,6 +464,41 @@ class ScopeApi:
         except Exception:
             return None
         return str(target)
+
+    def _iter_unique_sources(self, values: List[str]):
+        seen: set[str] = set()
+        for raw in (values or []):
+            source_text = str(raw or "").strip()
+            if not source_text:
+                continue
+            source = Path(source_text).expanduser().resolve()
+            source_key = str(source)
+            duplicate = source_key in seen
+            if not duplicate:
+                seen.add(source_key)
+            yield source, source_key, duplicate
+
+    def _prepare_move(self, source: Path, target_dir: Path):
+        source_key = str(source)
+        if not source.exists():
+            return {"status": "error", "reason": "source_missing", "source": source_key}
+        if source == target_dir:
+            return {"status": "skip", "reason": "same_as_target", "source": source_key}
+        if is_within(target_dir, source):
+            return {"status": "error", "reason": "target_inside_source", "source": source_key}
+        destination = target_dir / source.name
+        if destination.exists():
+            return {
+                "status": "error",
+                "reason": "destination_exists",
+                "source": source_key,
+                "destination": str(destination),
+            }
+        return {
+            "status": "ok",
+            "source": source_key,
+            "destination": destination,
+        }
 
     def rename_entries_batch(self, paths: List[str], replace_from: str, replace_to: str) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -457,16 +515,9 @@ class ScopeApi:
             result["errors"].append({"source": "", "reason": "missing_replace_from"})
             return result
 
-        seen: set[str] = set()
-        for raw in (paths or []):
-            source_text = str(raw or "").strip()
-            if not source_text:
+        for source, source_key, duplicate in self._iter_unique_sources(paths):
+            if duplicate:
                 continue
-            source = Path(source_text).expanduser().resolve()
-            source_key = str(source)
-            if source_key in seen:
-                continue
-            seen.add(source_key)
 
             if not source.exists():
                 result["failed"] += 1
@@ -485,11 +536,11 @@ class ScopeApi:
                 continue
 
             first_target = f"{new_stem}{suffix}"
-            renamed = self.rename_entry(source_key, first_target)
+            renamed = self._rename_one(source, first_target)
             if not renamed:
                 for idx in range(1, 1000):
                     candidate = f"{new_stem}({idx}){suffix}"
-                    renamed = self.rename_entry(source_key, candidate)
+                    renamed = self._rename_one(source, candidate)
                     if renamed:
                         break
             if renamed:
@@ -503,16 +554,9 @@ class ScopeApi:
 
     def suggest_batch_rename_token(self, paths: List[str]) -> str:
         stems: List[str] = []
-        seen: set[str] = set()
-        for raw in (paths or []):
-            source_text = str(raw or "").strip()
-            if not source_text:
+        for source, _, duplicate in self._iter_unique_sources(paths):
+            if duplicate:
                 continue
-            source = Path(source_text).expanduser().resolve()
-            source_key = str(source)
-            if source_key in seen:
-                continue
-            seen.add(source_key)
             stem, _ = _split_stem_and_ext(source.name)
             stems.append(str(stem or ""))
 
@@ -525,16 +569,9 @@ class ScopeApi:
 
     def delete_entries(self, paths: List[str]) -> Dict[str, Any]:
         result: Dict[str, Any] = {"ok": True, "deleted": [], "errors": []}
-        seen: set[str] = set()
-        for raw in (paths or []):
-            source_text = str(raw or "").strip()
-            if not source_text:
+        for source, key, duplicate in self._iter_unique_sources(paths):
+            if duplicate:
                 continue
-            source = Path(source_text).expanduser().resolve()
-            key = str(source)
-            if key in seen:
-                continue
-            seen.add(key)
             if not source.exists():
                 result["errors"].append({"source": key, "reason": "missing"})
                 continue
@@ -550,15 +587,16 @@ class ScopeApi:
         return result
 
     def move_entry(self, source: str, target_dir: str) -> bool:
-        src = Path(source).expanduser().resolve()
-        dst_dir = Path(target_dir).expanduser().resolve()
-        if not src.exists():
+        src = self._resolve_path(source)
+        dst_dir = self._resolve_dir(target_dir)
+        if dst_dir is None:
             return False
         if not dst_dir.is_dir():
             return False
-        if src == dst_dir or is_within(dst_dir, src):
+        move_plan = self._prepare_move(src, dst_dir)
+        if move_plan.get("status") != "ok":
             return False
-        destination = dst_dir / src.name
+        destination = move_plan["destination"]
         try:
             shutil.move(str(src), str(destination))
             return True
@@ -572,46 +610,30 @@ class ScopeApi:
             "skipped": [],
             "errors": [],
         }
-        dst_dir = Path(target_dir).expanduser().resolve()
+        dst_dir = self._resolve_path(target_dir)
         if not dst_dir.is_dir():
             result["ok"] = False
             result["errors"].append({"source": "", "reason": "target_not_directory", "target": str(dst_dir)})
             return result
 
-        seen: set[str] = set()
-        for raw in (sources or []):
-            source_text = str(raw or "").strip()
-            if not source_text:
-                continue
-
-            src = Path(source_text).expanduser().resolve()
-            src_key = str(src)
-            if src_key in seen:
+        for src, src_key, duplicate in self._iter_unique_sources(sources):
+            if duplicate:
                 result["skipped"].append({"source": src_key, "reason": "duplicate_source"})
                 continue
-            seen.add(src_key)
 
-            if not src.exists():
-                result["errors"].append({"source": src_key, "reason": "source_missing"})
+            move_plan = self._prepare_move(src, dst_dir)
+            status = move_plan.get("status")
+            if status == "skip":
+                result["skipped"].append({"source": src_key, "reason": move_plan["reason"]})
                 continue
-            if src == dst_dir:
-                result["skipped"].append({"source": src_key, "reason": "same_as_target"})
-                continue
-            if is_within(dst_dir, src):
-                result["errors"].append({"source": src_key, "reason": "target_inside_source"})
-                continue
-
-            destination = dst_dir / src.name
-            if destination.exists():
-                result["errors"].append(
-                    {
-                        "source": src_key,
-                        "reason": "destination_exists",
-                        "destination": str(destination),
-                    }
-                )
+            if status != "ok":
+                error_item = {"source": src_key, "reason": move_plan["reason"]}
+                if "destination" in move_plan:
+                    error_item["destination"] = move_plan["destination"]
+                result["errors"].append(error_item)
                 continue
 
+            destination = move_plan["destination"]
             try:
                 shutil.move(str(src), str(destination))
                 result["moved"].append({"source": src_key, "destination": str(destination)})

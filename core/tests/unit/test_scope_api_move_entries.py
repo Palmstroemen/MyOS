@@ -37,3 +37,29 @@ def test_move_entries_rejects_target_inside_source(tmp_path):
     report = api.move_entries([str(source_dir)], str(nested_target))
     assert report["ok"] is False
     assert any(err["reason"] == "target_inside_source" for err in report["errors"])
+
+
+def test_move_entry_rejects_target_inside_source(tmp_path):
+    source_dir = tmp_path / "FolderA"
+    source_dir.mkdir()
+    nested_target = source_dir / "Inner"
+    nested_target.mkdir()
+
+    api = ScopeApi(str(tmp_path))
+    assert api.move_entry(str(source_dir), str(nested_target)) is False
+
+
+def test_delete_entries_reports_missing_and_ignores_duplicate(tmp_path):
+    root = tmp_path / "lab"
+    root.mkdir()
+    doomed = root / "gone.txt"
+    doomed.write_text("x", encoding="utf-8")
+    missing = root / "missing.txt"
+
+    api = ScopeApi(str(root))
+    report = api.delete_entries([str(doomed), str(missing), str(doomed)])
+
+    assert report["ok"] is False
+    assert report["deleted"] == [str(doomed)]
+    assert len(report["errors"]) == 1
+    assert report["errors"][0]["reason"] == "missing"
