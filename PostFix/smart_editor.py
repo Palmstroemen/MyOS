@@ -12,14 +12,12 @@ try:
     from .markdown_render import (
         render_markdown,
         extract_block_line_anchors,
-        extract_block_line_ranges,
     )
     from .metadata import MetadataManager
 except ImportError:
     from markdown_render import (
         render_markdown,
         extract_block_line_anchors,
-        extract_block_line_ranges,
     )
     from metadata import MetadataManager
 
@@ -53,7 +51,9 @@ class SmartEditor(QWidget):
         self._focus_dynamic_end = None
         self._render_tag_colors = {}
         self._preview_line_anchors = [0]
-        self._preview_block_ranges = [(0, 1)]
+        self._last_preview_scroll = 0
+        self._last_tag_jump_token = ""
+        self._last_tag_jump_idx = -1
         self.setup_ui()
         self.apply_background(self.current_bg, update_frontmatter=False, animate=False)
         self.render_preview()
@@ -95,7 +95,7 @@ class SmartEditor(QWidget):
         self.focus_edit = QPlainTextEdit()
         self.focus_edit.setPlaceholderText("")
         self.focus_edit.setMaximumHeight(260)
-        self.focus_edit.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        self.focus_edit.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.focus_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.focus_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.focus_edit.setViewportMargins(0, 0, 0, 0)
@@ -155,13 +155,14 @@ class SmartEditor(QWidget):
         scroll_value = self.preview.verticalScrollBar().value()
         render_body = self._prepare_markdown_for_render(body)
         self._preview_line_anchors = extract_block_line_anchors(render_body)
-        self._preview_block_ranges = extract_block_line_ranges(render_body)
         html = render_markdown(render_body)
         html = self._sanitize_rendered_html(html)
         base_dir = Path(self.current_path).parent if self.current_path else Path.cwd()
         self.preview.document().setBaseUrl(QUrl.fromLocalFile(f"{base_dir.resolve()}/"))
+        self.preview.document().setDefaultStyleSheet(self._preview_content_css())
         self.preview.setHtml(html)
         self.preview.verticalScrollBar().setValue(scroll_value)
+        self._last_preview_scroll = int(self.preview.verticalScrollBar().value())
         self._refresh_index_gutter()
         self._rebuild_focus_spans()
         tags = self.extract_tags(body)
@@ -185,7 +186,14 @@ class SmartEditor(QWidget):
             filtered_lines.append(line)
         cleaned = self._strip_markdown_link_targets("\n".join(filtered_lines))
         found = re.findall(r"(?<!\w)#([a-zA-Z0-9_/\-äöüÄÖÜß]+)\b", cleaned)
-        return sorted(set(found), key=lambda t: t.lower())
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for tag in found:
+            if tag in seen:
+                continue
+            seen.add(tag)
+            ordered.append(tag)
+        return ordered
 
     def extract_color_definitions(self, body: str):
         entries = []
@@ -209,18 +217,9 @@ class SmartEditor(QWidget):
         return match.group(1), match.group(2).lower()
 
     def _rebuild_focus_spans(self):
-        lines = self._source_body().splitlines()
-        line_count = len(lines)
-        raw_spans = list(self._preview_block_ranges or [])
-        spans = []
-        for start, end in raw_spans:
-            s = max(0, min(int(start), max(0, line_count - 1)))
-            e = max(s + 1, min(int(end), max(1, line_count)))
-            if spans and spans[-1][0] == s and spans[-1][1] == e:
-                continue
-            spans.append((s, e))
-        if not spans:
-            spans = [(idx, idx + 1) for idx in range(line_count)]
+        body = self._source_body()
+        lines = body.splitlines()
+        spans = [(idx, idx + 1) for idx in range(len(lines))]
         if not spans:
             spans = [(0, max(1, len(lines)))]
         self._focus_spans = spans
@@ -422,6 +421,57 @@ class SmartEditor(QWidget):
         self.focus_edit.setFocus()
         return True
 
+    def jump_to_tag(self, tag: str) -> bool:
+        tag_s = (tag or "").strip()
+        if not tag_s:
+            return False
+        body_lines = self._source_body().splitlines()
+        if not body_lines:
+            return False
+
+        tag_re = re.compile(
+            rf"(?<!\w)#{re.escape(tag_s)}\b",
+        )
+        indices = [i for i, line in enumerate(body_lines) if tag_re.search(line)]
+        if not indices:
+            return False
+
+        current = self._last_tag_jump_idx if self._last_tag_jump_token == tag_s else -1
+        next_idx = None
+        for i in indices:
+            if i > current:
+                next_idx = i
+                break
+        if next_idx is None:
+            next_idx = indices[0]
+
+        self._last_tag_jump_token = tag_s
+        self._last_tag_jump_idx = next_idx
+        self._hide_focus_overlay()
+        self._scroll_preview_to_source_index(next_idx, center=True)
+        self.preview.setFocus()
+        return True
+
+    def _scroll_preview_to_source_index(self, source_idx: int, center: bool = True):
+        bar = self.preview.verticalScrollBar()
+        count = max(1, len(self._focus_spans))
+        idx = max(0, min(int(source_idx), count - 1))
+        doc = self.preview.document()
+        layout = doc.documentLayout() if doc else None
+        doc_height = float(layout.documentSize().height()) if layout else 0.0
+
+        if doc_height > 1.0:
+            ratio = self._anchor_ratio_for_source_index(idx, count)
+            target = ratio * doc_height
+        else:
+            line_h = max(20, self.preview.fontMetrics().lineSpacing() + 4)
+            target = float(idx * line_h)
+
+        if center:
+            target -= float(self.preview.viewport().height()) / 2.0
+        target_scroll = max(0, min(int(round(target)), int(bar.maximum())))
+        bar.setValue(target_scroll)
+
     def _refresh_index_gutter(self):
         lines = self._source_lines()
         if not lines:
@@ -447,7 +497,13 @@ class SmartEditor(QWidget):
         gbar.setValue(int(ratio * gbar.maximum()))
 
     def _on_preview_scrolled(self):
-        if self.focus_edit.isVisible() and self._active_focus_idx >= 0:
+        current_scroll = int(self.preview.verticalScrollBar().value())
+        delta = current_scroll - int(getattr(self, "_last_preview_scroll", current_scroll))
+        self._last_preview_scroll = current_scroll
+        if self._active_focus_idx >= 0:
+            if self._overlay_top_hint is not None and delta != 0:
+                # Keep the initial click anchor attached to the same rendered content while scrolling.
+                self._overlay_top_hint = float(self._overlay_top_hint) - float(delta)
             self._position_focus_overlay()
 
     def _normalize_for_match(self, text: str) -> str:
@@ -496,6 +552,11 @@ class SmartEditor(QWidget):
             return
         self._replace_source_text(body)
 
+    def _notify_frontmatter_changed(self):
+        callback = getattr(self, "on_frontmatter_changed", None)
+        if callable(callback):
+            callback()
+
     def _apply_focus_text_from_source(self, preserve_cursor: bool = False):
         if self._active_focus_idx < 0 or self._active_focus_idx >= len(self._focus_spans):
             return
@@ -529,28 +590,30 @@ class SmartEditor(QWidget):
 
         if doc_height > 1.0 and count > 0:
             top_ratio = self._anchor_ratio_for_source_index(idx, count)
-            bottom_ratio = self._anchor_ratio_for_source_index(min(idx + 1, count - 1), count)
             y_top = (top_ratio * doc_height) - scroll
-            y_bottom = (bottom_ratio * doc_height) - scroll
             top = int(round(y_top))
-            bottom = int(round(y_bottom))
         else:
             line_h = max(18, self.preview.fontMetrics().lineSpacing() + 4)
             top = idx * line_h
-            bottom = top + line_h
 
         if self._overlay_top_hint is not None:
             top = int(self._overlay_top_hint)
-        top = max(0, min(top, viewport.height() - 1))
 
-        content_h = self._estimate_focus_height(self.focus_edit.toPlainText(), max(120, viewport.width()))
-        min_h = max(20, self.preview.fontMetrics().lineSpacing() + 4)
-        height = max(min_h, content_h + 2)
-        height = max(height, bottom - top)
-        if top + height > viewport.height():
-            top = max(0, viewport.height() - height)
+        span_start, span_end = self._focus_spans[idx] if idx < len(self._focus_spans) else (idx, idx + 1)
+        if idx == self._active_focus_idx and self._focus_dynamic_end is not None:
+            span_end = max(span_start + 1, self._focus_dynamic_end)
+        line_h = max(20, self.preview.fontMetrics().lineSpacing() + 4)
+        visible_lines = max(1, span_end - span_start)
+        if idx == self._active_focus_idx:
+            visible_lines = max(visible_lines, len(self.focus_edit.toPlainText().splitlines()) or 1)
+        height = min(260, max(line_h, (visible_lines * line_h) + 2))
 
-        self.focus_edit.setGeometry(0, top, max(120, viewport.width()), height)
+        # Let the overlay move with content; don't clamp to viewport edges.
+        if top > viewport.height() or (top + height) < 0:
+            self.focus_edit.setVisible(False)
+            return
+
+        self.focus_edit.setGeometry(0, int(top), max(120, viewport.width()), int(height))
         self.focus_edit.setVisible(True)
         self.focus_edit.raise_()
 
@@ -627,6 +690,28 @@ class SmartEditor(QWidget):
         self.focus_edit.setTextCursor(cursor)
         self.focus_edit.setFocus()
 
+    def _nearest_image_source_line(self, estimated_idx: int) -> int:
+        lines = self._source_lines()
+        if not lines:
+            return max(0, estimated_idx)
+        idx = max(0, min(int(estimated_idx), len(lines) - 1))
+        img_re = re.compile(r"!\[[^\]]*\]\([^)]+\)|!\[\[[^\]]+\]\]")
+        if img_re.search(lines[idx]):
+            return idx
+        best = idx
+        best_dist = 10**9
+        window = 40
+        start = max(0, idx - window)
+        end = min(len(lines), idx + window + 1)
+        for i in range(start, end):
+            if not img_re.search(lines[i]):
+                continue
+            d = abs(i - idx)
+            if d < best_dist:
+                best = i
+                best_dist = d
+        return best
+
     def eventFilter(self, watched, event):
         focus_widget = getattr(self, "focus_edit", None)
         preview_widget = getattr(self, "preview", None)
@@ -671,6 +756,8 @@ class SmartEditor(QWidget):
                 idx = self._line_index_from_preview_pos(pos)
                 self._active_focus_idx = idx
                 click_cursor = preview_widget.cursorForPosition(pos)
+                if click_cursor.charFormat().isImageFormat():
+                    self._active_focus_idx = self._nearest_image_source_line(self._active_focus_idx)
                 click_cursor.select(QTextCursor.WordUnderCursor)
                 selected_word = click_cursor.selectedText().strip()
                 click_rect = preview_widget.cursorRect(click_cursor)
@@ -776,6 +863,7 @@ class SmartEditor(QWidget):
                 self._replace_source_text(updated)
             else:
                 self._frontmatter["background_color"] = color_hex
+                self._notify_frontmatter_changed()
             self.render_preview()
 
     def apply_editor_background(self, color: QColor):
@@ -864,6 +952,38 @@ class SmartEditor(QWidget):
         if hasattr(self, "on_theme_color_changed"):
             self.on_theme_color_changed(color_hex)
 
+    def _preview_content_css(self) -> str:
+        return """
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 16px;
+            margin-bottom: 10px;
+        }
+        p {
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .ofm-image-block {
+            margin-top: 10px;
+            margin-bottom: 14px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        table {
+            border-collapse: collapse;
+            margin-top: 8px;
+            margin-bottom: 14px;
+        }
+        th, td {
+            border: 1px solid rgba(40, 40, 40, 50);
+            padding: 4px 8px;
+        }
+        th {
+            background: rgba(0, 0, 0, 10);
+        }
+        """
+
     def update_window_metadata(self, width_px: int, height_px: int, x_permille: int, y_permille: int):
         if self.show_frontmatter:
             text = self.source_edit.toPlainText()
@@ -877,6 +997,7 @@ class SmartEditor(QWidget):
             self._frontmatter["window_height_px"] = int(height_px)
             self._frontmatter["window_x_permille"] = int(x_permille)
             self._frontmatter["window_y_permille"] = int(y_permille)
+            self._notify_frontmatter_changed()
 
     def get_frontmatter_field(self, key: str):
         key_s = str(key or "").strip()
@@ -900,10 +1021,17 @@ class SmartEditor(QWidget):
                 updated = self.metadata.update_field(text, key_s, value)
             self._replace_source_text(updated)
             return
+        changed = False
         if value is None or value == "":
-            self._frontmatter.pop(key_s, None)
+            if key_s in self._frontmatter:
+                self._frontmatter.pop(key_s, None)
+                changed = True
         else:
-            self._frontmatter[key_s] = value
+            if self._frontmatter.get(key_s) != value:
+                self._frontmatter[key_s] = value
+                changed = True
+        if changed:
+            self._notify_frontmatter_changed()
 
     def sync_title_from_filename(self, title: str):
         title_text = str(title or "").strip()
@@ -942,6 +1070,9 @@ class SmartEditor(QWidget):
         self.source_edit.blockSignals(False)
         cursor.setPosition(min(pos, len(updated)))
         self.source_edit.setTextCursor(cursor)
+        callback = getattr(self, "on_source_text_replaced", None)
+        if callable(callback):
+            callback()
 
     def wrap_selection(self, css_style: str):
         if self.focus_edit.isVisible() and (self.focus_edit.hasFocus() or self.focus_edit.textCursor().hasSelection()):

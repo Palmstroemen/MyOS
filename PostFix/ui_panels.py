@@ -105,6 +105,7 @@ class ChipButton(QPushButton):
 class TagSidebar(SidebarWidget):
     """Right sidebar for tags with interactive tag buttons."""
 
+    tagSearchRequested = Signal(str)
     tagColorChangeRequested = Signal(str, str)
     colorDefinitionChangeRequested = Signal(str, str, str)
     colorDefinitionSearchRequested = Signal(str, str)
@@ -121,7 +122,14 @@ class TagSidebar(SidebarWidget):
         self._rebuild()
 
     def set_tags(self, tags):
-        cleaned = sorted({str(t).strip() for t in (tags or []) if str(t).strip()})
+        cleaned = []
+        seen = set()
+        for raw in tags or []:
+            tag = str(raw).strip()
+            if not tag or tag in seen:
+                continue
+            seen.add(tag)
+            cleaned.append(tag)
         self.tags = cleaned
         self._rebuild()
 
@@ -187,7 +195,7 @@ class TagSidebar(SidebarWidget):
         for tag in self.tags:
             chip_bg = self._tag_colors.get(tag, "#ffd54f")
             chip_fg = self._text_color_for_bg(chip_bg)
-            btn = QPushButton(f"#{tag}")
+            btn = ChipButton(f"#{tag}")
             btn.setStyleSheet(
                 f"""
                 QPushButton {{
@@ -207,8 +215,10 @@ class TagSidebar(SidebarWidget):
                 }}
             """
             )
-            btn.clicked.connect(lambda _, t=tag: self._pick_tag_color(t))
+            btn.singleClicked.connect(lambda t=tag: self.tagSearchRequested.emit(t))
+            btn.doubleClicked.connect(lambda t=tag: self._pick_tag_color(t))
             btn.setCursor(Qt.PointingHandCursor)
+            btn.setToolTip(self.tr("Klick: naechster Treffer | Doppelklick: Farbe aendern"))
             layout.addWidget(btn)
 
         layout.addStretch()
@@ -222,13 +232,13 @@ class TagSidebar(SidebarWidget):
 
     def _pick_tag_color(self, tag: str):
         initial = QColor(self._tag_colors.get(tag, "#ffd54f"))
-        chosen = QColorDialog.getColor(initial, self, self.tr("Farbe fuer #%1").arg(tag))
+        chosen = QColorDialog.getColor(initial, self, self.tr("Farbe fuer #%1").replace("%1", tag))
         if not chosen.isValid():
             return
         self.tagColorChangeRequested.emit(tag, chosen.name())
 
     def _pick_color_definition(self, key: str, old_hex: str):
-        chosen = QColorDialog.getColor(QColor(old_hex), self, self.tr("Farbe fuer %1").arg(key))
+        chosen = QColorDialog.getColor(QColor(old_hex), self, self.tr("Farbe fuer %1").replace("%1", key))
         if not chosen.isValid():
             return
         self.colorDefinitionChangeRequested.emit(key, old_hex, chosen.name())

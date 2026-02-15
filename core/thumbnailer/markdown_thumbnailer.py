@@ -35,6 +35,8 @@ STYLE_ALIASES = {
     "notebook": "notebook",
     "heft": "notebook",
     "konzept": "notebook",
+    "cloud": "cloud",
+    "gedankenskizze": "cloud",
     "chat": "chat",
     "aichat": "chat",
     "sprechblase": "chat",
@@ -90,6 +92,16 @@ def normalize_hex_color(color: str, default: str = "#ffffff") -> str:
     if len(value) == 4:
         return "#" + "".join(ch * 2 for ch in value[1:]).lower()
     return value.lower()
+
+
+def _hex_to_rgb(color: str, fallback: tuple[int, int, int] = (255, 255, 255)) -> tuple[int, int, int]:
+    normalized = normalize_hex_color(color, default="")
+    if not normalized:
+        return fallback
+    try:
+        return (int(normalized[1:3], 16), int(normalized[3:5], 16), int(normalized[5:7], 16))
+    except Exception:
+        return fallback
 
 
 def extract_background_color(markdown_text: str, default: str = "#ffffff") -> str:
@@ -234,9 +246,9 @@ def _load_font(size: int):
 
 def _draw_paper(draw, size: int, style: str, bg: str) -> tuple[tuple[int, int, int, int], int]:
     if style == "postit":
-        x0, y0 = int(size * 0.10), int(size * 0.08)
-        x1, y1 = int(size * 0.90), int(size * 0.88)
-        draw.rounded_rectangle((x0, y0, x1, y1), radius=int(size * 0.05), fill=bg, outline="#b9ae67", width=2)
+        x0, y0 = int(size * 0.06), int(size * 0.10)
+        x1, y1 = int(size * 0.94), int(size * 0.90)
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=int(size * 0.06), fill=bg, outline="#b9ae67", width=2)
         fold = int(size * 0.14)
         draw.polygon([(x1 - fold, y0), (x1, y0), (x1, y0 + fold)], fill="#efe39a", outline="#b9ae67")
         return (x0 + 12, y0 + 18, x1 - 12, y1 - 12), 7
@@ -248,19 +260,93 @@ def _draw_paper(draw, size: int, style: str, bg: str) -> tuple[tuple[int, int, i
             ly = y0 + int(size * 0.13) + i * int(size * 0.08)
             draw.line((x0 + 12, ly, x1 - 12, ly), fill="#e6e6e6", width=1)
         return (x0 + 14, y0 + 26, x1 - 14, y1 - 12), 10
+    if style == "notebook":
+        x0, y0 = int(size * 0.10), int(size * 0.06)
+        x1, y1 = int(size * 0.92), int(size * 0.94)
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=int(size * 0.03), fill=bg, outline="#b6b2a8", width=2)
+        bind_x = x0 + int(size * 0.09)
+        # Darker textile-like binding strip on the left.
+        draw.rectangle((x0, y0, bind_x, y1), fill="#a0a095", outline="#00005f", width=1)
+        for rib in range(5):
+            lx = x0 + int((bind_x - x0) * (rib + 1) / 6)
+            draw.line((lx, y0 + 2, lx, y1 - 2), fill="#7d7263", width=1)
+        for i in range(7):
+            ly = y0 + int(size * 0.09) + i * int(size * 0.10)
+            draw.line((bind_x + 8, ly, x1 - 8, ly), fill="#d8d2c6", width=1)
+        return (bind_x + 12, y0 + 16, x1 - 12, y1 - 12), 9
+    if style == "cloud":
+        x0, y0 = int(size * 0.08), int(size * 0.10)
+        x1, y1 = int(size * 0.92), int(size * 0.90)
+        cloud_rgb = _hex_to_rgb(bg, fallback=(232, 244, 255))
+        bubble_fill = (
+            cloud_rgb[0],
+            cloud_rgb[1],
+            cloud_rgb[2],
+            255,
+        )
+        # Stronger background cloud bubbles (left/right/bottom), without outlines.
+        # Keep all circles fully inside the square icon to avoid clipping artifacts.
+        bg_bubbles = [
+            (x0 + int(size * 0.18), y0 + int(size * 0.42), int(size * 0.26)),
+            (x1 - int(size * 0.22), y0 + int(size * 0.40), int(size * 0.30)),
+            (x0 + int(size * 0.30), y1 - int(size * 0.12), int(size * 0.21)),
+            (x0 + int(size * 0.52), y1 - int(size * 0.11), int(size * 0.23)),
+            (x1 - int(size * 0.30), y1 - int(size * 0.12), int(size * 0.21)),
+        ]
+        for cx, cy, r_bg in bg_bubbles:
+            draw.ellipse((cx - r_bg, cy - r_bg, cx + r_bg, cy + r_bg), fill=bubble_fill)
+
+        draw.rounded_rectangle((x0, y0 + int(size * 0.06), x1, y1), radius=int(size * 0.10), fill=bg, outline=bg, width=2)
+        r = int(size * 0.115)
+        tops = [
+            (x0 + int(size * 0.16), y0 + int(size * 0.10)),
+            (x0 + int(size * 0.34), y0 + int(size * 0.03)),
+            (x0 + int(size * 0.54), y0 + int(size * 0.07)),
+            (x0 + int(size * 0.72), y0 + int(size * 0.12)),
+        ]
+        for cx, cy in tops:
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=bg)
+        return (x0 + 14, y0 + 40, x1 - 14, y1 - 10), 6
     if style == "config":
-        x0, y0 = int(size * 0.14), int(size * 0.08)
-        x1, y1 = int(size * 0.88), int(size * 0.92)
-        draw.rounded_rectangle((x0, y0, x1, y1), radius=int(size * 0.02), fill=bg, outline="#b0b7bb", width=2)
-        draw.ellipse((x1 - 38, y0 + 16, x1 - 14, y0 + 40), fill="#98a3ab", outline="#6f7980", width=2)
-        return (x0 + 14, y0 + 26, x1 - 14, y1 - 12), 9
+        x0, y0 = int(size * 0.16), int(size * 0.14)
+        x1, y1 = int(size * 0.84), int(size * 0.86)
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=int(size * 0.05), fill=bg, outline="#b0b7bb", width=2)
+        # Wrench glyph (no text content for config thumbnails)
+        cx, cy = int(size * 0.50), int(size * 0.52)
+        head_r = int(size * 0.13)
+        draw.ellipse((cx - head_r, cy - head_r, cx + head_r, cy + head_r), fill="#8d9aa3", outline="#66727b", width=2)
+        cut_r = int(size * 0.07)
+        draw.polygon(
+            [
+                (cx + int(size * 0.03), cy - int(size * 0.03)),
+                (cx + head_r + int(size * 0.03), cy - head_r),
+                (cx + head_r, cy),
+                (cx + int(size * 0.03), cy + int(size * 0.03)),
+            ],
+            fill=bg,
+            outline=bg,
+        )
+        draw.rounded_rectangle(
+            (cx - int(size * 0.03), cy + int(size * 0.05), cx + int(size * 0.03), cy + int(size * 0.23)),
+            radius=int(size * 0.015),
+            fill="#8d9aa3",
+            outline="#66727b",
+            width=2,
+        )
+        draw.ellipse(
+            (cx - int(size * 0.02), cy + int(size * 0.19), cx + int(size * 0.02), cy + int(size * 0.23)),
+            fill=bg,
+            outline="#66727b",
+            width=1,
+        )
+        return (x0 + 14, y0 + 18, x1 - 14, y0 + 18), 0
     if style == "chat":
-        x0, y0 = int(size * 0.10), int(size * 0.12)
-        x1, y1 = int(size * 0.90), int(size * 0.78)
-        draw.rectangle((x0, y0, x1, y1), fill=bg, outline="#6f9fc2", width=3)
-        tail = [(x0 + int(size * 0.20), y1), (x0 + int(size * 0.30), y1), (x0 + int(size * 0.24), y1 + int(size * 0.11))]
+        x0, y0 = int(size * 0.08), int(size * 0.20)
+        x1, y1 = int(size * 0.92), int(size * 0.72)
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=int(size * 0.12), fill=bg, outline="#6f9fc2", width=3)
+        tail = [(x0 + int(size * 0.20), y1), (x0 + int(size * 0.34), y1), (x0 + int(size * 0.26), y1 + int(size * 0.12))]
         draw.polygon(tail, fill=bg, outline="#6f9fc2")
-        return (x0 + 12, y0 + 16, x1 - 12, y1 - 10), 7
+        return (x0 + 14, y0 + 14, x1 - 14, y1 - 10), 5
 
     x0, y0 = int(size * 0.12), int(size * 0.06)
     x1, y1 = int(size * 0.90), int(size * 0.94)
@@ -282,6 +368,7 @@ def render_note_thumbnail(markdown_text: str, output_path: Path, size: int = 256
         "postit": "#fff59d",
         "sheet": "#ffffff",
         "notebook": "#f4f1e8",
+        "cloud": "#e8f4ff",
         "chat": "#d7efff",
         "config": "#eceff1",
     }.get(style, "#f4f1e8")
@@ -302,6 +389,9 @@ def render_note_thumbnail(markdown_text: str, output_path: Path, size: int = 256
     lines = lines[:max_lines]
     if lines and len(lines) == max_lines:
         lines[-1] = (lines[-1][:-1] + "…") if len(lines[-1]) > 1 else lines[-1]
+
+    if style == "config":
+        lines = []
 
     y = text_box[1]
     line_height = max(14, int(size * 0.085))

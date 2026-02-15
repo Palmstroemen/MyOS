@@ -152,6 +152,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self._app_json_data = {}
         # Always wire editor->window theme callback; dynamic attribute on SmartEditor.
         self.editor.on_theme_color_changed = self.apply_theme_color_hex
+        self.editor.on_source_text_replaced = self._on_editor_text_changed
+        self.editor.on_frontmatter_changed = self._on_editor_text_changed
         if hasattr(self.editor, "MODE_FOCUS"):
             self.editor.set_view_mode(self.editor.MODE_FOCUS)
             self.btn_view_mode.setText(self.tr("Fokusmodus"))
@@ -167,6 +169,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
                 btn.setEnabled(False)
         if hasattr(self.right_sidebar, "tagColorChangeRequested"):
             self.right_sidebar.tagColorChangeRequested.connect(self._on_tag_color_change)
+        if hasattr(self.right_sidebar, "tagSearchRequested"):
+            self.right_sidebar.tagSearchRequested.connect(self._on_tag_search)
         if hasattr(self.right_sidebar, "colorDefinitionChangeRequested"):
             self.right_sidebar.colorDefinitionChangeRequested.connect(self._on_color_definition_change)
         if hasattr(self.right_sidebar, "colorDefinitionSearchRequested"):
@@ -230,6 +234,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             "stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
             "}"
         )
+        self.bottom_shadow.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.right_shadow = QFrame()
         self.right_shadow.setFixedWidth(60)
         self.right_shadow.setStyleSheet(
@@ -238,6 +243,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             "stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
             "}"
         )
+        self.right_shadow.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.corner_shadow = QFrame()
         self.corner_shadow.setFixedSize(60, 60)
         self.corner_shadow.setStyleSheet(
@@ -246,6 +252,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             "fx:0, fy:0, stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
             "}"
         )
+        self.corner_shadow.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.right_shadow_bot = QFrame()
         self.right_shadow_bot.setFixedWidth(60)
         self.right_shadow_bot.setStyleSheet(
@@ -254,6 +261,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             "stop:0 rgba(0,0,0,80), stop:1 rgba(0,0,0,0)); "
             "}"
         )
+        self.right_shadow_bot.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.right_shadow_down = QFrame()
         self.right_shadow_down.setFixedWidth(60)
         self.right_shadow_down.setStyleSheet(
@@ -262,6 +270,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             "stop:0 rgba(0,0,0,60), stop:1 rgba(0,0,0,0)); "
             "}"
         )
+        self.right_shadow_down.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
         # Debug overlay disabled for production look.
         self._resize_targets = [
@@ -439,6 +448,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self.right_sidebar.set_tags([])
         
     def _schedule_save(self):
+        if self._track_local_changes:
+            self._has_local_changes = True
         self._save_timer.start(250)
 
     def _on_editor_text_changed(self):
@@ -486,6 +497,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self.btn_bg_color, color.name(), color.darker(120).name()
         )
         self.editor.apply_background(color.name())
+        self._schedule_save()
 
     def pick_text_color(self):
         self.open_palette(QColor("#1f2433").name(), self.on_text_color_selected, self.btn_text_color)

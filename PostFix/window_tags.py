@@ -33,7 +33,15 @@ except ImportError:
 
 class WindowTagsMixin:
     def _on_editor_tags_changed(self, tags: list[str]):
-        self._doc_tags = sorted({str(t).strip() for t in (tags or []) if str(t).strip()})
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for raw in tags or []:
+            tag = str(raw).strip()
+            if not tag or tag in seen:
+                continue
+            seen.add(tag)
+            ordered.append(tag)
+        self._doc_tags = ordered
         # Debounce scope-tag updates to avoid transient tags while typing/deleting.
         self._scope_sync_timer.start(1200)
         self._refresh_tag_ui()
@@ -166,3 +174,8 @@ class WindowTagsMixin:
         if not hasattr(self, "editor"):
             return
         self.editor.jump_to_color_definition(key, hex_value)
+
+    def _on_tag_search(self, tag: str):
+        if not hasattr(self, "editor") or not tag:
+            return
+        self.editor.jump_to_tag(tag)

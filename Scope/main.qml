@@ -120,7 +120,10 @@ ApplicationWindow {
     property string selectionAnchorPath: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
-    ListModel { id: filesModel }
+    ListModel {
+        id: filesModel
+        dynamicRoles: true
+    }
 
 
     QtObject {
@@ -1034,19 +1037,41 @@ ApplicationWindow {
 
     function updateThumbnail(fullPath, thumbUrl) {
         if (!fullPath || !thumbUrl) return
-        var updated = fileItems.slice(0)
-        for (var i = 0; i < updated.length; i++) {
-            var item = updated[i]
-            var itemPath = item.path ? item.path : (cwp + "/" + item.name)
-            if (itemPath === fullPath) {
+        function _updateArray(source) {
+            var changed = false
+            var out = source.slice(0)
+            for (var i = 0; i < out.length; i++) {
+                var item = out[i]
+                if (!item) continue
+                var itemPath = item.path ? item.path : (cwp + "/" + item.name)
+                if (itemPath !== fullPath) continue
                 var next = {}
                 for (var key in item) {
                     next[key] = item[key]
                 }
                 next.thumb = thumbUrl
-                updated[i] = next
-                fileItems = updated
-                return
+                out[i] = next
+                changed = true
+            }
+            return { changed: changed, value: out }
+        }
+
+        var allResult = _updateArray(fileItemsAll || [])
+        if (allResult.changed) {
+            fileItemsAll = allResult.value
+        }
+        var rawResult = _updateArray(fileItemsRaw || [])
+        if (rawResult.changed) {
+            fileItemsRaw = rawResult.value
+        }
+
+        if (filesModel) {
+            for (var j = 0; j < filesModel.count; j++) {
+                var modelItem = filesModel.get(j)
+                if (!modelItem) continue
+                var modelPath = modelItem.path ? modelItem.path : (cwp + "/" + modelItem.name)
+                if (modelPath !== fullPath) continue
+                filesModel.setProperty(j, "thumb", thumbUrl)
             }
         }
     }

@@ -13,7 +13,19 @@ from threading import Lock
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from PySide6.QtCore import QObject, Slot, QUrl, Signal, QThreadPool, QRunnable, QSize, Qt, QTranslator
+from PySide6.QtCore import (
+    QObject,
+    Slot,
+    QUrl,
+    Signal,
+    QThreadPool,
+    QRunnable,
+    QSize,
+    Qt,
+    QTranslator,
+    QFileSystemWatcher,
+    QTimer,
+)
 from PySide6.QtGui import QGuiApplication, QIcon, QImageReader, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
@@ -96,7 +108,12 @@ class Thumbnailer(QObject):
         return False
 
     def _cache_key(self, file_path: Path, mime: str) -> str:
-        payload = f"{file_path.resolve()}|{mime}"
+        try:
+            stat = file_path.stat()
+            stamp = f"{int(stat.st_mtime_ns)}|{stat.st_size}"
+        except OSError:
+            stamp = "0|0"
+        payload = f"{file_path.resolve()}|{mime}|{self._size_px}|{stamp}"
         return hashlib.md5(payload.encode("utf-8")).hexdigest()
 
     def _cache_path_for_key(self, key: str) -> Path:
@@ -108,13 +125,27 @@ class Thumbnailer(QObject):
         if cached.exists():
             return cached.as_uri()
 
+        # Markdown thumbnails are style-aware (MyOS specific), so using
+        # generic desktop cache can return stale/incorrect visuals.
+        if mime in {"text/markdown", "text/x-markdown"} or file_path.suffix.lower() in {".md", ".markdown"}:
+            return ""
+
         # Check freedesktop cache (often used by file managers)
         uri = file_path.as_uri()
         digest = hashlib.md5(uri.encode("utf-8")).hexdigest()
+        try:
+            src_mtime_ns = file_path.stat().st_mtime_ns
+        except OSError:
+            src_mtime_ns = 0
         for size in ["large", "normal"]:
             candidate = self._freedesktop_cache / size / f"{digest}.png"
             if candidate.exists():
-                return candidate.as_uri()
+                try:
+                    thumb_mtime_ns = candidate.stat().st_mtime_ns
+                except OSError:
+                    continue
+                if thumb_mtime_ns >= src_mtime_ns:
+                    return candidate.as_uri()
         return ""
 
     def _generate_thumbnail(self, file_path: Path, cache_path: Path, mime: str) -> str:
@@ -188,6 +219,9 @@ class Backend(QObject):
     thumbnailReady = Signal(str, str)
     entriesReady = Signal(str, "QVariantList")
     languageChanged = Signal(str)
+    THUMBNAIL_REFRESH_DEBOUNCE_MS = 220
+    THUMBNAIL_REFRESH_RETRY_MS = 180
+    THUMBNAIL_REFRESH_MAX_RETRIES = 8
 
     def __init__(self, api: ScopeApi, app: QGuiApplication, engine: QQmlApplicationEngine) -> None:
         super().__init__()
@@ -195,13 +229,20 @@ class Backend(QObject):
         self._app = app
         self._engine = engine
         self._thumbnailer = Thumbnailer()
-        self._thumbnailer.thumbnailReady.connect(self.thumbnailReady)
+        self._thumbnailer.thumbnailReady.connect(self._on_thumbnail_ready)
         self._entries_lock = Lock()
         self._entries_cache: dict[str, list] = {}
         self._entries_pending: set[str] = set()
+        self._watcher = QFileSystemWatcher(self)
+        self._watcher.fileChanged.connect(self._on_watched_file_changed)
+        self._watched_markdown_by_dir: dict[str, set[str]] = {}
+        self._watch_refcount: dict[str, int] = {}
+        self._thumb_refresh_timers: dict[str, QTimer] = {}
+        self._thumb_refresh_retries: dict[str, int] = {}
         self._translator: QTranslator | None = None
         self._language = "de"
         self._i18n_dir = Path(__file__).with_name("i18n")
+        self.entriesReady.connect(self._on_entries_ready_for_watcher)
 
     @Slot(str, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool):
@@ -228,13 +269,20 @@ class Backend(QObject):
     @Slot(str, result="QVariantList")
     def listEntries(self, path: str):
         resolved = str(Path(path).expanduser().resolve())
+        cached_entries = None
         with self._entries_lock:
             cached = self._entries_cache.get(resolved)
             if cached is not None:
-                return cached
-            if resolved in self._entries_pending:
+                cached_entries = cached
+            elif resolved in self._entries_pending:
                 return []
-            self._entries_pending.add(resolved)
+            else:
+                self._entries_pending.add(resolved)
+        if cached_entries is not None:
+            # Re-prime thumbnails even for cached directory lists so icon updates
+            # are picked up after external file changes or delayed writes.
+            self._prime_thumbnails(cached_entries)
+            return cached_entries
         self._start_entries_task(resolved)
         return []
 
@@ -261,6 +309,7 @@ class Backend(QObject):
         with self._entries_lock:
             self._entries_cache.pop(resolved, None)
             self._entries_pending.discard(resolved)
+        self._drop_watchers_for_dir(resolved)
 
     @Slot(str, result=str)
     def requestThumbnail(self, path: str) -> str:
@@ -274,6 +323,113 @@ class Backend(QObject):
         with self._entries_lock:
             self._entries_cache[path] = entries
             self._entries_pending.discard(path)
+
+    def _on_thumbnail_ready(self, full_path: str, thumb_url: str) -> None:
+        if not full_path or not thumb_url:
+            return
+        normalized = str(Path(full_path).expanduser().resolve())
+        with self._entries_lock:
+            for _, entries in self._entries_cache.items():
+                for entry in entries:
+                    item_path = str(entry.get("path") or "")
+                    try:
+                        item_path_norm = str(Path(item_path).expanduser().resolve()) if item_path else ""
+                    except OSError:
+                        item_path_norm = item_path
+                    if item_path_norm == normalized:
+                        entry["thumb"] = thumb_url
+        self.thumbnailReady.emit(normalized, thumb_url)
+
+    @Slot(str, "QVariantList")
+    def _on_entries_ready_for_watcher(self, path: str, entries) -> None:
+        resolved = str(Path(path).expanduser().resolve())
+        markdown_files: set[str] = set()
+        for entry in (entries or []):
+            if entry.get("isDir"):
+                continue
+            raw_path = str(entry.get("path") or "").strip()
+            if not raw_path:
+                continue
+            suffix = Path(raw_path).suffix.lower()
+            if suffix in {".md", ".markdown"}:
+                markdown_files.add(str(Path(raw_path).expanduser().resolve()))
+        self._sync_watchers_for_dir(resolved, markdown_files)
+
+    def _sync_watchers_for_dir(self, resolved_dir: str, new_files: set[str]) -> None:
+        previous = self._watched_markdown_by_dir.get(resolved_dir, set())
+        to_remove = previous - new_files
+        to_add = new_files - previous
+
+        for file_path in to_remove:
+            count = self._watch_refcount.get(file_path, 0) - 1
+            if count <= 0:
+                self._watch_refcount.pop(file_path, None)
+                if file_path in self._watcher.files():
+                    self._watcher.removePath(file_path)
+            else:
+                self._watch_refcount[file_path] = count
+
+        for file_path in to_add:
+            self._watch_refcount[file_path] = self._watch_refcount.get(file_path, 0) + 1
+            if file_path not in self._watcher.files():
+                self._watcher.addPath(file_path)
+
+        if new_files:
+            self._watched_markdown_by_dir[resolved_dir] = set(new_files)
+        else:
+            self._watched_markdown_by_dir.pop(resolved_dir, None)
+
+    def _drop_watchers_for_dir(self, resolved_dir: str) -> None:
+        existing = self._watched_markdown_by_dir.pop(resolved_dir, set())
+        if not existing:
+            return
+        for file_path in existing:
+            count = self._watch_refcount.get(file_path, 0) - 1
+            if count <= 0:
+                self._watch_refcount.pop(file_path, None)
+                if file_path in self._watcher.files():
+                    self._watcher.removePath(file_path)
+            else:
+                self._watch_refcount[file_path] = count
+            timer = self._thumb_refresh_timers.pop(file_path, None)
+            if timer is not None:
+                timer.stop()
+
+    @Slot(str)
+    def _on_watched_file_changed(self, changed_path: str) -> None:
+        file_path = Path(changed_path)
+        target = str(file_path.resolve()) if file_path.exists() else str(file_path)
+        self._schedule_thumbnail_refresh(target)
+        # QFileSystemWatcher may auto-drop paths after a change; re-register.
+        if changed_path not in self._watcher.files():
+            self._watcher.addPath(changed_path)
+
+    def _schedule_thumbnail_refresh(self, full_path: str) -> None:
+        timer = self._thumb_refresh_timers.get(full_path)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda p=full_path: self._trigger_thumbnail_refresh(p))
+            self._thumb_refresh_timers[full_path] = timer
+            self._thumb_refresh_retries[full_path] = 0
+        timer.start(self.THUMBNAIL_REFRESH_DEBOUNCE_MS)
+
+    def _trigger_thumbnail_refresh(self, full_path: str) -> None:
+        file_path = Path(full_path)
+        if not file_path.exists():
+            retries = self._thumb_refresh_retries.get(full_path, 0)
+            if retries < self.THUMBNAIL_REFRESH_MAX_RETRIES:
+                self._thumb_refresh_retries[full_path] = retries + 1
+                timer = self._thumb_refresh_timers.get(full_path)
+                if timer is not None:
+                    timer.start(self.THUMBNAIL_REFRESH_RETRY_MS)
+            else:
+                self._thumb_refresh_retries.pop(full_path, None)
+            return
+        self._thumb_refresh_retries.pop(full_path, None)
+        thumb = self._thumbnailer.request_thumbnail(file_path)
+        if thumb:
+            self._on_thumbnail_ready(str(file_path), thumb)
 
     def _prime_thumbnails(self, entries: list) -> None:
         for entry in entries:
@@ -293,14 +449,20 @@ class Backend(QObject):
             if entry.get("isDir"):
                 entry["mime"] = "inode/directory"
                 entry["iconName"] = "folder"
+                entry["thumb"] = ""
                 continue
             raw_path = entry.get("path")
             if not raw_path:
                 raw_path = os.path.join(base_path, entry.get("name", ""))
-                entry["path"] = raw_path
+            try:
+                entry["path"] = str(Path(raw_path).expanduser().resolve())
+            except OSError:
+                entry["path"] = str(raw_path)
+            raw_path = entry["path"]
             mime = mime_db.mimeTypeForFile(raw_path, QMimeDatabase.MatchExtension)
             entry["mime"] = mime.name()
             entry["iconName"] = mime.iconName() or mime.genericIconName() or "text-x-generic"
+            entry["thumb"] = str(entry.get("thumb") or "")
         self._prime_thumbnails(entries)
 
     @Slot(str, result=bool)
