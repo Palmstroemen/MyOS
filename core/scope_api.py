@@ -75,7 +75,16 @@ def _clean_entry_name(name: str, *, allow_empty: bool = False) -> Optional[str]:
     cleaned = str(name or "").strip()
     if not cleaned:
         return "" if allow_empty else None
+    # // Security: reject control characters to avoid log/terminal injection.
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in cleaned):
+        return None
+    # // Security: enforce common filesystem-safe charset across platforms.
+    if any(ch in cleaned for ch in '<>:"|?*'):
+        return None
     if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
+        return None
+    # // Security: reject pathological names that exceed common FS limits.
+    if len(cleaned) > 255:
         return None
     return cleaned
 
@@ -114,7 +123,10 @@ class ScopeApi:
         return Path(path).expanduser().resolve()
 
     def _resolve_dir(self, path: str) -> Optional[Path]:
-        target = self._resolve_path(path)
+        try:
+            target = self._resolve_path(path)
+        except Exception:
+            return None
         return target if target.is_dir() else None
 
     def list_children(self, path: str, include_embryos: bool = True) -> List[Dict[str, Any]]:
@@ -441,7 +453,10 @@ class ScopeApi:
         return str(target)
 
     def rename_entry(self, path: str, new_name: str) -> Optional[str]:
-        source = self._resolve_path(path)
+        try:
+            source = self._resolve_path(path)
+        except Exception:
+            return None
         if not source.exists():
             return None
         return self._rename_one(source, new_name)
@@ -471,12 +486,17 @@ class ScopeApi:
             source_text = str(raw or "").strip()
             if not source_text:
                 continue
-            source = Path(source_text).expanduser().resolve()
+            try:
+                source = Path(source_text).expanduser().resolve()
+            except Exception:
+                # // Security: malformed paths (e.g. embedded NUL) are rejected early.
+                yield None, source_text, False, True
+                continue
             source_key = str(source)
             duplicate = source_key in seen
             if not duplicate:
                 seen.add(source_key)
-            yield source, source_key, duplicate
+            yield source, source_key, duplicate, False
 
     def _prepare_move(self, source: Path, target_dir: Path):
         source_key = str(source)
@@ -515,7 +535,11 @@ class ScopeApi:
             result["errors"].append({"source": "", "reason": "missing_replace_from"})
             return result
 
-        for source, source_key, duplicate in self._iter_unique_sources(paths):
+        for source, source_key, duplicate, invalid in self._iter_unique_sources(paths):
+            if invalid:
+                result["failed"] += 1
+                result["errors"].append({"source": source_key, "reason": "invalid_path"})
+                continue
             if duplicate:
                 continue
 
@@ -554,7 +578,9 @@ class ScopeApi:
 
     def suggest_batch_rename_token(self, paths: List[str]) -> str:
         stems: List[str] = []
-        for source, _, duplicate in self._iter_unique_sources(paths):
+        for source, _, duplicate, invalid in self._iter_unique_sources(paths):
+            if invalid:
+                continue
             if duplicate:
                 continue
             stem, _ = _split_stem_and_ext(source.name)
@@ -569,7 +595,10 @@ class ScopeApi:
 
     def delete_entries(self, paths: List[str]) -> Dict[str, Any]:
         result: Dict[str, Any] = {"ok": True, "deleted": [], "errors": []}
-        for source, key, duplicate in self._iter_unique_sources(paths):
+        for source, key, duplicate, invalid in self._iter_unique_sources(paths):
+            if invalid:
+                result["errors"].append({"source": key, "reason": "invalid_path"})
+                continue
             if duplicate:
                 continue
             if not source.exists():
@@ -587,7 +616,10 @@ class ScopeApi:
         return result
 
     def move_entry(self, source: str, target_dir: str) -> bool:
-        src = self._resolve_path(source)
+        try:
+            src = self._resolve_path(source)
+        except Exception:
+            return False
         dst_dir = self._resolve_dir(target_dir)
         if dst_dir is None:
             return False
@@ -616,7 +648,10 @@ class ScopeApi:
             result["errors"].append({"source": "", "reason": "target_not_directory", "target": str(dst_dir)})
             return result
 
-        for src, src_key, duplicate in self._iter_unique_sources(sources):
+        for src, src_key, duplicate, invalid in self._iter_unique_sources(sources):
+            if invalid:
+                result["errors"].append({"source": src_key, "reason": "invalid_path"})
+                continue
             if duplicate:
                 result["skipped"].append({"source": src_key, "reason": "duplicate_source"})
                 continue
@@ -644,7 +679,15 @@ class ScopeApi:
         return result
 
     def open_markdown(self, path: str) -> bool:
-        target = Path(path).expanduser().resolve()
+        try:
+            target = Path(path).expanduser().resolve()
+        except Exception:
+            return False
+        # // Security: only open existing markdown files.
+        if not target.is_file():
+            return False
+        if target.suffix.lower() not in {".md", ".markdown"}:
+            return False
         opener = Path(__file__).resolve().parent / "bin" / "open_md.py"
         if not opener.exists():
             return False
