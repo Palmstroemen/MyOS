@@ -91,8 +91,8 @@ class WindowLayoutMixin:
         self.note_style_combo.setStyleSheet(
             """
             QComboBox {
-                background-color: #fff740;
-                border: 1px solid #d4c600;
+                background-color: #ffffff;
+                border: 1px solid #cfd4df;
                 border-radius: 15px;
                 padding: 4px 10px;
                 color: #333333;
@@ -105,9 +105,9 @@ class WindowLayoutMixin:
                 border: none;
             }
             QComboBox QAbstractItemView {
-                background-color: #fff9b0;
-                border: 1px solid #d4c600;
-                selection-background-color: #ffe76b;
+                background-color: #ffffff;
+                border: 1px solid #cfd4df;
+                selection-background-color: #e9eefb;
                 color: #222222;
             }
             """
@@ -120,15 +120,16 @@ class WindowLayoutMixin:
         self.file_name_edit.setStyleSheet(
             """
             QLineEdit {
-                background-color: #fff9b0;
-                border: 1px solid #d4c600;
-                border-radius: 15px;
-                padding: 4px 10px;
+                background-color: transparent;
+                border: none;
+                border-radius: 0;
+                padding: 4px 6px;
                 color: #333333;
                 font-size: 12px;
+                font-weight: 700;
             }
             QLineEdit:focus {
-                border: 1px solid #c2b100;
+                border: none;
             }
             """
         )
@@ -142,12 +143,11 @@ class WindowLayoutMixin:
 
         self.btn_language = QPushButton("DE")
         self.btn_language.setCursor(Qt.PointingHandCursor)
-        self.apply_oval_button_style(self.btn_language, "#FFF740", "#d4c600")
-        self.btn_language.setFixedHeight(30)
-        self.btn_language.setMinimumWidth(68)
-        layout.addWidget(self.btn_language)
+        self.apply_round_button_style(self.btn_language, "#ffffff", "#cfd4df")
+        self.btn_language.setFixedSize(30, 30)
         layout.addStretch()
 
+        layout.addWidget(self.btn_language)
         self.btn_minimize = QPushButton("−")
         self.btn_minimize.setCursor(Qt.PointingHandCursor)
         self.apply_round_button_style(self.btn_minimize, "#FFF740", "#d4c600")

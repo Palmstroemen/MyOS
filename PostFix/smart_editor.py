@@ -810,6 +810,35 @@ class SmartEditor(QWidget):
         else:
             self._frontmatter[key_s] = value
 
+    def sync_title_from_filename(self, title: str):
+        title_text = str(title or "").strip()
+        if not title_text:
+            return
+        if self.show_frontmatter:
+            text = self.source_edit.toPlainText()
+            meta, body = self.metadata.split_frontmatter(text)
+            meta["title"] = title_text
+            body = self._apply_h1_title(body, title_text)
+            updated = self.metadata.build_frontmatter(meta, body)
+            self._replace_source_text(updated)
+        else:
+            self._frontmatter["title"] = title_text
+            body = self.source_edit.toPlainText()
+            updated = self._apply_h1_title(body, title_text)
+            self._replace_source_text(updated)
+        self.render_preview()
+
+    def _apply_h1_title(self, body: str, title: str) -> str:
+        lines = (body or "").splitlines()
+        for idx, line in enumerate(lines):
+            if re.match(r"^\s*#\s+.+$", line):
+                lines[idx] = f"# {title}"
+                return "\n".join(lines) + ("\n" if (body or "").endswith("\n") else "")
+        cleaned = (body or "").lstrip("\n")
+        if cleaned:
+            return f"# {title}\n\n{cleaned}"
+        return f"# {title}\n"
+
     def _replace_source_text(self, updated: str):
         cursor = self.source_edit.textCursor()
         pos = cursor.position()

@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QSpacerItem, QSizePolicy, QFrame,
                                QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator
-from PySide6.QtGui import QColor, QGuiApplication, QTextDocument
+from PySide6.QtGui import QColor, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
 
 class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainWindow):
@@ -348,6 +348,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
                 self.editor.set_path(open_path)
         auto_rename = bool(open_path and open_path.stem.lower().startswith("new note"))
         self.set_language(ui_language)
+        if auto_rename:
+            self._center_window_on_screen()
         self._sync_filename_field_from_path(select_all=auto_rename)
         self._sync_note_style_selector_from_document()
         self._defer_noncritical_startup()
@@ -357,6 +359,17 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         if path:
             return f"{base} - {Path(path).name}"
         return base
+
+    def _center_window_on_screen(self):
+        screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        w = self.width() or 900
+        h = self.height() or 650
+        x = available.x() + max(0, (available.width() - w) // 2)
+        y = available.y() + max(0, (available.height() - h) // 2)
+        self.move(x, y)
 
     def retranslate_ui(self):
         self._populate_note_style_combo()
@@ -533,6 +546,9 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             return
         candidate = original.with_name(f"{new_base}{original.suffix}")
         if candidate == original:
+            if hasattr(self.editor, "sync_title_from_filename"):
+                self.editor.sync_title_from_filename(new_base)
+            self._schedule_save()
             self._sync_filename_field_from_path(select_all=False)
             return
         if candidate.exists():
@@ -544,6 +560,9 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self._sync_filename_field_from_path(select_all=True)
             return
         self.editor.set_path(candidate)
+        if hasattr(self.editor, "sync_title_from_filename"):
+            self.editor.sync_title_from_filename(new_base)
+        self._schedule_save()
         self._reload_tag_context()
         self._sync_filename_field_from_path(select_all=False)
 

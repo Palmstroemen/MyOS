@@ -99,9 +99,11 @@ def open_with_xdg(target: str) -> int:
 
 def open_with_postfix(file_path: Path) -> int:
     if POSTFIX_PATH.exists():
-        return subprocess.run(
-            [sys.executable, str(POSTFIX_PATH), str(file_path)], check=False
-        ).returncode
+        try:
+            subprocess.Popen([sys.executable, str(POSTFIX_PATH), str(file_path)])
+            return 0
+        except OSError:
+            return open_with_xdg(str(file_path))
     return open_with_xdg(str(file_path))
 
 
