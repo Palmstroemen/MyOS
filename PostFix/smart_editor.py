@@ -4,14 +4,23 @@ import difflib
 import re
 from pathlib import Path
 
-import markdown2
 from PySide6.QtCore import Qt, QEvent, QRect, Signal, QVariantAnimation, QPoint, QUrl
 from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QPlainTextEdit, QFrame, QTextBrowser
 
 try:
+    from .markdown_render import (
+        render_markdown,
+        extract_block_line_anchors,
+        extract_block_line_ranges,
+    )
     from .metadata import MetadataManager
 except ImportError:
+    from markdown_render import (
+        render_markdown,
+        extract_block_line_anchors,
+        extract_block_line_ranges,
+    )
     from metadata import MetadataManager
 
 
@@ -25,8 +34,6 @@ class SmartEditor(QWidget):
     MODE_PREVIEW = MODE_FOCUS
     MODE_SOURCE = MODE_FOCUS
     MODE_SPLIT = MODE_FOCUS
-    MARKDOWN_EXTRAS = ["fenced-code-blocks", "break-on-newline", "tables"]
-
     def __init__(self, show_frontmatter: bool = False):
         super().__init__()
         self.metadata = MetadataManager()
@@ -45,6 +52,8 @@ class SmartEditor(QWidget):
         self._overlay_top_hint = None
         self._focus_dynamic_end = None
         self._render_tag_colors = {}
+        self._preview_line_anchors = [0]
+        self._preview_block_ranges = [(0, 1)]
         self.setup_ui()
         self.apply_background(self.current_bg, update_frontmatter=False, animate=False)
         self.render_preview()
@@ -144,9 +153,10 @@ class SmartEditor(QWidget):
         text = self.source_edit.toPlainText()
         _, body = self.metadata.split_frontmatter(text)
         scroll_value = self.preview.verticalScrollBar().value()
-        render_body = self._preserve_extra_blank_lines(body)
-        render_body = self._prepare_markdown_for_render(render_body)
-        html = markdown2.markdown(render_body, extras=self.MARKDOWN_EXTRAS)
+        render_body = self._prepare_markdown_for_render(body)
+        self._preview_line_anchors = extract_block_line_anchors(render_body)
+        self._preview_block_ranges = extract_block_line_ranges(render_body)
+        html = render_markdown(render_body)
         html = self._sanitize_rendered_html(html)
         base_dir = Path(self.current_path).parent if self.current_path else Path.cwd()
         self.preview.document().setBaseUrl(QUrl.fromLocalFile(f"{base_dir.resolve()}/"))
@@ -199,9 +209,18 @@ class SmartEditor(QWidget):
         return match.group(1), match.group(2).lower()
 
     def _rebuild_focus_spans(self):
-        body = self._source_body()
-        lines = body.splitlines()
-        spans = [(idx, idx + 1) for idx in range(len(lines))]
+        lines = self._source_body().splitlines()
+        line_count = len(lines)
+        raw_spans = list(self._preview_block_ranges or [])
+        spans = []
+        for start, end in raw_spans:
+            s = max(0, min(int(start), max(0, line_count - 1)))
+            e = max(s + 1, min(int(end), max(1, line_count)))
+            if spans and spans[-1][0] == s and spans[-1][1] == e:
+                continue
+            spans.append((s, e))
+        if not spans:
+            spans = [(idx, idx + 1) for idx in range(line_count)]
         if not spans:
             spans = [(0, max(1, len(lines)))]
         self._focus_spans = spans
@@ -287,31 +306,6 @@ class SmartEditor(QWidget):
         cleaned = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", cleaned)
         cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cleaned)
         return cleaned
-
-    def _preserve_extra_blank_lines(self, body: str) -> str:
-        out = []
-        in_fence = False
-        blank_run = 0
-        for line in (body or "").splitlines():
-            stripped = line.lstrip()
-            if stripped.startswith("```") or stripped.startswith("~~~"):
-                in_fence = not in_fence
-                blank_run = 0
-                out.append(line)
-                continue
-            if in_fence:
-                out.append(line)
-                continue
-            if not line.strip():
-                blank_run += 1
-                if blank_run == 1:
-                    out.append("")
-                else:
-                    out.append("<br>")
-                continue
-            blank_run = 0
-            out.append(line)
-        return "\n".join(out)
 
     def _sanitize_rendered_html(self, html: str) -> str:
         """Best-effort sanitization against active/scripted content in preview."""
@@ -462,6 +456,39 @@ class SmartEditor(QWidget):
         cleaned = re.sub(r"[^a-z0-9äöüß _/\-:.]", "", cleaned)
         return cleaned
 
+    def _filtered_preview_anchors(self, count: int) -> list[int]:
+        anchors = []
+        for idx in (self._preview_line_anchors or []):
+            try:
+                value = int(idx)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= value < count:
+                anchors.append(value)
+        return sorted(set(anchors))
+
+    def _anchor_ratio_for_source_index(self, source_idx: int, count: int) -> float:
+        if count <= 1:
+            return 0.0
+        anchors = self._filtered_preview_anchors(count)
+        if len(anchors) < 2:
+            return max(0.0, min(1.0, source_idx / float(max(1, count - 1))))
+        idx = max(0, min(int(source_idx), count - 1))
+        if idx <= anchors[0]:
+            return 0.0
+        if idx >= anchors[-1]:
+            return 1.0
+        for anchor_idx in range(len(anchors) - 1):
+            lo = anchors[anchor_idx]
+            hi = anchors[anchor_idx + 1]
+            if lo <= idx <= hi:
+                if hi == lo:
+                    frac = 0.0
+                else:
+                    frac = (idx - lo) / float(hi - lo)
+                return (anchor_idx + frac) / float(len(anchors) - 1)
+        return max(0.0, min(1.0, idx / float(max(1, count - 1))))
+
     def _set_source_body(self, body: str):
         if self.show_frontmatter:
             updated = self.metadata.build_frontmatter(self._frontmatter, body)
@@ -501,14 +528,15 @@ class SmartEditor(QWidget):
         scroll = float(self.preview.verticalScrollBar().value())
 
         if doc_height > 1.0 and count > 0:
-            next_idx = min(idx + 1, count - 1)
-            y_top = ((next_idx / float(count)) * doc_height) - scroll
-            y_bottom = (((next_idx + 1) / float(count)) * doc_height) - scroll
+            top_ratio = self._anchor_ratio_for_source_index(idx, count)
+            bottom_ratio = self._anchor_ratio_for_source_index(min(idx + 1, count - 1), count)
+            y_top = (top_ratio * doc_height) - scroll
+            y_bottom = (bottom_ratio * doc_height) - scroll
             top = int(round(y_top))
             bottom = int(round(y_bottom))
         else:
             line_h = max(18, self.preview.fontMetrics().lineSpacing() + 4)
-            top = min(idx + 1, count - 1) * line_h
+            top = idx * line_h
             bottom = top + line_h
 
         if self._overlay_top_hint is not None:
@@ -666,17 +694,28 @@ class SmartEditor(QWidget):
         count = len(self._focus_spans)
         if count <= 0:
             return 0
+        doc = self.preview.document()
+        cursor = self.preview.cursorForPosition(pos)
+        anchors = self._filtered_preview_anchors(count)
+        block_count = max(1, doc.blockCount()) if doc else 1
+        if anchors and block_count > 1:
+            block_ratio = max(0.0, min(1.0, cursor.blockNumber() / float(block_count - 1)))
+            mapped_idx = int(round(block_ratio * (len(anchors) - 1)))
+            idx = anchors[max(0, min(mapped_idx, len(anchors) - 1))]
+            return self._refine_index_with_preview_text(pos, idx)
         scroll = self.preview.verticalScrollBar().value()
         abs_y = float(scroll + pos.y())
-        doc = self.preview.document()
         layout = doc.documentLayout() if doc else None
         height = layout.documentSize().height() if layout else 0.0
         if height > 1.0:
             ratio = max(0.0, min(1.0, abs_y / height))
-            idx = int(round(ratio * (count - 1)))
-            idx = max(0, min(idx, count - 1))
+            if anchors:
+                mapped_idx = int(round(ratio * (len(anchors) - 1)))
+                idx = anchors[max(0, min(mapped_idx, len(anchors) - 1))]
+            else:
+                idx = int(round(ratio * (count - 1)))
+                idx = max(0, min(idx, count - 1))
             return self._refine_index_with_preview_text(pos, idx)
-        cursor = self.preview.cursorForPosition(pos)
         idx = max(0, min(cursor.blockNumber(), count - 1))
         return self._refine_index_with_preview_text(pos, idx)
 
@@ -764,6 +803,19 @@ class SmartEditor(QWidget):
                 background-color: {color_hex};
                 padding: 12px;
                 border: none;
+            }}
+            .ofm-callout {{
+                border-left: 4px solid rgba(40, 40, 40, 120);
+                background: rgba(255, 255, 255, 60);
+                border-radius: 8px;
+                padding: 6px 10px;
+                margin: 10px 0;
+            }}
+            .ofm-callout-title {{
+                margin: 0 0 4px 0;
+            }}
+            .ofm-callout-body {{
+                margin: 0;
             }}
             QScrollBar:vertical {{
                 background: rgba(0, 0, 0, 12);

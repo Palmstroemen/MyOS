@@ -8,14 +8,15 @@ import tempfile
 import re
 from pathlib import Path
 
-import markdown2
 try:
+    from .markdown_render import render_markdown
     from .ui_panels import TagSidebar, ACLSidebar, BottomToolbar
     from .smart_editor import SmartEditor
     from .window_layout import WindowLayoutMixin
     from .window_tags import WindowTagsMixin
     from .window_theme import WindowThemeMixin
 except ImportError:
+    from markdown_render import render_markdown
     from ui_panels import TagSidebar, ACLSidebar, BottomToolbar
     from smart_editor import SmartEditor
     from window_layout import WindowLayoutMixin
@@ -174,6 +175,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self._syncing_note_style_combo = False
         self._current_note_style = ""
         self._current_theme_color = self.editor.current_bg
+        self._track_local_changes = False
+        self._has_local_changes = False
         self._meta_timer = QTimer(self)
         self._meta_timer.setSingleShot(True)
         self._meta_timer.timeout.connect(self._flush_window_metadata)
@@ -184,7 +187,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self._scope_sync_timer.setSingleShot(True)
         self._scope_sync_timer.timeout.connect(self._sync_scope_tags_from_document)
         if hasattr(self.editor, "source_edit"):
-            self.editor.source_edit.textChanged.connect(self._schedule_save)
+            self.editor.source_edit.textChanged.connect(self._on_editor_text_changed)
 
         self.acl_host = QFrame()
         self._show_acl_dummy = False
@@ -353,6 +356,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self._center_window_on_screen()
         self._sync_filename_field_from_path(select_all=auto_rename)
         self._sync_note_style_selector_from_document()
+        self._set_clean_document_state()
+        self._track_local_changes = True
         self._defer_noncritical_startup()
 
     def _window_title_for_path(self, path: Path | None) -> str:
@@ -436,17 +441,29 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
     def _schedule_save(self):
         self._save_timer.start(250)
 
+    def _on_editor_text_changed(self):
+        if not self._track_local_changes:
+            return
+        self._has_local_changes = True
+        self._schedule_save()
+
+    def _set_clean_document_state(self):
+        self._has_local_changes = False
+
     def _save_current_document(self) -> bool:
         if not hasattr(self, "editor"):
             return False
         path = getattr(self.editor, "current_path", None)
         if not path:
             return False
+        if not self._has_local_changes:
+            return False
         # Finalize scoped tag list using stable editor state at save time.
         self._sync_scope_tags_from_document()
         try:
             content = self.editor.get_markdown()
             path.write_text(content, encoding="utf-8")
+            self._set_clean_document_state()
             return True
         except OSError:
             return False
@@ -714,7 +731,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
 
     def print_to_printer(self, printer_name: str):
         md_text = self.editor.get_markdown()
-        html = markdown2.markdown(md_text, extras=SmartEditor.MARKDOWN_EXTRAS)
+        html = render_markdown(md_text)
         doc = QTextDocument()
         if getattr(self.editor, "current_path", None):
             base_dir = Path(self.editor.current_path).parent
