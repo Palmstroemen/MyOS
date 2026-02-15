@@ -337,61 +337,6 @@ ApplicationWindow {
         return parts.length > 0 ? (parts[parts.length - 1] || text) : text
     }
 
-    function _splitStemAndExt(name) {
-        var fileName = String(name || "")
-        var dot = fileName.lastIndexOf(".")
-        if (dot <= 0) {
-            return { stem: fileName, ext: "" }
-        }
-        return {
-            stem: fileName.slice(0, dot),
-            ext: fileName.slice(dot)
-        }
-    }
-
-    function _longestCommonPrefix(values) {
-        if (!values || values.length === 0) {
-            return ""
-        }
-        var prefix = String(values[0] || "")
-        for (var i = 1; i < values.length; i++) {
-            var current = String(values[i] || "")
-            while (prefix.length > 0 && current.indexOf(prefix) !== 0) {
-                prefix = prefix.slice(0, prefix.length - 1)
-            }
-            if (prefix.length === 0) {
-                break
-            }
-        }
-        return prefix
-    }
-
-    function _suggestBatchRenameToken(paths) {
-        var stems = []
-        for (var i = 0; i < (paths || []).length; i++) {
-            var base = _basename(paths[i])
-            var parts = _splitStemAndExt(base)
-            stems.push(String(parts.stem || ""))
-        }
-        var prefix = _longestCommonPrefix(stems)
-        while (prefix.length > 1) {
-            var tail = prefix.charAt(prefix.length - 1)
-            if ((tail >= "0" && tail <= "9") || tail === "_" || tail === "-" || tail === " ") {
-                prefix = prefix.slice(0, prefix.length - 1)
-                continue
-            }
-            break
-        }
-        if (prefix.length > 0) {
-            return prefix
-        }
-        return stems.length > 0 ? stems[0] : ""
-    }
-
-    function _withNumberSuffix(stem, ext, number) {
-        return stem + "(" + number + ")" + ext
-    }
-
     function _setDialogButtonText(dialogRef, which, text) {
         if (!dialogRef || !dialogRef.standardButton) {
             return
@@ -630,7 +575,11 @@ ApplicationWindow {
         }
 
         pendingBatchRenamePaths = filesOnly
-        pendingBatchReplaceFrom = _suggestBatchRenameToken(filesOnly)
+        if (typeof backend.suggestBatchRenameToken === "function") {
+            pendingBatchReplaceFrom = backend.suggestBatchRenameToken(filesOnly)
+        } else {
+            pendingBatchReplaceFrom = ""
+        }
         pendingBatchReplaceTo = pendingBatchReplaceFrom
         batchRenameDialog.open()
     }
@@ -896,25 +845,6 @@ ApplicationWindow {
                         continue
                     }
                     filtered.push(coreEntry)
-                }
-            } else {
-                filtered = []
-                for (var k = 0; k < baseFiltered.length; k++) {
-                    var item = baseFiltered[k]
-                    var tags = item.tags || []
-                    if (tags.length === 0) {
-                        continue
-                    }
-                    var hits = 0
-                    for (var t = 0; t < selectedTags.length; t++) {
-                        if (tags.indexOf(selectedTags[t]) !== -1) {
-                            hits++
-                        }
-                    }
-                    var ok = matchAll ? (hits === selectedTags.length) : (hits > 0)
-                    if (ok) {
-                        filtered.push(item)
-                    }
                 }
             }
         }
@@ -1875,39 +1805,18 @@ ApplicationWindow {
                 pendingBatchReplaceTo = ""
                 return
             }
-            var renamedPaths = []
-            var unchangedCount = 0
-            var failedCount = 0
-            for (var i = 0; i < pendingBatchRenamePaths.length; i++) {
-                var source = String(pendingBatchRenamePaths[i] || "").trim()
-                if (!source) {
-                    continue
-                }
-                var base = _basename(source)
-                var split = _splitStemAndExt(base)
-                var nextStem = split.stem.split(fromText).join(toText)
-                if (nextStem === split.stem) {
-                    unchangedCount += 1
-                    continue
-                }
-                var renamed = ""
-                var nextName = nextStem + split.ext
-                renamed = backend.renameEntry(source, nextName)
-                if (!renamed || renamed.length === 0) {
-                    for (var n = 1; n < 1000; n++) {
-                        var fallback = _withNumberSuffix(nextStem, split.ext, n)
-                        renamed = backend.renameEntry(source, fallback)
-                        if (renamed && renamed.length > 0) {
-                            break
-                        }
-                    }
-                }
-                if (renamed && renamed.length > 0) {
-                    renamedPaths.push(renamed)
-                } else {
-                    failedCount += 1
-                }
+            if (!hasBackend() || typeof backend.renameEntriesBatch !== "function") {
+                moveReportMessage = qsTr("Sammelumbenennung ist in diesem Modus nicht verfuegbar.")
+                moveReportDialog.open()
+                pendingBatchRenamePaths = []
+                pendingBatchReplaceFrom = ""
+                pendingBatchReplaceTo = ""
+                return
             }
+            var report = backend.renameEntriesBatch(pendingBatchRenamePaths, fromText, toText) || {}
+            var renamedPaths = (report.renamed && report.renamed.length) ? report.renamed : []
+            var unchangedCount = Number(report.unchanged || 0)
+            var failedCount = Number(report.failed || 0)
             pendingBatchRenamePaths = []
             pendingBatchReplaceFrom = ""
             pendingBatchReplaceTo = ""

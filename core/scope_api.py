@@ -50,6 +50,27 @@ def _read_markdown_tag_list(path: Path) -> List[str]:
     return sorted(set(tags), key=str.lower)
 
 
+def _split_stem_and_ext(name: str) -> tuple[str, str]:
+    file_name = str(name or "")
+    dot = file_name.rfind(".")
+    if dot <= 0:
+        return file_name, ""
+    return file_name[:dot], file_name[dot:]
+
+
+def _longest_common_prefix(values: List[str]) -> str:
+    if not values:
+        return ""
+    prefix = str(values[0] or "")
+    for current in values[1:]:
+        text = str(current or "")
+        while prefix and not text.startswith(prefix):
+            prefix = prefix[:-1]
+        if not prefix:
+            break
+    return prefix
+
+
 class ScopeApi:
     def __init__(self, start_path: str) -> None:
         self.start_path = Path(start_path).expanduser().resolve()
@@ -191,7 +212,8 @@ class ScopeApi:
                             "tags": [],
                         }
                     )
-            entries.sort(key=lambda item: item["name"])
+        # File-browser style order: folders first, then files, both alphabetic.
+        entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
 
         return entries
 
@@ -419,6 +441,87 @@ class ScopeApi:
         except Exception:
             return None
         return str(target)
+
+    def rename_entries_batch(self, paths: List[str], replace_from: str, replace_to: str) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
+            "ok": True,
+            "renamed": [],
+            "unchanged": 0,
+            "failed": 0,
+            "errors": [],
+        }
+        token_from = str(replace_from or "")
+        token_to = str(replace_to or "")
+        if token_from == "":
+            result["ok"] = False
+            result["errors"].append({"source": "", "reason": "missing_replace_from"})
+            return result
+
+        seen: set[str] = set()
+        for raw in (paths or []):
+            source_text = str(raw or "").strip()
+            if not source_text:
+                continue
+            source = Path(source_text).expanduser().resolve()
+            source_key = str(source)
+            if source_key in seen:
+                continue
+            seen.add(source_key)
+
+            if not source.exists():
+                result["failed"] += 1
+                result["errors"].append({"source": source_key, "reason": "source_missing"})
+                continue
+            if source.is_dir():
+                result["failed"] += 1
+                result["errors"].append({"source": source_key, "reason": "unsupported_type"})
+                continue
+
+            stem = source.stem
+            suffix = source.suffix
+            new_stem = stem.replace(token_from, token_to)
+            if new_stem == stem:
+                result["unchanged"] += 1
+                continue
+
+            first_target = f"{new_stem}{suffix}"
+            renamed = self.rename_entry(source_key, first_target)
+            if not renamed:
+                for idx in range(1, 1000):
+                    candidate = f"{new_stem}({idx}){suffix}"
+                    renamed = self.rename_entry(source_key, candidate)
+                    if renamed:
+                        break
+            if renamed:
+                result["renamed"].append(renamed)
+            else:
+                result["failed"] += 1
+                result["errors"].append({"source": source_key, "reason": "rename_failed"})
+
+        result["ok"] = result["failed"] == 0
+        return result
+
+    def suggest_batch_rename_token(self, paths: List[str]) -> str:
+        stems: List[str] = []
+        seen: set[str] = set()
+        for raw in (paths or []):
+            source_text = str(raw or "").strip()
+            if not source_text:
+                continue
+            source = Path(source_text).expanduser().resolve()
+            source_key = str(source)
+            if source_key in seen:
+                continue
+            seen.add(source_key)
+            stem, _ = _split_stem_and_ext(source.name)
+            stems.append(str(stem or ""))
+
+        prefix = _longest_common_prefix(stems)
+        while len(prefix) > 1 and prefix[-1] in "0123456789_- ":
+            prefix = prefix[:-1]
+        if prefix:
+            return prefix
+        return stems[0] if stems else ""
 
     def delete_entries(self, paths: List[str]) -> Dict[str, Any]:
         result: Dict[str, Any] = {"ok": True, "deleted": [], "errors": []}

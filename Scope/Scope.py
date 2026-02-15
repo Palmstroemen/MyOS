@@ -493,6 +493,18 @@ class Backend(QObject):
     def renameEntry(self, path: str, newName: str) -> str:
         return self._api.rename_entry(path, newName) or ""
 
+    @Slot("QVariantList", str, str, result="QVariantMap")
+    def renameEntriesBatch(self, paths, replaceFrom: str, replaceTo: str):
+        cleaned = [str(item or "").strip() for item in (paths or [])]
+        cleaned = [item for item in cleaned if item]
+        return self._api.rename_entries_batch(cleaned, str(replaceFrom or ""), str(replaceTo or ""))
+
+    @Slot("QVariantList", result=str)
+    def suggestBatchRenameToken(self, paths) -> str:
+        cleaned = [str(item or "").strip() for item in (paths or [])]
+        cleaned = [item for item in cleaned if item]
+        return self._api.suggest_batch_rename_token(cleaned) or ""
+
     @Slot("QVariantList", result="QVariantMap")
     def deleteEntries(self, paths):
         cleaned = [str(item or "").strip() for item in (paths or [])]
