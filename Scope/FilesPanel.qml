@@ -506,6 +506,16 @@ Rectangle { // Files panel
 
                 onPressed: function(mouse) {
                     var idx = filesGrid.indexAt(mouse.x + filesGrid.contentX, mouse.y + filesGrid.contentY)
+                    if (idx >= 0) {
+                        var item = filesGrid.itemAtIndex(idx)
+                        if (item && typeof item.hitAcceptsPoint === "function") {
+                            var itemLocalX = mouse.x + filesGrid.contentX - item.x
+                            var itemLocalY = mouse.y + filesGrid.contentY - item.y
+                            if (!item.hitAcceptsPoint(itemLocalX, itemLocalY)) {
+                                idx = -1
+                            }
+                        }
+                    }
                     if (mouse.button === Qt.RightButton) {
                         if (idx >= 0) {
                             mouse.accepted = false

@@ -35,6 +35,43 @@ Rectangle {
     signal renameAccepted()
     signal renameCanceled()
 
+    function _containsItemPoint(item, px, py) {
+        if (!item || !item.visible) {
+            return false
+        }
+        var local = root.mapToItem(item, px, py)
+        return local.x >= 0 && local.y >= 0 && local.x <= item.width && local.y <= item.height
+    }
+
+    function _containsTextGlyph(textItem, px, py) {
+        if (!textItem || !textItem.visible) {
+            return false
+        }
+        var local = root.mapToItem(textItem, px, py)
+        var glyphW = Math.max(1, Math.min(textItem.width, textItem.paintedWidth || textItem.width))
+        var glyphH = Math.max(1, Math.min(textItem.height, textItem.paintedHeight || textItem.height))
+        var glyphX = Math.max(0, (textItem.width - glyphW) / 2)
+        var glyphY = Math.max(0, (textItem.height - glyphH) / 2)
+        return local.x >= glyphX && local.x <= (glyphX + glyphW)
+            && local.y >= glyphY && local.y <= (glyphY + glyphH)
+    }
+
+    function hitAcceptsPoint(px, py) {
+        if (renaming) {
+            return true
+        }
+        if (style === "text") {
+            return _containsTextGlyph(textLabel, px, py)
+        }
+        if (style === "smallIcon") {
+            return _containsItemPoint(smallIconImage, px, py) || _containsTextGlyph(smallIconLabel, px, py)
+        }
+        if (style === "largeIcon") {
+            return _containsItemPoint(largeIconImage, px, py) || _containsTextGlyph(largeIconLabel, px, py)
+        }
+        return false
+    }
+
     function twoLineLabel(text, maxChars) {
         if (!text) return ""
         var clean = String(text)
@@ -91,6 +128,7 @@ Rectangle {
         anchors.fill: parent
         visible: !renaming && style === "text"
         Text {
+            id: textLabel
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: textYOffset
             anchors.left: parent.left
@@ -112,6 +150,7 @@ Rectangle {
         spacing: 6
         visible: style === "smallIcon"
         Image {
+            id: smallIconImage
             source: thumbnailSource !== "" ? thumbnailSource : iconSource
             width: iconSmall
             height: iconSmall
@@ -120,6 +159,7 @@ Rectangle {
             sourceSize.height: height
         }
         Text {
+            id: smallIconLabel
             text: label
             color: textColor
             font.pixelSize: textSize
@@ -139,6 +179,7 @@ Rectangle {
         spacing: 2
         visible: style === "largeIcon"
         Image {
+            id: largeIconImage
             source: thumbnailSource !== "" ? thumbnailSource : iconSource
             width: iconLarge
             height: iconLarge
@@ -150,6 +191,7 @@ Rectangle {
             sourceSize.height: height
         }
         Text {
+            id: largeIconLabel
             text: twoLineLabel(label, 16)
             color: textColor
             font.pixelSize: largeTextSize
@@ -261,6 +303,10 @@ Rectangle {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: function(mouse) {
             if (renaming) return
+            if (!root.hitAcceptsPoint(mouse.x, mouse.y)) {
+                mouse.accepted = false
+                return
+            }
             if (mouse.button === Qt.RightButton) {
                 root.contextMenuRequested(mouse.x, mouse.y, (mouse.modifiers & Qt.ControlModifier) !== 0)
                 return
@@ -272,6 +318,10 @@ Rectangle {
         }
         onDoubleClicked: {
             if (renaming) return
+            if (!root.hitAcceptsPoint(mouse.x, mouse.y)) {
+                mouse.accepted = false
+                return
+            }
             root.doubleActivate()
         }
         onPressAndHold: {
