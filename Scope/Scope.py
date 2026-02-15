@@ -313,6 +313,24 @@ class Backend(QObject):
     def createProject(self, path: str) -> bool:
         return self._api.create_project(path)
 
+    @Slot(str, str, result=str)
+    def createFolder(self, path: str, name: str) -> str:
+        return self._api.create_folder(path, name) or ""
+
+    @Slot(str, str, result=str)
+    def createNote(self, path: str, name: str) -> str:
+        return self._api.create_note(path, name) or ""
+
+    @Slot(str, str, result=str)
+    def renameEntry(self, path: str, newName: str) -> str:
+        return self._api.rename_entry(path, newName) or ""
+
+    @Slot("QVariantList", result="QVariantMap")
+    def deleteEntries(self, paths):
+        cleaned = [str(item or "").strip() for item in (paths or [])]
+        cleaned = [item for item in cleaned if item]
+        return self._api.delete_entries(cleaned)
+
     @Slot(str, result=bool)
     def openMarkdown(self, path: str) -> bool:
         return self._api.open_markdown(path)

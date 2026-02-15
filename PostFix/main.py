@@ -24,7 +24,7 @@ except ImportError:
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
-                               QGraphicsOpacityEffect, QStackedLayout)
+                               QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QTextDocument
 from PySide6.QtPrintSupport import QPrinter
@@ -342,6 +342,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
             if hasattr(self.editor, "set_path"):
                 self.editor.set_path(open_path)
+        auto_rename = bool(open_path and open_path.stem.lower().startswith("new note"))
+        self._sync_filename_field_from_path(select_all=auto_rename)
         self._sync_note_style_selector_from_document()
         self._defer_noncritical_startup()
 
@@ -438,6 +440,52 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         combo.setCurrentIndex(max(0, idx))
         self._syncing_note_style_combo = False
 
+    def _sync_filename_field_from_path(self, select_all: bool = False):
+        field = getattr(self, "file_name_edit", None)
+        path = getattr(self.editor, "current_path", None)
+        if field is None:
+            return
+        if path:
+            field.setText(Path(path).stem)
+            self.setWindowTitle(f"PostFix - {Path(path).name}")
+            field.setEnabled(True)
+        else:
+            field.setText("")
+            self.setWindowTitle("PostFix")
+            field.setEnabled(False)
+        if select_all:
+            QTimer.singleShot(0, field.setFocus)
+            QTimer.singleShot(0, field.selectAll)
+
+    def on_filename_edit_finished(self):
+        field = getattr(self, "file_name_edit", None)
+        current_path = getattr(self.editor, "current_path", None)
+        if field is None or not current_path:
+            return
+        original = Path(current_path)
+        new_base = field.text().strip()
+        if not new_base:
+            self._sync_filename_field_from_path(select_all=True)
+            return
+        if "/" in new_base or "\\" in new_base or new_base in {".", ".."}:
+            self._sync_filename_field_from_path(select_all=True)
+            return
+        candidate = original.with_name(f"{new_base}{original.suffix}")
+        if candidate == original:
+            self._sync_filename_field_from_path(select_all=False)
+            return
+        if candidate.exists():
+            self._sync_filename_field_from_path(select_all=True)
+            return
+        try:
+            original.rename(candidate)
+        except OSError:
+            self._sync_filename_field_from_path(select_all=True)
+            return
+        self.editor.set_path(candidate)
+        self._reload_tag_context()
+        self._sync_filename_field_from_path(select_all=False)
+
     def on_note_style_selected(self, _index: int):
         if self._syncing_note_style_combo:
             return
@@ -490,7 +538,9 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             return False
         local_pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
         child = obj.childAt(local_pos) if hasattr(obj, "childAt") else None
-        if isinstance(child, QPushButton):
+        if isinstance(child, (QPushButton, QLineEdit, QComboBox)):
+            return False
+        if child is not None and child is not obj:
             return False
         return bool(handle.startSystemMove())
 

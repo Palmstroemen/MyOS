@@ -27,8 +27,9 @@ Rectangle {
     property bool largeIconAlignLeft: false
     property bool dragEnabled: false
     property string dragPayload: ""
-    signal activate(bool ctrlPressed)
+    signal activate(bool ctrlPressed, bool shiftPressed)
     signal doubleActivate()
+    signal contextMenuRequested(real x, real y, bool ctrlPressed)
     signal renameRequested()
     signal renameTextEdited(string text)
     signal renameAccepted()
@@ -257,9 +258,17 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: function(mouse) {
             if (renaming) return
-            root.activate((mouse.modifiers & Qt.ControlModifier) !== 0)
+            if (mouse.button === Qt.RightButton) {
+                root.contextMenuRequested(mouse.x, mouse.y, (mouse.modifiers & Qt.ControlModifier) !== 0)
+                return
+            }
+            root.activate(
+                (mouse.modifiers & Qt.ControlModifier) !== 0,
+                (mouse.modifiers & Qt.ShiftModifier) !== 0
+            )
         }
         onDoubleClicked: {
             if (renaming) return

@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
 Rectangle { // Files panel
@@ -47,6 +48,8 @@ Rectangle { // Files panel
     property int iconSizeSmall: 24
     property int iconSizeLarge: 64
     property int smallIconSize: Math.round(compactButtonHeight * 0.6)
+    property int topRightButtonSize: Math.max(24, Math.round(Math.max(compactButtonHeight, 32) * 0.85))
+    property int topRightIconSize: Math.round(topRightButtonSize * 0.84)
     property int gridSpacing: 8
     property int prefetchThreshold: 200
 
@@ -61,9 +64,14 @@ Rectangle { // Files panel
     signal filterChanged(bool showFolders)
     signal tagToggled(string tag)
     signal requestTagSourceChange(string source)
-    signal itemActivated(string path, bool ctrlPressed)
+    signal itemActivated(string path, bool ctrlPressed, bool shiftPressed)
     signal selectionBoxApplied(var paths, bool additive)
     signal moveEntriesRequested(string payload, string targetDir)
+    signal createNoteRequested()
+    signal moveSelectedIntoNewFolderRequested(var sourcePaths)
+    signal renameRequested(var paths)
+    signal deleteRequested(var paths)
+    signal selectAllRequested()
 
     onShowFoldersChanged: filterChanged(showFolders)
 
@@ -85,6 +93,93 @@ Rectangle { // Files panel
         return "__MYOS_PATHS__" + JSON.stringify(paths)
     }
 
+    function selectedFolderPaths() {
+        var result = []
+        if (!selectedPaths || selectedPaths.length === 0 || !itemsModel) {
+            return result
+        }
+        for (var i = 0; i < selectedPaths.length; i++) {
+            var selectedPath = String(selectedPaths[i] || "")
+            if (!selectedPath) {
+                continue
+            }
+            for (var j = 0; j < itemsModel.count; j++) {
+                var entry = itemsModel.get(j)
+                if (!entry) {
+                    continue
+                }
+                var entryPath = String(entry.path || "")
+                if (entryPath === selectedPath && entry.isDir) {
+                    result.push(selectedPath)
+                    break
+                }
+            }
+        }
+        return result
+    }
+
+    function isPathDirectory(path) {
+        if (!itemsModel || !path) {
+            return false
+        }
+        for (var i = 0; i < itemsModel.count; i++) {
+            var entry = itemsModel.get(i)
+            if (!entry) {
+                continue
+            }
+            if (String(entry.path || "") === path) {
+                return !!entry.isDir
+            }
+        }
+        return false
+    }
+
+    function selectedPathsForContext(itemPath, itemIsSelected) {
+        var result = []
+        if (itemIsSelected && selectedPaths && selectedPaths.length > 0) {
+            for (var i = 0; i < selectedPaths.length; i++) {
+                var p = String(selectedPaths[i] || "")
+                if (p) {
+                    result.push(p)
+                }
+            }
+            return result
+        }
+        if (itemPath && itemPath.length > 0) {
+            result.push(itemPath)
+        }
+        return result
+    }
+
+    function fileOnlyPaths(paths) {
+        var result = []
+        for (var i = 0; i < (paths || []).length; i++) {
+            var p = String(paths[i] || "")
+            if (!p) {
+                continue
+            }
+            if (!isPathDirectory(p)) {
+                result.push(p)
+            }
+        }
+        return result
+    }
+
+    property string contextTargetPath: ""
+    property bool contextTargetIsDir: false
+    property var contextTargetSelection: []
+    property var contextTargetFileSelection: []
+
+    function openItemContextMenu(itemPath, itemIsDir, itemIsSelected, mouseX, mouseY) {
+        contextTargetPath = itemPath || ""
+        contextTargetIsDir = !!itemIsDir
+        contextTargetSelection = selectedPathsForContext(contextTargetPath, itemIsSelected)
+        contextTargetFileSelection = fileOnlyPaths(contextTargetSelection)
+        itemContextMenu.x = mouseX
+        itemContextMenu.y = mouseY
+        itemContextMenu.open()
+    }
+
     Column {
         id: cornerButtons
         anchors.top: parent.top
@@ -96,51 +191,8 @@ Rectangle { // Files panel
 
         Rectangle {
             radius: 6
-            width: root.compactButtonHeight
-            height: root.compactButtonHeight
-            color: root.showFolders ? root.smallButtonActiveBg : root.smallButtonBg
-            border.color: root.showFolders ? root.smallButtonActiveBorder : root.smallButtonBorder
-            Image {
-                anchors.centerIn: parent
-                source: root.showFolders ? root.iconFolder : root.iconFolderOff
-                width: root.smallIconSize
-                height: root.smallIconSize
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: width
-                sourceSize.height: height
-            }
-            MouseArea {
-                anchors.fill: parent
-                onClicked: root.showFolders = !root.showFolders
-            }
-        }
-
-        Rectangle {
-            radius: 6
-            width: root.compactButtonHeight
-            height: root.compactButtonHeight
-            color: root.smallButtonBg
-            border.color: root.smallButtonBorder
-            visible: root.showMyosButton
-            Image {
-                anchors.centerIn: parent
-                source: root.iconGear
-                width: root.smallIconSize
-                height: root.smallIconSize
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: width
-                sourceSize.height: height
-            }
-            MouseArea {
-                anchors.fill: parent
-                onClicked: root.openMyosFolder()
-            }
-        }
-
-        Rectangle {
-            radius: 6
-            width: root.compactButtonHeight
-            height: root.compactButtonHeight
+            width: root.topRightButtonSize
+            height: root.topRightButtonSize
             color: Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, root.projectTintOpacity)
             border.color: Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, root.projectTintOpacity)
             visible: root.showCreateProject
@@ -154,6 +206,57 @@ Rectangle { // Files panel
             MouseArea {
                 anchors.fill: parent
                 onClicked: root.createProject()
+            }
+        }
+
+        Rectangle {
+            radius: 6
+            width: root.topRightButtonSize
+            height: root.topRightButtonSize
+            color: root.smallButtonBg
+            border.color: root.smallButtonBorder
+            visible: root.showMyosButton
+            Image {
+                anchors.centerIn: parent
+                source: root.iconGear
+                width: root.topRightIconSize
+                height: root.topRightIconSize
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: width
+                sourceSize.height: height
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: root.openMyosFolder()
+            }
+        }
+
+        Rectangle {
+            radius: 6
+            width: root.topRightButtonSize
+            height: root.topRightButtonSize
+            color: root.showFolders ? root.smallButtonActiveBg : root.smallButtonBg
+            border.color: root.showFolders ? root.smallButtonActiveBorder : root.smallButtonBorder
+            Image {
+                anchors.centerIn: parent
+                source: root.showFolders ? root.iconFolder : root.iconFolderOff
+                width: root.topRightIconSize
+                height: root.topRightIconSize
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: width
+                sourceSize.height: height
+            }
+            Text {
+                anchors.centerIn: parent
+                visible: root.showFolders
+                text: "X"
+                color: "#e53935"
+                font.bold: true
+                font.pixelSize: Math.max(14, Math.round(root.topRightButtonSize * 0.70))
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: root.showFolders = !root.showFolders
             }
         }
     }
@@ -310,8 +413,15 @@ Rectangle { // Files panel
                     && (!model.isEmbryo)
                     && itemPath.length > 0
                 dragPayload: root.selectedPayloadFor(itemPath, selected)
-                onActivate: function(ctrlPressed) {
-                    root.itemActivated(itemPath, ctrlPressed)
+                onActivate: function(ctrlPressed, shiftPressed) {
+                    root.itemActivated(itemPath, ctrlPressed, shiftPressed)
+                }
+                onContextMenuRequested: function(mouseX, mouseY, _ctrlPressed) {
+                    if (!selected || !root.selectedPaths || root.selectedPaths.length === 0) {
+                        root.itemActivated(itemPath, false, false)
+                    }
+                    var mapped = mapToItem(selectionOverlay, mouseX, mouseY)
+                    root.openItemContextMenu(itemPath, model.isDir, selected, mapped.x, mapped.y)
                 }
                 onDoubleActivate: {
                     if (model.isDir) {
@@ -340,7 +450,8 @@ Rectangle { // Files panel
 
         Item {
             id: selectionOverlay
-            anchors.fill: filesGrid
+            parent: filesGrid
+            anchors.fill: parent
             z: 20
 
             property bool marqueeActive: false
@@ -357,6 +468,12 @@ Rectangle { // Files panel
 
             function intersects(aX, aY, aW, aH, bX, bY, bW, bH) {
                 return aX < (bX + bW) && (aX + aW) > bX && aY < (bY + bH) && (aY + aH) > bY
+            }
+
+            function openContextMenu(mouseX, mouseY) {
+                filesContextMenu.x = mouseX
+                filesContextMenu.y = mouseY
+                filesContextMenu.open()
             }
 
             function collectSelectionPaths() {
@@ -383,12 +500,21 @@ Rectangle { // Files panel
             MouseArea {
                 id: selectionArea
                 anchors.fill: parent
-                acceptedButtons: Qt.LeftButton
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
                 hoverEnabled: false
                 preventStealing: true
 
                 onPressed: function(mouse) {
                     var idx = filesGrid.indexAt(mouse.x + filesGrid.contentX, mouse.y + filesGrid.contentY)
+                    if (mouse.button === Qt.RightButton) {
+                        if (idx >= 0) {
+                            mouse.accepted = false
+                            return
+                        }
+                        selectionOverlay.openContextMenu(mouse.x, mouse.y)
+                        mouse.accepted = true
+                        return
+                    }
                     if (idx >= 0) {
                         mouse.accepted = false
                         return
@@ -419,6 +545,9 @@ Rectangle { // Files panel
                     if (moved) {
                         var paths = selectionOverlay.collectSelectionPaths()
                         root.selectionBoxApplied(paths, selectionOverlay.additiveSelection)
+                    } else if (!selectionOverlay.additiveSelection) {
+                        // Plain click on empty area clears selection.
+                        root.selectionBoxApplied([], false)
                     }
                     selectionOverlay.marqueeActive = false
                 }
@@ -441,5 +570,59 @@ Rectangle { // Files panel
                 radius: 3
             }
         }
+    }
+
+    Menu {
+        id: filesContextMenu
+
+        MenuItem {
+            text: "Create Note"
+            onTriggered: root.createNoteRequested()
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: "Move into New Folder"
+            enabled: root.selectedPaths && root.selectedPaths.length > 1
+            onTriggered: root.moveSelectedIntoNewFolderRequested(root.selectedPaths)
+        }
+    }
+
+    Menu {
+        id: itemContextMenu
+
+        MenuItem {
+            text: "Alle markieren"
+            enabled: root.itemsModel && root.itemsModel.count > 0
+            onTriggered: root.selectAllRequested()
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: "Rename"
+            enabled: (!root.contextTargetIsDir && root.contextTargetSelection.length === 1)
+                     || (root.contextTargetFileSelection.length > 1)
+            onTriggered: {
+                if (root.contextTargetFileSelection.length > 1) {
+                    root.renameRequested(root.contextTargetFileSelection)
+                    return
+                }
+                root.renameRequested([root.contextTargetPath])
+            }
+        }
+        MenuItem {
+            text: "Delete"
+            enabled: root.contextTargetFileSelection.length > 0
+            onTriggered: root.deleteRequested(root.contextTargetFileSelection)
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: "Move into New Folder"
+            enabled: root.contextTargetSelection.length > 1
+            onTriggered: root.moveSelectedIntoNewFolderRequested(root.contextTargetSelection)
+        }
+    }
+
+    Shortcut {
+        sequences: [StandardKey.New]
+        onActivated: root.createNoteRequested()
     }
 }

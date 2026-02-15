@@ -7,6 +7,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
+    QLineEdit,
     QPushButton,
     QSpacerItem,
     QSizePolicy,
@@ -98,6 +99,26 @@ class WindowLayoutMixin:
             """
         )
         layout.addWidget(self.note_style_combo)
+        self.file_name_edit = QLineEdit()
+        self.file_name_edit.setPlaceholderText("File name")
+        self.file_name_edit.setFixedHeight(30)
+        self.file_name_edit.setMinimumWidth(190)
+        self.file_name_edit.setStyleSheet(
+            """
+            QLineEdit {
+                background-color: #fff9b0;
+                border: 1px solid #d4c600;
+                border-radius: 15px;
+                padding: 4px 10px;
+                color: #333333;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #c2b100;
+            }
+            """
+        )
+        layout.addWidget(self.file_name_edit)
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Fixed, QSizePolicy.Minimum))
 
         self.btn_view_mode = QPushButton("Focus Mode")
@@ -151,5 +172,6 @@ class WindowLayoutMixin:
         self.btn_text_color.clicked.connect(self.pick_text_color)
         self.btn_highlight.clicked.connect(self.pick_highlight_color)
         self.note_style_combo.currentIndexChanged.connect(self.on_note_style_selected)
+        self.file_name_edit.editingFinished.connect(self.on_filename_edit_finished)
         self.btn_view_mode.clicked.connect(self.toggle_view_mode)
         self.btn_menu.clicked.connect(self.show_menu)

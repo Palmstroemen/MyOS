@@ -56,6 +56,38 @@ def test_list_entries_filtered_supports_or_and_modes(tmp_path, monkeypatch):
     assert names_and == ["a.md"]
 
 
+def test_directory_sidecar_mytags_is_used_without_project_flag(tmp_path, monkeypatch):
+    root = tmp_path / "Workspace"
+    root.mkdir()
+    folder = root / "Invoices"
+    folder.mkdir()
+    sidecar = folder / ".MyOS"
+    sidecar.mkdir()
+    (sidecar / "myTags.md").write_text("#finance\n#urgent\n", encoding="utf-8")
+
+    file_path = root / "note.md"
+    file_path.write_text("note", encoding="utf-8")
+
+    def fake_read_tags(path: Path):
+        # Keep file tags working while directory tags come from sidecar.
+        if str(path) == str(file_path):
+            return {"doc": None}
+        return {}
+
+    monkeypatch.setattr(scope_api_module, "read_tags", fake_read_tags)
+
+    api = ScopeApi(str(root))
+    entries = api.list_entries(str(root))
+    by_name = {entry["name"]: entry for entry in entries}
+
+    assert by_name["Invoices"]["isDir"] is True
+    assert by_name["Invoices"]["tags"] == ["finance", "urgent"]
+    assert by_name["note.md"]["tags"] == ["doc"]
+
+    filtered = api.list_entries_filtered(str(root), ["finance"], match_all=False)
+    assert sorted(item["name"] for item in filtered) == ["Invoices"]
+
+
 def test_move_entries_moves_multiple_sources(tmp_path):
     root = tmp_path / "Lab"
     root.mkdir()

@@ -43,6 +43,14 @@ ApplicationWindow {
     property bool projectsBrowserVisible: true
     property bool templatesBrowserVisible: true
     property bool filesPanelHalfTransparent: false
+    property color dialogPanelBg: darkTheme ? "#f4f7ff" : "#141823"
+    property color dialogPanelBorder: darkTheme ? "#1b2438" : "#d5ddf2"
+    property color dialogTextStrong: darkTheme ? "#1a2233" : "#edf2ff"
+    property color dialogTextMuted: darkTheme ? "#34405a" : "#c6d2ee"
+    property color dialogInputBg: darkTheme ? "#ffffff" : "#0f1320"
+    property color dialogInputBorder: darkTheme ? "#2f3d5f" : "#8ca0cf"
+    property color dialogInputText: darkTheme ? "#111827" : "#f5f7ff"
+    property color dialogInputPlaceholder: darkTheme ? "#526280" : "#9fb0d6"
 
     QtObject {
         id: theme
@@ -100,6 +108,15 @@ ApplicationWindow {
     property string pendingMoveTargetDir: ""
     property string pendingMoveMessage: ""
     property string moveReportMessage: ""
+    property var pendingFolderBatchSources: []
+    property string pendingFolderBatchName: qsTr("Neuer Ordner")
+    property string pendingRenamePath: ""
+    property string pendingRenameName: ""
+    property var pendingDeletePaths: []
+    property var pendingBatchRenamePaths: []
+    property string pendingBatchReplaceFrom: ""
+    property string pendingBatchReplaceTo: ""
+    property string selectionAnchorPath: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
     ListModel { id: filesModel }
@@ -316,24 +333,89 @@ ApplicationWindow {
         return parts.length > 0 ? (parts[parts.length - 1] || text) : text
     }
 
+    function _splitStemAndExt(name) {
+        var fileName = String(name || "")
+        var dot = fileName.lastIndexOf(".")
+        if (dot <= 0) {
+            return { stem: fileName, ext: "" }
+        }
+        return {
+            stem: fileName.slice(0, dot),
+            ext: fileName.slice(dot)
+        }
+    }
+
+    function _longestCommonPrefix(values) {
+        if (!values || values.length === 0) {
+            return ""
+        }
+        var prefix = String(values[0] || "")
+        for (var i = 1; i < values.length; i++) {
+            var current = String(values[i] || "")
+            while (prefix.length > 0 && current.indexOf(prefix) !== 0) {
+                prefix = prefix.slice(0, prefix.length - 1)
+            }
+            if (prefix.length === 0) {
+                break
+            }
+        }
+        return prefix
+    }
+
+    function _suggestBatchRenameToken(paths) {
+        var stems = []
+        for (var i = 0; i < (paths || []).length; i++) {
+            var base = _basename(paths[i])
+            var parts = _splitStemAndExt(base)
+            stems.push(String(parts.stem || ""))
+        }
+        var prefix = _longestCommonPrefix(stems)
+        while (prefix.length > 1) {
+            var tail = prefix.charAt(prefix.length - 1)
+            if ((tail >= "0" && tail <= "9") || tail === "_" || tail === "-" || tail === " ") {
+                prefix = prefix.slice(0, prefix.length - 1)
+                continue
+            }
+            break
+        }
+        if (prefix.length > 0) {
+            return prefix
+        }
+        return stems.length > 0 ? stems[0] : ""
+    }
+
+    function _withNumberSuffix(stem, ext, number) {
+        return stem + "(" + number + ")" + ext
+    }
+
+    function _setDialogButtonText(dialogRef, which, text) {
+        if (!dialogRef || !dialogRef.standardButton) {
+            return
+        }
+        var button = dialogRef.standardButton(which)
+        if (button) {
+            button.text = text
+        }
+    }
+
     function _moveReasonText(code) {
         switch (String(code || "")) {
         case "target_not_directory":
-            return "Target is not a folder."
+            return qsTr("Ziel ist kein Ordner.")
         case "source_missing":
-            return "Item no longer exists."
+            return qsTr("Eintrag existiert nicht mehr.")
         case "target_inside_source":
-            return "Cannot move a folder into itself."
+            return qsTr("Ein Ordner kann nicht in sich selbst verschoben werden.")
         case "destination_exists":
-            return "Destination already contains an item with this name."
+            return qsTr("Am Ziel existiert bereits ein Eintrag mit diesem Namen.")
         case "move_failed":
-            return "Move operation failed."
+            return qsTr("Verschieben fehlgeschlagen.")
         case "same_as_target":
-            return "Item is already in the target folder."
+            return qsTr("Eintrag ist bereits im Zielordner.")
         case "duplicate_source":
-            return "Item was selected more than once."
+            return qsTr("Eintrag wurde mehrfach ausgewaehlt.")
         default:
-            return "Move was skipped."
+            return qsTr("Vorgang uebersprungen.")
         }
     }
 
@@ -360,13 +442,13 @@ ApplicationWindow {
                 var lines = []
                 var movedCount = (batch && batch.moved) ? batch.moved.length : 0
                 if (movedCount > 0) {
-                    lines.push("Moved: " + movedCount + " item" + (movedCount === 1 ? "" : "s"))
+                    lines.push(qsTr("Verschoben: %1").arg(movedCount))
                 }
                 if (errors.length > 0) {
                     if (lines.length > 0) {
                         lines.push("")
                     }
-                    lines.push("Could not move:")
+                    lines.push(qsTr("Konnte nicht verschieben:"))
                     for (var e = 0; e < errors.length; e++) {
                         var err = errors[e]
                         var errSource = _basename(err && err.source ? err.source : "")
@@ -378,7 +460,7 @@ ApplicationWindow {
                     if (lines.length > 0) {
                         lines.push("")
                     }
-                    lines.push("Skipped:")
+                    lines.push(qsTr("Uebersprungen:"))
                     for (var s = 0; s < skipped.length; s++) {
                         var skip = skipped[s]
                         var skipSource = _basename(skip && skip.source ? skip.source : "")
@@ -432,13 +514,146 @@ ApplicationWindow {
             pendingMoveSources = sources
             pendingMoveTargetDir = targetDir
             var count = sources.length
-            pendingMoveMessage = "Are you sure you want to move " + count
-                + (count === 1 ? " folder" : " folders")
-                + " to \"" + targetDir + "\"?"
+            pendingMoveMessage = qsTr("Soll(en) %1 Ordner wirklich nach \"%2\" verschoben werden?")
+                .arg(count)
+                .arg(targetDir)
             folderMoveConfirmDialog.open()
             return
         }
         _performMove(sources, targetDir)
+    }
+
+    function createNewNote() {
+        if (!hasBackend() || typeof backend.createNote !== "function") {
+            return
+        }
+        var createdPath = backend.createNote(cwp, "New Note")
+        if (!createdPath || createdPath.length === 0) {
+            moveReportMessage = qsTr("Konnte in diesem Ordner keine Notiz erstellen.")
+            moveReportDialog.open()
+            return
+        }
+        updateFiles()
+        if (typeof backend.openMarkdown === "function") {
+            if (!backend.openMarkdown(createdPath)) {
+                openFileEntry(createdPath)
+            }
+        } else {
+            openFileEntry(createdPath)
+        }
+    }
+
+    function promptMoveSelectedIntoNewFolder(sourcePaths) {
+        var incoming = sourcePaths || []
+        var cleaned = []
+        var seen = {}
+        for (var i = 0; i < incoming.length; i++) {
+            var value = String(incoming[i] || "").trim()
+            if (!value || seen[value]) {
+                continue
+            }
+            seen[value] = true
+            cleaned.push(value)
+        }
+        if (cleaned.length < 2) {
+            return
+        }
+        pendingFolderBatchSources = cleaned
+        pendingFolderBatchName = qsTr("Neuer Ordner")
+        moveSelectedFoldersDialog.open()
+    }
+
+    function requestRenameEntry(path) {
+        var source = String(path || "").trim()
+        if (!source || !hasBackend() || typeof backend.renameEntry !== "function") {
+            return
+        }
+        var parts = source.split("/")
+        var name = parts.length > 0 ? parts[parts.length - 1] : source
+        pendingRenamePath = source
+        pendingRenameName = name
+        renameEntryDialog.open()
+    }
+
+    function requestRenameEntries(paths) {
+        var incoming = paths || []
+        var cleaned = []
+        var seen = {}
+        for (var i = 0; i < incoming.length; i++) {
+            var value = String(incoming[i] || "").trim()
+            if (!value || seen[value]) {
+                continue
+            }
+            seen[value] = true
+            cleaned.push(value)
+        }
+        if (cleaned.length === 0 || !hasBackend() || typeof backend.renameEntry !== "function") {
+            return
+        }
+        if (cleaned.length === 1) {
+            requestRenameEntry(cleaned[0])
+            return
+        }
+
+        var filesOnly = []
+        for (var j = 0; j < cleaned.length; j++) {
+            var p = cleaned[j]
+            if (typeof backend.isDir === "function" && backend.isDir(p)) {
+                continue
+            }
+            filesOnly.push(p)
+        }
+        if (filesOnly.length === 1) {
+            requestRenameEntry(filesOnly[0])
+            return
+        }
+        if (filesOnly.length < 2) {
+            moveReportMessage = qsTr("Sammelumbenennung funktioniert aktuell nur fuer Dateien.")
+            moveReportDialog.open()
+            return
+        }
+
+        pendingBatchRenamePaths = filesOnly
+        pendingBatchReplaceFrom = _suggestBatchRenameToken(filesOnly)
+        pendingBatchReplaceTo = pendingBatchReplaceFrom
+        batchRenameDialog.open()
+    }
+
+    function requestDeleteEntries(paths) {
+        var incoming = paths || []
+        var cleaned = []
+        var seen = {}
+        for (var i = 0; i < incoming.length; i++) {
+            var value = String(incoming[i] || "").trim()
+            if (!value || seen[value]) {
+                continue
+            }
+            seen[value] = true
+            cleaned.push(value)
+        }
+        if (cleaned.length === 0 || !hasBackend() || typeof backend.deleteEntries !== "function") {
+            return
+        }
+        if (cleaned.length <= 3) {
+            performDeleteEntries(cleaned)
+            return
+        }
+        pendingDeletePaths = cleaned
+        deleteEntriesDialog.open()
+    }
+
+    function performDeleteEntries(paths) {
+        var result = backend.deleteEntries(paths || [])
+        var deleted = (result && result.deleted) ? result.deleted.length : 0
+        var errors = (result && result.errors) ? result.errors.length : 0
+        selectedEntryPaths = []
+        updateFiles()
+        if (errors > 0) {
+            moveReportMessage = qsTr("Geloescht: %1 Datei(en)\nNicht geloescht: %2 Datei(en)")
+                .arg(deleted)
+                .arg(errors)
+            moveReportDialog.open()
+        }
     }
 
     function listEntries(path) {
@@ -487,8 +702,68 @@ ApplicationWindow {
         return ""
     }
 
-    function toggleEntrySelection(path, ctrlPressed) {
+    function _visibleIndexOfPath(path) {
+        var target = String(path || "").trim()
+        if (!target || !filesModel) {
+            return -1
+        }
+        for (var i = 0; i < filesModel.count; i++) {
+            var item = filesModel.get(i)
+            if (!item) {
+                continue
+            }
+            if (String(item.path || "").trim() === target) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    function _visiblePathsInRange(pathA, pathB) {
+        var idxA = _visibleIndexOfPath(pathA)
+        var idxB = _visibleIndexOfPath(pathB)
+        if (idxA < 0 || idxB < 0 || !filesModel) {
+            return []
+        }
+        var start = Math.min(idxA, idxB)
+        var end = Math.max(idxA, idxB)
+        var range = []
+        for (var i = start; i <= end; i++) {
+            var item = filesModel.get(i)
+            if (!item) {
+                continue
+            }
+            var p = String(item.path || "").trim()
+            if (p) {
+                range.push(p)
+            }
+        }
+        return range
+    }
+
+    function toggleEntrySelection(path, ctrlPressed, shiftPressed) {
         if (!path || path.length === 0) {
+            return
+        }
+        if (shiftPressed) {
+            if (!selectionAnchorPath || _visibleIndexOfPath(selectionAnchorPath) < 0) {
+                selectedEntryPaths = [path]
+                selectionAnchorPath = path
+                return
+            }
+            var rangePaths = _visiblePathsInRange(selectionAnchorPath, path)
+            if (ctrlPressed) {
+                var mergedRange = selectedEntryPaths ? selectedEntryPaths.slice(0) : []
+                for (var r = 0; r < rangePaths.length; r++) {
+                    var rp = rangePaths[r]
+                    if (mergedRange.indexOf(rp) === -1) {
+                        mergedRange.push(rp)
+                    }
+                }
+                selectedEntryPaths = mergedRange
+            } else {
+                selectedEntryPaths = rangePaths
+            }
             return
         }
         if (ctrlPressed) {
@@ -500,15 +775,18 @@ ApplicationWindow {
                 toggled.splice(idx, 1)
             }
             selectedEntryPaths = toggled
+            selectionAnchorPath = path
             return
         }
         selectedEntryPaths = [path]
+        selectionAnchorPath = path
     }
 
     function applySelectionBox(paths, additive) {
         var incoming = paths || []
         if (!additive) {
             selectedEntryPaths = incoming
+            selectionAnchorPath = incoming.length > 0 ? String(incoming[incoming.length - 1] || "") : ""
             return
         }
         var merged = selectedEntryPaths ? selectedEntryPaths.slice(0) : []
@@ -519,6 +797,29 @@ ApplicationWindow {
             }
         }
         selectedEntryPaths = merged
+        if (incoming.length > 0) {
+            selectionAnchorPath = String(incoming[incoming.length - 1] || "")
+        }
+    }
+
+    function selectAllVisibleEntries() {
+        var all = []
+        if (!filesModel) {
+            selectedEntryPaths = all
+            return
+        }
+        for (var i = 0; i < filesModel.count; i++) {
+            var item = filesModel.get(i)
+            if (!item) {
+                continue
+            }
+            var p = String(item.path || "").trim()
+            if (p.length > 0) {
+                all.push(p)
+            }
+        }
+        selectedEntryPaths = all
+        selectionAnchorPath = all.length > 0 ? all[0] : ""
     }
 
     function pruneEntrySelectionToVisible() {
@@ -539,6 +840,9 @@ ApplicationWindow {
         }
         if (next.length !== selectedEntryPaths.length) {
             selectedEntryPaths = next
+        }
+        if (selectionAnchorPath && next.indexOf(selectionAnchorPath) === -1) {
+            selectionAnchorPath = next.length > 0 ? next[next.length - 1] : ""
         }
     }
 
@@ -1264,12 +1568,26 @@ ApplicationWindow {
 
     Dialog {
         id: folderMoveConfirmDialog
-        title: "Confirm Folder Move"
+        title: qsTr("Ordner-Verschieben bestaetigen")
         modal: true
         focus: true
         standardButtons: Dialog.Ok | Dialog.Cancel
         anchors.centerIn: Overlay.overlay
         width: Math.max(440, Math.round(window.width * 0.34))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(folderMoveConfirmDialog, Dialog.Ok, qsTr("Uebernehmen"))
+            _setDialogButtonText(folderMoveConfirmDialog, Dialog.Cancel, qsTr("Abbrechen"))
+        }
         onAccepted: {
             _performMove(pendingMoveSources, pendingMoveTargetDir)
             pendingMoveSources = []
@@ -1284,25 +1602,354 @@ ApplicationWindow {
         contentItem: Text {
             text: pendingMoveMessage
             wrapMode: Text.WordWrap
-            color: theme.text
+            color: dialogTextStrong
             font.pixelSize: baseFont
         }
     }
 
     Dialog {
         id: moveReportDialog
-        title: "Move Report"
+        title: qsTr("Verschiebebericht")
         modal: true
         focus: true
         standardButtons: Dialog.Ok
         anchors.centerIn: Overlay.overlay
         width: Math.max(520, Math.round(window.width * 0.42))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: _setDialogButtonText(moveReportDialog, Dialog.Ok, qsTr("Schliessen"))
         onAccepted: moveReportMessage = ""
         onRejected: moveReportMessage = ""
         contentItem: Text {
             text: moveReportMessage
             wrapMode: Text.WordWrap
-            color: theme.text
+            color: dialogTextStrong
+            font.pixelSize: baseFont
+        }
+    }
+
+    Dialog {
+        id: moveSelectedFoldersDialog
+        title: qsTr("In neuen Ordner verschieben")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(460, Math.round(window.width * 0.35))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(moveSelectedFoldersDialog, Dialog.Ok, qsTr("Uebernehmen"))
+            _setDialogButtonText(moveSelectedFoldersDialog, Dialog.Cancel, qsTr("Abbrechen"))
+            folderBatchNameInput.forceActiveFocus()
+            folderBatchNameInput.selectAll()
+        }
+        onAccepted: {
+            var folderName = String(folderBatchNameInput.text || "").trim()
+            if (!folderName) {
+                pendingFolderBatchSources = []
+                pendingFolderBatchName = qsTr("Neuer Ordner")
+                return
+            }
+            if (!hasBackend() || typeof backend.createFolder !== "function") {
+                pendingFolderBatchSources = []
+                pendingFolderBatchName = qsTr("Neuer Ordner")
+                return
+            }
+            var targetPath = backend.createFolder(cwp, folderName)
+            if (!targetPath || targetPath.length === 0) {
+                moveReportMessage = qsTr("Konnte Zielordner \"%1\" nicht erstellen.").arg(folderName)
+                moveReportDialog.open()
+                pendingFolderBatchSources = []
+                pendingFolderBatchName = qsTr("Neuer Ordner")
+                return
+            }
+            _performMove(pendingFolderBatchSources, targetPath)
+            pendingFolderBatchSources = []
+            pendingFolderBatchName = qsTr("Neuer Ordner")
+        }
+        onRejected: {
+            pendingFolderBatchSources = []
+            pendingFolderBatchName = qsTr("Neuer Ordner")
+        }
+        contentItem: Column {
+            spacing: 10
+            Text {
+                text: qsTr("Erstellt einen Ordner und verschiebt die ausgewaehlten Eintraege hinein.")
+                wrapMode: Text.WordWrap
+                color: dialogTextStrong
+                font.pixelSize: baseFont
+            }
+            TextField {
+                id: folderBatchNameInput
+                text: pendingFolderBatchName
+                placeholderText: qsTr("Neuer Ordnername")
+                selectByMouse: true
+                color: dialogInputText
+                placeholderTextColor: dialogInputPlaceholder
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 12
+                rightPadding: 12
+                background: Rectangle {
+                    radius: 12
+                    color: dialogInputBg
+                    border.color: dialogInputBorder
+                    border.width: 2
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: renameEntryDialog
+        title: qsTr("Datei umbenennen")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(420, Math.round(window.width * 0.30))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(renameEntryDialog, Dialog.Cancel, qsTr("Abbrechen"))
+            renameEntryInput.forceActiveFocus()
+            renameEntryInput.selectAll()
+        }
+        onAccepted: {
+            var nextName = String(renameEntryInput.text || "").trim()
+            if (!nextName) {
+                pendingRenamePath = ""
+                pendingRenameName = ""
+                return
+            }
+            var renamed = backend.renameEntry(pendingRenamePath, nextName)
+            if (!renamed || renamed.length === 0) {
+                moveReportMessage = qsTr("Konnte \"%1\" nicht umbenennen.").arg(_basename(pendingRenamePath))
+                moveReportDialog.open()
+                pendingRenamePath = ""
+                pendingRenameName = ""
+                return
+            }
+            selectedEntryPaths = [renamed]
+            updateFiles()
+            pendingRenamePath = ""
+            pendingRenameName = ""
+        }
+        onRejected: {
+            pendingRenamePath = ""
+            pendingRenameName = ""
+        }
+        contentItem: Column {
+            spacing: 8
+            Text {
+                text: qsTr("Neuen Dateinamen eingeben und mit Return uebernehmen.")
+                wrapMode: Text.WordWrap
+                color: dialogTextStrong
+                font.pixelSize: baseFont
+            }
+            TextField {
+                id: renameEntryInput
+                text: pendingRenameName
+                placeholderText: qsTr("Neuer Name")
+                selectByMouse: true
+                color: dialogInputText
+                placeholderTextColor: dialogInputPlaceholder
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 12
+                rightPadding: 12
+                background: Rectangle {
+                    radius: 12
+                    color: dialogInputBg
+                    border.color: dialogInputBorder
+                    border.width: 2
+                }
+                Keys.onReturnPressed: renameEntryDialog.accept()
+                Keys.onEnterPressed: renameEntryDialog.accept()
+                Keys.onEscapePressed: renameEntryDialog.reject()
+            }
+        }
+    }
+
+    Dialog {
+        id: batchRenameDialog
+        title: qsTr("Dateien gesammelt umbenennen")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(480, Math.round(window.width * 0.36))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(batchRenameDialog, Dialog.Ok, qsTr("Uebernehmen"))
+            _setDialogButtonText(batchRenameDialog, Dialog.Cancel, qsTr("Abbrechen"))
+            batchRenameToInput.forceActiveFocus()
+            batchRenameToInput.selectAll()
+        }
+        onAccepted: {
+            var fromText = String(pendingBatchReplaceFrom || "")
+            var toText = String(batchRenameToInput.text || "")
+            if (fromText.length === 0) {
+                moveReportMessage = qsTr("Kein gemeinsamer Suchtext gefunden.")
+                moveReportDialog.open()
+                pendingBatchRenamePaths = []
+                pendingBatchReplaceFrom = ""
+                pendingBatchReplaceTo = ""
+                return
+            }
+            var renamedPaths = []
+            var unchangedCount = 0
+            var failedCount = 0
+            for (var i = 0; i < pendingBatchRenamePaths.length; i++) {
+                var source = String(pendingBatchRenamePaths[i] || "").trim()
+                if (!source) {
+                    continue
+                }
+                var base = _basename(source)
+                var split = _splitStemAndExt(base)
+                var nextStem = split.stem.split(fromText).join(toText)
+                if (nextStem === split.stem) {
+                    unchangedCount += 1
+                    continue
+                }
+                var renamed = ""
+                var nextName = nextStem + split.ext
+                renamed = backend.renameEntry(source, nextName)
+                if (!renamed || renamed.length === 0) {
+                    for (var n = 1; n < 1000; n++) {
+                        var fallback = _withNumberSuffix(nextStem, split.ext, n)
+                        renamed = backend.renameEntry(source, fallback)
+                        if (renamed && renamed.length > 0) {
+                            break
+                        }
+                    }
+                }
+                if (renamed && renamed.length > 0) {
+                    renamedPaths.push(renamed)
+                } else {
+                    failedCount += 1
+                }
+            }
+            pendingBatchRenamePaths = []
+            pendingBatchReplaceFrom = ""
+            pendingBatchReplaceTo = ""
+            selectedEntryPaths = renamedPaths
+            updateFiles()
+            moveReportMessage = qsTr("Umbenannt: %1\nUnveraendert: %2\nFehlgeschlagen: %3")
+                .arg(renamedPaths.length)
+                .arg(unchangedCount)
+                .arg(failedCount)
+            moveReportDialog.open()
+        }
+        onRejected: {
+            pendingBatchRenamePaths = []
+            pendingBatchReplaceFrom = ""
+            pendingBatchReplaceTo = ""
+        }
+        contentItem: Column {
+            spacing: 12
+            Text {
+                text: qsTr("\"%1\" umbenennen auf").arg(pendingBatchReplaceFrom)
+                wrapMode: Text.WordWrap
+                color: dialogTextStrong
+                font.pixelSize: Math.max(baseFont + 1, 14)
+                font.bold: true
+            }
+            TextField {
+                id: batchRenameToInput
+                text: pendingBatchReplaceTo
+                placeholderText: pendingBatchReplaceFrom.length > 0
+                    ? pendingBatchReplaceFrom
+                    : qsTr("Neuer Text")
+                selectByMouse: true
+                color: dialogInputText
+                placeholderTextColor: dialogInputPlaceholder
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 12
+                rightPadding: 12
+                background: Rectangle {
+                    radius: 12
+                    color: dialogInputBg
+                    border.color: dialogInputBorder
+                    border.width: 2
+                }
+            }
+            Text {
+                text: qsTr("Bei Namenskonflikten wird automatisch (1), (2), ... angehaengt.")
+                wrapMode: Text.WordWrap
+                color: dialogTextMuted
+                font.pixelSize: Math.max(baseFont - 1, 11)
+            }
+        }
+    }
+
+    Dialog {
+        id: deleteEntriesDialog
+        title: qsTr("Dateien loeschen")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(440, Math.round(window.width * 0.32))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(deleteEntriesDialog, Dialog.Ok, qsTr("Uebernehmen"))
+            _setDialogButtonText(deleteEntriesDialog, Dialog.Cancel, qsTr("Abbrechen"))
+        }
+        onAccepted: {
+            performDeleteEntries(pendingDeletePaths)
+            pendingDeletePaths = []
+        }
+        onRejected: pendingDeletePaths = []
+        contentItem: Text {
+            text: qsTr("Wirklich %1 Dateien loeschen? Das kann nicht rueckgaengig gemacht werden.")
+                .arg(pendingDeletePaths.length)
+            wrapMode: Text.WordWrap
+            color: dialogTextStrong
             font.pixelSize: baseFont
         }
     }
@@ -1664,7 +2311,7 @@ ApplicationWindow {
         FilesPanel {  // FilesPanel
             id: filesPane
             parent: floatingPool
-        itemsModel: filesModel
+            itemsModel: filesModel
             baseFont: window.baseFont
             text: theme.text
             textMuted: theme.textMuted
@@ -1695,19 +2342,28 @@ ApplicationWindow {
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
             projectTintOpacity: 0.75
-        showMyosButton: window.hasProjectInCwp
-        showCreateProject: !window.hasProjectInCwp
-        availableTags: window.availableTags
-        selectedPaths: window.selectedEntryPaths
-        selectedTags: window.selectedTags
-        tagSource: window.tagFilterSource
-        onRequestMore: appendNextChunk()
-        onFilterChanged: filterEntries()
-        onItemActivated: function(path, ctrlPressed) { toggleEntrySelection(path, ctrlPressed) }
-        onSelectionBoxApplied: function(paths, additive) { applySelectionBox(paths, additive) }
-        onMoveEntriesRequested: function(payload, targetDir) { moveEntry(payload, targetDir) }
-        onTagToggled: function(tag) { toggleTagSelection(tag) }
-        onRequestTagSourceChange: function(source) { tagFilterSource = source }
+            showMyosButton: window.hasProjectInCwp
+            showCreateProject: !window.hasProjectInCwp
+            availableTags: window.availableTags
+            selectedPaths: window.selectedEntryPaths
+            selectedTags: window.selectedTags
+            tagSource: window.tagFilterSource
+            onRequestMore: appendNextChunk()
+            onFilterChanged: filterEntries()
+            onItemActivated: function(path, ctrlPressed, shiftPressed) {
+                toggleEntrySelection(path, ctrlPressed, shiftPressed)
+            }
+            onSelectionBoxApplied: function(paths, additive) { applySelectionBox(paths, additive) }
+            onMoveEntriesRequested: function(payload, targetDir) { moveEntry(payload, targetDir) }
+            onTagToggled: function(tag) { toggleTagSelection(tag) }
+            onRequestTagSourceChange: function(source) { tagFilterSource = source }
+            onCreateNoteRequested: createNewNote()
+            onMoveSelectedIntoNewFolderRequested: function(paths) {
+                promptMoveSelectedIntoNewFolder(paths)
+            }
+            onRenameRequested: function(paths) { requestRenameEntries(paths) }
+            onDeleteRequested: function(paths) { requestDeleteEntries(paths) }
+            onSelectAllRequested: selectAllVisibleEntries()
             onFolderActivated: function(name) {
                 if (name.indexOf("/") === 0) {
                     setCwp(name)
@@ -1724,20 +2380,20 @@ ApplicationWindow {
                 setCwp(base + "/.MyOS")
                 clearSearchAfterNavigate()
             }
-        onCreateProject: {
-            if (hasBackend() && typeof backend.createProject === "function") {
-                var ok = backend.createProject(cwp)
-                if (ok) {
-                    if (typeof backend.setContext === "function") {
-                        backend.setContext(cwp)
+            onCreateProject: {
+                if (hasBackend() && typeof backend.createProject === "function") {
+                    var ok = backend.createProject(cwp)
+                    if (ok) {
+                        if (typeof backend.setContext === "function") {
+                            backend.setContext(cwp)
+                        }
+                        updateFiles()
+                        updateTemplates()
+                        standardFolders = listTemplates(cwp)
+                        updateStandardFolders()
                     }
-                    updateFiles()
-                    updateTemplates()
-                    standardFolders = listTemplates(cwp)
-                    updateStandardFolders()
                 }
             }
-        }
         }
 
     }

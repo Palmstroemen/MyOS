@@ -33,6 +33,23 @@ def is_within(path: Path, root: Path) -> bool:
         return False
 
 
+def _read_markdown_tag_list(path: Path) -> List[str]:
+    if not path.exists():
+        return []
+    tags: List[str] = []
+    try:
+        for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw.strip()
+            if not line.startswith("#"):
+                continue
+            tag = line.lstrip("#").strip()
+            if tag:
+                tags.append(tag)
+    except Exception:
+        return []
+    return sorted(set(tags), key=str.lower)
+
+
 class ScopeApi:
     def __init__(self, start_path: str) -> None:
         self.start_path = Path(start_path).expanduser().resolve()
@@ -204,27 +221,18 @@ class ScopeApi:
         if not root:
             return []
         tags_file = root / ".MyOS" / "Tags.md"
-        if not tags_file.exists():
-            return []
-        tags: List[str] = []
-        try:
-            for raw in tags_file.read_text(encoding="utf-8", errors="replace").splitlines():
-                line = raw.strip()
-                if not line.startswith("#"):
-                    continue
-                tag = line.lstrip("#").strip()
-                if tag:
-                    tags.append(tag)
-        except Exception:
-            return []
-        return sorted(set(tags), key=str.lower)
+        return _read_markdown_tag_list(tags_file)
 
     def _read_entry_tags(self, entry_path: Path) -> List[str]:
+        tags: List[str] = []
+        if entry_path.is_dir():
+            # Directory tags live in a sidecar and do NOT imply "project".
+            tags.extend(_read_markdown_tag_list(entry_path / ".MyOS" / "myTags.md"))
         try:
             tags_map = read_tags(entry_path)
         except Exception:
-            return []
-        tags = [str(tag).strip() for tag in tags_map.keys()]
+            tags_map = {}
+        tags.extend(str(tag).strip() for tag in tags_map.keys())
         tags = [tag for tag in tags if tag]
         return sorted(set(tags), key=str.lower)
 
@@ -347,6 +355,105 @@ class ScopeApi:
     def create_project(self, path: str) -> bool:
         target = Path(path).expanduser().resolve()
         return ProjectConfig.make_project(target)
+
+    def create_folder(self, path: str, name: str) -> Optional[str]:
+        base = Path(path).expanduser().resolve()
+        if not base.is_dir():
+            return None
+        cleaned = str(name or "").strip()
+        if not cleaned:
+            return None
+        if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
+            return None
+        target = base / cleaned
+        if target.exists():
+            return None
+        try:
+            target.mkdir(parents=False, exist_ok=False)
+        except Exception:
+            return None
+        return str(target)
+
+    def create_note(self, path: str, name: str) -> Optional[str]:
+        base = Path(path).expanduser().resolve()
+        if not base.is_dir():
+            return None
+
+        cleaned = str(name or "").strip()
+        if not cleaned:
+            cleaned = "New Note"
+        if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
+            return None
+        if not cleaned.lower().endswith(".md"):
+            cleaned = f"{cleaned}.md"
+
+        target = base / cleaned
+        if target.exists():
+            stem = target.stem
+            suffix = target.suffix or ".md"
+            for idx in range(2, 200):
+                candidate = base / f"{stem} {idx}{suffix}"
+                if not candidate.exists():
+                    target = candidate
+                    break
+            else:
+                return None
+        try:
+            title = target.stem.strip() or "New Note"
+            target.write_text(f"# {title}\n\n", encoding="utf-8")
+        except Exception:
+            return None
+        return str(target)
+
+    def rename_entry(self, path: str, new_name: str) -> Optional[str]:
+        source = Path(path).expanduser().resolve()
+        if not source.exists():
+            return None
+        cleaned = str(new_name or "").strip()
+        if not cleaned:
+            return None
+        if "/" in cleaned or "\\" in cleaned or cleaned in {".", ".."}:
+            return None
+
+        target_name = cleaned
+        if source.is_file() and "." not in cleaned and source.suffix:
+            target_name = f"{cleaned}{source.suffix}"
+        target = source.with_name(target_name)
+        if target == source:
+            return str(source)
+        if target.exists():
+            return None
+        try:
+            source.rename(target)
+        except Exception:
+            return None
+        return str(target)
+
+    def delete_entries(self, paths: List[str]) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"ok": True, "deleted": [], "errors": []}
+        seen: set[str] = set()
+        for raw in (paths or []):
+            source_text = str(raw or "").strip()
+            if not source_text:
+                continue
+            source = Path(source_text).expanduser().resolve()
+            key = str(source)
+            if key in seen:
+                continue
+            seen.add(key)
+            if not source.exists():
+                result["errors"].append({"source": key, "reason": "missing"})
+                continue
+            try:
+                if source.is_dir():
+                    shutil.rmtree(source)
+                else:
+                    source.unlink()
+                result["deleted"].append(key)
+            except Exception:
+                result["errors"].append({"source": key, "reason": "delete_failed"})
+        result["ok"] = len(result["errors"]) == 0
+        return result
 
     def move_entry(self, source: str, target_dir: str) -> bool:
         src = Path(source).expanduser().resolve()
