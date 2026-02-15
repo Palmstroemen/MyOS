@@ -73,19 +73,19 @@ class ObsidianEmbed(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        self._status = QLabel("Starting Obsidian...")
+        self._status = QLabel(self.tr("Starte Obsidian..."))
         self._status.setAlignment(Qt.AlignCenter)
         layout.addWidget(self._status)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setStyleSheet("QWidget { background-color: #ffffff; } QLabel { color: #333333; }")
 
         if not self._obsidian_cmd:
-            self._status.setText("Obsidian not found in PATH. Install or provide --obsidian-path.")
+            self._status.setText(self.tr("Obsidian nicht in PATH gefunden. Installieren oder --obsidian-path setzen."))
             return
 
         self._launch_obsidian()
         if not self._can_find_window:
-            self._status.setText("Install xdotool, wmctrl, or use xwininfo to embed Obsidian.")
+            self._status.setText(self.tr("Installiere xdotool, wmctrl oder nutze xwininfo, um Obsidian einzubetten."))
             return
         self._poll_timer.start()
 
@@ -93,7 +93,7 @@ class ObsidianEmbed(QWidget):
         try:
             subprocess.Popen(self._obsidian_cmd)
         except OSError:
-            self._status.setText("Failed to start Obsidian.")
+            self._status.setText(self.tr("Obsidian konnte nicht gestartet werden."))
             return
         if not self._no_open:
             uri = self._build_open_uri()
@@ -120,7 +120,7 @@ class ObsidianEmbed(QWidget):
             return
         if self._poll_attempts >= self._max_attempts:
             self._poll_timer.stop()
-            self._status.setText("Unable to find Obsidian window. Install xdotool or wmctrl.")
+            self._status.setText(self.tr("Obsidian-Fenster nicht gefunden. Installiere xdotool oder wmctrl."))
 
     def _find_obsidian_window_id(self, require_title: bool = False) -> int | None:
         if shutil.which("xdotool"):
@@ -323,7 +323,7 @@ class ObsidianEmbed(QWidget):
         self._watch_timer.stop()
         if self._container:
             self._container.setVisible(False)
-        self._status.setText("Obsidian window lost. Waiting to re-attach...")
+        self._status.setText(self.tr("Obsidian-Fenster verloren. Warte auf erneutes Einbetten..."))
         self._status.show()
         self._last_win_id = None
         if not self._poll_timer.isActive():
@@ -371,7 +371,7 @@ class ObsidianEmbed(QWidget):
     def _embed_window(self, win_id: int):
         window = QWindow.fromWinId(win_id)
         if not window:
-            self._status.setText("Failed to attach to Obsidian window.")
+            self._status.setText(self.tr("Obsidian-Fenster konnte nicht eingebettet werden."))
             return
         self._container = QWidget.createWindowContainer(window, self)
         self.layout().addWidget(self._container)

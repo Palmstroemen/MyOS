@@ -13,7 +13,7 @@ from threading import Lock
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from PySide6.QtCore import QObject, Slot, QUrl, Signal, QThreadPool, QRunnable, QSize, Qt
+from PySide6.QtCore import QObject, Slot, QUrl, Signal, QThreadPool, QRunnable, QSize, Qt, QTranslator
 from PySide6.QtGui import QGuiApplication, QIcon, QImageReader, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
@@ -187,15 +187,21 @@ class Thumbnailer(QObject):
 class Backend(QObject):
     thumbnailReady = Signal(str, str)
     entriesReady = Signal(str, "QVariantList")
+    languageChanged = Signal(str)
 
-    def __init__(self, api: ScopeApi) -> None:
+    def __init__(self, api: ScopeApi, app: QGuiApplication, engine: QQmlApplicationEngine) -> None:
         super().__init__()
         self._api = api
+        self._app = app
+        self._engine = engine
         self._thumbnailer = Thumbnailer()
         self._thumbnailer.thumbnailReady.connect(self.thumbnailReady)
         self._entries_lock = Lock()
         self._entries_cache: dict[str, list] = {}
         self._entries_pending: set[str] = set()
+        self._translator: QTranslator | None = None
+        self._language = "de"
+        self._i18n_dir = Path(__file__).with_name("i18n")
 
     @Slot(str, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool):
@@ -347,6 +353,39 @@ class Backend(QObject):
     def getProjectRoot(self) -> str:
         return self._api.get_project_root() or ""
 
+    @Slot(result=str)
+    def currentLanguage(self) -> str:
+        return self._language
+
+    @Slot(str, result=bool)
+    def setLanguage(self, languageCode: str) -> bool:
+        code = str(languageCode or "de").strip().lower()
+        if "-" in code:
+            code = code.split("-", 1)[0]
+        if code not in {"de", "en"}:
+            code = "de"
+
+        if self._translator is not None:
+            self._app.removeTranslator(self._translator)
+            self._translator = None
+
+        if code != "de":
+            translator = QTranslator(self)
+            qm_path = self._i18n_dir / f"scope_{code}.qm"
+            if not translator.load(str(qm_path)):
+                code = "de"
+            else:
+                self._app.installTranslator(translator)
+                self._translator = translator
+
+        self._language = code
+        self.languageChanged.emit(self._language)
+        try:
+            self._engine.retranslate()
+        except Exception:
+            pass
+        return True
+
 
 class EntriesTask(QRunnable):
     def __init__(self, owner: Backend, path: str) -> None:
@@ -399,12 +438,15 @@ def main() -> int:
     engine.addImageProvider("theme", ThemeIconProvider())
 
     ctx = engine.rootContext()
-    backend = Backend(api)
+    backend = Backend(api, app, engine)
     ctx.setContextProperty("backend", backend)
     ctx.setContextProperty("scopeDebugOpen", os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"})
     ctx.setContextProperty("scopeStartPath", api.get_start_path())
     ctx.setContextProperty("scopeProjectRoot", api.get_project_root() or "")
     engine._backend = backend
+
+    ui_lang = os.environ.get("MYOS_UI_LANG", "de")
+    backend.setLanguage(ui_lang)
 
     qml_path = Path(__file__).with_name("main.qml").resolve()
     engine.load(QUrl.fromLocalFile(str(qml_path)))

@@ -24,8 +24,8 @@ except ImportError:
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
-                               QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox)
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer
+                               QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication)
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator
 from PySide6.QtGui import QColor, QGuiApplication, QTextDocument
 from PySide6.QtPrintSupport import QPrinter
 
@@ -76,9 +76,13 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         obsidian_window_title: str | None = None,
         obsidian_close_other_windows: bool = False,
         obsidian_vault_path: str | None = None,
+        ui_language: str = "de",
     ):
         super().__init__()
-        self.setWindowTitle("PostFix")
+        self._translator: QTranslator | None = None
+        self._language = "de"
+        self._i18n_dir = Path(__file__).with_name("i18n")
+        self.setWindowTitle(self.tr("PostFix"))
         self.setGeometry(100, 100, 900, 650)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
@@ -149,7 +153,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self.editor.on_theme_color_changed = self.apply_theme_color_hex
         if hasattr(self.editor, "MODE_FOCUS"):
             self.editor.set_view_mode(self.editor.MODE_FOCUS)
-            self.btn_view_mode.setText(self.editor.MODE_FOCUS)
+            self.btn_view_mode.setText(self.tr("Fokusmodus"))
             self.btn_view_mode.setEnabled(False)
         if hasattr(self.editor, "tagsChanged"):
             self.editor.tagsChanged.connect(self._on_editor_tags_changed)
@@ -343,9 +347,66 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             if hasattr(self.editor, "set_path"):
                 self.editor.set_path(open_path)
         auto_rename = bool(open_path and open_path.stem.lower().startswith("new note"))
+        self.set_language(ui_language)
         self._sync_filename_field_from_path(select_all=auto_rename)
         self._sync_note_style_selector_from_document()
         self._defer_noncritical_startup()
+
+    def _window_title_for_path(self, path: Path | None) -> str:
+        base = self.tr("PostFix")
+        if path:
+            return f"{base} - {Path(path).name}"
+        return base
+
+    def retranslate_ui(self):
+        self._populate_note_style_combo()
+        if hasattr(self, "file_name_edit"):
+            self.file_name_edit.setPlaceholderText(self.tr("Dateiname"))
+        if hasattr(self, "btn_view_mode"):
+            self.btn_view_mode.setText(self.tr("Fokusmodus"))
+        if hasattr(self, "btn_language"):
+            self.btn_language.setText(self._language.upper())
+        if hasattr(self, "left_sidebar") and hasattr(self.left_sidebar, "retranslate_ui"):
+            self.left_sidebar.retranslate_ui()
+        if hasattr(self, "right_sidebar") and hasattr(self.right_sidebar, "retranslate_ui"):
+            self.right_sidebar.retranslate_ui()
+        if hasattr(self, "bottom_toolbar") and hasattr(self.bottom_toolbar, "retranslate_ui"):
+            self.bottom_toolbar.retranslate_ui()
+        if hasattr(self, "editor") and hasattr(self.editor, "retranslate_ui"):
+            self.editor.retranslate_ui()
+        self._sync_filename_field_from_path(select_all=False)
+
+    def set_language(self, language_code: str) -> bool:
+        code = str(language_code or "de").strip().lower()
+        if "-" in code:
+            code = code.split("-", 1)[0]
+        if code not in {"de", "en"}:
+            code = "de"
+
+        app = QApplication.instance()
+        if app is None:
+            return False
+
+        if self._translator is not None:
+            app.removeTranslator(self._translator)
+            self._translator = None
+
+        if code != "de":
+            translator = QTranslator(self)
+            qm_path = self._i18n_dir / f"postfix_{code}.qm"
+            if translator.load(str(qm_path)):
+                app.installTranslator(translator)
+                self._translator = translator
+            else:
+                code = "de"
+
+        self._language = code
+        self.retranslate_ui()
+        return True
+
+    def toggle_language(self):
+        next_lang = "en" if self._language == "de" else "de"
+        self.set_language(next_lang)
 
     def _defer_noncritical_startup(self):
         # First paint: show markdown quickly, then warm up non-critical UI.
@@ -409,7 +470,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             
     def toggle_view_mode(self):
         """Single-mode editor: keep focus mode active."""
-        self.btn_view_mode.setText(SmartEditor.MODE_FOCUS)
+        self.btn_view_mode.setText(self.tr("Fokusmodus"))
         self.editor.set_view_mode(SmartEditor.MODE_FOCUS)
         
     def show_menu(self):
@@ -447,11 +508,11 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             return
         if path:
             field.setText(Path(path).stem)
-            self.setWindowTitle(f"PostFix - {Path(path).name}")
+            self.setWindowTitle(self._window_title_for_path(Path(path)))
             field.setEnabled(True)
         else:
             field.setText("")
-            self.setWindowTitle("PostFix")
+            self.setWindowTitle(self._window_title_for_path(None))
             field.setEnabled(False)
         if select_all:
             QTimer.singleShot(0, field.setFocus)

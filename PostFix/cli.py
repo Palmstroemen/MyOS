@@ -1,6 +1,7 @@
 """CLI entrypoint for PostFix."""
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -105,6 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--obsidian-vault-path",
         help="Vault base path (used to compute vault name + file path)",
     )
+    parser.add_argument(
+        "--lang",
+        choices=["de", "en"],
+        default=os.environ.get("MYOS_UI_LANG", "de"),
+        help="UI language (de or en)",
+    )
     return parser
 
 
@@ -146,6 +153,7 @@ def main() -> int:
         obsidian_window_title=args.obsidian_window_title,
         obsidian_close_other_windows=args.obsidian_close_other_windows,
         obsidian_vault_path=args.obsidian_vault_path,
+        ui_language=args.lang,
     )
     window.show()
     return app.exec()

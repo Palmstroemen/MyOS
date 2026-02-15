@@ -23,6 +23,7 @@ class SidebarWidget(QWidget):
 
     def __init__(self, title="Sidebar", bg_color="rgba(200, 220, 240, 60)"):
         super().__init__()
+        self._title_text = title
         self.bg_color = bg_color
         self.base_opacity = 1.0
         self.hover_opacity = 1.0
@@ -30,11 +31,16 @@ class SidebarWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         layout.setContentsMargins(0, 0, 0, 0)
-        title_label = QLabel(title)
-        title_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title_label)
+        self.title_label = QLabel(title)
+        self.title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title_label)
         layout.addStretch()
         self.set_opacity(self.base_opacity)
+
+    def set_title_text(self, text: str):
+        self._title_text = str(text or "")
+        if hasattr(self, "title_label"):
+            self.title_label.setText(self._title_text)
 
     def set_opacity(self, opacity):
         self.setWindowOpacity(opacity)
@@ -109,6 +115,7 @@ class TagSidebar(SidebarWidget):
         self.color_entries = []
         self._tag_colors = {}
         self.setup_ui()
+        self.retranslate_ui()
 
     def setup_ui(self):
         self._rebuild()
@@ -155,7 +162,7 @@ class TagSidebar(SidebarWidget):
             btn.setCursor(Qt.PointingHandCursor)
             btn.singleClicked.connect(lambda k=key, v=value: self.colorDefinitionSearchRequested.emit(k, v))
             btn.doubleClicked.connect(lambda k=key, v=value: self._pick_color_definition(k, v))
-            btn.setToolTip("Click: next match | Double-click: change color")
+            btn.setToolTip(self.tr("Klick: naechster Treffer | Doppelklick: Farbe aendern"))
             btn.setStyleSheet(
                 f"""
                 QPushButton {{
@@ -215,16 +222,20 @@ class TagSidebar(SidebarWidget):
 
     def _pick_tag_color(self, tag: str):
         initial = QColor(self._tag_colors.get(tag, "#ffd54f"))
-        chosen = QColorDialog.getColor(initial, self, f"Color for #{tag}")
+        chosen = QColorDialog.getColor(initial, self, self.tr("Farbe fuer #%1").arg(tag))
         if not chosen.isValid():
             return
         self.tagColorChangeRequested.emit(tag, chosen.name())
 
     def _pick_color_definition(self, key: str, old_hex: str):
-        chosen = QColorDialog.getColor(QColor(old_hex), self, f"Color for {key}")
+        chosen = QColorDialog.getColor(QColor(old_hex), self, self.tr("Farbe fuer %1").arg(key))
         if not chosen.isValid():
             return
         self.colorDefinitionChangeRequested.emit(key, old_hex, chosen.name())
+
+    def retranslate_ui(self):
+        self.set_title_text(self.tr("Tags"))
+        self._rebuild()
 
 
 class ACLSidebar(SidebarWidget):
@@ -233,6 +244,7 @@ class ACLSidebar(SidebarWidget):
     def __init__(self):
         super().__init__("ACLs", "rgba(200, 220, 240, 60)")
         self.setup_ui()
+        self.retranslate_ui()
 
     def setup_ui(self):
         layout = self.layout()
@@ -269,6 +281,9 @@ class ACLSidebar(SidebarWidget):
             btn.setCursor(Qt.PointingHandCursor)
             layout.addWidget(btn)
         layout.addStretch()
+
+    def retranslate_ui(self):
+        self.set_title_text(self.tr("ACLs"))
 
 
 class BottomToolbar(QWidget):
@@ -323,8 +338,19 @@ class BottomToolbar(QWidget):
         self._runtime_resources_loaded = True
 
     def setup_primary_toolbar(self):
-        actions = [("↗", "Send To"), ("⇱", "Open In"), ("⎙", "Print")]
-        for icon, label in actions:
+        while self.primary_layout.count():
+            item = self.primary_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._primary_buttons = []
+        self._primary_button_map = {}
+        self.primary_layout.addStretch()
+        actions = [
+            ("↗", "send_to", self.tr("Senden an")),
+            ("⇱", "open_in", self.tr("Oeffnen in")),
+            ("⎙", "print", self.tr("Drucken")),
+        ]
+        for icon, action_key, label in actions:
             btn = QPushButton(icon)
             btn.setToolTip(label)
             btn.setStyleSheet(
@@ -347,10 +373,10 @@ class BottomToolbar(QWidget):
             btn.setCursor(Qt.PointingHandCursor)
             btn.setFixedSize(30, 30)
             btn.setMouseTracking(True)
-            btn._flyout_label = label
+            btn._flyout_label = action_key
             self.primary_layout.addWidget(btn)
             self._primary_buttons.append(btn)
-            self._primary_button_map[btn] = label
+            self._primary_button_map[btn] = action_key
         self.primary_layout.addStretch()
 
     def setup_flyout(self):
@@ -382,22 +408,22 @@ class BottomToolbar(QWidget):
         if self._active_flyout == primary_action and self.flyout.isVisible():
             return
         self._ensure_runtime_resources()
-        printer_items = [(p["label"], ["printer"], p["name"]) for p in (self._printers or [])] or [("Printer", ["printer"], "Printer")]
+        printer_items = [(p["label"], ["printer"], p["name"]) for p in (self._printers or [])] or [(self.tr("Drucker"), ["printer"], self.tr("Drucker"))]
         print_items = [("PDF", ["application-pdf", "pdf", "evince", "okular"], "PDF")] + printer_items
         items = {
-            "Send To": [
-                ("Mail", ["mail", "thunderbird", "evolution", "kmail", "geary"]),
+            "send_to": [
+                (self.tr("Mail"), ["mail", "thunderbird", "evolution", "kmail", "geary"]),
                 ("WhatsApp", ["whatsapp"]),
                 ("Signal", ["signal"]),
                 ("Telegram", ["telegram"]),
                 ("Chat", ["slack", "discord", "threema"]),
             ],
-            "Open In": [
+            "open_in": [
                 ("Obsidian", ["obsidian"]),
-                ("LibreOffice Writer", ["libreoffice-writer", "writer"]),
-                ("LibreOffice Impress", ["libreoffice-impress", "impress"]),
+                (self.tr("LibreOffice Writer"), ["libreoffice-writer", "writer"]),
+                (self.tr("LibreOffice Impress"), ["libreoffice-impress", "impress"]),
             ],
-            "Print": print_items,
+            "print": print_items,
         }
         for i in reversed(range(self.flyout_layout.count())):
             item = self.flyout_layout.takeAt(i)
@@ -405,12 +431,12 @@ class BottomToolbar(QWidget):
                 item.widget().deleteLater()
 
         for item in items.get(primary_action, []):
-            if primary_action == "Print":
+            if primary_action == "print":
                 label, names, printer_name = item
                 widget = self._make_flyout_item(label, names, lambda _, value=printer_name: self.printRequested.emit(value))
             else:
                 label, names = item
-                if primary_action == "Open In":
+                if primary_action == "open_in":
                     widget = self._make_flyout_item(label, names, lambda _, value=label: self.openInRequested.emit(value))
                 else:
                     widget = self._make_flyout_item(label, names, lambda _, value=label: self.sendToRequested.emit(value))
@@ -618,6 +644,10 @@ class BottomToolbar(QWidget):
         layout.addWidget(btn, alignment=Qt.AlignHCenter)
         layout.addWidget(text, alignment=Qt.AlignHCenter)
         return wrapper
+
+    def retranslate_ui(self):
+        self.setup_primary_toolbar()
+        self.hide_flyout()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

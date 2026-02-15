@@ -18,6 +18,26 @@ from PySide6.QtWidgets import (
 class WindowLayoutMixin:
     """Toolbar construction and signal wiring for PostFixWindow."""
 
+    def _populate_note_style_combo(self, keep_data=None):
+        combo = getattr(self, "note_style_combo", None)
+        if combo is None:
+            return
+        old_data = keep_data if keep_data is not None else combo.currentData()
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(self.tr("Stil: Auto"), "")
+        combo.addItem(self.tr("Kurznotiz / Post-it"), "postit")
+        combo.addItem(self.tr("Mitschrift / A4"), "sheet")
+        combo.addItem(self.tr("Konzept / Heft"), "notebook")
+        combo.addItem(self.tr("Gedankenskizze / Cloud"), "cloud")
+        combo.addItem(self.tr("KI-Chat / Bubble"), "chat")
+        combo.addItem(self.tr("Config / Einstellungen"), "config")
+        idx = combo.findData(old_data if old_data is not None else "")
+        if idx < 0:
+            idx = combo.findData("")
+        combo.setCurrentIndex(max(0, idx))
+        combo.blockSignals(False)
+
     def create_top_toolbar(self):
         """Create the top toolbar with all controls."""
         self.top_toolbar = QWidget()
@@ -67,13 +87,7 @@ class WindowLayoutMixin:
         self.note_style_combo.setCursor(Qt.PointingHandCursor)
         self.note_style_combo.setFixedHeight(30)
         self.note_style_combo.setMinimumWidth(170)
-        self.note_style_combo.addItem("Style: Auto", "")
-        self.note_style_combo.addItem("Kurznotiz / Post-it", "postit")
-        self.note_style_combo.addItem("Mitschrift / A4", "sheet")
-        self.note_style_combo.addItem("Konzept / Heft", "notebook")
-        self.note_style_combo.addItem("Gedankenskizze / Cloud", "cloud")
-        self.note_style_combo.addItem("AI-Chat / Bubble", "chat")
-        self.note_style_combo.addItem("Config / Settings", "config")
+        self._populate_note_style_combo("")
         self.note_style_combo.setStyleSheet(
             """
             QComboBox {
@@ -100,7 +114,7 @@ class WindowLayoutMixin:
         )
         layout.addWidget(self.note_style_combo)
         self.file_name_edit = QLineEdit()
-        self.file_name_edit.setPlaceholderText("File name")
+        self.file_name_edit.setPlaceholderText(self.tr("Dateiname"))
         self.file_name_edit.setFixedHeight(30)
         self.file_name_edit.setMinimumWidth(190)
         self.file_name_edit.setStyleSheet(
@@ -121,10 +135,17 @@ class WindowLayoutMixin:
         layout.addWidget(self.file_name_edit)
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Fixed, QSizePolicy.Minimum))
 
-        self.btn_view_mode = QPushButton("Focus Mode")
+        self.btn_view_mode = QPushButton(self.tr("Fokusmodus"))
         self.btn_view_mode.setCursor(Qt.PointingHandCursor)
         self.apply_oval_button_style(self.btn_view_mode, "#FFF740", "#d4c600")
         self.btn_view_mode.hide()
+
+        self.btn_language = QPushButton("DE")
+        self.btn_language.setCursor(Qt.PointingHandCursor)
+        self.apply_oval_button_style(self.btn_language, "#FFF740", "#d4c600")
+        self.btn_language.setFixedHeight(30)
+        self.btn_language.setMinimumWidth(68)
+        layout.addWidget(self.btn_language)
         layout.addStretch()
 
         self.btn_minimize = QPushButton("−")
@@ -174,4 +195,5 @@ class WindowLayoutMixin:
         self.note_style_combo.currentIndexChanged.connect(self.on_note_style_selected)
         self.file_name_edit.editingFinished.connect(self.on_filename_edit_finished)
         self.btn_view_mode.clicked.connect(self.toggle_view_mode)
+        self.btn_language.clicked.connect(self.toggle_language)
         self.btn_menu.clicked.connect(self.show_menu)

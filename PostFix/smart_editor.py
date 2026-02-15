@@ -53,7 +53,7 @@ class SmartEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.source_edit = QPlainTextEdit()
-        self.source_edit.setPlaceholderText("Write your markdown here...")
+        self.source_edit.setPlaceholderText(self.tr("Markdown hier schreiben..."))
         self.source_edit.setViewportMargins(12, 12, 12, 12)
         self.source_edit.setFrameStyle(QFrame.NoFrame)
         self.source_edit.textChanged.connect(self._on_source_changed)
@@ -107,6 +107,9 @@ class SmartEditor(QWidget):
         else:
             self.source_edit.setPlainText(body_text)
         self._rebuild_focus_spans()
+
+    def retranslate_ui(self):
+        self.source_edit.setPlaceholderText(self.tr("Markdown hier schreiben..."))
 
     def load_markdown(self, text: str):
         meta, body = self.metadata.split_frontmatter(text)

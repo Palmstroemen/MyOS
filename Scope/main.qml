@@ -29,6 +29,7 @@ ApplicationWindow {
     property var searchInputRef: null
     property string standardButtonStyle: "text"
     property string userButtonStyle: "text"
+    property string uiLanguage: "de"
     property string userPath: "/Eigene"
     property string level2ButtonStyle: "smallIcon"
     property real level2AvailableWidth: 0
@@ -396,6 +397,18 @@ ApplicationWindow {
         if (button) {
             button.text = text
         }
+    }
+
+    function toggleUiLanguage() {
+        var next = uiLanguage === "de" ? "en" : "de"
+        if (hasBackend() && typeof backend.setLanguage === "function") {
+            backend.setLanguage(next)
+            if (typeof backend.currentLanguage === "function") {
+                uiLanguage = backend.currentLanguage()
+                return
+            }
+        }
+        uiLanguage = next
     }
 
     function _moveReasonText(code) {
@@ -1266,6 +1279,9 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
+        if (hasBackend() && typeof backend.currentLanguage === "function") {
+            uiLanguage = backend.currentLanguage()
+        }
         if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
             var backendAvailable = hasBackend()
             var openMarkdownType = backendAvailable ? typeof backend.openMarkdown : "n/a"
@@ -1344,6 +1360,9 @@ ApplicationWindow {
     }
     Connections {
         target: backend
+        function onLanguageChanged(code) {
+            uiLanguage = String(code || "de")
+        }
         function onThumbnailReady(path, thumbUrl) {
             updateThumbnail(path, thumbUrl)
         }
@@ -1972,7 +1991,7 @@ ApplicationWindow {
                     border.color: theme.accentPrimary
                     Text {
                         anchors.centerIn: parent
-                        text: darkTheme ? "Light" : "Dark"
+                        text: darkTheme ? qsTr("Hell") : qsTr("Dunkel")
                         color: theme.accentPrimaryText
                         font.pixelSize: baseFont
                     }
@@ -1980,6 +1999,24 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: darkTheme = !darkTheme
+                    }
+                }
+
+                Rectangle { // Language toggle
+                    radius: 6
+                    height: compactButtonHeight
+                    color: theme.smallButtonBg
+                    border.color: theme.smallButtonBorder
+                    implicitWidth: 120
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("Sprache") + ": " + uiLanguage.toUpperCase()
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: toggleUiLanguage()
                     }
                 }
 
@@ -1992,7 +2029,7 @@ ApplicationWindow {
                     
                     Text {
                         anchors.centerIn: parent
-                        text: "Projects " + (projectsBrowserVisible ? "ON" : "OFF")
+                        text: qsTr("Projekte") + " " + (projectsBrowserVisible ? qsTr("AN") : qsTr("AUS"))
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -2012,7 +2049,7 @@ ApplicationWindow {
                     
                     Text {
                         anchors.centerIn: parent
-                        text: "Templates " + (templatesBrowserVisible ? "ON" : "OFF")
+                        text: qsTr("Vorlagen") + " " + (templatesBrowserVisible ? qsTr("AN") : qsTr("AUS"))
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -2031,7 +2068,7 @@ ApplicationWindow {
                     implicitWidth: 160
                     Text {
                         anchors.centerIn: parent
-                        text: "Files 50%"
+                        text: qsTr("Dateien 50%")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
