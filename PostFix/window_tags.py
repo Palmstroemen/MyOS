@@ -15,7 +15,6 @@ try:
         load_tag_registry,
         save_tag_registry,
         flatten_tag_colors,
-        lighten_hex,
         assign_tag_color_in_registry,
     )
 except ImportError:
@@ -26,7 +25,6 @@ except ImportError:
         load_tag_registry,
         save_tag_registry,
         flatten_tag_colors,
-        lighten_hex,
         assign_tag_color_in_registry,
     )
 
@@ -75,9 +73,6 @@ class WindowTagsMixin:
 
     def _flatten_tag_colors(self) -> dict[str, str]:
         return flatten_tag_colors(self._app_json_data)
-
-    def _lighten_hex(self, color_hex: str, factor: float = 0.72) -> str:
-        return lighten_hex(color_hex, factor)
 
     def _assign_tag_color_in_registry(self, tag: str, color_hex: str) -> bool:
         return assign_tag_color_in_registry(self._app_json_data, tag, color_hex)

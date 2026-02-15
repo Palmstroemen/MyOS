@@ -310,21 +310,12 @@ class ScopeApi:
         try:
             if not path.exists():
                 return None
-            
+
             content = path.read_text(encoding="utf-8")
-            
-            # Debug: Siehst du das?
-            print(f"DEBUG _read_color_file: {path}")
-            print(f"DEBUG content: {repr(content)}")
-            
-            # Extrahiere die Farbe
             color = self._extract_color(content)
-            
-            print(f"DEBUG extracted: {repr(color)}")
             return color
-            
-        except Exception as e:
-            print(f"DEBUG error: {e}")
+
+        except Exception:
             return None
 
     def _extract_color(self, text: str) -> Optional[str]:

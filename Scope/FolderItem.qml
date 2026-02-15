@@ -316,7 +316,7 @@ Rectangle {
                 (mouse.modifiers & Qt.ShiftModifier) !== 0
             )
         }
-        onDoubleClicked: {
+        onDoubleClicked: function(mouse) {
             if (renaming) return
             if (!root.hitAcceptsPoint(mouse.x, mouse.y)) {
                 mouse.accepted = false
