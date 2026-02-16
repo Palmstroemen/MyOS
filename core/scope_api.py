@@ -9,6 +9,7 @@ import shutil
 import json
 from typing import List, Optional, Dict, Any
 from core.tags import read_tags
+from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 
 try:
@@ -103,6 +104,7 @@ class ScopeApi:
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
         self._set_project_root(find_project_root(self.start_path))
+        self._configure_acl_from_env()
 
     def _set_project_root(self, root: Optional[Path]) -> None:
         self.project_root = root
@@ -125,6 +127,7 @@ class ScopeApi:
         root = find_project_root(target)
         if root != self.project_root:
             self._set_project_root(root)
+            self._configure_acl_from_env()
 
     def _resolve_path(self, path: str) -> Path:
         return Path(path).expanduser().resolve()
@@ -176,6 +179,44 @@ class ScopeApi:
                 handle.write(encoded)
         except Exception:
             return
+
+    def _configure_acl_from_env(self) -> None:
+        mode = str(os.environ.get("MYOS_ACL_MODE") or "off").strip().lower()
+        if mode not in {"off", "monitor", "enforce"}:
+            mode = "off"
+
+        if mode == "off":
+            self._acl_enforcement = None
+            self._acl_audit_file = None
+            return
+
+        backend = str(os.environ.get("MYOS_ACL_BACKEND") or "auto").strip().lower() or "auto"
+        if backend not in {"auto", "legacy", "casbin"}:
+            backend = "auto"
+
+        root = self.project_root or self.start_path
+        try:
+            authorizer = ACLAuthorizer.from_project(root, backend=backend)
+        except Exception:
+            self._acl_enforcement = None
+            self._acl_audit_file = None
+            return
+
+        self._acl_enforcement = ACLEnforcementService(authorizer, mode=mode)
+
+        audit_path = str(os.environ.get("MYOS_ACL_AUDIT_FILE") or "").strip()
+        audit_enabled = str(os.environ.get("MYOS_ACL_AUDIT") or "").strip().lower() in {"1", "true", "yes", "on"}
+        try:
+            max_bytes = int(str(os.environ.get("MYOS_ACL_AUDIT_MAX_BYTES") or "262144").strip())
+        except Exception:
+            max_bytes = 262_144
+
+        if audit_path:
+            self.set_acl_audit_file(audit_path, max_bytes=max_bytes)
+        elif audit_enabled:
+            self.set_acl_audit_file(None, max_bytes=max_bytes)
+        else:
+            self._acl_audit_file = None
 
     def _on_acl_audit_event(self, event: Dict[str, Any]) -> None:
         # // Security: bound in-memory audit buffer to avoid unbounded growth.
