@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import Qt.labs.folderlistmodel 2.15
+import "Theme/tag_chips.js" as TagChips
 
 ApplicationWindow {
     id: window
@@ -99,7 +100,7 @@ ApplicationWindow {
     property int fileItemsChunk: 160
     property bool hasMyosInCwp: false
     property bool hasProjectInCwp: false
-    property string tagFilterSource: "project" // project | visible
+    property string tagFilterSource: "visible" // project | visible
     property var availableTags: []
     property var selectedTags: []
     property string tagMatchMode: "or" // or | and
@@ -117,6 +118,9 @@ ApplicationWindow {
     property var pendingBatchRenamePaths: []
     property string pendingBatchReplaceFrom: ""
     property string pendingBatchReplaceTo: ""
+    property string pendingOpenWithPath: ""
+    property string pendingOpenWithCommand: "xdg-open"
+    property var openWithQuickCommands: ["xdg-open", "code", "libreoffice"]
     property string selectionAnchorPath: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
@@ -927,19 +931,64 @@ ApplicationWindow {
         fileItemsOffset = end
     }
 
-    function openFileEntry(name) {
-        var fullPath = name.indexOf("/") === 0 ? name : (cwp + "/" + name)
-        var lower = fullPath.toLowerCase()
+    function openFilePath(fullPath) {
+        var resolved = String(fullPath || "").trim()
+        if (!resolved) {
+            return
+        }
+        var lower = resolved.toLowerCase()
         if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
             var backendAvailable = hasBackend()
             var openMarkdownType = backendAvailable ? typeof backend.openMarkdown : "n/a"
-            console.log("[scope] openFileEntry", fullPath, "backend", backendAvailable, "openMarkdown", openMarkdownType)
+            console.log("[scope] openFilePath", resolved, "backend", backendAvailable, "openMarkdown", openMarkdownType)
         }
         if (lower.endsWith(".md") && hasBackend() && typeof backend.openMarkdown === "function") {
-            backend.openMarkdown(fullPath)
+            backend.openMarkdown(resolved)
             return
         }
-        Qt.openUrlExternally(toFileUrl(fullPath))
+        Qt.openUrlExternally(toFileUrl(resolved))
+    }
+
+    function openFileEntry(name) {
+        var fullPath = name.indexOf("/") === 0 ? name : (cwp + "/" + name)
+        openFilePath(fullPath)
+    }
+
+    function requestOpenWith(path) {
+        pendingOpenWithPath = String(path || "").trim()
+        if (!pendingOpenWithPath) {
+            return
+        }
+        pendingOpenWithDialog.open()
+    }
+
+    function performOpenWith(path, command) {
+        var target = String(path || "").trim()
+        var cmd = String(command || "").trim()
+        if (!target || !cmd) {
+            return false
+        }
+        var ok = false
+        if (hasBackend() && typeof backend.openWith === "function") {
+            ok = backend.openWith(target, cmd)
+        }
+        if (ok) {
+            pendingOpenWithCommand = cmd
+            var next = []
+            next.push(cmd)
+            for (var i = 0; i < openWithQuickCommands.length; i++) {
+                var value = String(openWithQuickCommands[i] || "").trim()
+                if (!value || value === cmd) {
+                    continue
+                }
+                next.push(value)
+                if (next.length >= 4) {
+                    break
+                }
+            }
+            openWithQuickCommands = next
+        }
+        return ok
     }
 
     function updateFiles() {
@@ -1501,7 +1550,7 @@ ApplicationWindow {
             clip: true
             Rectangle {
                 anchors.fill: parent
-                radius: 4
+                radius: TagChips.CHIP_RADIUS_COMPACT
                 color: theme.card
                 border.color: theme.pillBorder
                 opacity: searchActive ? 1 : 0
@@ -1607,6 +1656,114 @@ ApplicationWindow {
             wrapMode: Text.WordWrap
             color: dialogTextStrong
             font.pixelSize: baseFont
+        }
+    }
+
+    Dialog {
+        id: pendingOpenWithDialog
+        title: qsTr("Oeffnen mit ...")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(460, Math.round(window.width * 0.34))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(pendingOpenWithDialog, Dialog.Ok, qsTr("Oeffnen"))
+            _setDialogButtonText(pendingOpenWithDialog, Dialog.Cancel, qsTr("Abbrechen"))
+            openWithCommandInput.forceActiveFocus()
+            openWithCommandInput.selectAll()
+        }
+        onAccepted: {
+            var ok = performOpenWith(pendingOpenWithPath, openWithCommandInput.text)
+            if (!ok) {
+                moveReportMessage = qsTr("Konnte Datei nicht mit dem gewaehlten Programm oeffnen.")
+                moveReportDialog.open()
+            }
+            pendingOpenWithPath = ""
+        }
+        onRejected: pendingOpenWithPath = ""
+        contentItem: Column {
+            spacing: 8
+            Text {
+                text: qsTr("Programmkommando fuer \"%1\":").arg(_basename(pendingOpenWithPath))
+                wrapMode: Text.WordWrap
+                color: dialogTextStrong
+                font.pixelSize: baseFont
+            }
+            TextField {
+                id: openWithCommandInput
+                text: pendingOpenWithCommand
+                placeholderText: qsTr("z.B. code, kate, libreoffice")
+                selectByMouse: true
+                color: dialogInputText
+                placeholderTextColor: dialogInputPlaceholder
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 12
+                rightPadding: 12
+                background: Rectangle {
+                    radius: 12
+                    color: dialogInputBg
+                    border.color: dialogInputBorder
+                    border.width: 2
+                }
+                onTextChanged: pendingOpenWithCommand = text
+                Keys.onReturnPressed: pendingOpenWithDialog.accept()
+                Keys.onEnterPressed: pendingOpenWithDialog.accept()
+                Keys.onEscapePressed: pendingOpenWithDialog.reject()
+            }
+            Text {
+                text: qsTr("Schnellwahl:")
+                color: dialogTextMuted
+                font.pixelSize: Math.max(baseFont - 1, 11)
+                visible: openWithQuickCommands && openWithQuickCommands.length > 0
+            }
+            Flow {
+                width: parent.width
+                spacing: 6
+                visible: openWithQuickCommands && openWithQuickCommands.length > 0
+                Repeater {
+                    model: openWithQuickCommands
+                    delegate: Rectangle {
+                        required property var modelData
+                        radius: 8
+                        height: Math.max(28, Math.round(baseFont * 1.8))
+                        width: quickText.implicitWidth + 20
+                        color: dialogInputBg
+                        border.color: dialogInputBorder
+                        border.width: 1
+                        Text {
+                            id: quickText
+                            anchors.centerIn: parent
+                            text: String(modelData || "")
+                            color: dialogInputText
+                            font.pixelSize: Math.max(baseFont - 1, 11)
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                var value = String(modelData || "").trim()
+                                if (!value) {
+                                    return
+                                }
+                                openWithCommandInput.text = value
+                                openWithCommandInput.forceActiveFocus()
+                                openWithCommandInput.selectAll()
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1919,7 +2076,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 spacing: 8
                 Rectangle { // Theme Switch
-                    radius: 6
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
                     color: theme.accentPrimary
                     border.color: theme.accentPrimary
@@ -1937,7 +2094,7 @@ ApplicationWindow {
                 }
 
                 Rectangle { // Language toggle
-                    radius: 6
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
@@ -1955,7 +2112,7 @@ ApplicationWindow {
                 }
 
                 Rectangle { // Projects browser visibility toggle
-                    radius: 6
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
                     color: projectsBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: projectsBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
@@ -1975,7 +2132,7 @@ ApplicationWindow {
                 }
                 
                 Rectangle { // Templates browser visibility toggle
-                    radius: 6
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
                     color: templatesBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: templatesBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
@@ -1995,7 +2152,7 @@ ApplicationWindow {
                 }
 
                 Rectangle { // Files panel opacity toggle
-                    radius: 6
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
                     color: filesPanelHalfTransparent ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: filesPanelHalfTransparent ? theme.smallButtonActiveBorder : theme.smallButtonBorder
@@ -2023,7 +2180,7 @@ ApplicationWindow {
                 ColumnLayout { // Layout PH_TH   
                     id: case_PH_TH
                     anchors.fill: parent
-                    spacing: 6
+                    spacing: 0
                     visible: false
                     Item { id: slotTemplates_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
                     Item { id: slotProjects_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
@@ -2039,7 +2196,7 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        spacing: 6
+                        spacing: 0
                         Item { id: slotProjects_PV_TH; Layout.fillWidth: false; Layout.fillHeight: true }
                         Item { id: slotFiles_PV_TH; Layout.fillWidth: true; Layout.fillHeight: true }
                     }
@@ -2049,7 +2206,7 @@ ApplicationWindow {
                 ColumnLayout { // Layout PH_TV
                     id: case_PH_TV
                     anchors.fill: parent
-                    spacing: 12
+                    spacing: 0
                     visible: false
                     Item { id: slotProjects_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
                     RowLayout {
@@ -2312,6 +2469,7 @@ ApplicationWindow {
             smallButtonText: theme.smallButtonText
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
+            uPanelTintColor: projectsBrowser.currentPathFillColor
             projectTintOpacity: 0.75
             showMyosButton: window.hasProjectInCwp
             showCreateProject: !window.hasProjectInCwp
@@ -2345,6 +2503,12 @@ ApplicationWindow {
             }
             onFileActivated: function(name) {
                 openFileEntry(name)
+            }
+            onOpenRequested: function(path) {
+                openFilePath(path)
+            }
+            onOpenWithRequested: function(path) {
+                requestOpenWith(path)
             }
             onOpenMyosFolder: {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp

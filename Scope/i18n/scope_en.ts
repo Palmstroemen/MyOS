@@ -249,5 +249,54 @@ Failed: %3</translation>
         <source>Dateien 50%</source>
         <translation>Files 50%</translation>
     </message>
+    <message>
+        <location filename="../main.qml" line="1724"/>
+        <source>Schnellwahl:</source>
+        <translation>Quick choices:</translation>
+    </message>
+</context>
+<context>
+    <name>FilesPanel</name>
+    <message>
+        <location filename="../FilesPanel.qml" line="613"/>
+        <source>Notiz erstellen</source>
+        <translation>Create Note</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="618"/>
+        <location filename="../FilesPanel.qml" line="663"/>
+        <source>In neuen Ordner verschieben</source>
+        <translation>Move into New Folder</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="628"/>
+        <source>Oeffnen</source>
+        <translation>Open</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="633"/>
+        <source>Oeffnen mit ...</source>
+        <translation>Open with ...</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="639"/>
+        <source>Alle markieren</source>
+        <translation>Select all</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="645"/>
+        <source>Umbenennen</source>
+        <translation>Rename</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="657"/>
+        <source>Loeschen</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="304"/>
+        <source>U-Farbmix</source>
+        <translation>U color mix</translation>
+    </message>
 </context>
 </TS>

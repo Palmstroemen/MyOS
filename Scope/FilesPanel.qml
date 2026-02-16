@@ -1,6 +1,8 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "Theme/tag_chips.js" as TagChips
+import "Theme/panel_colors.js" as PanelColors
 
 Rectangle { // Files panel
     id: root
@@ -20,6 +22,8 @@ Rectangle { // Files panel
     property color smallButtonText: "#b4bac6"
     property color projectTint: "#7b5bd6"
     property color projectTintBorder: "#7b5bd6"
+    property color uPanelTintColor: projectTint
+    property real uPanelTintMix: 0.65
     property real projectTintOpacity: 1.0
     property bool allowDrags: true
     property bool halfTransparent: false
@@ -27,7 +31,7 @@ Rectangle { // Files panel
     property var availableTags: []
     property var selectedTags: []
     property var selectedPaths: []
-    property string tagSource: "project"
+    property string tagSource: "visible"
     property real templatesBrowserWidth: 0
     property real projectsBrowserWidth: 0
     property string iconFolder: ""
@@ -52,10 +56,24 @@ Rectangle { // Files panel
     property int topRightIconSize: Math.round(topRightButtonSize * 0.84)
     property int gridSpacing: 8
     property int prefetchThreshold: 200
+    property int chipRadiusMedium: TagChips.CHIP_RADIUS_MEDIUM
+    property int tagChipRadius: TagChips.TAG_CHIP_RADIUS
+    property int tagChipMinHeight: TagChips.TAG_CHIP_MIN_HEIGHT
+    property real tagChipHeightFactor: TagChips.TAG_CHIP_HEIGHT_FACTOR
+    property real tagChipSelectedFillAlpha: TagChips.TAG_CHIP_SELECTED_FILL_ALPHA
+    property real tagChipIdleFillAlpha: TagChips.TAG_CHIP_IDLE_FILL_ALPHA
+    property real tagChipSelectedBorderAlpha: TagChips.TAG_CHIP_SELECTED_BORDER_ALPHA
+    property real tagChipIdleBorderAlpha: TagChips.TAG_CHIP_IDLE_BORDER_ALPHA
+    property real tagFilterIdleBgAlpha: TagChips.TAG_FILTER_IDLE_BG_ALPHA
+    property real filesPanelOverlayAlpha: 0.20
+    property int sideMixControlHeight: Math.max(54, compactButtonHeight + 22)
+    readonly property real uPanelLuma: (0.2126 * backgroundColor.r) + (0.7152 * backgroundColor.g) + (0.0722 * backgroundColor.b)
+    readonly property color uPanelColor: PanelColors.uPanelColor(showMyosButton, backgroundColor, uPanelTintColor, uPanelTintMix)
+    readonly property color filesPanelOverlayColor: PanelColors.filesOverlayColor(uPanelLuma, filesPanelOverlayAlpha)
 
-    radius: 8
-    color: backgroundColor
-    border.color: pillBorder
+    radius: 0
+    color: root.uPanelColor
+    border.width: 0
     implicitWidth: 0
     implicitHeight: 0
     opacity: halfTransparent ? 0.5 : 1
@@ -72,6 +90,8 @@ Rectangle { // Files panel
     signal renameRequested(var paths)
     signal deleteRequested(var paths)
     signal selectAllRequested()
+    signal openRequested(string path)
+    signal openWithRequested(string path)
 
     onShowFoldersChanged: filterChanged(showFolders)
 
@@ -180,188 +200,231 @@ Rectangle { // Files panel
         itemContextMenu.open()
     }
 
-    Column {
-        id: cornerButtons
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: 8
-        anchors.rightMargin: 8
-        spacing: 6
-        z: 2
-
-        Rectangle {
-            radius: 6
-            width: root.topRightButtonSize
-            height: root.topRightButtonSize
-            color: Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, root.projectTintOpacity)
-            border.color: Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, root.projectTintOpacity)
-            visible: root.showCreateProject
-            Text {
-                anchors.centerIn: parent
-                text: "P"
-                color: "#ffffff"
-                font.pixelSize: Math.round(root.baseFont * 0.9)
-                font.bold: true
-            }
-            MouseArea {
-                anchors.fill: parent
-                onClicked: root.createProject()
-            }
-        }
-
-        Rectangle {
-            radius: 6
-            width: root.topRightButtonSize
-            height: root.topRightButtonSize
-            color: root.smallButtonBg
-            border.color: root.smallButtonBorder
-            visible: root.showMyosButton
-            Image {
-                anchors.centerIn: parent
-                source: root.iconGear
-                width: root.topRightIconSize
-                height: root.topRightIconSize
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: width
-                sourceSize.height: height
-            }
-            MouseArea {
-                anchors.fill: parent
-                onClicked: root.openMyosFolder()
-            }
-        }
-
-        Rectangle {
-            radius: 6
-            width: root.topRightButtonSize
-            height: root.topRightButtonSize
-            color: root.showFolders ? root.smallButtonActiveBg : root.smallButtonBg
-            border.color: root.showFolders ? root.smallButtonActiveBorder : root.smallButtonBorder
-            Image {
-                anchors.centerIn: parent
-                source: root.showFolders ? root.iconFolder : root.iconFolderOff
-                width: root.topRightIconSize
-                height: root.topRightIconSize
-                fillMode: Image.PreserveAspectFit
-                sourceSize.width: width
-                sourceSize.height: height
-            }
-            Text {
-                anchors.centerIn: parent
-                visible: root.showFolders
-                text: "X"
-                color: "#e53935"
-                font.bold: true
-                font.pixelSize: Math.max(14, Math.round(root.topRightButtonSize * 0.70))
-            }
-            MouseArea {
-                anchors.fill: parent
-                onClicked: root.showFolders = !root.showFolders
-            }
-        }
-    }
-
     Rectangle {
-        id: tagBar
-        anchors.top: cornerButtons.bottom
+        id: sidePanel
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         anchors.right: parent.right
-        anchors.topMargin: 8
-        anchors.rightMargin: 8
-        width: Math.max(96, Math.min(180, Math.round(parent.width * 0.22)))
-        height: Math.max(80, parent.height - cornerButtons.height - 24)
-        visible: (root.availableTags && root.availableTags.length > 0)
-        radius: 8
-        color: Qt.rgba(root.panelAlt.r, root.panelAlt.g, root.panelAlt.b, 0.36)
-        border.color: Qt.rgba(root.pillBorder.r, root.pillBorder.g, root.pillBorder.b, 0.6)
+        anchors.topMargin: 10
+        anchors.bottomMargin: 10
+        anchors.rightMargin: 10
+        width: Math.max(110, Math.min(210, Math.round(parent.width * 0.22)))
+        radius: 0
+        border.width: 0
+        color: Qt.rgba(root.panelAlt.r, root.panelAlt.g, root.panelAlt.b, 0.20)
         z: 2
 
         Column {
             anchors.fill: parent
-            anchors.margins: 6
-            spacing: 6
+            anchors.margins: 8
+            spacing: 8
 
             Row {
                 width: parent.width
                 spacing: 6
 
                 Rectangle {
-                    width: (parent.width - 6) / 2
-                    height: root.compactButtonHeight
-                    radius: 6
-                    color: root.tagSource === "project" ? root.smallButtonActiveBg : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.65)
-                    border.color: root.tagSource === "project" ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, root.projectTintOpacity)
+                    border.color: Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, root.projectTintOpacity)
+                    visible: root.showCreateProject
                     Text {
                         anchors.centerIn: parent
-                        text: "Project"
-                        color: root.smallButtonText
-                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                        text: "P"
+                        color: "#ffffff"
+                        font.pixelSize: Math.round(root.baseFont * 0.9)
+                        font.bold: true
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: root.requestTagSourceChange("project")
+                        onClicked: root.createProject()
                     }
                 }
 
                 Rectangle {
-                    width: (parent.width - 6) / 2
-                    height: root.compactButtonHeight
-                    radius: 6
-                    color: root.tagSource === "visible" ? root.smallButtonActiveBg : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.65)
-                    border.color: root.tagSource === "visible" ? root.smallButtonActiveBorder : root.smallButtonBorder
-                    Text {
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: root.smallButtonBg
+                    border.color: root.smallButtonBorder
+                    visible: root.showMyosButton
+                    Image {
                         anchors.centerIn: parent
-                        text: "Visible"
-                        color: root.smallButtonText
-                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                        source: root.iconGear
+                        width: root.topRightIconSize
+                        height: root.topRightIconSize
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize.width: width
+                        sourceSize.height: height
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: root.requestTagSourceChange("visible")
+                        onClicked: root.openMyosFolder()
+                    }
+                }
+
+                Rectangle {
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: root.showFolders ? root.smallButtonActiveBg : root.smallButtonBg
+                    border.color: root.showFolders ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    Image {
+                        anchors.centerIn: parent
+                        source: root.showFolders ? root.iconFolder : root.iconFolderOff
+                        width: root.topRightIconSize
+                        height: root.topRightIconSize
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize.width: width
+                        sourceSize.height: height
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        visible: root.showFolders
+                        text: "X"
+                        color: "#e53935"
+                        font.bold: true
+                        font.pixelSize: Math.max(14, Math.round(root.topRightButtonSize * 0.70))
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.showFolders = !root.showFolders
                     }
                 }
             }
 
-            Flickable {
+            Rectangle {
                 width: parent.width
-                height: parent.height - root.compactButtonHeight - 6
-                contentWidth: width
-                contentHeight: tagsColumn.height
-                clip: true
+                height: root.sideMixControlHeight
+                radius: root.tagChipRadius
+                border.width: 0
+                color: Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.25)
 
                 Column {
-                    id: tagsColumn
-                    width: parent.width
+                    anchors.fill: parent
+                    anchors.margins: 6
                     spacing: 4
+                    Text {
+                        text: qsTr("U-Farbmix") + ": " + Math.round(root.uPanelTintMix * 100) + "%"
+                        color: root.smallButtonText
+                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.78))
+                        elide: Text.ElideRight
+                    }
+                    Slider {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        from: 0.0
+                        to: 1.0
+                        stepSize: 0.01
+                        value: root.uPanelTintMix
+                        onMoved: root.uPanelTintMix = value
+                        onValueChanged: root.uPanelTintMix = value
+                    }
+                }
+            }
 
-                    Repeater {
-                        model: root.availableTags ? root.availableTags : []
-                        delegate: Rectangle {
-                            width: tagsColumn.width
-                            height: Math.max(22, Math.round(root.compactButtonHeight * 0.84))
-                            radius: 6
-                            readonly property string tagValue: modelData
-                            readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
-                            color: selected
-                                ? Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, 0.70)
-                                : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.45)
-                            border.color: selected
-                                ? Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, 0.9)
-                                : Qt.rgba(root.smallButtonBorder.r, root.smallButtonBorder.g, root.smallButtonBorder.b, 0.7)
+            Rectangle {
+                width: parent.width
+                height: Math.max(80, parent.height - root.topRightButtonSize - root.sideMixControlHeight - 28)
+                radius: 0
+                border.width: 0
+                color: "transparent"
+                visible: (root.availableTags && root.availableTags.length > 0)
 
+                Column {
+                    anchors.fill: parent
+                    spacing: 6
+
+                    Row {
+                        width: parent.width
+                        spacing: 6
+
+                        Rectangle {
+                            width: (parent.width - 6) / 2
+                            height: root.compactButtonHeight
+                            radius: root.tagChipRadius
+                            color: root.tagSource === "project"
+                                ? root.smallButtonActiveBg
+                                : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, root.tagFilterIdleBgAlpha)
+                            border.color: root.tagSource === "project" ? root.smallButtonActiveBorder : root.smallButtonBorder
                             Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                anchors.left: parent.left
-                                anchors.leftMargin: 8
-                                anchors.right: parent.right
-                                anchors.rightMargin: 6
-                                text: "#" + tagValue
-                                color: selected ? "#ffffff" : root.textMuted
+                                anchors.centerIn: parent
+                                text: qsTr("Project")
+                                color: root.smallButtonText
                                 font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
-                                elide: Text.ElideRight
                             }
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: root.tagToggled(parent.tagValue)
+                                onClicked: root.requestTagSourceChange("project")
+                            }
+                        }
+
+                        Rectangle {
+                            width: (parent.width - 6) / 2
+                            height: root.compactButtonHeight
+                            radius: root.tagChipRadius
+                            color: root.tagSource === "visible"
+                                ? root.smallButtonActiveBg
+                                : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, root.tagFilterIdleBgAlpha)
+                            border.color: root.tagSource === "visible" ? root.smallButtonActiveBorder : root.smallButtonBorder
+                            Text {
+                                anchors.centerIn: parent
+                                text: qsTr("Visible")
+                                color: root.smallButtonText
+                                font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.requestTagSourceChange("visible")
+                            }
+                        }
+                    }
+
+                    Flickable {
+                        width: parent.width
+                        height: parent.height - root.compactButtonHeight - 6
+                        contentWidth: width
+                        contentHeight: tagsColumn.height
+                        clip: true
+
+                        Column {
+                            id: tagsColumn
+                            width: parent.width
+                            spacing: 4
+
+                            Repeater {
+                                model: root.availableTags ? root.availableTags : []
+                                delegate: Rectangle {
+                                    width: tagsColumn.width
+                                    height: Math.max(root.tagChipMinHeight, Math.round(root.compactButtonHeight * root.tagChipHeightFactor))
+                                    radius: root.tagChipRadius
+                                    readonly property string tagValue: modelData
+                                    readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
+                                    color: selected
+                                        ? Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, root.tagChipSelectedFillAlpha)
+                                        : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, root.tagChipIdleFillAlpha)
+                                    border.color: selected
+                                        ? Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, root.tagChipSelectedBorderAlpha)
+                                        : Qt.rgba(root.smallButtonBorder.r, root.smallButtonBorder.g, root.smallButtonBorder.b, root.tagChipIdleBorderAlpha)
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: 8
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 6
+                                        text: "#" + tagValue
+                                        color: selected ? "#ffffff" : root.textMuted
+                                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                                        elide: Text.ElideRight
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: root.tagToggled(parent.tagValue)
+                                    }
+                                }
                             }
                         }
                     }
@@ -370,12 +433,28 @@ Rectangle { // Files panel
         }
     }
 
+    Rectangle {
+        id: filesPanelSurface
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: sidePanel.left
+        anchors.leftMargin: 16
+        anchors.topMargin: 16
+        anchors.bottomMargin: 16
+        anchors.rightMargin: 10
+        radius: 12
+        color: root.filesPanelOverlayColor
+        border.width: 0
+        z: 1
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.leftMargin: 16
         anchors.topMargin: 16
         anchors.bottomMargin: 16
-        anchors.rightMargin: tagBar.visible ? (tagBar.width + 16) : 16
+        anchors.rightMargin: sidePanel.width + 20
         spacing: 8
 
         GridView {
@@ -427,7 +506,11 @@ Rectangle { // Files panel
                     if (model.isDir) {
                         root.folderActivated(model.name)
                     } else {
-                        root.fileActivated(model.name)
+                        if (itemPath && itemPath.length > 0) {
+                            root.openRequested(itemPath)
+                        } else {
+                            root.fileActivated(model.name)
+                        }
                     }
                 }
                 DropArea {
@@ -562,6 +645,15 @@ Rectangle { // Files panel
                     selectionOverlay.marqueeActive = false
                 }
 
+                onDoubleClicked: function(mouse) {
+                    var idx = filesGrid.indexAt(mouse.x + filesGrid.contentX, mouse.y + filesGrid.contentY)
+                    if (idx >= 0) {
+                        mouse.accepted = false
+                        return
+                    }
+                    mouse.accepted = true
+                }
+
                 onCanceled: {
                     filesGrid.interactive = true
                     selectionOverlay.marqueeActive = false
@@ -586,12 +678,12 @@ Rectangle { // Files panel
         id: filesContextMenu
 
         MenuItem {
-            text: "Create Note"
+            text: qsTr("Notiz erstellen")
             onTriggered: root.createNoteRequested()
         }
         MenuSeparator {}
         MenuItem {
-            text: "Move into New Folder"
+            text: qsTr("In neuen Ordner verschieben")
             enabled: root.selectedPaths && root.selectedPaths.length > 1
             onTriggered: root.moveSelectedIntoNewFolderRequested(root.selectedPaths)
         }
@@ -601,13 +693,24 @@ Rectangle { // Files panel
         id: itemContextMenu
 
         MenuItem {
-            text: "Alle markieren"
+            text: qsTr("Oeffnen")
+            enabled: (!root.contextTargetIsDir && root.contextTargetFileSelection.length === 1)
+            onTriggered: root.openRequested(root.contextTargetFileSelection[0])
+        }
+        MenuItem {
+            text: qsTr("Oeffnen mit ...")
+            enabled: (!root.contextTargetIsDir && root.contextTargetFileSelection.length === 1)
+            onTriggered: root.openWithRequested(root.contextTargetFileSelection[0])
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Alle markieren")
             enabled: root.itemsModel && root.itemsModel.count > 0
             onTriggered: root.selectAllRequested()
         }
         MenuSeparator {}
         MenuItem {
-            text: "Rename"
+            text: qsTr("Umbenennen")
             enabled: (!root.contextTargetIsDir && root.contextTargetSelection.length === 1)
                      || (root.contextTargetFileSelection.length > 1)
             onTriggered: {
@@ -619,13 +722,13 @@ Rectangle { // Files panel
             }
         }
         MenuItem {
-            text: "Delete"
+            text: qsTr("Loeschen")
             enabled: root.contextTargetFileSelection.length > 0
             onTriggered: root.deleteRequested(root.contextTargetFileSelection)
         }
         MenuSeparator {}
         MenuItem {
-            text: "Move into New Folder"
+            text: qsTr("In neuen Ordner verschieben")
             enabled: root.contextTargetSelection.length > 1
             onTriggered: root.moveSelectedIntoNewFolderRequested(root.contextTargetSelection)
         }

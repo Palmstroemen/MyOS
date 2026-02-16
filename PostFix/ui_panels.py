@@ -17,6 +17,28 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
 )
 
+try:
+    from Theme.tag_chips import build_tag_chip_stylesheet
+except Exception:  # pragma: no cover - runtime fallback
+    def build_tag_chip_stylesheet(background: str, foreground: str) -> str:
+        return f"""
+            QPushButton {{
+                background-color: {background};
+                color: {foreground};
+                border: 1px solid rgba(0, 0, 0, 60);
+                border-top-left-radius: 2px;
+                border-bottom-left-radius: 2px;
+                border-top-right-radius: 12px;
+                border-bottom-right-radius: 12px;
+                text-align: right;
+                padding: 4px 8px;
+                margin: 3px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid rgba(0, 0, 0, 95);
+            }}
+        """
+
 
 class SidebarWidget(QWidget):
     """Base class for sidebars with fade-in/fade-out on hover."""
@@ -171,50 +193,14 @@ class TagSidebar(SidebarWidget):
             btn.singleClicked.connect(lambda k=key, v=value: self.colorDefinitionSearchRequested.emit(k, v))
             btn.doubleClicked.connect(lambda k=key, v=value: self._pick_color_definition(k, v))
             btn.setToolTip(self.tr("Klick: naechster Treffer | Doppelklick: Farbe aendern"))
-            btn.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background-color: {chip_bg};
-                    color: {chip_fg};
-                    border: 1px solid rgba(0, 0, 0, 60);
-                    border-top-left-radius: 2px;
-                    border-bottom-left-radius: 2px;
-                    border-top-right-radius: 12px;
-                    border-bottom-right-radius: 12px;
-                    text-align: right;
-                    padding: 4px 8px;
-                    margin: 3px;
-                }}
-                QPushButton:hover {{
-                    border: 2px solid rgba(0, 0, 0, 95);
-                }}
-            """
-            )
+            btn.setStyleSheet(build_tag_chip_stylesheet(chip_bg, chip_fg))
             layout.addWidget(btn)
 
         for tag in self.tags:
             chip_bg = self._tag_colors.get(tag, "#ffd54f")
             chip_fg = self._text_color_for_bg(chip_bg)
             btn = ChipButton(f"#{tag}")
-            btn.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background-color: {chip_bg};
-                    color: {chip_fg};
-                    border: 1px solid rgba(0, 0, 0, 60);
-                    border-top-left-radius: 2px;
-                    border-bottom-left-radius: 2px;
-                    border-top-right-radius: 12px;
-                    border-bottom-right-radius: 12px;
-                    text-align: right;
-                    padding: 4px 8px;
-                    margin: 3px;
-                }}
-                QPushButton:hover {{
-                    border: 2px solid rgba(0, 0, 0, 95);
-                }}
-            """
-            )
+            btn.setStyleSheet(build_tag_chip_stylesheet(chip_bg, chip_fg))
             btn.singleClicked.connect(lambda t=tag: self.tagSearchRequested.emit(t))
             btn.doubleClicked.connect(lambda t=tag: self._pick_tag_color(t))
             btn.setCursor(Qt.PointingHandCursor)

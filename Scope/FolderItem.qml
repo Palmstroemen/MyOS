@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import "Theme/tag_chips.js" as TagChips
 
 Rectangle {
     id: root
@@ -27,6 +28,7 @@ Rectangle {
     property bool largeIconAlignLeft: false
     property bool dragEnabled: false
     property string dragPayload: ""
+    property bool flatBottomCorners: false
     signal activate(bool ctrlPressed, bool shiftPressed)
     signal doubleActivate()
     signal contextMenuRequested(real x, real y, bool ctrlPressed)
@@ -97,10 +99,48 @@ Rectangle {
         return head + "...\n..." + tail
     }
 
-    radius: 6
+    radius: TagChips.CHIP_RADIUS_MEDIUM
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
     border.color: strokeColor
+
+    Rectangle {
+        // Optional "tab" mode: visually flatten lower corners.
+        visible: root.flatBottomCorners && root.radius > 0
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: root.radius
+        color: root.fillColor
+        border.width: 0
+    }
+    Rectangle {
+        visible: root.flatBottomCorners
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 1
+        color: root.strokeColor
+        z: 2
+    }
+    Rectangle {
+        visible: root.flatBottomCorners
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        width: 1
+        height: Math.max(1, root.radius)
+        color: root.strokeColor
+        z: 2
+    }
+    Rectangle {
+        visible: root.flatBottomCorners
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 1
+        height: Math.max(1, root.radius)
+        color: root.strokeColor
+        z: 2
+    }
 
     DragHandler {
         id: dragHandler

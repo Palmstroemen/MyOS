@@ -100,7 +100,15 @@ def open_with_xdg(target: str) -> int:
 def open_with_postfix(file_path: Path) -> int:
     if POSTFIX_PATH.exists():
         try:
-            subprocess.Popen([sys.executable, str(POSTFIX_PATH), str(file_path)])
+            env = os.environ.copy()
+            repo = str(REPO_ROOT)
+            existing = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = repo if not existing else (repo + os.pathsep + existing)
+            subprocess.Popen(
+                [sys.executable, "-m", "PostFix.main", str(file_path)],
+                cwd=repo,
+                env=env,
+            )
             return 0
         except OSError:
             return open_with_xdg(str(file_path))

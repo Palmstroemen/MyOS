@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "Theme/tag_chips.js" as TagChips
 
 Item { // ROOT
     id: root
@@ -73,6 +74,13 @@ Item { // ROOT
     property real pathProjectOpacity: 0.7
     property real folderProjectOpacity: 0.55
     property real embryoOpacity: 0.4
+    readonly property color currentPathFillColor: {
+        var custom = pathColorFunction ? pathColorFunction(path, true) : null
+        if (custom && custom.fill !== undefined) {
+            return custom.fill
+        }
+        return accentPrimary
+    }
 
     signal pathSegmentActivated(int index)
     signal pathSelected(string path)
@@ -104,6 +112,8 @@ Item { // ROOT
     property bool verticalWidthUpdatePending: false
     property int contentHeight: 0
     property bool contentHeightUpdatePending: false
+    property int cwdTabDrop: 4
+    property int cwdVerticalRightOverflow: 10
 
     TextMetrics {
         id: labelMetrics
@@ -503,8 +513,16 @@ Item { // ROOT
     Rectangle { // buttonsPool (dynamic)
         anchors.fill: parent
         color: panelColor
-        border.color: panelBorderColor
-        radius: 8
+        border.width: 0
+        radius: 0
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: panelBorderColor
+            opacity: 0.45
+        }
         Item {
             id: buttonsPool
             visible: false
@@ -530,7 +548,7 @@ Item { // ROOT
                     visible: showSearchToggle
                     width: compactButtonHeight
                     height: compactButtonHeight
-                    radius: 4
+                    radius: TagChips.CHIP_RADIUS_COMPACT
                     color: pill
                     border.color: pillBorder
                     Image {
@@ -545,49 +563,58 @@ Item { // ROOT
                         onClicked: toggleSearch()
                     }
                 }
-                Repeater {  // VERTICAL: style buttons (t, G, k)
-                    model: showStyleToggle ? [
-                        { label: "t", style: "text" },
-                        { label: "G", style: "largeIcon" },
-                        { label: "k", style: "smallIcon" }
-                    ] : []
-                    delegate: Rectangle {
-                        width: compactButtonHeight
-                        height: compactButtonHeight
-                        radius: 4
-                        property bool isActive: buttonStyle === modelData.style
-                        color: isActive ? accentSecondary : pill
-                        border.color: isActive ? accentSecondaryBorder : pillBorder
-                        visible: allowLargeIcons || modelData.style !== "largeIcon"
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.label
-                            color: textSoft
-                            font.pixelSize: baseFont
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: styleChanged(modelData.style)
-                        }
-                    }
-                }
-                Rectangle { // VERTICAL: embryo toggle (E)
-                    visible: showEmbryoToggle
+                Rectangle { // VERTICAL: display options menu (style + embryos)
+                    visible: showStyleToggle || showEmbryoToggle
                     width: compactButtonHeight
                     height: compactButtonHeight
-                    radius: 4
-                    color: showEmbryos ? accentSecondary : pill
-                    border.color: showEmbryos ? accentSecondaryBorder : pillBorder
+                    radius: TagChips.CHIP_RADIUS_COMPACT
+                    color: pill
+                    border.color: pillBorder
                     Text {
                         anchors.centerIn: parent
-                        text: "E"
+                        text: "\u2630"
                         color: textSoft
                         font.pixelSize: baseFont
                         font.bold: true
                     }
+                    Menu {
+                        id: verticalDisplayMenu
+                        y: parent ? parent.height + 4 : 0
+                        MenuItem {
+                            text: qsTr("t Text")
+                            visible: showStyleToggle
+                            checkable: true
+                            checked: buttonStyle === "text"
+                            onTriggered: styleChanged("text")
+                        }
+                        MenuItem {
+                            text: qsTr("G Gross")
+                            visible: showStyleToggle && allowLargeIcons
+                            checkable: true
+                            checked: buttonStyle === "largeIcon"
+                            onTriggered: styleChanged("largeIcon")
+                        }
+                        MenuItem {
+                            text: qsTr("k Klein")
+                            visible: showStyleToggle
+                            checkable: true
+                            checked: buttonStyle === "smallIcon"
+                            onTriggered: styleChanged("smallIcon")
+                        }
+                        MenuSeparator {
+                            visible: showStyleToggle && showEmbryoToggle
+                        }
+                        MenuItem {
+                            text: qsTr("E Embryos")
+                            visible: showEmbryoToggle
+                            checkable: true
+                            checked: showEmbryos
+                            onTriggered: toggleEmbryos()
+                        }
+                    }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: toggleEmbryos()
+                        onClicked: verticalDisplayMenu.popup()
                     }
                 }
             }
@@ -597,9 +624,9 @@ Item { // ROOT
             id: mainColumn
             anchors.fill: parent
             anchors.leftMargin: 6
-            anchors.rightMargin: 6
+            anchors.rightMargin: verticalView ? 0 : 6
             anchors.topMargin: 3
-            anchors.bottomMargin: 3
+            anchors.bottomMargin: verticalView ? 3 : 0
             spacing: 4
 
             RowLayout { // HORIZONTAL: row 1 (path + folders + right buttons)
@@ -618,7 +645,7 @@ Item { // ROOT
                     visible: showModeToggle
                     width: compactButtonHeight
                     height: compactButtonHeight
-                    radius: 4
+                    radius: TagChips.CHIP_RADIUS_COMPACT
                     color: smallButtonBg
                     border.color: smallButtonBorder
                     Layout.alignment: Qt.AlignTop
@@ -653,6 +680,7 @@ Item { // ROOT
                             delegate: FolderItem {
                                 property bool isCurrent: index === (pathPartsDisplay().length - 1)
                                 property string fullPathForSegment: fullPathForDisplayIndex(index)
+                                y: isCurrent ? root.cwdTabDrop : 0
                                 label: itemName(modelData)
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
@@ -667,6 +695,7 @@ Item { // ROOT
                                 strokeColor: customColors ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
                                 textColor: isCurrent ? accentPrimaryText : text
                                 textSize: baseFont
+                                flatBottomCorners: isCurrent
                                 renaming: false
                                 renameEnabled: false
                                 onActivate: pathSegmentActivated(index)
@@ -811,7 +840,7 @@ Item { // ROOT
                             visible: showSearchToggle && searchActive && !verticalView
                             width: 200
                             height: compactButtonHeight
-                            radius: 4
+                            radius: TagChips.CHIP_RADIUS_COMPACT
                             color: card
                             border.color: pillBorder
                             TextField {
@@ -849,7 +878,7 @@ Item { // ROOT
                             visible: showSearchToggle
                             width: compactButtonHeight
                             height: compactButtonHeight
-                            radius: 4
+                            radius: TagChips.CHIP_RADIUS_COMPACT
                             color: pill
                             border.color: pillBorder
                             Image {
@@ -864,49 +893,58 @@ Item { // ROOT
                                 onClicked: toggleSearch()
                             }
                         }
-                        Repeater { // HORIZONTAL: style buttons (t, G, k)
-                            model: showStyleToggle ? [
-                                { label: "t", style: "text" },
-                                { label: "G", style: "largeIcon" },
-                                { label: "k", style: "smallIcon" }
-                            ] : []
-                            delegate: Rectangle {
-                                width: compactButtonHeight
-                                height: compactButtonHeight
-                                radius: 4
-                                property bool isActive: buttonStyle === modelData.style
-                                color: isActive ? accentSecondary : pill
-                                border.color: isActive ? accentSecondaryBorder : pillBorder
-                                visible: allowLargeIcons || modelData.style !== "largeIcon"
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.label
-                                    color: textSoft
-                                    font.pixelSize: baseFont
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: styleChanged(modelData.style)
-                                }
-                            }
-                        }
-                        Rectangle { // HORIZONTAL: embryo toggle (E)
-                            visible: showEmbryoToggle
+                        Rectangle { // HORIZONTAL: display options menu (style + embryos)
+                            visible: showStyleToggle || showEmbryoToggle
                             width: compactButtonHeight
                             height: compactButtonHeight
-                            radius: 4
-                            color: showEmbryos ? accentSecondary : pill
-                            border.color: showEmbryos ? accentSecondaryBorder : pillBorder
+                            radius: TagChips.CHIP_RADIUS_COMPACT
+                            color: pill
+                            border.color: pillBorder
                             Text {
                                 anchors.centerIn: parent
-                                text: "E"
+                                text: "\u2630"
                                 color: textSoft
                                 font.pixelSize: baseFont
                                 font.bold: true
                             }
+                            Menu {
+                                id: horizontalDisplayMenu
+                                y: parent ? parent.height + 4 : 0
+                                MenuItem {
+                                    text: qsTr("t Text")
+                                    visible: showStyleToggle
+                                    checkable: true
+                                    checked: buttonStyle === "text"
+                                    onTriggered: styleChanged("text")
+                                }
+                                MenuItem {
+                                    text: qsTr("G Gross")
+                                    visible: showStyleToggle && allowLargeIcons
+                                    checkable: true
+                                    checked: buttonStyle === "largeIcon"
+                                    onTriggered: styleChanged("largeIcon")
+                                }
+                                MenuItem {
+                                    text: qsTr("k Klein")
+                                    visible: showStyleToggle
+                                    checkable: true
+                                    checked: buttonStyle === "smallIcon"
+                                    onTriggered: styleChanged("smallIcon")
+                                }
+                                MenuSeparator {
+                                    visible: showStyleToggle && showEmbryoToggle
+                                }
+                                MenuItem {
+                                    text: qsTr("E Embryos")
+                                    visible: showEmbryoToggle
+                                    checkable: true
+                                    checked: showEmbryos
+                                    onTriggered: toggleEmbryos()
+                                }
+                            }
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: toggleEmbryos()
+                                onClicked: horizontalDisplayMenu.popup()
                             }
                         }
                     }
@@ -919,11 +957,12 @@ Item { // ROOT
                 visible: verticalView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: 12
+                spacing: 0
                 Item {
                     id: verticalMainColumnHost
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    z: 2
                     ColumnLayout { // VERTICAL mainColumn
                         id: verticalMainColumn
                         anchors.fill: parent
@@ -947,7 +986,7 @@ Item { // ROOT
                             visible: showModeToggle
                             width: compactButtonHeight
                             height: compactButtonHeight
-                            radius: 4
+                            radius: TagChips.CHIP_RADIUS_COMPACT
                             color: smallButtonBg
                             border.color: smallButtonBorder
                             Layout.alignment: Qt.AlignTop
@@ -979,7 +1018,7 @@ Item { // ROOT
                         Layout.preferredHeight: compactButtonHeight
                         Rectangle {
                             anchors.fill: parent
-                            radius: 4
+                            radius: TagChips.CHIP_RADIUS_COMPACT
                             color: card
                             border.color: pillBorder
                             TextField {
@@ -1088,7 +1127,8 @@ Item { // ROOT
             
                     FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
-                        width: parent.width
+                        width: (verticalContentRow ? verticalContentRow.width : parent.width) + root.cwdVerticalRightOverflow
+                        z: 8
                         property string currentFullPath: path
                         property var currentPathColors: getPathSegmentColor(currentFullPath, true)
                         
@@ -1121,6 +1161,7 @@ Item { // ROOT
                         textColor: accentPrimaryText
                         textSize: baseFont + 1
                         textBold: true
+                        flatBottomCorners: true
                         renaming: false
                         renameEnabled: false
                         onActivate: {}
@@ -1244,6 +1285,7 @@ Item { // ROOT
                     Layout.minimumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
                     Layout.maximumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
                     Layout.fillHeight: true
+                    z: 1
                     ColumnLayout { // VERTICAL: right column for folders
                         id: verticalRightColumn
                         anchors.fill: parent
@@ -1251,9 +1293,17 @@ Item { // ROOT
                         Rectangle { // Grey header 
                             Layout.fillWidth: true
                             Layout.preferredHeight: compactButtonHeight
-                            border.color: theme.smallButtonBorder
-                            color: theme.smallButtonBg
-                            radius: 4
+                            border.width: 0
+                            color: smallButtonBg
+                            radius: 0
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: 1
+                                color: smallButtonBorder
+                                opacity: 0.45
+                            }
                         }
                         Flickable { // VERTICAL: folders list (right column)
                             Layout.fillWidth: true

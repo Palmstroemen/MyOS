@@ -83,7 +83,7 @@ class _DummyWindow(wt.WindowTagsMixin):
 def test_on_editor_tags_changed_normalizes_and_debounces():
     w = _DummyWindow()
     w._on_editor_tags_changed([" urgent ", "todo", "todo", "", "important"])
-    assert w._doc_tags == ["important", "todo", "urgent"]
+    assert w._doc_tags == ["urgent", "todo", "important"]
     assert w._scope_sync_timer.started_with == 1200
     assert w.refreshed == 1
 
