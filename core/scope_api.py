@@ -116,6 +116,7 @@ class ScopeApi:
         self.start_path = Path(start_path).expanduser().resolve()
         self.project_root = None
         self.blueprint = None
+        self._blueprint_cache: Dict[str, Optional[Any]] = {}
         self._color_cache: Dict[str, Optional[str]] = {}
         self._root_default_project_color: Optional[str] = None
         self._acl_enforcement: Optional[ACLEnforcementService] = None
@@ -134,6 +135,7 @@ class ScopeApi:
         if self.project_root and Blueprint is not None:
             try:
                 self.blueprint = Blueprint(self.project_root)
+                self._blueprint_cache[str(self.project_root)] = self.blueprint
             except Exception:
                 self.blueprint = None
         if self.project_root:
@@ -156,6 +158,54 @@ class ScopeApi:
 
     def _resolve_path(self, path: str) -> Path:
         return Path(path).expanduser().resolve()
+
+    def _resolve_context_for_target(self, target: Path) -> tuple[Optional[Path], Optional[Any]]:
+        root = find_project_root(target)
+        if not root:
+            return None, None
+        if self.project_root and root == self.project_root:
+            return self.project_root, self.blueprint
+        if Blueprint is None:
+            return root, None
+        key = str(root)
+        if key in self._blueprint_cache:
+            return root, self._blueprint_cache[key]
+        try:
+            bp = Blueprint(root)
+        except Exception:
+            bp = None
+        self._blueprint_cache[key] = bp
+        return root, bp
+
+    def _resolve_template_color_for_context(self, blueprint: Any, rel_path: str, name: str) -> Optional[str]:
+        if not blueprint:
+            return None
+        parts = [p for p in rel_path.split("/") if p]
+        parts.append(name)
+        for template_name in blueprint.template_names:
+            base = blueprint.templates_dir / template_name
+            candidate = base.joinpath(*parts)
+            if not candidate.exists():
+                continue
+            color = self._find_color_upwards(candidate, base)
+            if color:
+                return color
+        return None
+
+    def _resolve_project_color_with_root(self, path: Path, root: Optional[Path]) -> Optional[str]:
+        if not path or not path.is_dir():
+            return None
+        if not root or not is_within(path, root):
+            return self._resolve_project_color(path)
+        current = path
+        while True:
+            color = self._resolve_direct_project_color(current)
+            if color:
+                return color
+            if current == root or current == current.parent:
+                break
+            current = current.parent
+        return None
 
     def _resolve_dir(self, path: str) -> Optional[Path]:
         try:
@@ -290,43 +340,57 @@ class ScopeApi:
             return None
 
     def list_children(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
-        target = self._resolve_dir(path)
-        if target is None:
-            return []
-        self._acl_probe("read_dir", target)
-        entries: List[FolderEntry] = []
-        parent_color = self._resolve_project_color(target)
         try:
-            for child in sorted(target.iterdir()):
-                if child.name.startswith("."):
-                    continue
-                if child.is_dir():
-                    acl_child = self._acl_probe("read_dir", child)
-                    if acl_child and acl_child.enforced and not acl_child.allowed:
-                        continue
-                    is_project = self.is_project(str(child))
-                    project_color = self._resolve_effective_project_color(child) if is_project else None
-                    entries.append(
-                        self._build_folder_entry(
-                            name=child.name,
-                            is_project=is_project,
-                            is_embryo=False,
-                            color=project_color,
-                        )
-                    )
+            target = self._resolve_path(path)
         except Exception:
             return []
+        context_root, context_blueprint = self._resolve_context_for_target(target)
+        can_list_dirs = target.is_dir()
+        can_list_virtual_embryos = bool(
+            include_embryos
+            and context_blueprint
+            and context_root
+            and is_within(target, context_root)
+        )
+        if not can_list_dirs and not can_list_virtual_embryos:
+            return []
+        if can_list_dirs:
+            self._acl_probe("read_dir", target)
+        entries: List[FolderEntry] = []
+        parent_for_color = target if can_list_dirs else target.parent
+        parent_color = self._resolve_project_color_with_root(parent_for_color, context_root)
+        if can_list_dirs:
+            try:
+                for child in sorted(target.iterdir()):
+                    if child.name.startswith("."):
+                        continue
+                    if child.is_dir():
+                        acl_child = self._acl_probe("read_dir", child)
+                        if acl_child and acl_child.enforced and not acl_child.allowed:
+                            continue
+                        is_project = self.is_project(str(child))
+                        project_color = self._resolve_effective_project_color(child) if is_project else None
+                        entries.append(
+                            self._build_folder_entry(
+                                name=child.name,
+                                is_project=is_project,
+                                is_embryo=False,
+                                color=project_color,
+                            )
+                        )
+            except Exception:
+                return []
 
-        if include_embryos and self.blueprint and self.project_root and is_within(target, self.project_root):
-            rel = "" if target == self.project_root else str(target.relative_to(self.project_root))
-            embryos = self.blueprint.get_embryos_at(rel)
+        if can_list_virtual_embryos:
+            rel = "" if target == context_root else str(target.relative_to(context_root))
+            embryos = context_blueprint.get_embryos_at(rel)
             for name in embryos:
                 if not any(item["name"] == name for item in entries):
                     embryo_path = target / name
                     acl_embryo = self._acl_probe("read_dir", embryo_path)
                     if acl_embryo and acl_embryo.enforced and not acl_embryo.allowed:
                         continue
-                    embryo_color = self._resolve_template_color(rel, name)
+                    embryo_color = self._resolve_template_color_for_context(context_blueprint, rel, name)
                     entries.append(
                         self._build_folder_entry(
                             name=name,
@@ -340,29 +404,40 @@ class ScopeApi:
         return entries
 
     def list_templates(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
-        target = self._resolve_dir(path)
-        if target is None:
+        try:
+            target = self._resolve_path(path)
+        except Exception:
             return []
-        self._acl_probe("read_templates", target)
+        context_root, context_blueprint = self._resolve_context_for_target(target)
+        can_list_virtual_embryos = bool(
+            include_embryos
+            and context_blueprint
+            and context_root
+            and is_within(target, context_root)
+        )
+        if not can_list_virtual_embryos:
+            return []
+        if target.is_dir():
+            self._acl_probe("read_templates", target)
         debug = os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}
         if not include_embryos:
             if debug:
                 print(f"[scope_api] list_templates: include_embryos=False -> []")
             return []
-        if not self.blueprint or not self.project_root or not is_within(target, self.project_root):
+        if not context_blueprint or not context_root or not is_within(target, context_root):
             if debug:
                 print(
-                    f"[scope_api] list_templates: blueprint={bool(self.blueprint)} "
-                    f"project_root={self.project_root} target={target} -> []"
+                    f"[scope_api] list_templates: blueprint={bool(context_blueprint)} "
+                    f"project_root={context_root} target={target} -> []"
                 )
             return []
-        rel = "" if target == self.project_root else str(target.relative_to(self.project_root))
+        rel = "" if target == context_root else str(target.relative_to(context_root))
         try:
-            parent_color = self._resolve_project_color(target)
-            embryos = sorted(self.blueprint.get_embryos_at(rel))
+            parent_color = self._resolve_project_color_with_root(target, context_root)
+            embryos = sorted(context_blueprint.get_embryos_at(rel))
             result = []
             for name in embryos:
-                embryo_color = self._resolve_template_color(rel, name)
+                embryo_color = self._resolve_template_color_for_context(context_blueprint, rel, name)
                 result.append(
                     self._build_folder_entry(
                         name=name,
@@ -373,7 +448,7 @@ class ScopeApi:
                 )
             if debug:
                 print(
-                    f"[scope_api] list_templates: rel='{rel}' templates={self.blueprint.template_names} "
+                    f"[scope_api] list_templates: rel='{rel}' templates={context_blueprint.template_names} "
                     f"result={[item['name'] for item in result]}"
                 )
             return result

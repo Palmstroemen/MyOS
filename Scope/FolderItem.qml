@@ -20,6 +20,7 @@ Rectangle {
     property int largeTextSize: textSize
     property bool textBold: false
     property bool largeTextBold: textBold
+    property bool dimmedStyle: false
     property int textYOffset: 0
     property bool renaming: false
     property bool renameEnabled: false
@@ -118,6 +119,20 @@ Rectangle {
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
     border.color: strokeColor
+
+    Rectangle {
+        // Selected-tab overlay: subtle white fade from top to bottom.
+        visible: root.dimmedStyle
+        anchors.fill: parent
+        radius: root.radius
+        border.width: 0
+        color: "transparent"
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.15) }
+            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+        }
+    }
 
     Rectangle {
         // Optional "tab" mode: visually flatten lower corners.

@@ -117,11 +117,13 @@ Item { // ROOT
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
     property bool previewEnabled: true
-    property bool previewFocusBackground: false
+    property bool previewFocusBackground: true
+    // anchor: current behavior, hybrid: keep anchor but shift left to reduce early wrapping
+    property string previewLayoutMode: "hybrid"
     property var previewRows: []
     property var previewActivePaths: []
     property var previewAnchorCenters: []
-    property real previewDimOpacity: 1.0
+    property real previewDimOpacity: 0.5
     property bool previewDebugBg: false
     property int previewRowSpacing: 1
     property real previewShadeSliderMix: 0.65
@@ -239,6 +241,24 @@ Item { // ROOT
         return folderButtonFill
     }
 
+    function embryoAlphaForPath(level, fullPath) {
+        var base = embryoOpacity
+        if (isPreviewPathActive(level, fullPath)) {
+            return 1.0
+        }
+        if (isPreviewDimmed(level, fullPath)) {
+            return Math.min(base, previewDimOpacity)
+        }
+        return base
+    }
+
+    function folderFillColorForPath(item, level, fullPath) {
+        if (itemIsEmbryo(item)) {
+            return colorWithAlpha(item.color, embryoAlphaForPath(level, fullPath), projectTint)
+        }
+        return folderFillColor(item)
+    }
+
     function folderStrokeColor(item) {
         if (itemIsProject(item)) {
             if (item && item.color) {
@@ -250,6 +270,13 @@ Item { // ROOT
             return colorWithAlpha(item.color, embryoOpacity, projectTintBorder)
         }
         return folderButtonBorder
+    }
+
+    function folderStrokeColorForPath(item, level, fullPath) {
+        if (itemIsEmbryo(item)) {
+            return colorWithAlpha(item.color, embryoAlphaForPath(level, fullPath), projectTintBorder)
+        }
+        return folderStrokeColor(item)
     }
 
     function currentRowHeight() {
@@ -340,6 +367,14 @@ Item { // ROOT
             return ""
         }
         return String(previewActivePaths[level] || "")
+    }
+
+    function isPreviewDimmed(level, fullPath) {
+        var activePath = previewPathForLevel(level)
+        if (activePath.length === 0) {
+            return false
+        }
+        return !isPreviewPathActive(level, fullPath)
     }
 
     function _debugPreviewBgState(label) {
@@ -965,6 +1000,19 @@ Item { // ROOT
                             checked: previewFocusBackground
                             onTriggered: previewFocusBackground = !previewFocusBackground
                         }
+                        MenuSeparator {}
+                        MenuItem {
+                            text: qsTr("Vorschau Layout: Anchor")
+                            checkable: true
+                            checked: previewLayoutMode === "anchor"
+                            onTriggered: previewLayoutMode = "anchor"
+                        }
+                        MenuItem {
+                            text: qsTr("Vorschau Layout: Hybrid")
+                            checkable: true
+                            checked: previewLayoutMode === "hybrid"
+                            onTriggered: previewLayoutMode = "hybrid"
+                        }
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -1049,6 +1097,7 @@ Item { // ROOT
                                 strokeColor: customColors ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
                                 textColor: isCurrent ? accentPrimaryText : text
                                 textSize: baseFont
+                                dimmedStyle: isCurrent
                                 flatBottomCorners: isCurrent
                                 renaming: false
                                 renameEnabled: false
@@ -1143,8 +1192,8 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
-                                fillColor: folderFillColor(modelData)
-                                strokeColor: folderStrokeColor(modelData)
+                                fillColor: folderFillColorForPath(modelData, 0, fullPath)
+                                strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: textSoft
                                 textSize: baseFont
                                 dragEnabled: allowDrags && !itemIsEmbryo(modelData)
@@ -1152,9 +1201,9 @@ Item { // ROOT
                                 tabHoverDropEnabled: true
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
-                                opacity: (root.previewPathForLevel(0).length > 0 && !root.isPreviewPathActive(0, fullPath))
-                                    ? root.previewDimOpacity
-                                    : 1.0
+                                textBold: root.isPreviewPathActive(0, fullPath)
+                                dimmedStyle: root.isPreviewPathActive(0, fullPath)
+                                opacity: root.isPreviewDimmed(0, fullPath) ? root.previewDimOpacity : 1.0
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
@@ -1316,6 +1365,19 @@ Item { // ROOT
                                     checkable: true
                                     checked: previewFocusBackground
                                     onTriggered: previewFocusBackground = !previewFocusBackground
+                                }
+                                MenuSeparator {}
+                                MenuItem {
+                                    text: qsTr("Vorschau Layout: Anchor")
+                                    checkable: true
+                                    checked: previewLayoutMode === "anchor"
+                                    onTriggered: previewLayoutMode = "anchor"
+                                }
+                                MenuItem {
+                                    text: qsTr("Vorschau Layout: Hybrid")
+                                    checkable: true
+                                    checked: previewLayoutMode === "hybrid"
+                                    onTriggered: previewLayoutMode = "hybrid"
                                 }
                             }
                             MouseArea {
@@ -1537,6 +1599,7 @@ Item { // ROOT
                         textColor: accentPrimaryText
                         textSize: baseFont + 1
                         textBold: true
+                        dimmedStyle: true
                         flatBottomCorners: true
                         renaming: false
                         renameEnabled: false
@@ -1618,8 +1681,8 @@ Item { // ROOT
                                     iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
                                     iconSource: iconFolder
-                                    fillColor: folderFillColor(modelData)
-                                    strokeColor: folderStrokeColor(modelData)
+                                    fillColor: folderFillColorForPath(modelData, 0, fullPath)
+                                    strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                     textColor: textSoft
                                     textSize: baseFont
                                         textLeftInset: effectiveStyle() === "text" ? 8 : 0
@@ -1709,8 +1772,8 @@ Item { // ROOT
                                         iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
                                         iconSource: iconFolder
-                                        fillColor: folderFillColor(modelData)
-                                        strokeColor: folderStrokeColor(modelData)
+                                        fillColor: folderFillColorForPath(modelData, 0, fullPath)
+                                        strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                         textColor: textSoft
                                         textSize: baseFont
                                         textLeftInset: effectiveStyle() === "text" ? 8 : 0
@@ -1774,8 +1837,8 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconFolder
-                                fillColor: folderFillColor(modelData)
-                                strokeColor: folderStrokeColor(modelData)
+                                fillColor: folderFillColorForPath(modelData, 0, fullPath)
+                                strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: textSoft
                                 textSize: baseFont
                                 dragEnabled: allowDrags && !itemIsEmbryo(modelData)
@@ -1783,9 +1846,9 @@ Item { // ROOT
                                 tabHoverDropEnabled: true
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
-                                opacity: (root.previewPathForLevel(0).length > 0 && !root.isPreviewPathActive(0, fullPath))
-                                    ? root.previewDimOpacity
-                                    : 1.0
+                                textBold: root.isPreviewPathActive(0, fullPath)
+                                dimmedStyle: root.isPreviewPathActive(0, fullPath)
+                                opacity: root.isPreviewDimmed(0, fullPath) ? root.previewDimOpacity : 1.0
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
@@ -1877,11 +1940,37 @@ Item { // ROOT
                                 var first = previewFlowRepeater.itemAt(0)
                                 return first ? first.width : 120
                             }
-                            readonly property real desiredStartX: {
+                            readonly property real contentWidthEstimate: {
+                                var count = previewFlowRepeater.count
+                                if (count <= 0) {
+                                    return 0
+                                }
+                                var total = 0
+                                for (var i = 0; i < count; i++) {
+                                    var button = previewFlowRepeater.itemAt(i)
+                                    total += button ? button.width : 120
+                                    if (i > 0) {
+                                        total += previewFlow.spacing
+                                    }
+                                }
+                                return total
+                            }
+                            readonly property real anchorStartX: {
                                 if (anchorCenterX < 0) return 1
                                 var proposed = anchorCenterX - (firstButtonWidth / 2)
                                 var maxStart = Math.max(1, parent.width * 0.45)
                                 return Math.max(1, Math.min(maxStart, proposed))
+                            }
+                            readonly property real maxStartForSingleRow: {
+                                // Left-shift just enough to keep as many items as possible in the current row.
+                                return Math.max(1, parent.width - contentWidthEstimate - 1)
+                            }
+                            readonly property real desiredStartX: {
+                                if (root.previewLayoutMode === "anchor") {
+                                    return anchorStartX
+                                }
+                                // hybrid (default): keep anchor feel, but shift left to avoid premature wrapping.
+                                return Math.max(1, Math.min(anchorStartX, maxStartForSingleRow))
                             }
                             x: desiredStartX
                             y: 1
@@ -1906,8 +1995,8 @@ Item { // ROOT
                                     iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
                                     iconSource: iconFolder
-                                    fillColor: folderFillColor(modelData)
-                                    strokeColor: folderStrokeColor(modelData)
+                                    fillColor: folderFillColorForPath(modelData, previewLevel + 1, fullPath)
+                                    strokeColor: folderStrokeColorForPath(modelData, previewLevel + 1, fullPath)
                                     textColor: textSoft
                                     textSize: baseFont
                                     dragEnabled: allowDrags && !itemIsEmbryo(modelData)
@@ -1917,10 +2006,9 @@ Item { // ROOT
                                     tabHoverDropEnabled: true
                                     tabHoverDropPx: root.previewTabDropPx
                                     tabPinned: root.isPreviewPathActive(previewLevel + 1, fullPath)
-                                    opacity: (root.previewPathForLevel(previewLevel + 1).length > 0
-                                        && !root.isPreviewPathActive(previewLevel + 1, fullPath))
-                                        ? root.previewDimOpacity
-                                        : 1.0
+                                    textBold: root.isPreviewPathActive(previewLevel + 1, fullPath)
+                                    dimmedStyle: root.isPreviewPathActive(previewLevel + 1, fullPath)
+                                    opacity: root.isPreviewDimmed(previewLevel + 1, fullPath) ? root.previewDimOpacity : 1.0
                                     onActivate: folderActivated(fullPath)
                                     onHoverEntered: {
                                         var center = mapToItem(previewStack, width / 2, height / 2).x
