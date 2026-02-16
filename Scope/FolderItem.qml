@@ -29,8 +29,14 @@ Rectangle {
     property bool dragEnabled: false
     property string dragPayload: ""
     property bool flatBottomCorners: false
+    property bool tabHoverDropEnabled: false
+    property int tabHoverDropPx: 7
+    readonly property bool hoverActive: hitArea.containsMouse
+    property bool tabPinned: false
+    property real tabDropOffset: (tabHoverDropEnabled && (hoverActive || tabPinned)) ? tabHoverDropPx : 0
     signal activate(bool ctrlPressed, bool shiftPressed)
     signal doubleActivate()
+    signal hoverEntered()
     signal contextMenuRequested(real x, real y, bool ctrlPressed)
     signal renameRequested()
     signal renameTextEdited(string text)
@@ -100,6 +106,15 @@ Rectangle {
     }
 
     radius: TagChips.CHIP_RADIUS_MEDIUM
+    transform: [
+        Translate { y: root.tabDropOffset }
+    ]
+    Behavior on tabDropOffset {
+        NumberAnimation {
+            duration: 170
+            easing.type: Easing.OutCubic
+        }
+    }
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
     border.color: strokeColor
@@ -339,8 +354,10 @@ Rectangle {
     }
 
     MouseArea {
+        id: hitArea
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        hoverEnabled: true
         onClicked: function(mouse) {
             if (renaming) return
             if (!root.hitAcceptsPoint(mouse.x, mouse.y)) {
@@ -363,6 +380,12 @@ Rectangle {
                 return
             }
             root.doubleActivate()
+        }
+        onEntered: root.hoverEntered()
+        onPositionChanged: function(mouse) {
+            if (tabHoverDropEnabled && containsMouse && !renaming) {
+                root.hoverEntered()
+            }
         }
         onPressAndHold: {
             if (renameEnabled) root.renameRequested()

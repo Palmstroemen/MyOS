@@ -2255,6 +2255,7 @@ ApplicationWindow {
             allowDrags: true
             allowDrops: true
             folders: standardFoldersFiltered
+            childrenProvider: function(targetPath) { return listTemplates(targetPath) }
             verticalView: level2VerticalView
             buttonStyle: level2ButtonStyle
             allowLargeIcons: true
@@ -2271,6 +2272,7 @@ ApplicationWindow {
             iconFolder: window.iconFolder
             iconSearch: window.iconSearch
             indent: 30
+            previewShadeSliderMix: filesPane.uPanelTintMix
             panelColor: theme.panelAlt
             panelBorderColor: theme.pillBorder
             accentPrimary: theme.accentPrimary
@@ -2329,6 +2331,7 @@ ApplicationWindow {
             visible: projectsBrowserVisible
             path: cwp
             folders: subProjects
+            childrenProvider: function(targetPath) { return listChildren(targetPath) }
             showEmbryos: window.projectsShowEmbryos
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
@@ -2356,6 +2359,7 @@ ApplicationWindow {
             iconFolder: window.iconFolder
             iconSearch: window.iconSearch
             indent: 30
+            previewShadeSliderMix: filesPane.uPanelTintMix
             panelColor: theme.panel
             panelBorderColor: theme.pillBorder
             accentPrimary: theme.accentPrimary

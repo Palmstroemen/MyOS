@@ -11,7 +11,7 @@ Item { // ROOT
     property int verticalMaxWidth: 560
     property int horizontalPreferredHeight: compactButtonHeight * 2 + (searchActive ? (compactButtonHeight + 8) : 0) + 12
     property int verticalPreferredHeight: 360
-    implicitWidth: visible ? verticalAutoWidth : 0
+    implicitWidth: visible ? (verticalView ? verticalAutoWidth : horizontalPreferredWidth) : 0
     implicitHeight: visible ? contentHeight : 0
     property string path: "/"
     property string pathDisplayPrefix: ""
@@ -113,11 +113,19 @@ Item { // ROOT
     property bool verticalWidthUpdatePending: false
     property int contentHeight: 0
     property bool contentHeightUpdatePending: false
+    property bool contentHeightSettlePending: false
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
-    property bool previewEnabled: false
+    property bool previewEnabled: true
     property var previewRows: []
-    property int previewRowSpacing: 6
+    property var previewActivePaths: []
+    property int previewRowSpacing: 1
+    property real previewShadeSliderMix: 0.65
+    readonly property real previewRowShadeMix: Math.max(0, Math.min(1, 1 - previewShadeSliderMix))
+    property int previewExpandDurationMs: 300
+    property int previewCollapseDurationMs: 700
+    property int contentHeightAnimDurationMs: 110
+    property int previewTabDropPx: 4
     property string previewLastHoverKey: ""
 
     TextMetrics {
@@ -181,6 +189,22 @@ Item { // ROOT
         var base = normalizeColor(value) || normalizeColor(fallback)
         if (!base) return Qt.rgba(1, 1, 1, alpha)
         return Qt.rgba(base.r, base.g, base.b, alpha)
+    }
+
+    function blendColors(topColor, bottomColor, mix) {
+        var top = normalizeColor(topColor)
+        var bottom = normalizeColor(bottomColor)
+        var t = Math.max(0, Math.min(1, Number(mix)))
+        if (!top && !bottom) return panelColor
+        if (!top) return Qt.rgba(bottom.r, bottom.g, bottom.b, 1)
+        if (!bottom) return Qt.rgba(top.r, top.g, top.b, 1)
+        var inv = 1 - t
+        return Qt.rgba(
+            top.r * inv + bottom.r * t,
+            top.g * inv + bottom.g * t,
+            top.b * inv + bottom.b * t,
+            1
+        )
     }
 
     function folderFillColor(item) {
@@ -255,7 +279,7 @@ Item { // ROOT
         var top = topRow ? topRow.implicitHeight : 0
         var bottom = (bottomRow && bottomRow.visible) ? (bottomRow.implicitHeight + mainColumn.spacing) : 0
         var preview = (previewStack && previewStack.visible)
-            ? (previewStack.implicitHeight + mainColumn.spacing)
+            ? (previewStack.height + mainColumn.spacing)
             : 0
         return Math.round(top + bottom + preview + 12)
     }
@@ -264,9 +288,56 @@ Item { // ROOT
         if (contentHeightUpdatePending) return
         contentHeightUpdatePending = true
         Qt.callLater(function() {
-            contentHeight = calculateContentHeight()
             contentHeightUpdatePending = false
+            var h1 = calculateContentHeight()
+            if (contentHeight !== h1) {
+                contentHeight = h1
+            }
+            // QML layout/implicitHeight can settle one tick later after repeater/model churn.
+            // Run one additional pass to avoid stale geometry states.
+            if (contentHeightSettlePending) {
+                return
+            }
+            contentHeightSettlePending = true
+            Qt.callLater(function() {
+                contentHeightSettlePending = false
+                var h2 = calculateContentHeight()
+                if (contentHeight !== h2) {
+                    contentHeight = h2
+                }
+            })
         })
+    }
+
+    function isPreviewPathActive(level, fullPath) {
+        if (!previewActivePaths || level < 0 || level >= previewActivePaths.length) {
+            return false
+        }
+        return String(previewActivePaths[level] || "") === String(fullPath || "")
+    }
+
+    function _samePathArray(a, b) {
+        if (a === b) {
+            return true
+        }
+        if (!a || !b || a.length !== b.length) {
+            return false
+        }
+        for (var i = 0; i < a.length; i++) {
+            if (String(a[i] || "") !== String(b[i] || "")) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function _setPreviewActivePath(level, basePath) {
+        var nextActive = previewActivePaths.slice(0, level)
+        nextActive.push(basePath)
+        if (_samePathArray(previewActivePaths, nextActive)) {
+            return
+        }
+        previewActivePaths = nextActive
     }
 
     onVerticalButtonsOnSecondLineChanged: {
@@ -279,9 +350,11 @@ Item { // ROOT
         if (verticalButtonsSlotTop) {
             setButtonsParent(verticalButtonsPanel, verticalButtonsSlotTop)
         }
+        resetPreview()
         scheduleVerticalLayoutUpdate()
         scheduleVerticalWidthUpdate()
         scheduleContentHeightUpdate()
+        initialLayoutSyncTimer.restart()
     }
 
     onVisibleChanged: {
@@ -348,6 +421,24 @@ Item { // ROOT
         scheduleContentHeightUpdate()
     }
     onPreviewRowsChanged: scheduleContentHeightUpdate()
+
+    Behavior on contentHeight {
+        NumberAnimation {
+            duration: root.contentHeightAnimDurationMs
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Timer {
+        id: initialLayoutSyncTimer
+        interval: 40
+        repeat: false
+        onTriggered: {
+            root.scheduleVerticalLayoutUpdate()
+            root.scheduleVerticalWidthUpdate()
+            root.scheduleContentHeightUpdate()
+        }
+    }
 
 
     function pathPartsFull() {
@@ -468,6 +559,7 @@ Item { // ROOT
 
     function resetPreview() {
         previewRows = []
+        previewActivePaths = []
         previewLastHoverKey = ""
     }
 
@@ -490,8 +582,17 @@ Item { // ROOT
             if (String(left.parentPath || "") !== String(right.parentPath || "")) {
                 return false
             }
-            if (String(left.color || "") !== String(right.color || "")) {
+            var leftColor = normalizeColor(left.color)
+            var rightColor = normalizeColor(right.color)
+            if (!!leftColor !== !!rightColor) {
                 return false
+            }
+            if (leftColor && rightColor) {
+                if (Math.abs(leftColor.r - rightColor.r) > 0.0001
+                        || Math.abs(leftColor.g - rightColor.g) > 0.0001
+                        || Math.abs(leftColor.b - rightColor.b) > 0.0001) {
+                    return false
+                }
             }
             var leftEntries = left.entries || []
             var rightEntries = right.entries || []
@@ -507,15 +608,7 @@ Item { // ROOT
         return true
     }
 
-    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor) {
-        if (!previewEnabled || verticalView) {
-            return
-        }
-        var level = Math.max(0, Number(sourceLevel) || 0)
-        var basePath = String(sourcePath || "").trim()
-        if (!basePath) {
-            return
-        }
+    function _applyPreviewHover(level, basePath, sourceItem, sourceFillColor) {
         var hoverKey = String(level) + "|" + basePath + "|" + String(sourceFillColor)
         if (hoverKey === previewLastHoverKey) {
             return
@@ -523,9 +616,13 @@ Item { // ROOT
         previewLastHoverKey = hoverKey
         var children = listPreviewChildren(basePath)
         var nextRows = previewRows.slice(0, level)
-        // Stability: when crossing row gaps, don't collapse existing preview
-        // just because an intermediate hover target has no children.
-        if (children.length === 0 && previewRows.length > level) {
+        // Collapse deeper rows when the currently hovered item has no children.
+        // This prevents stale lower rows from suggesting wrong descendants.
+        if (children.length === 0) {
+            if (_samePreviewRows(previewRows, nextRows)) {
+                return
+            }
+            previewRows = nextRows
             return
         }
 
@@ -543,6 +640,20 @@ Item { // ROOT
             return
         }
         previewRows = nextRows
+    }
+
+    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor) {
+        if (!previewEnabled || verticalView) {
+            return
+        }
+        var level = Math.max(0, Number(sourceLevel) || 0)
+        var basePath = String(sourcePath || "").trim()
+        if (!basePath) {
+            return
+        }
+        // Keep tab feedback immediate even while row animations run.
+        _setPreviewActivePath(level, basePath)
+        _applyPreviewHover(level, basePath, sourceItem, sourceFillColor)
     }
     
     function fullPathForDisplayIndex(index) {
@@ -944,6 +1055,9 @@ Item { // ROOT
                                 textSize: baseFont
                                 dragEnabled: allowDrags && !itemIsEmbryo(modelData)
                                 dragPayload: fullPath
+                                tabHoverDropEnabled: true
+                                tabHoverDropPx: root.previewTabDropPx
+                                tabPinned: root.isPreviewPathActive(0, fullPath)
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
@@ -951,7 +1065,7 @@ Item { // ROOT
                                 onRenameTextEdited: renameTextEdited(text)
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(itemName(modelData))
+                                onActivate: folderActivated(fullPath)
                                 onHoverEntered: updatePreviewFromHover(0, fullPath, modelData, fillColor)
                                 DropArea {
                                     anchors.fill: parent
@@ -1412,7 +1526,7 @@ Item { // ROOT
                                     onRenameTextEdited: renameTextEdited(text)
                                     onRenameAccepted: renameAccepted()
                                     onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(itemName(modelData))
+                                onActivate: folderActivated(fullPath)
                                         DropArea {
                                             anchors.fill: parent
                                             enabled: allowDrops && !itemIsEmbryo(modelData)
@@ -1503,7 +1617,7 @@ Item { // ROOT
                                         onRenameTextEdited: renameTextEdited(text)
                                         onRenameAccepted: renameAccepted()
                                         onRenameCanceled: renameCanceled()
-                                        onActivate: folderActivated(itemName(modelData))
+                                        onActivate: folderActivated(fullPath)
                                         DropArea {
                                             anchors.fill: parent
                                             enabled: allowDrops && !itemIsEmbryo(modelData)
@@ -1560,6 +1674,9 @@ Item { // ROOT
                                 textSize: baseFont
                                 dragEnabled: allowDrags && !itemIsEmbryo(modelData)
                                 dragPayload: fullPath
+                                tabHoverDropEnabled: true
+                                tabHoverDropPx: root.previewTabDropPx
+                                tabPinned: root.isPreviewPathActive(0, fullPath)
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
@@ -1567,7 +1684,7 @@ Item { // ROOT
                                 onRenameTextEdited: renameTextEdited(text)
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(itemName(modelData))
+                                onActivate: folderActivated(fullPath)
                                 onHoverEntered: updatePreviewFromHover(0, fullPath, modelData, fillColor)
                                 DropArea {
                                     anchors.fill: parent
@@ -1588,8 +1705,21 @@ Item { // ROOT
                 id: previewStack
                 visible: previewEnabled && !verticalView && previewRows.length > 0
                 Layout.fillWidth: true
-                Layout.preferredHeight: implicitHeight
+                Layout.preferredHeight: height
                 spacing: root.previewRowSpacing
+                clip: true
+                height: visible ? implicitHeight : 0
+                onImplicitHeightChanged: root.scheduleContentHeightUpdate()
+                onHeightChanged: root.scheduleContentHeightUpdate()
+
+                Behavior on height {
+                    NumberAnimation {
+                        duration: previewStack.height < (previewStack.visible ? previewStack.implicitHeight : 0)
+                            ? root.previewExpandDurationMs
+                            : root.previewCollapseDurationMs
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
                 Repeater {
                     model: previewRows
@@ -1598,17 +1728,23 @@ Item { // ROOT
                         property int rowIndex: Number(modelData && modelData.level !== undefined ? modelData.level : 0)
                         property string rowParentPath: String(modelData && modelData.parentPath ? modelData.parentPath : "")
                         width: parent.width
+                        z: 1000 - rowIndex
                         radius: 0
-                        color: (modelData && modelData.color !== undefined) ? modelData.color : root.panelColor
+                        readonly property color rowBaseColor: (modelData && modelData.color !== undefined) ? modelData.color : root.panelColor
+                        gradient: Gradient {
+                            orientation: Gradient.Vertical
+                            GradientStop { position: 0.0; color: rowBaseColor }
+                            GradientStop { position: 1.0; color: root.blendColors(rowBaseColor, root.panelColor, root.previewRowShadeMix) }
+                        }
                         border.width: 0
-                        implicitHeight: previewFlow.implicitHeight + 8
+                        implicitHeight: previewFlow.implicitHeight + 2
 
                         Flow {
                             id: previewFlow
                             property int previewLevel: rowIndex
                             property string basePath: rowParentPath
                             anchors.fill: parent
-                            anchors.margins: 4
+                            anchors.margins: 1
                             spacing: 6
                             flow: Flow.LeftToRight
                             layoutDirection: Qt.LeftToRight
@@ -1635,7 +1771,10 @@ Item { // ROOT
                                     dragPayload: fullPath
                                     renaming: false
                                     renameEnabled: false
-                                    onActivate: folderActivated(itemName(modelData))
+                                    tabHoverDropEnabled: true
+                                    tabHoverDropPx: root.previewTabDropPx
+                                    tabPinned: root.isPreviewPathActive(previewLevel + 1, fullPath)
+                                    onActivate: folderActivated(fullPath)
                                     onHoverEntered: updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor)
                                 }
                             }
