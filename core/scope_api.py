@@ -8,7 +8,7 @@ import re
 import shutil
 import json
 import shlex
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
@@ -91,6 +91,24 @@ def _clean_entry_name(name: str, *, allow_empty: bool = False) -> Optional[str]:
     if len(cleaned) > 255:
         return None
     return cleaned
+
+
+class FolderEntry(TypedDict):
+    name: str
+    isProject: bool
+    isEmbryo: bool
+    color: Optional[str]
+
+
+class FileEntry(TypedDict):
+    name: str
+    isDir: bool
+    path: str
+    tags: List[str]
+
+
+class FileEntryWithOptionalEmbryo(FileEntry, total=False):
+    isEmbryo: bool
 
 
 class ScopeApi:
@@ -271,12 +289,12 @@ class ScopeApi:
         except Exception:
             return None
 
-    def list_children(self, path: str, include_embryos: bool = True) -> List[Dict[str, Any]]:
+    def list_children(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
         target = self._resolve_dir(path)
         if target is None:
             return []
         self._acl_probe("read_dir", target)
-        entries: List[Dict[str, Any]] = []
+        entries: List[FolderEntry] = []
         parent_color = self._resolve_project_color(target)
         try:
             for child in sorted(target.iterdir()):
@@ -289,12 +307,12 @@ class ScopeApi:
                     is_project = self.is_project(str(child))
                     project_color = self._resolve_effective_project_color(child) if is_project else None
                     entries.append(
-                        {
-                            "name": child.name,
-                            "isProject": is_project,
-                            "isEmbryo": False,
-                            "color": project_color,
-                        }
+                        self._build_folder_entry(
+                            name=child.name,
+                            is_project=is_project,
+                            is_embryo=False,
+                            color=project_color,
+                        )
                     )
         except Exception:
             return []
@@ -310,18 +328,18 @@ class ScopeApi:
                         continue
                     embryo_color = self._resolve_template_color(rel, name)
                     entries.append(
-                        {
-                            "name": name,
-                            "isProject": False,
-                            "isEmbryo": True,
-                            "color": embryo_color or parent_color,
-                        }
+                        self._build_folder_entry(
+                            name=name,
+                            is_project=False,
+                            is_embryo=True,
+                            color=(embryo_color or parent_color),
+                        )
                     )
             entries.sort(key=lambda item: item["name"])
 
         return entries
 
-    def list_templates(self, path: str, include_embryos: bool = True) -> List[Dict[str, Any]]:
+    def list_templates(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
         target = self._resolve_dir(path)
         if target is None:
             return []
@@ -346,12 +364,12 @@ class ScopeApi:
             for name in embryos:
                 embryo_color = self._resolve_template_color(rel, name)
                 result.append(
-                    {
-                        "name": name,
-                        "isProject": False,
-                        "isEmbryo": True,
-                        "color": embryo_color or parent_color,
-                    }
+                    self._build_folder_entry(
+                        name=name,
+                        is_project=False,
+                        is_embryo=True,
+                        color=(embryo_color or parent_color),
+                    )
                 )
             if debug:
                 print(
@@ -364,12 +382,12 @@ class ScopeApi:
                 print(f"[scope_api] list_templates: error for rel='{rel}'")
             return []
 
-    def list_entries(self, path: str) -> List[dict]:
+    def list_entries(self, path: str) -> List[FileEntryWithOptionalEmbryo]:
         target = self._resolve_dir(path)
         if target is None:
             return []
         self._acl_probe("read_dir", target)
-        entries: List[dict] = []
+        entries: List[FileEntryWithOptionalEmbryo] = []
         try:
             for child in sorted(target.iterdir()):
                 acl_child = self._acl_probe("read_dir", child)
@@ -377,12 +395,12 @@ class ScopeApi:
                     continue
                 is_dir = child.is_dir()
                 entry_tags = self._read_entry_tags(child)
-                entry = {
-                    "name": child.name,
-                    "isDir": is_dir,
-                    "path": str(child),
-                    "tags": entry_tags,
-                }
+                entry = self._build_file_entry(
+                    name=child.name,
+                    is_dir=is_dir,
+                    path=str(child),
+                    tags=entry_tags,
+                )
                 entries.append(entry)
         except Exception:
             return []
@@ -397,27 +415,29 @@ class ScopeApi:
                     if acl_embryo and acl_embryo.enforced and not acl_embryo.allowed:
                         continue
                     entries.append(
-                        {
-                            "name": name,
-                            "isDir": True,
-                            "isEmbryo": True,
-                            "path": str(target / name),
-                            "tags": [],
-                        }
+                        self._build_file_entry(
+                            name=name,
+                            is_dir=True,
+                            path=str(target / name),
+                            tags=[],
+                            is_embryo=True,
+                        )
                     )
         # File-browser style order: folders first, then files, both alphabetic.
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
 
         return entries
 
-    def list_entries_filtered(self, path: str, tags: List[str], match_all: bool = False) -> List[dict]:
+    def list_entries_filtered(
+        self, path: str, tags: List[str], match_all: bool = False
+    ) -> List[FileEntryWithOptionalEmbryo]:
         selected = [str(tag or "").strip() for tag in (tags or [])]
         selected = [tag for tag in selected if tag]
         if not selected:
             return self.list_entries(path)
 
         selected_set = set(selected)
-        filtered: List[dict] = []
+        filtered: List[FileEntryWithOptionalEmbryo] = []
         for entry in self.list_entries(path):
             entry_tags = set(entry.get("tags") or [])
             if not entry_tags:
@@ -450,6 +470,41 @@ class ScopeApi:
         tags.extend(str(tag).strip() for tag in tags_map.keys())
         tags = [tag for tag in tags if tag]
         return sorted(set(tags), key=str.lower)
+
+    def _build_folder_entry(
+        self,
+        *,
+        name: str,
+        is_project: bool,
+        is_embryo: bool,
+        color: Optional[str],
+    ) -> FolderEntry:
+        """Build a folder-like API entry with stable role keys for QML."""
+        return {
+            "name": str(name),
+            "isProject": bool(is_project),
+            "isEmbryo": bool(is_embryo),
+            "color": str(color) if color else None,
+        }
+
+    def _build_file_entry(
+        self,
+        *,
+        name: str,
+        is_dir: bool,
+        path: str,
+        tags: List[str],
+        is_embryo: bool = False,
+    ) -> FileEntryWithOptionalEmbryo:
+        entry: FileEntryWithOptionalEmbryo = {
+            "name": str(name),
+            "isDir": bool(is_dir),
+            "path": str(path),
+            "tags": [str(tag) for tag in (tags or [])],
+        }
+        if is_embryo:
+            entry["isEmbryo"] = True
+        return entry
 
     def has_myos_dir(self, path: str) -> bool:
         target = self._resolve_path(path)
