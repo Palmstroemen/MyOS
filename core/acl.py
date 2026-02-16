@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import fnmatch
 from pathlib import Path
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from core.config.parser import MarkdownConfigParser
 from core.project import ProjectConfig
+
+try:
+    import casbin as _casbin
+except Exception:  # pragma: no cover - optional dependency
+    _casbin = None
 
 
 def _normalize_role(name: str) -> str:
@@ -67,10 +73,115 @@ class ACLPolicy:
 
         rules = self.permissions.get(role_key, [])
         for rule in rules:
-            if rule.path == "/*" or rule.path == path_key or path_key.startswith(f"{rule.path}/"):
+            if _path_matches(rule.path, path_key):
                 if "*" in rule.rights or right_key in rule.rights:
                     return True
         return False
+
+
+class ACLAuthorizer:
+    """Optional authorizer wrapper with pluggable backend."""
+
+    def __init__(self, policy: ACLPolicy, backend: str = "auto") -> None:
+        self.policy = policy
+        requested = str(backend or "auto").strip().lower()
+        if requested not in {"auto", "legacy", "casbin"}:
+            requested = "auto"
+        self.backend = requested
+        self._enforcer = None
+
+        if self.backend == "auto":
+            self.backend = "casbin" if _casbin is not None else "legacy"
+        elif self.backend == "casbin" and _casbin is None:
+            self.backend = "legacy"
+
+        if self.backend == "casbin":
+            self._enforcer = _build_casbin_enforcer(self.policy)
+
+    @classmethod
+    def from_project(cls, project_root: Path, backend: str = "auto") -> "ACLAuthorizer":
+        return cls(ACLPolicy.from_project(project_root), backend=backend)
+
+    def can_access(self, role: str, path: str, right: str = "read") -> bool:
+        role_key = _normalize_role(role)
+        path_key = _normalize_path(path)
+        right_key = str(right or "read").strip().lower()
+        if self.backend == "casbin" and self._enforcer is not None:
+            return bool(self._enforcer.enforce(role_key, path_key, right_key))
+        return self.policy.can_access(role_key, path_key, right_key)
+
+    def can_user_access(self, username: str, path: str, right: str = "read") -> bool:
+        user_key = str(username or "").strip().lower()
+        path_key = _normalize_path(path)
+        right_key = str(right or "read").strip().lower()
+        if self.backend == "casbin" and self._enforcer is not None:
+            return bool(self._enforcer.enforce(user_key, path_key, right_key))
+        for role in self.policy.roles_for_user(user_key):
+            if self.policy.can_access(role, path_key, right_key):
+                return True
+        return False
+
+
+def _path_matches(rule_path: str, target_path: str) -> bool:
+    # Support both legacy prefix-based rules and lightweight glob patterns
+    # like /Finanz/** while keeping existing ACL behavior stable.
+    if rule_path == "/*":
+        return True
+    if rule_path == target_path or target_path.startswith(f"{rule_path}/"):
+        return True
+    if "**" in rule_path:
+        # /Finanz/** should match /Finanz and all descendants.
+        if rule_path.endswith("/**"):
+            prefix = rule_path[:-3]
+            if target_path == prefix or target_path.startswith(f"{prefix}/"):
+                return True
+    if "*" in rule_path or "?" in rule_path:
+        return fnmatch.fnmatchcase(target_path, rule_path)
+    return False
+
+
+def _build_casbin_enforcer(policy: ACLPolicy):
+    if _casbin is None:  # pragma: no cover - guarded by caller
+        return None
+
+    model_conf = """
+[request_definition]
+r = sub, obj, act
+
+[policy_definition]
+p = sub, obj, act
+
+[role_definition]
+g = _, _
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = g(r.sub, p.sub) && pathMatch(r.obj, p.obj) && (p.act == "*" || p.act == r.act)
+"""
+    model = _casbin.model.Model()
+    model.load_model_from_text(model_conf)
+    enforcer = _casbin.Enforcer(model)
+    enforcer.add_function("pathMatch", _casbin_path_match)
+
+    for role, rules in policy.permissions.items():
+        for rule in rules:
+            rights = set(rule.rights or set())
+            if "*" in rights:
+                enforcer.add_policy(role, rule.path, "*")
+                continue
+            for right in rights:
+                enforcer.add_policy(role, rule.path, right)
+
+    for user, roles in policy.users.items():
+        for role in roles:
+            enforcer.add_grouping_policy(user, role)
+    return enforcer
+
+
+def _casbin_path_match(request_path: str, policy_path: str) -> bool:
+    return _path_matches(str(policy_path or ""), str(request_path or ""))
 
 
 def _roles_from_templates(project_root: Path, template_names: Iterable[str]) -> Set[str]:

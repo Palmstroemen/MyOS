@@ -6,8 +6,10 @@ import subprocess
 import sys
 import re
 import shutil
+import json
 from typing import List, Optional, Dict, Any
 from core.tags import read_tags
+from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 
 try:
     from core.localBlueprintLayer import Blueprint
@@ -95,6 +97,11 @@ class ScopeApi:
         self.project_root = None
         self.blueprint = None
         self._color_cache: Dict[str, Optional[str]] = {}
+        self._acl_enforcement: Optional[ACLEnforcementService] = None
+        self._acl_user: str = str(os.environ.get("MYOS_ACL_USER") or os.environ.get("USER") or "local").strip().lower()
+        self._acl_audit_events: List[Dict[str, Any]] = []
+        self._acl_audit_file: Optional[Path] = None
+        self._acl_audit_max_bytes: int = 262_144
         self._set_project_root(find_project_root(self.start_path))
 
     def _set_project_root(self, root: Optional[Path]) -> None:
@@ -129,10 +136,98 @@ class ScopeApi:
             return None
         return target if target.is_dir() else None
 
+    def set_acl_enforcement(self, service: Optional[ACLEnforcementService], user: Optional[str] = None) -> None:
+        self._acl_enforcement = service
+        if user is not None and str(user).strip():
+            self._acl_user = str(user).strip().lower()
+
+    def get_acl_audit_events(self) -> List[Dict[str, Any]]:
+        return list(self._acl_audit_events)
+
+    def clear_acl_audit_events(self) -> None:
+        self._acl_audit_events.clear()
+
+    def set_acl_audit_file(self, path: Optional[str] = None, max_bytes: int = 262_144) -> None:
+        self._acl_audit_max_bytes = max(4_096, int(max_bytes or 262_144))
+        if path and str(path).strip():
+            self._acl_audit_file = Path(str(path)).expanduser().resolve()
+            return
+        if self.project_root:
+            self._acl_audit_file = (self.project_root / ".MyOS" / "audit.log").resolve()
+        else:
+            self._acl_audit_file = None
+
+    def _write_acl_audit_event(self, event: Dict[str, Any]) -> None:
+        if self._acl_audit_file is None:
+            return
+        try:
+            self._acl_audit_file.parent.mkdir(parents=True, exist_ok=True)
+            line = json.dumps(event, ensure_ascii=True, sort_keys=True) + "\n"
+            encoded = line.encode("utf-8")
+            if self._acl_audit_file.exists():
+                current_size = self._acl_audit_file.stat().st_size
+                if current_size + len(encoded) > self._acl_audit_max_bytes:
+                    rotated = self._acl_audit_file.with_name(f"{self._acl_audit_file.name}.1")
+                    # // Security: keep bounded on-disk logs to avoid storage exhaustion.
+                    if rotated.exists():
+                        rotated.unlink(missing_ok=True)
+                    self._acl_audit_file.replace(rotated)
+            with self._acl_audit_file.open("ab") as handle:
+                handle.write(encoded)
+        except Exception:
+            return
+
+    def _on_acl_audit_event(self, event: Dict[str, Any]) -> None:
+        # // Security: bound in-memory audit buffer to avoid unbounded growth.
+        self._acl_audit_events.append(dict(event or {}))
+        if len(self._acl_audit_events) > 1000:
+            self._acl_audit_events = self._acl_audit_events[-1000:]
+        self._write_acl_audit_event(dict(event or {}))
+
+    def _acl_probe(self, action: str, resource: Path) -> Optional[ACLCheckResult]:
+        if self._acl_enforcement is None:
+            return None
+        acl_action = {
+            "read_dir": "read",
+            "read_templates": "read",
+            "open_markdown": "read",
+            "create_folder": "write",
+            "create_note": "write",
+            "rename": "write",
+            "write_dir": "write",
+            "move": "write",
+            "delete": "delete",
+        }.get(str(action or "").strip().lower(), str(action or "read").strip().lower() or "read")
+        try:
+            result = self._acl_enforcement.check(
+                ACLCheckRequest(
+                    user=self._acl_user,
+                    action=acl_action,
+                    resource=str(resource),
+                )
+            )
+            self._on_acl_audit_event(
+                {
+                    "user": self._acl_user,
+                    "action": str(action or "read"),
+                    "resource": str(resource),
+                    "mode": result.mode,
+                    "policy_allowed": result.allowed if result.enforced else (result.reason != "monitor_override"),
+                    "allowed": result.allowed,
+                    "enforced": result.enforced,
+                    "reason": result.reason,
+                    "backend": self._acl_enforcement.authorizer.backend,
+                }
+            )
+            return result
+        except Exception:
+            return None
+
     def list_children(self, path: str, include_embryos: bool = True) -> List[Dict[str, Any]]:
         target = self._resolve_dir(path)
         if target is None:
             return []
+        self._acl_probe("read_dir", target)
         entries: List[Dict[str, Any]] = []
         parent_color = self._resolve_project_color(target)
         try:
@@ -140,6 +235,9 @@ class ScopeApi:
                 if child.name.startswith("."):
                     continue
                 if child.is_dir():
+                    acl_child = self._acl_probe("read_dir", child)
+                    if acl_child and acl_child.enforced and not acl_child.allowed:
+                        continue
                     is_project = self.is_project(str(child))
                     project_color = self._resolve_direct_project_color(child) if is_project else None
                     entries.append(
@@ -158,6 +256,10 @@ class ScopeApi:
             embryos = self.blueprint.get_embryos_at(rel)
             for name in embryos:
                 if not any(item["name"] == name for item in entries):
+                    embryo_path = target / name
+                    acl_embryo = self._acl_probe("read_dir", embryo_path)
+                    if acl_embryo and acl_embryo.enforced and not acl_embryo.allowed:
+                        continue
                     embryo_color = self._resolve_template_color(rel, name)
                     entries.append(
                         {
@@ -175,6 +277,7 @@ class ScopeApi:
         target = self._resolve_dir(path)
         if target is None:
             return []
+        self._acl_probe("read_templates", target)
         debug = os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}
         if not include_embryos:
             if debug:
@@ -217,9 +320,13 @@ class ScopeApi:
         target = self._resolve_dir(path)
         if target is None:
             return []
+        self._acl_probe("read_dir", target)
         entries: List[dict] = []
         try:
             for child in sorted(target.iterdir()):
+                acl_child = self._acl_probe("read_dir", child)
+                if acl_child and acl_child.enforced and not acl_child.allowed:
+                    continue
                 is_dir = child.is_dir()
                 entry_tags = self._read_entry_tags(child)
                 entry = {
@@ -237,6 +344,10 @@ class ScopeApi:
             embryos = self.blueprint.get_embryos_at(rel)
             for name in embryos:
                 if not any(item["name"] == name for item in entries):
+                    embryo_path = target / name
+                    acl_embryo = self._acl_probe("read_dir", embryo_path)
+                    if acl_embryo and acl_embryo.enforced and not acl_embryo.allowed:
+                        continue
                     entries.append(
                         {
                             "name": name,
@@ -409,6 +520,9 @@ class ScopeApi:
         base = self._resolve_dir(path)
         if base is None:
             return None
+        acl_result = self._acl_probe("create_folder", base)
+        if acl_result and acl_result.enforced and not acl_result.allowed:
+            return None
         cleaned = _clean_entry_name(name)
         if cleaned is None:
             return None
@@ -424,6 +538,9 @@ class ScopeApi:
     def create_note(self, path: str, name: str) -> Optional[str]:
         base = self._resolve_dir(path)
         if base is None:
+            return None
+        acl_result = self._acl_probe("create_note", base)
+        if acl_result and acl_result.enforced and not acl_result.allowed:
             return None
 
         cleaned = _clean_entry_name(name, allow_empty=True)
@@ -456,6 +573,9 @@ class ScopeApi:
         try:
             source = self._resolve_path(path)
         except Exception:
+            return None
+        acl_result = self._acl_probe("rename", source)
+        if acl_result and acl_result.enforced and not acl_result.allowed:
             return None
         if not source.exists():
             return None
@@ -543,6 +663,11 @@ class ScopeApi:
             if duplicate:
                 continue
 
+            acl_result = self._acl_probe("rename", source)
+            if acl_result and acl_result.enforced and not acl_result.allowed:
+                result["failed"] += 1
+                result["errors"].append({"source": source_key, "reason": "acl_denied"})
+                continue
             if not source.exists():
                 result["failed"] += 1
                 result["errors"].append({"source": source_key, "reason": "source_missing"})
@@ -601,6 +726,10 @@ class ScopeApi:
                 continue
             if duplicate:
                 continue
+            acl_result = self._acl_probe("delete", source)
+            if acl_result and acl_result.enforced and not acl_result.allowed:
+                result["errors"].append({"source": key, "reason": "acl_denied"})
+                continue
             if not source.exists():
                 result["errors"].append({"source": key, "reason": "missing"})
                 continue
@@ -622,6 +751,12 @@ class ScopeApi:
             return False
         dst_dir = self._resolve_dir(target_dir)
         if dst_dir is None:
+            return False
+        acl_target = self._acl_probe("write_dir", dst_dir)
+        if acl_target and acl_target.enforced and not acl_target.allowed:
+            return False
+        acl_source = self._acl_probe("move", src)
+        if acl_source and acl_source.enforced and not acl_source.allowed:
             return False
         if not dst_dir.is_dir():
             return False
@@ -647,6 +782,11 @@ class ScopeApi:
             result["ok"] = False
             result["errors"].append({"source": "", "reason": "target_not_directory", "target": str(dst_dir)})
             return result
+        acl_target = self._acl_probe("write_dir", dst_dir)
+        if acl_target and acl_target.enforced and not acl_target.allowed:
+            result["errors"].append({"source": "", "reason": "acl_denied_target", "target": str(dst_dir)})
+            result["ok"] = False
+            return result
 
         for src, src_key, duplicate, invalid in self._iter_unique_sources(sources):
             if invalid:
@@ -654,6 +794,10 @@ class ScopeApi:
                 continue
             if duplicate:
                 result["skipped"].append({"source": src_key, "reason": "duplicate_source"})
+                continue
+            acl_source = self._acl_probe("move", src)
+            if acl_source and acl_source.enforced and not acl_source.allowed:
+                result["errors"].append({"source": src_key, "reason": "acl_denied_source"})
                 continue
 
             move_plan = self._prepare_move(src, dst_dir)
@@ -682,6 +826,9 @@ class ScopeApi:
         try:
             target = Path(path).expanduser().resolve()
         except Exception:
+            return False
+        acl_result = self._acl_probe("open_markdown", target)
+        if acl_result and acl_result.enforced and not acl_result.allowed:
             return False
         # // Security: only open existing markdown files.
         if not target.is_file():
