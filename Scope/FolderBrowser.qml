@@ -117,9 +117,12 @@ Item { // ROOT
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
     property bool previewEnabled: true
+    property bool previewFocusBackground: false
     property var previewRows: []
     property var previewActivePaths: []
     property var previewAnchorCenters: []
+    property real previewDimOpacity: 1.0
+    property bool previewDebugBg: false
     property int previewRowSpacing: 1
     property real previewShadeSliderMix: 0.65
     readonly property real previewRowShadeMix: Math.max(0, Math.min(1, 1 - previewShadeSliderMix))
@@ -185,6 +188,20 @@ Item { // ROOT
             return value
         }
         return null
+    }
+
+    function _hexByte(value) {
+        var n = Math.max(0, Math.min(255, Math.round(Number(value) * 255)))
+        var text = n.toString(16).toUpperCase()
+        return text.length < 2 ? ("0" + text) : text
+    }
+
+    function colorToHex(value, fallback) {
+        var base = normalizeColor(value) || normalizeColor(fallback)
+        if (!base) {
+            return "#000000"
+        }
+        return "#" + _hexByte(base.r) + _hexByte(base.g) + _hexByte(base.b)
     }
 
     function colorWithAlpha(value, alpha, fallback) {
@@ -318,6 +335,41 @@ Item { // ROOT
         return String(previewActivePaths[level] || "") === String(fullPath || "")
     }
 
+    function previewPathForLevel(level) {
+        if (!previewActivePaths || level < 0 || level >= previewActivePaths.length) {
+            return ""
+        }
+        return String(previewActivePaths[level] || "")
+    }
+
+    function _debugPreviewBgState(label) {
+        if (!(previewDebugBg || debugLayout)) {
+            return
+        }
+        var colors = []
+        var formatted = []
+        for (var i = 0; i < previewRows.length; i++) {
+            var row = previewRows[i]
+            if (!row) {
+                colors.push("null")
+                formatted.push("L" + String(i + 1) + ": null")
+                continue
+            }
+            var colorText = colorToHex(row.color, panelColor)
+            colors.push(colorText)
+            formatted.push("L" + String(i + 1) + ": " + colorText)
+        }
+        console.log("Debug:", formatted.join(", "))
+        console.log(
+            "[preview-bg]",
+            String(label || ""),
+            "focus=", previewFocusBackground,
+            "active=", JSON.stringify(previewActivePaths || []),
+            "rows=", previewRows.length,
+            "colors=", JSON.stringify(colors)
+        )
+    }
+
     function _samePathArray(a, b) {
         if (a === b) {
             return true
@@ -422,7 +474,11 @@ Item { // ROOT
         resetPreview()
         scheduleContentHeightUpdate()
     }
-    onPreviewRowsChanged: scheduleContentHeightUpdate()
+    onPreviewRowsChanged: {
+        scheduleContentHeightUpdate()
+        _debugPreviewBgState("rowsChanged")
+    }
+    onPreviewFocusBackgroundChanged: _debugPreviewBgState("focusToggle")
 
     Timer {
         id: initialLayoutSyncTimer
@@ -656,7 +712,7 @@ Item { // ROOT
         }
 
         if (children.length > 0) {
-            var rowColor = _previewColorForItem(sourceItem, basePath, sourceFillColor)
+            var rowColor = colorToHex(_previewColorForItem(sourceItem, basePath, sourceFillColor), panelColor)
             nextRows.push({
                 level: level,
                 parentPath: basePath,
@@ -683,7 +739,9 @@ Item { // ROOT
         // Keep tab feedback immediate even while row animations run.
         _setPreviewActivePath(level, basePath)
         _setPreviewAnchorCenter(level, sourceCenterX)
+        _debugPreviewBgState("hoverBeforeApply")
         _applyPreviewHover(level, basePath, sourceItem, sourceFillColor)
+        _debugPreviewBgState("hoverAfterApply")
     }
     
     function fullPathForDisplayIndex(index) {
@@ -901,6 +959,12 @@ Item { // ROOT
                             checked: previewEnabled
                             onTriggered: previewEnabled = !previewEnabled
                         }
+                        MenuItem {
+                            text: qsTr("Vorschau Fokus-Hintergrund")
+                            checkable: true
+                            checked: previewFocusBackground
+                            onTriggered: previewFocusBackground = !previewFocusBackground
+                        }
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -1088,6 +1152,9 @@ Item { // ROOT
                                 tabHoverDropEnabled: true
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
+                                opacity: (root.previewPathForLevel(0).length > 0 && !root.isPreviewPathActive(0, fullPath))
+                                    ? root.previewDimOpacity
+                                    : 1.0
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
@@ -1243,6 +1310,12 @@ Item { // ROOT
                                     checkable: true
                                     checked: previewEnabled
                                     onTriggered: previewEnabled = !previewEnabled
+                                }
+                                MenuItem {
+                                    text: qsTr("Vorschau Fokus-Hintergrund")
+                                    checkable: true
+                                    checked: previewFocusBackground
+                                    onTriggered: previewFocusBackground = !previewFocusBackground
                                 }
                             }
                             MouseArea {
@@ -1710,6 +1783,9 @@ Item { // ROOT
                                 tabHoverDropEnabled: true
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
+                                opacity: (root.previewPathForLevel(0).length > 0 && !root.isPreviewPathActive(0, fullPath))
+                                    ? root.previewDimOpacity
+                                    : 1.0
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
@@ -1771,14 +1847,23 @@ Item { // ROOT
                         required property var modelData
                         property int rowIndex: Number(modelData && modelData.level !== undefined ? modelData.level : 0)
                         property string rowParentPath: String(modelData && modelData.parentPath ? modelData.parentPath : "")
+                        readonly property bool ancestorRow: rowIndex < Math.max(0, root.previewActivePaths.length - 1)
+                        readonly property real rowBgAlpha: (root.previewFocusBackground && ancestorRow) ? 0.0 : 1.0
                         width: parent.width
                         z: 1000 - rowIndex
                         radius: 0
                         readonly property color rowBaseColor: (modelData && modelData.color !== undefined) ? modelData.color : root.panelColor
                         gradient: Gradient {
                             orientation: Gradient.Vertical
-                            GradientStop { position: 0.0; color: rowBaseColor }
-                            GradientStop { position: 1.0; color: root.blendColors(rowBaseColor, root.panelColor, root.previewRowShadeMix) }
+                            GradientStop {
+                                position: 0.0
+                                color: Qt.rgba(rowBaseColor.r, rowBaseColor.g, rowBaseColor.b, rowBgAlpha)
+                            }
+                            GradientStop {
+                                position: 1.0
+                                property color mixedRowColor: root.blendColors(rowBaseColor, root.panelColor, root.previewRowShadeMix)
+                                color: Qt.rgba(mixedRowColor.r, mixedRowColor.g, mixedRowColor.b, rowBgAlpha)
+                            }
                         }
                         border.width: 0
                         implicitHeight: previewFlow.implicitHeight + 2
@@ -1832,6 +1917,10 @@ Item { // ROOT
                                     tabHoverDropEnabled: true
                                     tabHoverDropPx: root.previewTabDropPx
                                     tabPinned: root.isPreviewPathActive(previewLevel + 1, fullPath)
+                                    opacity: (root.previewPathForLevel(previewLevel + 1).length > 0
+                                        && !root.isPreviewPathActive(previewLevel + 1, fullPath))
+                                        ? root.previewDimOpacity
+                                        : 1.0
                                     onActivate: folderActivated(fullPath)
                                     onHoverEntered: {
                                         var center = mapToItem(previewStack, width / 2, height / 2).x
