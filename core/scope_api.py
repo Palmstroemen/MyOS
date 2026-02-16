@@ -7,6 +7,7 @@ import sys
 import re
 import shutil
 import json
+import shlex
 from typing import List, Optional, Dict, Any
 from core.tags import read_tags
 from core.acl import ACLAuthorizer
@@ -98,6 +99,7 @@ class ScopeApi:
         self.project_root = None
         self.blueprint = None
         self._color_cache: Dict[str, Optional[str]] = {}
+        self._root_default_project_color: Optional[str] = None
         self._acl_enforcement: Optional[ACLEnforcementService] = None
         self._acl_user: str = str(os.environ.get("MYOS_ACL_USER") or os.environ.get("USER") or "local").strip().lower()
         self._acl_audit_events: List[Dict[str, Any]] = []
@@ -110,11 +112,16 @@ class ScopeApi:
         self.project_root = root
         self.blueprint = None
         self._color_cache = {}
+        self._root_default_project_color = None
         if self.project_root and Blueprint is not None:
             try:
                 self.blueprint = Blueprint(self.project_root)
             except Exception:
                 self.blueprint = None
+        if self.project_root:
+            self._root_default_project_color = self._read_first_color(
+                self.project_root, [".MyOS/Color.md", ".MyOS/Project.md"]
+            )
 
     def get_start_path(self) -> str:
         return str(self.start_path)
@@ -280,7 +287,7 @@ class ScopeApi:
                     if acl_child and acl_child.enforced and not acl_child.allowed:
                         continue
                     is_project = self.is_project(str(child))
-                    project_color = self._resolve_direct_project_color(child) if is_project else None
+                    project_color = self._resolve_effective_project_color(child) if is_project else None
                     entries.append(
                         {
                             "name": child.name,
@@ -458,25 +465,71 @@ class ScopeApi:
 
     def get_project_color(self, path: str) -> Optional[str]:
         target = self._resolve_path(path)
-        return self._resolve_direct_project_color(target)
+        if not target.is_dir():
+            return None
+        if not self.is_project(str(target)):
+            return None
+        return self._resolve_effective_project_color(target)
+
+    def get_default_project_color(self) -> Optional[str]:
+        return self._root_default_project_color
+
+    def get_effective_project_color(self, path: str) -> Optional[str]:
+        target = self._resolve_path(path)
+        return self._resolve_project_color(
+            target,
+            require_project=False,
+            project_only=True,
+            stop_at_project_root=False,
+        )
 
     def _resolve_direct_project_color(self, path: Path) -> Optional[str]:
         return self._read_first_color(path, [".MyOS/Color.md", ".MyOS/Project.md"])
 
-    def _resolve_project_color(self, path: Path) -> Optional[str]:
-        if not self.project_root:
+    def _resolve_effective_project_color(self, path: Path) -> Optional[str]:
+        return self._resolve_project_color(
+            path,
+            require_project=True,
+            project_only=True,
+            stop_at_project_root=False,
+        )
+
+    def _resolve_project_color(
+        self,
+        path: Path,
+        *,
+        require_project: bool = False,
+        project_only: bool = False,
+        stop_at_project_root: bool = True,
+    ) -> Optional[str]:
+        if not path or not path.is_dir():
             return None
-        cache_key = str(path)
+        if require_project and not self.is_project(str(path)):
+            return None
+
+        cache_key = f"{path}|{int(bool(require_project))}|{int(bool(project_only))}|{int(bool(stop_at_project_root))}"
         if cache_key in self._color_cache:
             return self._color_cache[cache_key]
-        color = self._find_first_color_upwards(
-            path,
-            self.project_root,
-            [".MyOS/Color.md", ".MyOS/Project.md"],
-        )
-        if color:
-            self._color_cache[cache_key] = color
-            return color
+
+        stop: Optional[Path] = None
+        if stop_at_project_root and self.project_root and is_within(path, self.project_root):
+            stop = self.project_root
+
+        current = path
+        while True:
+            if (not project_only) or current == self.project_root or self.is_project(str(current)):
+                color = self._resolve_direct_project_color(current)
+                if color:
+                    self._color_cache[cache_key] = color
+                    return color
+            if stop is not None and current == stop:
+                break
+            if current == current.parent:
+                break
+            if stop is not None and not is_within(current.parent, stop):
+                break
+            current = current.parent
+
         self._color_cache[cache_key] = None
         return None
 
@@ -888,6 +941,28 @@ class ScopeApi:
         if os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}:
             print(f"[scope_api] returncode: {result.returncode}")
         return result.returncode == 0
+
+    def open_with(self, path: str, command: str) -> bool:
+        try:
+            target = Path(path).expanduser().resolve()
+        except Exception:
+            return False
+        cmd = str(command or "").strip()
+        if not cmd:
+            return False
+        if not target.is_file():
+            return False
+        try:
+            argv = shlex.split(cmd)
+        except Exception:
+            return False
+        if not argv:
+            return False
+        try:
+            subprocess.Popen(argv + [str(target)])
+            return True
+        except Exception:
+            return False
 
     def notify_config_changed(self, path: str) -> bool:
         target = Path(path).expanduser().resolve()

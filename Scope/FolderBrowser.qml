@@ -119,6 +119,7 @@ Item { // ROOT
     property bool previewEnabled: true
     property var previewRows: []
     property var previewActivePaths: []
+    property var previewAnchorCenters: []
     property int previewRowSpacing: 1
     property real previewShadeSliderMix: 0.65
     readonly property real previewRowShadeMix: Math.max(0, Math.min(1, 1 - previewShadeSliderMix))
@@ -126,6 +127,7 @@ Item { // ROOT
     property int previewCollapseDurationMs: 700
     property int contentHeightAnimDurationMs: 110
     property int previewTabDropPx: 4
+    property bool previewHeightSyncPending: false
     property string previewLastHoverKey: ""
 
     TextMetrics {
@@ -209,7 +211,10 @@ Item { // ROOT
 
     function folderFillColor(item) {
         if (itemIsProject(item)) {
-            return colorWithAlpha(item.color, folderProjectOpacity, projectTint)
+            if (item && item.color) {
+                return colorWithAlpha(item.color, folderProjectOpacity, projectTint)
+            }
+            return folderButtonFill
         }
         if (itemIsEmbryo(item)) {
             return colorWithAlpha(item.color, embryoOpacity, projectTint)
@@ -219,7 +224,10 @@ Item { // ROOT
 
     function folderStrokeColor(item) {
         if (itemIsProject(item)) {
-            return colorWithAlpha(item.color, folderProjectOpacity, projectTintBorder)
+            if (item && item.color) {
+                return colorWithAlpha(item.color, folderProjectOpacity, projectTintBorder)
+            }
+            return folderButtonBorder
         }
         if (itemIsEmbryo(item)) {
             return colorWithAlpha(item.color, embryoOpacity, projectTintBorder)
@@ -281,7 +289,7 @@ Item { // ROOT
         var preview = (previewStack && previewStack.visible)
             ? (previewStack.height + mainColumn.spacing)
             : 0
-        return Math.round(top + bottom + preview + 12)
+        return Math.round(top + bottom + preview + 0)
     }
 
     function scheduleContentHeightUpdate() {
@@ -289,21 +297,15 @@ Item { // ROOT
         contentHeightUpdatePending = true
         Qt.callLater(function() {
             contentHeightUpdatePending = false
-            var h1 = calculateContentHeight()
-            if (contentHeight !== h1) {
-                contentHeight = h1
-            }
-            // QML layout/implicitHeight can settle one tick later after repeater/model churn.
-            // Run one additional pass to avoid stale geometry states.
             if (contentHeightSettlePending) {
                 return
             }
             contentHeightSettlePending = true
             Qt.callLater(function() {
                 contentHeightSettlePending = false
-                var h2 = calculateContentHeight()
-                if (contentHeight !== h2) {
-                    contentHeight = h2
+                var settledHeight = calculateContentHeight()
+                if (Math.abs(contentHeight - settledHeight) >= 1) {
+                    contentHeight = settledHeight
                 }
             })
         })
@@ -422,13 +424,6 @@ Item { // ROOT
     }
     onPreviewRowsChanged: scheduleContentHeightUpdate()
 
-    Behavior on contentHeight {
-        NumberAnimation {
-            duration: root.contentHeightAnimDurationMs
-            easing.type: Easing.OutCubic
-        }
-    }
-
     Timer {
         id: initialLayoutSyncTimer
         interval: 40
@@ -436,6 +431,16 @@ Item { // ROOT
         onTriggered: {
             root.scheduleVerticalLayoutUpdate()
             root.scheduleVerticalWidthUpdate()
+            root.scheduleContentHeightUpdate()
+        }
+    }
+
+    Timer {
+        id: previewHeightSyncTimer
+        interval: 16
+        repeat: false
+        onTriggered: {
+            root.previewHeightSyncPending = false
             root.scheduleContentHeightUpdate()
         }
     }
@@ -471,6 +476,16 @@ Item { // ROOT
     }
 
     function getPathSegmentColor(fullPath, isCurrent) {
+        // Resolve effective path color directly; do not depend on current folder list.
+        if (pathColorFunction) {
+            var direct = pathColorFunction(String(fullPath || ""), !!isCurrent)
+            if (direct && direct.fill !== undefined) {
+                return {
+                    fill: direct.fill,
+                    stroke: (direct.stroke !== undefined) ? direct.stroke : direct.fill
+                };
+            }
+        }
         // Prüfe, ob dieser Pfad in der folders-Liste vorkommt
         for (var i = 0; i < folders.length; i++) {
             var folder = folders[i];
@@ -491,19 +506,11 @@ Item { // ROOT
         // Fallback: Standard-Farben
         return {
             fill: isCurrent 
-                ? (tintPathAsProject
-                    ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
-                    : accentPrimary)
-                : (tintPathAsProject
-                    ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
-                    : pathButtonFill),
+                ? accentPrimary
+                : pathButtonFill,
             stroke: isCurrent
-                ? (tintPathAsProject
-                    ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
-                    : accentPrimary)
-                : (tintPathAsProject
-                    ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
-                    : pathButtonBorder)
+                ? accentPrimary
+                : pathButtonBorder
         };
     }    
     
@@ -560,6 +567,7 @@ Item { // ROOT
     function resetPreview() {
         previewRows = []
         previewActivePaths = []
+        previewAnchorCenters = []
         previewLastHoverKey = ""
     }
 
@@ -608,6 +616,27 @@ Item { // ROOT
         return true
     }
 
+    function _setPreviewAnchorCenter(level, centerX) {
+        var x = Number(centerX)
+        if (!isFinite(x)) {
+            return
+        }
+        var nextCenters = previewAnchorCenters.slice(0, level)
+        nextCenters.push(x)
+        if (_samePathArray(previewAnchorCenters, nextCenters)) {
+            return
+        }
+        previewAnchorCenters = nextCenters
+    }
+
+    function previewAnchorCenterForLevel(level) {
+        if (!previewAnchorCenters || level < 0 || level >= previewAnchorCenters.length) {
+            return -1
+        }
+        var x = Number(previewAnchorCenters[level])
+        return isFinite(x) ? x : -1
+    }
+
     function _applyPreviewHover(level, basePath, sourceItem, sourceFillColor) {
         var hoverKey = String(level) + "|" + basePath + "|" + String(sourceFillColor)
         if (hoverKey === previewLastHoverKey) {
@@ -642,7 +671,7 @@ Item { // ROOT
         previewRows = nextRows
     }
 
-    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor) {
+    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor, sourceCenterX) {
         if (!previewEnabled || verticalView) {
             return
         }
@@ -653,6 +682,7 @@ Item { // ROOT
         }
         // Keep tab feedback immediate even while row animations run.
         _setPreviewActivePath(level, basePath)
+        _setPreviewAnchorCenter(level, sourceCenterX)
         _applyPreviewHover(level, basePath, sourceItem, sourceFillColor)
     }
     
@@ -1066,7 +1096,10 @@ Item { // ROOT
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
-                                onHoverEntered: updatePreviewFromHover(0, fullPath, modelData, fillColor)
+                                onHoverEntered: {
+                                    var center = mapToItem(previewStack, width / 2, height / 2).x
+                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, center)
+                                }
                                 DropArea {
                                     anchors.fill: parent
                                     enabled: allowDrops && !itemIsEmbryo(modelData)
@@ -1685,7 +1718,10 @@ Item { // ROOT
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
-                                onHoverEntered: updatePreviewFromHover(0, fullPath, modelData, fillColor)
+                                onHoverEntered: {
+                                    var center = mapToItem(previewStack, width / 2, height / 2).x
+                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, center)
+                                }
                                 DropArea {
                                     anchors.fill: parent
                                     enabled: allowDrops && !itemIsEmbryo(modelData)
@@ -1709,8 +1745,16 @@ Item { // ROOT
                 spacing: root.previewRowSpacing
                 clip: true
                 height: visible ? implicitHeight : 0
-                onImplicitHeightChanged: root.scheduleContentHeightUpdate()
-                onHeightChanged: root.scheduleContentHeightUpdate()
+                onImplicitHeightChanged: {
+                    if (root.previewHeightSyncPending) return
+                    root.previewHeightSyncPending = true
+                    previewHeightSyncTimer.restart()
+                }
+                onHeightChanged: {
+                    if (root.previewHeightSyncPending) return
+                    root.previewHeightSyncPending = true
+                    previewHeightSyncTimer.restart()
+                }
 
                 Behavior on height {
                     NumberAnimation {
@@ -1743,13 +1787,27 @@ Item { // ROOT
                             id: previewFlow
                             property int previewLevel: rowIndex
                             property string basePath: rowParentPath
-                            anchors.fill: parent
-                            anchors.margins: 1
+                            readonly property real anchorCenterX: root.previewAnchorCenterForLevel(previewLevel)
+                            readonly property real firstButtonWidth: {
+                                var first = previewFlowRepeater.itemAt(0)
+                                return first ? first.width : 120
+                            }
+                            readonly property real desiredStartX: {
+                                if (anchorCenterX < 0) return 1
+                                var proposed = anchorCenterX - (firstButtonWidth / 2)
+                                var maxStart = Math.max(1, parent.width * 0.45)
+                                return Math.max(1, Math.min(maxStart, proposed))
+                            }
+                            x: desiredStartX
+                            y: 1
+                            width: Math.max(24, parent.width - desiredStartX - 1)
+                            height: implicitHeight
                             spacing: 6
                             flow: Flow.LeftToRight
                             layoutDirection: Qt.LeftToRight
 
                             Repeater {
+                                id: previewFlowRepeater
                                 model: (modelData && modelData.entries) ? modelData.entries : []
                                 delegate: FolderItem {
                                     property string fullPath: root._resolveFullPath(previewFlow.basePath, modelData)
@@ -1775,7 +1833,10 @@ Item { // ROOT
                                     tabHoverDropPx: root.previewTabDropPx
                                     tabPinned: root.isPreviewPathActive(previewLevel + 1, fullPath)
                                     onActivate: folderActivated(fullPath)
-                                    onHoverEntered: updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor)
+                                    onHoverEntered: {
+                                        var center = mapToItem(previewStack, width / 2, height / 2).x
+                                        updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, center)
+                                    }
                                 }
                             }
                         }

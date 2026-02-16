@@ -68,8 +68,11 @@ ApplicationWindow {
         property color smallButtonActiveBg: darkTheme ? "#4a5675" : "#c5d2ef"
         property color smallButtonActiveBorder: darkTheme ? "#6a779a" : "#9fb1dd"
         property color smallButtonText: darkTheme ? "#b4bac6" : "#4a5163"
-        // property color accentPrimary: darkTheme ? "#524dbe" : "#6a5cff"
-        property color accentPrimary: darkTheme ? "#4a5675" : "#4a5163"
+        // Folder palette uses CWP as base; path and U-line shades are derived from it.
+        property color folderCwpTint: darkTheme ? "#4a5675" : "#4a5163"
+        property color folderPathTint: darkTheme ? Qt.darker(folderCwpTint, 115) : Qt.lighter(folderCwpTint, 115)
+        property color folderULineTint: darkTheme ? Qt.lighter(folderCwpTint, 112) : Qt.darker(folderCwpTint, 112)
+        property color accentPrimary: folderCwpTint
         property color accentPrimaryText: "#ffffff"
         property color accentSecondary: darkTheme ? "#3b476b" : "#b8c8ee"
         property color accentSecondaryBorder: darkTheme ? "#58648a" : "#9fb1dd"
@@ -84,7 +87,8 @@ ApplicationWindow {
         property color highlight: accentPrimary
     }
 
-    property color currentProjectTint: theme.projectFolderTint
+    property color currentProjectTint: theme.folderCwpTint
+    property string defaultProjectTint: ""
 
     property string cwp: "/Projekte/Haus/Dach"
     property var subProjects: []
@@ -285,15 +289,39 @@ ApplicationWindow {
     }
 
     function updateCurrentProjectTint() {
+        var cwpIsProject = hasBackend() && typeof backend.isProject === "function"
+            ? backend.isProject(cwp)
+            : false
+        if (hasBackend() && typeof backend.effectiveProjectColor === "function") {
+            var color = cwpIsProject ? backend.effectiveProjectColor(cwp) : ""
+            currentProjectTint = (cwpIsProject && color && color.length > 0)
+                ? color
+                : theme.folderCwpTint
+            if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
+                console.log("[scope] effective project color", cwp, currentProjectTint)
+            }
+            return
+        }
         if (hasBackend() && typeof backend.projectColor === "function") {
-            var color = backend.projectColor(cwp)
-            currentProjectTint = (color && color.length > 0) ? color : theme.projectFolderTint
+            var legacyColor = cwpIsProject ? backend.projectColor(cwp) : ""
+            currentProjectTint = (cwpIsProject && legacyColor && legacyColor.length > 0)
+                ? legacyColor
+                : theme.folderCwpTint
             if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
                 console.log("[scope] project color", cwp, currentProjectTint)
             }
             return
         }
-        currentProjectTint = theme.projectFolderTint
+        currentProjectTint = theme.folderCwpTint
+    }
+
+    function updateDefaultProjectTint() {
+        if (hasBackend() && typeof backend.defaultProjectColor === "function") {
+            var color = backend.defaultProjectColor()
+            defaultProjectTint = (color && color.length > 0) ? color : ""
+            return
+        }
+        defaultProjectTint = ""
     }
 
     function _decodeDragPayload(payload) {
@@ -1061,6 +1089,7 @@ ApplicationWindow {
         if (hasBackend() && typeof backend.setContext === "function") {
             backend.setContext(cwp)
         }
+        updateDefaultProjectTint()
         updateCurrentProjectTint()
         updateFiles()
         updateTemplates()
@@ -1442,8 +1471,18 @@ ApplicationWindow {
     }
 
     function setBrowserParent(item, newParent) {
-        if (item && newParent && item.parent !== newParent) {
+        if (!item || !newParent) return
+        if (item.parent !== newParent) {
             item.parent = newParent
+        }
+        var isFolderBrowser = item.hasOwnProperty("verticalView")
+        if (isFolderBrowser) {
+            item.anchors.fill = undefined
+            item.anchors.left = newParent.left
+            item.anchors.right = newParent.right
+            item.anchors.top = newParent.top
+            item.anchors.bottom = undefined
+        } else {
             item.anchors.fill = newParent
         }
     }
@@ -1483,16 +1522,19 @@ ApplicationWindow {
             slot.Layout.preferredHeight = -1
             slot.Layout.minimumHeight = 0
             slot.Layout.maximumHeight = -1
-        } else if (isFolderBrowser && !inRowLayout) {
+            slot.Layout.alignment = 0
+        } else if (isFolderBrowser) {
             slot.Layout.fillHeight = false
             slot.Layout.preferredHeight = Qt.binding(function() { return child.implicitHeight })
             slot.Layout.minimumHeight = Qt.binding(function() { return child.implicitHeight })
             slot.Layout.maximumHeight = Qt.binding(function() { return child.implicitHeight })
+            slot.Layout.alignment = Qt.AlignTop
         } else {
             slot.Layout.fillHeight = true
             slot.Layout.preferredHeight = -1
             slot.Layout.minimumHeight = 0
             slot.Layout.maximumHeight = -1
+            slot.Layout.alignment = 0
         }
     }
 
@@ -2279,8 +2321,8 @@ ApplicationWindow {
             accentPrimaryText: theme.accentPrimaryText
             pill: theme.pill
             pillBorder: theme.pillBorder
-            pathButtonFill: theme.pill
-            pathButtonBorder: theme.pillBorder
+            pathButtonFill: theme.folderPathTint
+            pathButtonBorder: theme.folderULineTint
             folderButtonFill: theme.smallButtonBg
             folderButtonBorder: theme.smallButtonBorder
             smallButtonBg: theme.smallButtonBg
@@ -2335,7 +2377,7 @@ ApplicationWindow {
             showEmbryos: window.projectsShowEmbryos
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
-            tintPathAsProject: true
+            tintPathAsProject: false
             cwdOpacity: 1.0
             pathProjectOpacity: 0.7
             folderProjectOpacity: 0.55
@@ -2366,8 +2408,8 @@ ApplicationWindow {
             accentPrimaryText: theme.accentPrimaryText
             pill: theme.pill
             pillBorder: theme.pillBorder
-            pathButtonFill: theme.pill
-            pathButtonBorder: theme.pillBorder
+            pathButtonFill: theme.folderPathTint
+            pathButtonBorder: theme.folderULineTint
             folderButtonFill: theme.smallButtonBg
             folderButtonBorder: theme.smallButtonBorder
             smallButtonBg: theme.smallButtonBg
@@ -2390,10 +2432,14 @@ ApplicationWindow {
             // Eingesetzt
             pathColorFunction: function(path, isCurrent) {
                 if (!hasBackend()) return null;
+                var projectRoot = (typeof backend.getProjectRoot === "function")
+                    ? backend.getProjectRoot()
+                    : ""
+                var isRootPath = projectRoot && path === projectRoot
 
-                // 👇 Nur echte Projekte bekommen eine Farbe
-                if (!backend.isProject(path)) return null;
-
+                // Use project-scoped API color only.
+                // projectColor already resolves inheritance for real projects,
+                // and returns empty for normal folders.
                 var color = backend.projectColor(path);
                 if (color && color.length > 0) {
                     var opacity = isCurrent ? projectsBrowser.cwdOpacity : projectsBrowser.pathProjectOpacity;
@@ -2401,6 +2447,16 @@ ApplicationWindow {
                         fill:   projectsBrowser.colorWithAlpha(color, opacity, projectsBrowser.projectTint),
                         stroke: projectsBrowser.colorWithAlpha(color, opacity, projectsBrowser.projectTintBorder)
                     };
+                }
+                if (isRootPath) {
+                    var fallback = backend.defaultProjectColor ? backend.defaultProjectColor() : ""
+                    if (fallback && fallback.length > 0) {
+                        var rootOpacity = isCurrent ? projectsBrowser.cwdOpacity : projectsBrowser.pathProjectOpacity;
+                        return {
+                            fill:   projectsBrowser.colorWithAlpha(fallback, rootOpacity, projectsBrowser.projectTint),
+                            stroke: projectsBrowser.colorWithAlpha(fallback, rootOpacity, projectsBrowser.projectTintBorder)
+                        };
+                    }
                 }
                 return null;
             }

@@ -256,6 +256,14 @@ class Backend(QObject):
     def projectColor(self, path: str) -> str:
         return self._api.get_project_color(path) or ""
 
+    @Slot(result="QString")
+    def defaultProjectColor(self) -> str:
+        return self._api.get_default_project_color() or ""
+
+    @Slot(str, result="QString")
+    def effectiveProjectColor(self, path: str) -> str:
+        return self._api.get_effective_project_color(path) or ""
+
     @Slot(str, str, result=bool)
     def moveEntry(self, source: str, targetDir: str) -> bool:
         return self._api.move_entry(source, targetDir)
@@ -514,6 +522,10 @@ class Backend(QObject):
     @Slot(str, result=bool)
     def openMarkdown(self, path: str) -> bool:
         return self._api.open_markdown(path)
+
+    @Slot(str, str, result=bool)
+    def openWith(self, path: str, command: str) -> bool:
+        return self._api.open_with(path, command)
 
     @Slot(str, result=bool)
     def notifyConfigChanged(self, path: str) -> bool:
