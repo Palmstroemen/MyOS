@@ -16,6 +16,7 @@ Item { // ROOT
     property string path: "/"
     property string pathDisplayPrefix: ""
     property var folders: []
+    property var childrenProvider: null
     property var pathColorFunction: null    
     property bool verticalView: false
     property string buttonStyle: "text"
@@ -114,6 +115,10 @@ Item { // ROOT
     property bool contentHeightUpdatePending: false
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
+    property bool previewEnabled: false
+    property var previewRows: []
+    property int previewRowSpacing: 6
+    property string previewLastHoverKey: ""
 
     TextMetrics {
         id: labelMetrics
@@ -249,7 +254,10 @@ Item { // ROOT
         }
         var top = topRow ? topRow.implicitHeight : 0
         var bottom = (bottomRow && bottomRow.visible) ? (bottomRow.implicitHeight + mainColumn.spacing) : 0
-        return Math.round(top + bottom + 12)
+        var preview = (previewStack && previewStack.visible)
+            ? (previewStack.implicitHeight + mainColumn.spacing)
+            : 0
+        return Math.round(top + bottom + preview + 12)
     }
 
     function scheduleContentHeightUpdate() {
@@ -291,8 +299,14 @@ Item { // ROOT
         scheduleContentHeightUpdate()
     }
 
-    onPathChanged: scheduleVerticalWidthUpdate()
-    onFoldersChanged: scheduleVerticalWidthUpdate()
+    onPathChanged: {
+        resetPreview()
+        scheduleVerticalWidthUpdate()
+    }
+    onFoldersChanged: {
+        resetPreview()
+        scheduleVerticalWidthUpdate()
+    }
     onButtonStyleChanged: {
         scheduleVerticalWidthUpdate()
         scheduleContentHeightUpdate()
@@ -329,6 +343,11 @@ Item { // ROOT
     }
     onSearchActiveChanged: scheduleContentHeightUpdate()
     onFlowOnSecondLineChanged: scheduleContentHeightUpdate()
+    onPreviewEnabledChanged: {
+        resetPreview()
+        scheduleContentHeightUpdate()
+    }
+    onPreviewRowsChanged: scheduleContentHeightUpdate()
 
 
     function pathPartsFull() {
@@ -401,6 +420,130 @@ Item { // ROOT
         if (typeof folder === 'string') return folder;
         return folder.path || folder.name || "";
     }    
+
+    function _resolveFullPath(basePath, item) {
+        var raw = String(getFolderPath(item) || "")
+        if (!raw) return ""
+        if (raw.indexOf("/") === 0) return raw
+        var base = String(basePath || "").trim()
+        if (!base) {
+            base = path
+        }
+        if (base.length > 1 && base.endsWith("/")) {
+            base = base.slice(0, -1)
+        }
+        return base + "/" + raw
+    }
+
+    function _previewColorForItem(item, sourcePath, sourceFillColor) {
+        if (sourceFillColor !== undefined && sourceFillColor !== null) {
+            return sourceFillColor
+        }
+        // Keep row background in sync with the hovered folder's own fill color.
+        // This mirrors the delegate fillColor used in the preview rows.
+        var fill = folderFillColor(item)
+        if (fill !== undefined && fill !== null) {
+            return fill
+        }
+        if (pathColorFunction) {
+            var custom = pathColorFunction(String(sourcePath || ""), false)
+            if (custom && custom.fill !== undefined) {
+                return custom.fill
+            }
+        }
+        return panelColor
+    }
+
+    function listPreviewChildren(parentPath) {
+        if (!childrenProvider) {
+            return []
+        }
+        try {
+            var rows = childrenProvider(parentPath)
+            return rows || []
+        } catch (e) {
+            return []
+        }
+    }
+
+    function resetPreview() {
+        previewRows = []
+        previewLastHoverKey = ""
+    }
+
+    function _samePreviewRows(a, b) {
+        if (a === b) {
+            return true
+        }
+        if (!a || !b || a.length !== b.length) {
+            return false
+        }
+        for (var i = 0; i < a.length; i++) {
+            var left = a[i]
+            var right = b[i]
+            if (!left || !right) {
+                return false
+            }
+            if (Number(left.level) !== Number(right.level)) {
+                return false
+            }
+            if (String(left.parentPath || "") !== String(right.parentPath || "")) {
+                return false
+            }
+            if (String(left.color || "") !== String(right.color || "")) {
+                return false
+            }
+            var leftEntries = left.entries || []
+            var rightEntries = right.entries || []
+            if (leftEntries.length !== rightEntries.length) {
+                return false
+            }
+            for (var j = 0; j < leftEntries.length; j++) {
+                if (String(itemName(leftEntries[j])) !== String(itemName(rightEntries[j]))) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor) {
+        if (!previewEnabled || verticalView) {
+            return
+        }
+        var level = Math.max(0, Number(sourceLevel) || 0)
+        var basePath = String(sourcePath || "").trim()
+        if (!basePath) {
+            return
+        }
+        var hoverKey = String(level) + "|" + basePath + "|" + String(sourceFillColor)
+        if (hoverKey === previewLastHoverKey) {
+            return
+        }
+        previewLastHoverKey = hoverKey
+        var children = listPreviewChildren(basePath)
+        var nextRows = previewRows.slice(0, level)
+        // Stability: when crossing row gaps, don't collapse existing preview
+        // just because an intermediate hover target has no children.
+        if (children.length === 0 && previewRows.length > level) {
+            return
+        }
+
+        if (children.length > 0) {
+            var rowColor = _previewColorForItem(sourceItem, basePath, sourceFillColor)
+            nextRows.push({
+                level: level,
+                parentPath: basePath,
+                color: rowColor,
+                entries: children
+            })
+        }
+
+        if (_samePreviewRows(previewRows, nextRows)) {
+            return
+        }
+        previewRows = nextRows
+    }
     
     function fullPathForDisplayIndex(index) {
         var fullParts = pathPartsFull()
@@ -611,6 +754,12 @@ Item { // ROOT
                             checked: showEmbryos
                             onTriggered: toggleEmbryos()
                         }
+                        MenuItem {
+                            text: qsTr("Vorschau")
+                            checkable: true
+                            checked: previewEnabled
+                            onTriggered: previewEnabled = !previewEnabled
+                        }
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -803,6 +952,7 @@ Item { // ROOT
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(itemName(modelData))
+                                onHoverEntered: updatePreviewFromHover(0, fullPath, modelData, fillColor)
                                 DropArea {
                                     anchors.fill: parent
                                     enabled: allowDrops && !itemIsEmbryo(modelData)
@@ -940,6 +1090,12 @@ Item { // ROOT
                                     checkable: true
                                     checked: showEmbryos
                                     onTriggered: toggleEmbryos()
+                                }
+                                MenuItem {
+                                    text: qsTr("Vorschau")
+                                    checkable: true
+                                    checked: previewEnabled
+                                    onTriggered: previewEnabled = !previewEnabled
                                 }
                             }
                             MouseArea {
@@ -1412,6 +1568,7 @@ Item { // ROOT
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(itemName(modelData))
+                                onHoverEntered: updatePreviewFromHover(0, fullPath, modelData, fillColor)
                                 DropArea {
                                     anchors.fill: parent
                                     enabled: allowDrops && !itemIsEmbryo(modelData)
@@ -1420,6 +1577,66 @@ Item { // ROOT
                                         moveEntryRequested(drop.text, fullPath)
                                         drop.acceptProposedAction()
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Column {
+                id: previewStack
+                visible: previewEnabled && !verticalView && previewRows.length > 0
+                Layout.fillWidth: true
+                Layout.preferredHeight: implicitHeight
+                spacing: root.previewRowSpacing
+
+                Repeater {
+                    model: previewRows
+                    delegate: Rectangle {
+                        required property var modelData
+                        property int rowIndex: Number(modelData && modelData.level !== undefined ? modelData.level : 0)
+                        property string rowParentPath: String(modelData && modelData.parentPath ? modelData.parentPath : "")
+                        width: parent.width
+                        radius: 0
+                        color: (modelData && modelData.color !== undefined) ? modelData.color : root.panelColor
+                        border.width: 0
+                        implicitHeight: previewFlow.implicitHeight + 8
+
+                        Flow {
+                            id: previewFlow
+                            property int previewLevel: rowIndex
+                            property string basePath: rowParentPath
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            spacing: 6
+                            flow: Flow.LeftToRight
+                            layoutDirection: Qt.LeftToRight
+
+                            Repeater {
+                                model: (modelData && modelData.entries) ? modelData.entries : []
+                                delegate: FolderItem {
+                                    property string fullPath: root._resolveFullPath(previewFlow.basePath, modelData)
+                                    property int previewLevel: previewFlow.previewLevel
+                                    label: itemName(modelData)
+                                    style: effectiveStyle()
+                                    compactHeight: compactButtonHeight
+                                    largeHeight: largeButtonHeight
+                                    largePadding: largeButtonPadding
+                                    iconSmall: iconSizeSmall
+                                    iconLarge: iconSizeLarge
+                                    textYOffset: buttonTextYOffset
+                                    iconSource: iconFolder
+                                    fillColor: folderFillColor(modelData)
+                                    strokeColor: folderStrokeColor(modelData)
+                                    textColor: textSoft
+                                    textSize: baseFont
+                                    dragEnabled: allowDrags && !itemIsEmbryo(modelData)
+                                    dragPayload: fullPath
+                                    renaming: false
+                                    renameEnabled: false
+                                    onActivate: folderActivated(itemName(modelData))
+                                    onHoverEntered: updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor)
                                 }
                             }
                         }
