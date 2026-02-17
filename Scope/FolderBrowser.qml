@@ -370,10 +370,25 @@ Item { // ROOT
     }
 
     function isPreviewDimmed(level, fullPath) {
+        if (!previewActivePaths || previewActivePaths.length === 0) {
+            return false
+        }
+        var deepestActiveLevel = -1
+        for (var i = 0; i < previewActivePaths.length; i++) {
+            if (String(previewActivePaths[i] || "").length > 0) {
+                deepestActiveLevel = i
+            }
+        }
+        // Only dim in the row directly above the currently active row.
+        var dimLevel = deepestActiveLevel - 1
+        if (dimLevel < 0 || level !== dimLevel) {
+            return false
+        }
         var activePath = previewPathForLevel(level)
         if (activePath.length === 0) {
             return false
         }
+        // In that previous row: keep selected path clear, dim all others.
         return !isPreviewPathActive(level, fullPath)
     }
 
@@ -1202,7 +1217,7 @@ Item { // ROOT
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
                                 textBold: root.isPreviewPathActive(0, fullPath)
-                                dimmedStyle: root.isPreviewPathActive(0, fullPath)
+                                dimmedStyle: root.isPreviewDimmed(0, fullPath)
                                 opacity: root.isPreviewDimmed(0, fullPath) ? root.previewDimOpacity : 1.0
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
@@ -1847,7 +1862,7 @@ Item { // ROOT
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
                                 textBold: root.isPreviewPathActive(0, fullPath)
-                                dimmedStyle: root.isPreviewPathActive(0, fullPath)
+                                dimmedStyle: root.isPreviewDimmed(0, fullPath)
                                 opacity: root.isPreviewDimmed(0, fullPath) ? root.previewDimOpacity : 1.0
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
@@ -2007,7 +2022,7 @@ Item { // ROOT
                                     tabHoverDropPx: root.previewTabDropPx
                                     tabPinned: root.isPreviewPathActive(previewLevel + 1, fullPath)
                                     textBold: root.isPreviewPathActive(previewLevel + 1, fullPath)
-                                    dimmedStyle: root.isPreviewPathActive(previewLevel + 1, fullPath)
+                                    dimmedStyle: root.isPreviewDimmed(previewLevel + 1, fullPath)
                                     opacity: root.isPreviewDimmed(previewLevel + 1, fullPath) ? root.previewDimOpacity : 1.0
                                     onActivate: folderActivated(fullPath)
                                     onHoverEntered: {

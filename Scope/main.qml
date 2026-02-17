@@ -68,10 +68,21 @@ ApplicationWindow {
         property color smallButtonActiveBg: darkTheme ? "#4a5675" : "#c5d2ef"
         property color smallButtonActiveBorder: darkTheme ? "#6a779a" : "#9fb1dd"
         property color smallButtonText: darkTheme ? "#b4bac6" : "#4a5163"
-        // Folder palette uses CWP as base; path and U-line shades are derived from it.
-        property color folderCwpTint: darkTheme ? "#4a5675" : "#4a5163"
-        property color folderPathTint: darkTheme ? Qt.darker(folderCwpTint, 115) : Qt.lighter(folderCwpTint, 115)
-        property color folderULineTint: darkTheme ? Qt.lighter(folderCwpTint, 112) : Qt.darker(folderCwpTint, 112)
+        // Fixed gray palette for folder rows (theme mirrored).
+        // Dark: P~20%, CWD~30%, U~40%; Light: P~60%, CWD~70%, U~80%.
+        property color folderPathTint: darkTheme ? "#333333" : "#999999"
+        property color folderCwpTint: darkTheme ? "#4D4D4D" : "#B3B3B3"
+        property color folderULineTint: darkTheme ? "#666666" : "#CCCCCC"
+        function darkerByTenPoints(value) {
+            return Qt.rgba(
+                Math.max(0, value.r - 0.10),
+                Math.max(0, value.g - 0.10),
+                Math.max(0, value.b - 0.10),
+                value.a
+            )
+        }
+        property color folderPathBorder: darkerByTenPoints(folderPathTint)
+        property color folderULineBorder: darkerByTenPoints(folderULineTint)
         property color accentPrimary: folderCwpTint
         property color accentPrimaryText: "#ffffff"
         property color accentSecondary: darkTheme ? "#3b476b" : "#b8c8ee"
@@ -2322,9 +2333,9 @@ ApplicationWindow {
             pill: theme.pill
             pillBorder: theme.pillBorder
             pathButtonFill: theme.folderPathTint
-            pathButtonBorder: theme.folderULineTint
-            folderButtonFill: theme.smallButtonBg
-            folderButtonBorder: theme.smallButtonBorder
+            pathButtonBorder: theme.folderPathBorder
+            folderButtonFill: theme.folderULineTint
+            folderButtonBorder: theme.folderULineBorder
             smallButtonBg: theme.smallButtonBg
             smallButtonBorder: theme.smallButtonBorder
             smallButtonActiveBg: theme.smallButtonActiveBg
@@ -2409,9 +2420,9 @@ ApplicationWindow {
             pill: theme.pill
             pillBorder: theme.pillBorder
             pathButtonFill: theme.folderPathTint
-            pathButtonBorder: theme.folderULineTint
-            folderButtonFill: theme.smallButtonBg
-            folderButtonBorder: theme.smallButtonBorder
+            pathButtonBorder: theme.folderPathBorder
+            folderButtonFill: theme.folderULineTint
+            folderButtonBorder: theme.folderULineBorder
             smallButtonBg: theme.smallButtonBg
             smallButtonBorder: theme.smallButtonBorder
             smallButtonActiveBg: theme.smallButtonActiveBg
