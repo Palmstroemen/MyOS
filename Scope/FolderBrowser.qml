@@ -5,6 +5,7 @@ import "Theme/tag_chips.js" as TagChips
 
 Item { // ROOT
     id: root
+    property string debugName: "FolderBrowser"
     property int horizontalPreferredWidth: 640
     property int verticalPreferredWidth: 0
     property int verticalMinWidth: 120
@@ -105,11 +106,26 @@ Item { // ROOT
     property int wrapSlackOff: 60
     property bool verticalButtonsOnSecondLine: false
     property bool verticalLayoutUpdatePending: false
-    property bool debugVerticalWrap: true
+    property bool debugVerticalWrap: false
     property bool foldersInSecondColumn: false
     property int verticalAutoWidth: 0
     property int verticalColumnWidth: 0
     property int verticalRightColumnWidth: 0
+    property int verticalRightColumnWidthHold: 0
+    property int verticalRightColumnWidthHoldTarget: 0
+    property bool verticalRightFixedWidthEnabled: false
+    property int verticalRightFixedWidthPx: 120
+    property int verticalRightExpandPxPerSec: 400
+    property int verticalRightCollapsePxPerSec: 40
+    property int verticalRightWidthTickMs: 16
+    property int verticalWidthApplyThresholdPx: 0
+    property int verticalGlitchLogThresholdPx: 90
+    property bool verticalWidthAnimationEnabled: true
+    property bool verticalWidthSpeedBased: true
+    property int verticalWidthExpandPxPerSec: 400
+    property int verticalWidthCollapsePxPerSec: 40
+    property int verticalWidthExpandDurationMs: 150
+    property int verticalWidthCollapseDurationMs: 420
     property bool verticalWidthUpdatePending: false
     property int contentHeight: 0
     property bool contentHeightUpdatePending: false
@@ -120,11 +136,15 @@ Item { // ROOT
     property bool previewFocusBackground: true
     // anchor: current behavior, hybrid: keep anchor but shift left to reduce early wrapping
     property string previewLayoutMode: "hybrid"
+    // normal: equal preview column widths, eng: tighter per-column widths
+    property string verticalPreviewMode: "normal"
     property var previewRows: []
     property var previewActivePaths: []
     property var previewAnchorCenters: []
+    property var previewAnchorCentersY: []
     property real previewDimOpacity: 0.5
     property bool previewDebugBg: false
+    property bool previewHoverDebug: false
     property int previewRowSpacing: 1
     property real previewShadeSliderMix: 0.65
     readonly property real previewRowShadeMix: Math.max(0, Math.min(1, 1 - previewShadeSliderMix))
@@ -134,6 +154,26 @@ Item { // ROOT
     property int previewTabDropPx: 4
     property bool previewHeightSyncPending: false
     property string previewLastHoverKey: ""
+    property bool previewColumnsHoldActive: false
+    property int previewColumnsHoldMs: 160
+    property bool previewHoverApplyScheduled: false
+    property int previewHoverDelayMs: 90
+    property int previewHoverDelayMinLevel: 1
+    property int previewHoverPendingGeneration: 0
+    property bool previewCloseOnHoverExitEnabled: false
+    property int previewCloseDelayMs: 120
+    property bool pointerOverMainHoverColumn: false
+    property bool pointerOverPreviewColumns: false
+    property int previewHoverGen: 0
+    property int previewCascadeGuardMs: 140
+    property real previewLastApplyAtMs: 0
+    property int previewLastApplyLevel: -1
+    property int previewPendingLevel: 0
+    property string previewPendingPath: ""
+    property var previewPendingItem: null
+    property var previewPendingFillColor: null
+    property real previewPendingCenterX: -1
+    property real previewPendingCenterY: -1
 
     TextMetrics {
         id: labelMetrics
@@ -283,8 +323,26 @@ Item { // ROOT
         return effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
     }
 
+    function shouldShowVerticalRightColumn() {
+        return foldersInSecondColumn || (previewEnabled && verticalView && (previewRows.length > 0 || previewColumnsHoldActive))
+    }
+
+    function calculateFoldersColumnWidthForEntries(entries) {
+        if (!entries || entries.length === 0) {
+            return verticalMinWidth
+        }
+        var maxWidth = 0
+        var folderStyle = effectiveStyle()
+        for (var f = 0; f < entries.length; f++) {
+            maxWidth = Math.max(maxWidth, estimateButtonWidth(itemName(entries[f]), folderStyle))
+        }
+        var padded = maxWidth + 32
+        return Math.max(verticalMinWidth, padded)
+    }
+
     function calculateVerticalAutoWidth() {
         if (!verticalView) return verticalPreferredWidth > 0 ? verticalPreferredWidth : verticalMinWidth
+        var showRightColumn = shouldShowVerticalRightColumn()
         var maxWidth = 0
         var pathStyle = (effectiveStyle() === "largeIcon") ? "smallIcon" : effectiveStyle()
         var parts = visibleParentPaths()
@@ -296,10 +354,8 @@ Item { // ROOT
         var currentLabel = displayParts.length ? displayParts[displayParts.length - 1] : "/"
         maxWidth = Math.max(maxWidth, estimateButtonWidth(currentLabel, pathStyle))
         var folderStyle = effectiveStyle()
-        if (!foldersInSecondColumn) {
-            for (var f = 0; f < folders.length; f++) {
-                maxWidth = Math.max(maxWidth, estimateButtonWidth(itemName(folders[f]), folderStyle))
-            }
+        for (var f = 0; f < folders.length; f++) {
+            maxWidth = Math.max(maxWidth, estimateButtonWidth(itemName(folders[f]), folderStyle))
         }
         var buttonsWidth = (showModeToggle ? compactButtonHeight + 6 : 0) + verticalButtonsPanel.implicitWidth
         maxWidth = Math.max(maxWidth, buttonsWidth + 12)
@@ -308,19 +364,115 @@ Item { // ROOT
         var rightWidth = calculateFoldersColumnWidth()
         verticalColumnWidth = columnWidth
         verticalRightColumnWidth = rightWidth
-        var gap = verticalContentRow ? verticalContentRow.spacing : 12
-        return foldersInSecondColumn ? (columnWidth + rightWidth + gap) : columnWidth
+        var gap = showRightColumn ? (verticalContentRow ? verticalContentRow.spacing : 12) : 0
+        // A (test toggle): hard width reduction disabled.
+        var total = columnWidth + (showRightColumn ? rightWidth : 0) + gap
+        if (debugVerticalWrap) {
+            console.log(
+                "[vwidth:auto]",
+                "name=", debugName,
+                "path=", path,
+                "previewRows=", previewRows.length,
+                "showRight=", showRightColumn,
+                "foldersInSecondColumn=", foldersInSecondColumn,
+                "maxWidth=", Math.round(maxWidth),
+                "column=", Math.round(columnWidth),
+                "right=", Math.round(rightWidth),
+                "gap=", Math.round(gap),
+                "total=", Math.round(total)
+            )
+        }
+        return total
     }
 
     function calculateFoldersColumnWidth() {
-        if (!folders || folders.length === 0) return verticalMinWidth
-        var maxWidth = 0
-        var folderStyle = effectiveStyle()
-        for (var f = 0; f < folders.length; f++) {
-            maxWidth = Math.max(maxWidth, estimateButtonWidth(itemName(folders[f]), folderStyle))
+        if (verticalView && verticalRightFixedWidthEnabled) {
+            var fixed = Math.max(verticalMinWidth, Math.round(Number(verticalRightFixedWidthPx) || verticalMinWidth))
+            _setVerticalRightHoldTarget(fixed)
+            return fixed
         }
-        var padded = maxWidth + 32
-        return Math.max(verticalMinWidth, padded)
+        if (previewEnabled && verticalView && previewRows.length > 0) {
+            var previewCount = previewRows.length
+            var maxPreviewWidth = verticalMinWidth
+            var perRow = []
+            var sumPreviewWidths = 0
+            for (var i = 0; i < previewCount; i++) {
+                var row = previewRows[i]
+                var rowEntries = (row && row.entries) ? row.entries : []
+                var rowWidth = calculateFoldersColumnWidthForEntries(rowEntries)
+                perRow.push(Math.round(rowWidth))
+                maxPreviewWidth = Math.max(maxPreviewWidth, rowWidth)
+                sumPreviewWidths += rowWidth
+            }
+            var spacingPerGap = 6
+            var spacing = previewCount > 1 ? ((previewCount - 1) * spacingPerGap) : 0
+            var previewTotal = Math.max(verticalMinWidth, (maxPreviewWidth * previewCount) + spacing)
+            if (debugVerticalWrap) {
+                console.log(
+                    "[vwidth:right-preview]",
+                    "name=", debugName,
+                    "mode=", verticalPreviewMode,
+                    "rows=", previewCount,
+                    "perRow=", "[" + perRow.join(",") + "]",
+                    "maxRow=", Math.round(maxPreviewWidth),
+                    "spacing=", Math.round(spacing),
+                    "total=", Math.round(previewTotal)
+                )
+            }
+            if (verticalView && previewEnabled) {
+                _setVerticalRightHoldTarget(previewTotal)
+                var hold = Math.max(verticalMinWidth, Number(verticalRightColumnWidthHold) || 0)
+                return hold > 0 ? hold : previewTotal
+            }
+            return previewTotal
+        }
+        var fallback = calculateFoldersColumnWidthForEntries(folders || [])
+        if (debugVerticalWrap) {
+            console.log(
+                "[vwidth:right-fallback]",
+                "name=", debugName,
+                "folders=", (folders ? folders.length : 0),
+                "total=", Math.round(fallback)
+            )
+        }
+        if (verticalView && previewEnabled) {
+            _setVerticalRightHoldTarget(fallback)
+            var fallbackHold = Math.max(verticalMinWidth, Number(verticalRightColumnWidthHold) || 0)
+            return fallbackHold > 0 ? fallbackHold : fallback
+        }
+        return fallback
+    }
+
+    function _setVerticalRightHoldTarget(nextWidth) {
+        var target = Math.max(verticalMinWidth, Math.round(Number(nextWidth) || 0))
+        verticalRightColumnWidthHoldTarget = target
+        if (!verticalRightWidthSmoother.running) {
+            verticalRightWidthSmoother.start()
+        }
+    }
+
+    function _tickVerticalRightHoldWidth() {
+        var current = Math.max(0, Number(verticalRightColumnWidthHold) || 0)
+        var target = Math.max(0, Number(verticalRightColumnWidthHoldTarget) || 0)
+        var dt = Math.max(0.001, Number(verticalRightWidthTickMs) / 1000.0)
+        var speed = target >= current ? Math.max(1, verticalRightExpandPxPerSec) : Math.max(1, verticalRightCollapsePxPerSec)
+        var step = speed * dt
+        var next = current
+        if (target > current) {
+            next = Math.min(target, current + step)
+        } else if (target < current) {
+            next = Math.max(target, current - step)
+        }
+        if (Math.abs(next - current) >= 0.5) {
+            verticalRightColumnWidthHold = Math.round(next)
+            scheduleVerticalWidthUpdate()
+            return
+        }
+        if (Math.abs(target - current) >= 0.5) {
+            verticalRightColumnWidthHold = Math.round(target)
+            scheduleVerticalWidthUpdate()
+        }
+        verticalRightWidthSmoother.stop()
     }
 
     function calculateContentHeight() {
@@ -513,6 +665,10 @@ Item { // ROOT
         scheduleVerticalWidthUpdate()
         scheduleContentHeightUpdate()
     }
+    onVerticalPreviewModeChanged: {
+        scheduleVerticalWidthUpdate()
+        scheduleContentHeightUpdate()
+    }
     onFoldersInSecondColumnChanged: {
         scheduleVerticalWidthUpdate()
         scheduleVerticalLayoutUpdate()
@@ -522,11 +678,38 @@ Item { // ROOT
     onFlowOnSecondLineChanged: scheduleContentHeightUpdate()
     onPreviewEnabledChanged: {
         resetPreview()
+        scheduleVerticalWidthUpdate()
         scheduleContentHeightUpdate()
     }
     onPreviewRowsChanged: {
+        if (previewEnabled && verticalView) {
+            if (previewRows.length > 0) {
+                previewColumnsHoldActive = false
+                previewColumnsHoldTimer.stop()
+            } else {
+                previewColumnsHoldActive = true
+                previewColumnsHoldTimer.restart()
+            }
+        } else {
+            previewColumnsHoldActive = false
+            previewColumnsHoldTimer.stop()
+        }
+        scheduleVerticalWidthUpdate()
         scheduleContentHeightUpdate()
+        if (verticalRightColumnHost && verticalRightColumnHost.schedulePreviewLayoutLog) {
+            verticalRightColumnHost.schedulePreviewLayoutLog("preview-rows")
+        }
         _debugPreviewBgState("rowsChanged")
+    }
+    onPreviewAnchorCentersChanged: {
+        if (verticalRightColumnHost && verticalRightColumnHost.schedulePreviewLayoutLog) {
+            verticalRightColumnHost.schedulePreviewLayoutLog("anchor-x")
+        }
+    }
+    onPreviewAnchorCentersYChanged: {
+        if (verticalRightColumnHost && verticalRightColumnHost.schedulePreviewLayoutLog) {
+            verticalRightColumnHost.schedulePreviewLayoutLog("anchor-y")
+        }
     }
     onPreviewFocusBackgroundChanged: _debugPreviewBgState("focusToggle")
 
@@ -549,6 +732,52 @@ Item { // ROOT
             root.previewHeightSyncPending = false
             root.scheduleContentHeightUpdate()
         }
+    }
+
+    Timer {
+        id: previewColumnsHoldTimer
+        interval: root.previewColumnsHoldMs
+        repeat: false
+        onTriggered: {
+            root.previewColumnsHoldActive = false
+            root.scheduleVerticalWidthUpdate()
+            root.scheduleContentHeightUpdate()
+        }
+    }
+
+    Timer {
+        id: previewHoverDelayTimer
+        interval: root.previewHoverDelayMs
+        repeat: false
+        onTriggered: root._applyQueuedPreviewHover(root.previewHoverPendingGeneration)
+    }
+
+    Timer {
+        id: previewCloseTimer
+        interval: root.previewCloseDelayMs
+        repeat: false
+        onTriggered: {
+            if (!root.previewCloseOnHoverExitEnabled) return
+            if (!root.verticalView || !root.previewEnabled) return
+            if (root._keepPreviewAlive()) return
+            root.resetPreview()
+            root.scheduleVerticalWidthUpdate()
+            root.scheduleContentHeightUpdate()
+        }
+    }
+
+    Timer {
+        id: verticalRightWidthSmoother
+        interval: Math.max(8, root.verticalRightWidthTickMs)
+        repeat: true
+        onTriggered: root._tickVerticalRightHoldWidth()
+    }
+
+    NumberAnimation {
+        id: verticalWidthAnim
+        target: root
+        property: "verticalPreferredWidth"
+        easing.type: Easing.OutCubic
     }
 
 
@@ -674,7 +903,37 @@ Item { // ROOT
         previewRows = []
         previewActivePaths = []
         previewAnchorCenters = []
+        previewAnchorCentersY = []
         previewLastHoverKey = ""
+        previewColumnsHoldActive = false
+        previewColumnsHoldTimer.stop()
+        verticalRightColumnWidthHold = 0
+        verticalRightColumnWidthHoldTarget = 0
+        verticalRightWidthSmoother.stop()
+        previewHoverGen += 1
+        previewHoverApplyScheduled = false
+        previewHoverPendingGeneration = 0
+        previewHoverDelayTimer.stop()
+        previewPendingLevel = 0
+        previewPendingPath = ""
+        previewPendingItem = null
+        previewPendingFillColor = null
+        previewPendingCenterX = -1
+        previewPendingCenterY = -1
+    }
+
+    function _keepPreviewAlive() {
+        return pointerOverMainHoverColumn || pointerOverPreviewColumns
+    }
+
+    function _schedulePreviewCloseIfIdle() {
+        if (!previewCloseOnHoverExitEnabled) return
+        if (!verticalView || !previewEnabled) return
+        if (_keepPreviewAlive()) {
+            previewCloseTimer.stop()
+            return
+        }
+        previewCloseTimer.restart()
     }
 
     function _samePreviewRows(a, b) {
@@ -722,17 +981,28 @@ Item { // ROOT
         return true
     }
 
-    function _setPreviewAnchorCenter(level, centerX) {
+    function _setPreviewAnchorCenter(level, centerX, centerY) {
         var x = Number(centerX)
         if (!isFinite(x)) {
             return
         }
         var nextCenters = previewAnchorCenters.slice(0, level)
         nextCenters.push(x)
-        if (_samePathArray(previewAnchorCenters, nextCenters)) {
+        var y = Number(centerY)
+        var hasY = isFinite(y)
+        var nextCentersY = previewAnchorCentersY.slice(0, level)
+        if (hasY) {
+            nextCentersY.push(y)
+        } else if (previewAnchorCentersY && level < previewAnchorCentersY.length) {
+            nextCentersY.push(previewAnchorCentersY[level])
+        }
+        var changedX = !_samePathArray(previewAnchorCenters, nextCenters)
+        var changedY = !_samePathArray(previewAnchorCentersY, nextCentersY)
+        if (!changedX && !changedY) {
             return
         }
         previewAnchorCenters = nextCenters
+        previewAnchorCentersY = nextCentersY
     }
 
     function previewAnchorCenterForLevel(level) {
@@ -743,16 +1013,30 @@ Item { // ROOT
         return isFinite(x) ? x : -1
     }
 
+    function previewAnchorCenterYForLevel(level) {
+        if (!previewAnchorCentersY || level < 0 || level >= previewAnchorCentersY.length) {
+            return -1
+        }
+        var y = Number(previewAnchorCentersY[level])
+        return isFinite(y) ? y : -1
+    }
+
     function _applyPreviewHover(level, basePath, sourceItem, sourceFillColor) {
         var hoverKey = String(level) + "|" + basePath + "|" + String(sourceFillColor)
         if (hoverKey === previewLastHoverKey) {
+            if (previewHoverDebug) {
+                console.log("[preview-hover] skip-same", "level=", level, "path=", basePath)
+            }
             return
         }
         previewLastHoverKey = hoverKey
         var children = listPreviewChildren(basePath)
+        if (previewHoverDebug) {
+            console.log("[preview-hover] apply", "level=", level, "path=", basePath, "children=", children.length)
+        }
         var nextRows = previewRows.slice(0, level)
         // Collapse deeper rows when the currently hovered item has no children.
-        // This prevents stale lower rows from suggesting wrong descendants.
+        // Vertical rule: do not keep/open an empty next column.
         if (children.length === 0) {
             if (_samePreviewRows(previewRows, nextRows)) {
                 return
@@ -777,8 +1061,69 @@ Item { // ROOT
         previewRows = nextRows
     }
 
-    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor, sourceCenterX) {
-        if (!previewEnabled || verticalView) {
+    function _applyQueuedPreviewHover(generation) {
+        previewHoverApplyScheduled = false
+        if (generation !== previewHoverGen) {
+            return
+        }
+        if (!previewEnabled) {
+            return
+        }
+        var queuedLevel = Math.max(0, Number(previewPendingLevel) || 0)
+        var queuedPath = String(previewPendingPath || "").trim()
+        if (!queuedPath) {
+            return
+        }
+        if (previewHoverDebug) {
+            console.log("[preview-hover] queued-apply", "level=", queuedLevel, "path=", queuedPath)
+        }
+        _setPreviewActivePath(queuedLevel, queuedPath)
+        _setPreviewAnchorCenter(queuedLevel, previewPendingCenterX, previewPendingCenterY)
+        _debugPreviewBgState("hoverBeforeApply")
+        _applyPreviewHover(queuedLevel, queuedPath, previewPendingItem, previewPendingFillColor)
+        _debugPreviewBgState("hoverAfterApply")
+        previewLastApplyAtMs = Date.now()
+        previewLastApplyLevel = queuedLevel
+    }
+
+    function _queuePreviewHover(level, basePath, sourceItem, sourceFillColor, sourceCenterX, sourceCenterY) {
+        if (previewHoverApplyScheduled) {
+            var pendingLevel = Math.max(0, Number(previewPendingLevel) || 0)
+            // When overlapping hover events happen in the same frame,
+            // keep the deeper level event to avoid collapse flicker.
+            if (level < pendingLevel) {
+                if (previewHoverDebug) {
+                    console.log("[preview-hover] queue-skip-shallower", "level=", level, "pending=", pendingLevel, "path=", basePath)
+                }
+                return
+            }
+        }
+        previewPendingLevel = level
+        previewPendingPath = basePath
+        previewPendingItem = sourceItem
+        previewPendingFillColor = sourceFillColor
+        previewPendingCenterX = sourceCenterX
+        previewPendingCenterY = sourceCenterY
+        if (previewHoverDebug) {
+            console.log("[preview-hover] queue", "level=", level, "path=", basePath, "centerX=", sourceCenterX)
+        }
+        if (previewHoverApplyScheduled) {
+            return
+        }
+        previewHoverApplyScheduled = true
+        var generation = previewHoverGen
+        var needsDelay = verticalView && level >= previewHoverDelayMinLevel && previewHoverDelayMs > 0
+        if (needsDelay) {
+            previewHoverPendingGeneration = generation
+            previewHoverDelayTimer.interval = previewHoverDelayMs
+            previewHoverDelayTimer.restart()
+            return
+        }
+        Qt.callLater(function() { _applyQueuedPreviewHover(generation) })
+    }
+
+    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor, sourceCenterX, sourceCenterY) {
+        if (!previewEnabled) {
             return
         }
         var level = Math.max(0, Number(sourceLevel) || 0)
@@ -786,9 +1131,34 @@ Item { // ROOT
         if (!basePath) {
             return
         }
+        if (verticalView && level < Math.max(0, previewActivePaths.length - 1)) {
+            // Ignore stale re-hover on already-selected higher level.
+            // This avoids collapsing deeper columns when pointer overlaps.
+            if (basePath === previewPathForLevel(level)) {
+                if (previewHoverDebug) {
+                    console.log("[preview-hover] skip-stale-upper", "level=", level, "path=", basePath)
+                }
+                return
+            }
+        }
+        if (previewHoverDebug) {
+            console.log("[preview-hover] enter", "vertical=", verticalView, "level=", level, "path=", basePath)
+        }
+        if (verticalView) {
+            var nowMs = Date.now()
+            var elapsed = nowMs - Number(previewLastApplyAtMs || 0)
+            if (level >= 2 && level > previewLastApplyLevel && elapsed >= 0 && elapsed < previewCascadeGuardMs) {
+                if (previewHoverDebug) {
+                    console.log("[preview-hover] skip-cascade", "level=", level, "lastLevel=", previewLastApplyLevel, "elapsed=", Math.round(elapsed))
+                }
+                return
+            }
+            _queuePreviewHover(level, basePath, sourceItem, sourceFillColor, sourceCenterX, sourceCenterY)
+            return
+        }
         // Keep tab feedback immediate even while row animations run.
         _setPreviewActivePath(level, basePath)
-        _setPreviewAnchorCenter(level, sourceCenterX)
+        _setPreviewAnchorCenter(level, sourceCenterX, sourceCenterY)
         _debugPreviewBgState("hoverBeforeApply")
         _applyPreviewHover(level, basePath, sourceItem, sourceFillColor)
         _debugPreviewBgState("hoverAfterApply")
@@ -845,10 +1215,70 @@ Item { // ROOT
         if (verticalWidthUpdatePending) return
         verticalWidthUpdatePending = true
         Qt.callLater(function() {
-            verticalAutoWidth = calculateVerticalAutoWidth()
-            verticalPreferredWidth = verticalAutoWidth
+            var previous = verticalAutoWidth
+            var nextWidth = calculateVerticalAutoWidth()
+            var delta = Math.abs(nextWidth - previous)
+            if (delta >= verticalWidthApplyThresholdPx) {
+                verticalAutoWidth = nextWidth
+                _applyVerticalPreferredWidth(nextWidth)
+            } else if (debugVerticalWrap) {
+                console.log(
+                    "[vwidth:skip-small]",
+                    "name=", debugName,
+                    "prev=", Math.round(previous),
+                    "next=", Math.round(nextWidth),
+                    "delta=", Math.round(delta),
+                    "threshold=", verticalWidthApplyThresholdPx
+                )
+            }
+            if (delta >= verticalGlitchLogThresholdPx) {
+                console.log(
+                    "[vwidth:glitch-candidate]",
+                    "name=", debugName,
+                    "prev=", Math.round(previous),
+                    "next=", Math.round(nextWidth),
+                    "delta=", Math.round(delta),
+                    "rows=", previewRows.length,
+                    "mode=", verticalPreviewMode,
+                    "showRight=", shouldShowVerticalRightColumn()
+                )
+            }
+            if (debugVerticalWrap) {
+                console.log("[vwidth:apply]", "name=", debugName, "prev=", Math.round(previous), "next=", Math.round(verticalAutoWidth))
+            }
             verticalWidthUpdatePending = false
         })
+    }
+
+    function _applyVerticalPreferredWidth(nextWidth) {
+        var target = Math.max(0, Math.round(Number(nextWidth) || 0))
+        if (!verticalWidthAnimationEnabled || !verticalView) {
+            verticalPreferredWidth = target
+            return
+        }
+        var current = Math.max(0, Math.round(Number(verticalPreferredWidth) || 0))
+        if (current <= 0 || Math.abs(target - current) < 1) {
+            verticalPreferredWidth = target
+            return
+        }
+        verticalWidthAnim.stop()
+        if (verticalWidthSpeedBased) {
+            var delta = Math.abs(target - current)
+            if (target > current) {
+                var expandSpeed = Math.max(1, Number(verticalWidthExpandPxPerSec) || 1)
+                verticalWidthAnim.duration = Math.max(80, Math.round((delta / expandSpeed) * 1000))
+            } else {
+                var collapseSpeed = Math.max(1, Number(verticalWidthCollapsePxPerSec) || 1)
+                verticalWidthAnim.duration = Math.max(120, Math.round((delta / collapseSpeed) * 1000))
+            }
+        } else {
+            verticalWidthAnim.duration = target > current
+                ? verticalWidthExpandDurationMs
+                : verticalWidthCollapseDurationMs
+        }
+        verticalWidthAnim.from = current
+        verticalWidthAnim.to = target
+        verticalWidthAnim.start()
     }
 
     function scheduleVerticalLayoutUpdate() {
@@ -881,14 +1311,32 @@ Item { // ROOT
         if (!verticalView) return
         if (!verticalMainColumn || !verticalContentRow) return
         if (verticalContentRow.height <= 0) return
+        var showRightColumn = shouldShowVerticalRightColumn()
         var freeHeight          = verticalSpacer ? verticalSpacer.height : 0
-        var uListHeight         = foldersContentRight ? foldersContentRight.implicitHeight : 0
-        var shouldWrap          = foldersInSecondColumn
-            ? (freeHeight*2 <= uListHeight + 10)
-            : (freeHeight < 1)
+        var uListHeight         = verticalRightPreviewColumns ? verticalRightPreviewColumns.implicitHeight : 0
+        var shouldWrap          = showRightColumn
+            ? false
+            : (foldersInSecondColumn
+                ? (freeHeight*2 <= uListHeight + 10)
+                : (freeHeight < 1))
+        if (debugVerticalWrap) {
+            console.log(
+                "[vwidth:wrap-check]",
+                "name=", debugName,
+                "path=", path,
+                "showRight=", showRightColumn,
+                "freeHeight=", Math.round(freeHeight),
+                "uListHeight=", Math.round(uListHeight),
+                "currentWrap=", foldersInSecondColumn,
+                "nextWrap=", shouldWrap
+            )
+        }
         if (verticalButtonsOnSecondLine !== shouldWrap) {
             verticalButtonsOnSecondLine = shouldWrap
             foldersInSecondColumn = shouldWrap
+            if (debugVerticalWrap) {
+                console.log("[vwidth:wrap-apply]", "set=", shouldWrap)
+            }
         }
     }
 
@@ -1027,6 +1475,21 @@ Item { // ROOT
                             checkable: true
                             checked: previewLayoutMode === "hybrid"
                             onTriggered: previewLayoutMode = "hybrid"
+                        }
+                        MenuSeparator {}
+                        MenuItem {
+                            text: qsTr("V-Vorschau: Normal")
+                            checkable: true
+                            checked: true
+                            enabled: false
+                            onTriggered: {}
+                        }
+                        MenuItem {
+                            text: qsTr("V-Vorschau: Eng")
+                            checkable: true
+                            checked: false
+                            enabled: false
+                            onTriggered: {}
                         }
                     }
                     MouseArea {
@@ -1228,8 +1691,8 @@ Item { // ROOT
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
                                 onHoverEntered: {
-                                    var center = mapToItem(previewStack, width / 2, height / 2).x
-                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, center)
+                                    var centerPoint = mapToItem(root, width / 2, height / 2)
+                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                 }
                                 DropArea {
                                     anchors.fill: parent
@@ -1394,6 +1857,19 @@ Item { // ROOT
                                     checked: previewLayoutMode === "hybrid"
                                     onTriggered: previewLayoutMode = "hybrid"
                                 }
+                                MenuSeparator {}
+                                MenuItem {
+                                    text: qsTr("V-Vorschau: Normal")
+                                    checkable: true
+                                    checked: verticalPreviewMode === "normal"
+                                    onTriggered: verticalPreviewMode = "normal"
+                                }
+                                MenuItem {
+                                    text: qsTr("V-Vorschau: Eng")
+                                    checkable: true
+                                    checked: verticalPreviewMode === "eng"
+                                    onTriggered: verticalPreviewMode = "eng"
+                                }
                             }
                             MouseArea {
                                 anchors.fill: parent
@@ -1413,8 +1889,12 @@ Item { // ROOT
                 spacing: 0
                 Item {
                     id: verticalMainColumnHost
-                    Layout.fillWidth: true
+                    Layout.fillWidth: false
+                    Layout.preferredWidth: Math.max(verticalMinWidth, verticalColumnWidth)
+                    Layout.minimumWidth: Math.max(verticalMinWidth, verticalColumnWidth)
+                    Layout.maximumWidth: Math.max(verticalMinWidth, verticalColumnWidth)
                     Layout.fillHeight: true
+                    clip: true
                     z: 2
                     ColumnLayout { // VERTICAL mainColumn
                         id: verticalMainColumn
@@ -1580,7 +2060,7 @@ Item { // ROOT
             
                     FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
-                        width: (verticalContentRow ? verticalContentRow.width : parent.width) + root.cwdVerticalRightOverflow
+                        width: parent.width + root.cwdVerticalRightOverflow
                         z: 8
                         property string currentFullPath: path
                         property var currentPathColors: getPathSegmentColor(currentFullPath, true)
@@ -1674,6 +2154,19 @@ Item { // ROOT
                         contentWidth: width
                         contentHeight: foldersContent.implicitHeight
                         clip: true
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.NoButton
+                            hoverEnabled: true
+                            onEntered: {
+                                root.pointerOverMainHoverColumn = true
+                                previewCloseTimer.stop()
+                            }
+                            onExited: {
+                                root.pointerOverMainHoverColumn = false
+                                root._schedulePreviewCloseIfIdle()
+                            }
+                        }
                         Column {
                             id: foldersContent
                             width: parent.width
@@ -1711,6 +2204,13 @@ Item { // ROOT
                                     onRenameAccepted: renameAccepted()
                                     onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
+                                onHoverEntered: {
+                                    if (!verticalView) {
+                                        return
+                                    }
+                                    var centerPoint = mapToItem(root, width / 2, height / 2)
+                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                }
                                         DropArea {
                                             anchors.fill: parent
                                             enabled: allowDrops && !itemIsEmbryo(modelData)
@@ -1725,7 +2225,7 @@ Item { // ROOT
                         }
                     }
                     Item {
-                        visible: foldersInSecondColumn
+                        visible: shouldShowVerticalRightColumn()
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                     }
@@ -1734,12 +2234,131 @@ Item { // ROOT
                 }
                 Item {
                     id: verticalRightColumnHost
-                    visible: foldersInSecondColumn
-                    Layout.preferredWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
-                    Layout.minimumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
-                    Layout.maximumWidth: Math.max(verticalButtonsPanel.implicitWidth, verticalRightColumnWidth)
+                    visible: shouldShowVerticalRightColumn()
+                    property bool debugColumnLayout: (debugVerticalWrap || debugLayout)
+                    property bool previewLayoutLogPending: false
+                    readonly property bool hasPreviewColumns: previewEnabled && verticalView && previewRows.length > 0
+                    readonly property int previewColumnCount: hasPreviewColumns ? previewRows.length : 1
+                    readonly property real previewColumnsSpacing: 6
+                    readonly property real previewHostTargetWidth: Math.max(verticalMinWidth, verticalRightColumnWidth)
+                    readonly property real previewColumnsContentWidth: 0
+                    readonly property real previewColumnWidth: Math.max(
+                        verticalMinWidth,
+                        (previewHostTargetWidth - ((previewColumnCount - 1) * previewColumnsSpacing)) / Math.max(1, previewColumnCount)
+                    )
+                    function previewColumnsStartX() {
+                        // Stabilized for now: keep preview block pinned directly
+                        // to the right of the main column.
+                        return 0
+                    }
+                    function previewAnchorYForColumn(columnIndex) { return -1 }
+                    function previewColumnStartY(columnIndex, contentHeight, hostHeight) { return 0 }
+                    function schedulePreviewLayoutLog(reason) {
+                        if (!debugColumnLayout || previewLayoutLogPending) {
+                            return
+                        }
+                        previewLayoutLogPending = true
+                        Qt.callLater(function() {
+                            previewLayoutLogPending = false
+                            if (!debugColumnLayout || !visible) {
+                                return
+                            }
+                            var startX = previewColumnsStartX()
+                            var hostRight = width
+                            var parts = []
+                            var cursor = startX
+                            for (var i = 0; i < previewColumnCount; i++) {
+                                var w = Math.round(previewColumnTargetWidth(i))
+                                parts.push("c" + i + "=[" + Math.round(cursor) + ".." + Math.round(cursor + w) + "]")
+                                cursor += w + (i < previewColumnCount - 1 ? previewColumnsSpacing : 0)
+                            }
+                            console.log(
+                                "[vcols:layout]",
+                                "reason=", String(reason || ""),
+                                "hostX=", Math.round(x),
+                                "hostW=", Math.round(width),
+                                "startX=", Math.round(startX),
+                                "contentW=", Math.round(previewColumnsContentWidth),
+                                "right=", Math.round(hostRight),
+                                "anchorX0=", Math.round(root.previewAnchorCenterForLevel(0)),
+                                "anchorY0=", Math.round(root.previewAnchorCenterYForLevel(0)),
+                                "rows=", previewRows.length,
+                                "cols=", previewColumnCount,
+                                parts.join(" ")
+                            )
+                        })
+                    }
+                    onXChanged: schedulePreviewLayoutLog("host-x")
+                    onWidthChanged: schedulePreviewLayoutLog("host-width")
+                    onVisibleChanged: {
+                        schedulePreviewLayoutLog("host-visible")
+                        if (!visible) {
+                            root.pointerOverPreviewColumns = false
+                            root._schedulePreviewCloseIfIdle()
+                        }
+                    }
+                    onPreviewColumnsContentWidthChanged: {}
+                    onPreviewColumnCountChanged: schedulePreviewLayoutLog("column-count")
+                    function previewColumnTargetWidth(columnIndex) {
+                        return previewColumnWidth
+                    }
+                    function previewRowAt(columnIndex) {
+                        if (!hasPreviewColumns) {
+                            return null
+                        }
+                        if (columnIndex < 0 || columnIndex >= previewRows.length) {
+                            return null
+                        }
+                        return previewRows[columnIndex]
+                    }
+                    function previewEntriesAt(columnIndex) {
+                        var row = previewRowAt(columnIndex)
+                        if (row && row.entries) {
+                            return row.entries
+                        }
+                        return columnIndex === 0 ? folders : []
+                    }
+                    function previewLevelAt(columnIndex) {
+                        var row = previewRowAt(columnIndex)
+                        if (row && row.level !== undefined) {
+                            return Number(row.level) + 1
+                        }
+                        return 0
+                    }
+                    function previewBasePathAt(columnIndex) {
+                        var row = previewRowAt(columnIndex)
+                        if (row && row.parentPath !== undefined) {
+                            return String(row.parentPath || "")
+                        }
+                        return String(path || "")
+                    }
+                    Layout.preferredWidth: Math.max(
+                        verticalButtonsPanel.implicitWidth,
+                        root.verticalRightFixedWidthEnabled ? root.verticalRightFixedWidthPx : verticalRightColumnWidth
+                    )
+                    Layout.minimumWidth: Math.max(
+                        verticalButtonsPanel.implicitWidth,
+                        root.verticalRightFixedWidthEnabled ? root.verticalRightFixedWidthPx : verticalRightColumnWidth
+                    )
+                    Layout.maximumWidth: Math.max(
+                        verticalButtonsPanel.implicitWidth,
+                        root.verticalRightFixedWidthEnabled ? root.verticalRightFixedWidthPx : verticalRightColumnWidth
+                    )
                     Layout.fillHeight: true
                     z: 1
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        hoverEnabled: true
+                        onEntered: {
+                            root.pointerOverPreviewColumns = true
+                            previewCloseTimer.stop()
+                        }
+                        onExited: {
+                            root.pointerOverPreviewColumns = false
+                            root._schedulePreviewCloseIfIdle()
+                        }
+                    }
                     ColumnLayout { // VERTICAL: right column for folders
                         id: verticalRightColumn
                         anchors.fill: parent
@@ -1759,56 +2378,90 @@ Item { // ROOT
                                 opacity: 0.45
                             }
                         }
-                        Flickable { // VERTICAL: folders list (right column)
+                        Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            contentWidth: width
-                            contentHeight: foldersContentRight.height
                             clip: true
-                            Column {
-                                id: foldersContentRight
-                                width: parent.width
-                                spacing: 6
+                            Row {
+                                id: verticalRightPreviewColumns
+                                x: verticalRightColumnHost.previewColumnsStartX()
+                                onXChanged: verticalRightColumnHost.schedulePreviewLayoutLog("row-x")
+                                width: implicitWidth
+                                height: parent.height
+                                spacing: verticalRightColumnHost.previewColumnsSpacing
                                 Repeater {
-                                    model: folders
-                                    delegate: FolderItem {
-                                        property string fullPath: itemName(modelData).indexOf("/") === 0
-                                            ? itemName(modelData)
-                                            : (path + "/" + itemName(modelData))
-                                        x: 0
-                                        width: parent.width
-                                        label: itemName(modelData)
-                                        style: effectiveStyle()
-                                        largeIconAlignLeft: effectiveStyle() !== "largeIcon"
-                                        compactHeight: compactButtonHeight
-                                        largeHeight: largeButtonHeight
-                                        largePadding: largeButtonPadding
-                                        iconSmall: iconSizeSmall
-                                        iconLarge: iconSizeLarge
-                                    textYOffset: buttonTextYOffset
-                                        iconSource: iconFolder
-                                        fillColor: folderFillColorForPath(modelData, 0, fullPath)
-                                        strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
-                                        textColor: textSoft
-                                        textSize: baseFont
-                                        textLeftInset: effectiveStyle() === "text" ? 8 : 0
-                                        dragEnabled: allowDrags && !itemIsEmbryo(modelData)
-                                        dragPayload: fullPath
-                                        renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
-                                        renameEnabled: allowRename
-                                        renameText: renameDraft
-                                        onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
-                                        onRenameTextEdited: renameTextEdited(text)
-                                        onRenameAccepted: renameAccepted()
-                                        onRenameCanceled: renameCanceled()
-                                        onActivate: folderActivated(fullPath)
-                                        DropArea {
-                                            anchors.fill: parent
-                                            enabled: allowDrops && !itemIsEmbryo(modelData)
-                                            onDropped: {
-                                                if (!drop || !drop.text) return
-                                                moveEntryRequested(drop.text, fullPath)
-                                                drop.acceptProposedAction()
+                                    model: verticalRightColumnHost.previewColumnCount
+                                    delegate: Flickable {
+                                        id: rightColumnFlick
+                                        property int columnIndex: index
+                                        width: verticalRightColumnHost.previewColumnTargetWidth(rightColumnFlick.columnIndex)
+                                        height: parent.height
+                                        contentWidth: width
+                                        contentHeight: rightColumnContent.implicitHeight
+                                        clip: true
+                                        Column {
+                                            id: rightColumnContent
+                                            y: 0
+                                            width: parent.width
+                                            spacing: 6
+                                            Repeater {
+                                                model: verticalRightColumnHost.previewEntriesAt(rightColumnFlick.columnIndex)
+                                                delegate: FolderItem {
+                                                    property int previewLevel: verticalRightColumnHost.previewLevelAt(rightColumnFlick.columnIndex)
+                                                    property string previewBasePath: verticalRightColumnHost.previewBasePathAt(rightColumnFlick.columnIndex)
+                                                    property string fullPath: itemName(modelData).indexOf("/") === 0
+                                                        ? itemName(modelData)
+                                                        : root._resolveFullPath(previewBasePath, modelData)
+                                                    x: 0
+                                                    width: parent.width
+                                                    label: itemName(modelData)
+                                                    style: effectiveStyle()
+                                                    largeIconAlignLeft: effectiveStyle() !== "largeIcon"
+                                                    compactHeight: compactButtonHeight
+                                                    largeHeight: largeButtonHeight
+                                                    largePadding: largeButtonPadding
+                                                    iconSmall: iconSizeSmall
+                                                    iconLarge: iconSizeLarge
+                                                    textYOffset: buttonTextYOffset
+                                                    iconSource: iconFolder
+                                                    fillColor: folderFillColorForPath(modelData, previewLevel, fullPath)
+                                                    strokeColor: folderStrokeColorForPath(modelData, previewLevel, fullPath)
+                                                    textColor: textSoft
+                                                    textSize: baseFont
+                                                    textLeftInset: effectiveStyle() === "text" ? 8 : 0
+                                                    tabHoverDropEnabled: true
+                                                    tabHoverDropPx: root.previewTabDropPx
+                                                    tabPinned: root.isPreviewPathActive(previewLevel, fullPath)
+                                                    textBold: root.isPreviewPathActive(previewLevel, fullPath)
+                                                    dimmedStyle: root.isPreviewDimmed(previewLevel, fullPath)
+                                                    opacity: root.isPreviewDimmed(previewLevel, fullPath) ? root.previewDimOpacity : 1.0
+                                                    dragEnabled: allowDrags && !itemIsEmbryo(modelData)
+                                                    dragPayload: fullPath
+                                                    renaming: allowRename && renameTargetPath === fullPath
+                                                    renameEnabled: allowRename
+                                                    renameText: renameDraft
+                                                    onRenameRequested: renameRequested(fullPath)
+                                                    onRenameTextEdited: renameTextEdited(text)
+                                                    onRenameAccepted: renameAccepted()
+                                                    onRenameCanceled: renameCanceled()
+                                                    onActivate: folderActivated(fullPath)
+                                                    onHoverEntered: {
+                                                        if (!verticalView) {
+                                                            return
+                                                        }
+                                                        var centerPoint = mapToItem(root, width / 2, height / 2)
+                                                        updatePreviewFromHover(previewLevel, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                                    }
+                                                    DropArea {
+                                                        anchors.fill: parent
+                                                        enabled: allowDrops && !itemIsEmbryo(modelData)
+                                                        onDropped: {
+                                                            if (!drop || !drop.text) return
+                                                            moveEntryRequested(drop.text, fullPath)
+                                                            drop.acceptProposedAction()
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1873,8 +2526,8 @@ Item { // ROOT
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
                                 onHoverEntered: {
-                                    var center = mapToItem(previewStack, width / 2, height / 2).x
-                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, center)
+                                    var centerPoint = mapToItem(root, width / 2, height / 2)
+                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                 }
                                 DropArea {
                                     anchors.fill: parent
@@ -2026,8 +2679,8 @@ Item { // ROOT
                                     opacity: root.isPreviewDimmed(previewLevel + 1, fullPath) ? root.previewDimOpacity : 1.0
                                     onActivate: folderActivated(fullPath)
                                     onHoverEntered: {
-                                        var center = mapToItem(previewStack, width / 2, height / 2).x
-                                        updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, center)
+                                        var centerPoint = mapToItem(root, width / 2, height / 2)
+                                        updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                     }
                                 }
                             }

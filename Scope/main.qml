@@ -45,6 +45,8 @@ ApplicationWindow {
     property bool projectsBrowserVisible: true
     property bool templatesBrowserVisible: true
     property bool filesPanelHalfTransparent: false
+    // Positive value lets FilesPanel overlap a bit to the left.
+    property int filesPanelOverlapPx: 8
     property color dialogPanelBg: darkTheme ? "#f4f7ff" : "#141823"
     property color dialogPanelBorder: darkTheme ? "#1b2438" : "#d5ddf2"
     property color dialogTextStrong: darkTheme ? "#1a2233" : "#edf2ff"
@@ -1393,10 +1395,30 @@ ApplicationWindow {
                 scheduleBrowserLayoutRefresh()
             }
         }
+        function onVerticalPreferredWidthChanged() {
+            if (projectsBrowser && projectsBrowser.verticalView) {
+                scheduleBrowserLayoutRefresh()
+            }
+        }
+        function onVerticalAutoWidthChanged() {
+            if (projectsBrowser && projectsBrowser.verticalView) {
+                scheduleBrowserLayoutRefresh()
+            }
+        }
     }
     Connections {
         target: templatesBrowser
         function onImplicitWidthChanged() {
+            if (templatesBrowser && templatesBrowser.verticalView) {
+                scheduleBrowserLayoutRefresh()
+            }
+        }
+        function onVerticalPreferredWidthChanged() {
+            if (templatesBrowser && templatesBrowser.verticalView) {
+                scheduleBrowserLayoutRefresh()
+            }
+        }
+        function onVerticalAutoWidthChanged() {
             if (templatesBrowser && templatesBrowser.verticalView) {
                 scheduleBrowserLayoutRefresh()
             }
@@ -2251,7 +2273,12 @@ ApplicationWindow {
                         Layout.fillHeight: true
                         spacing: 0
                         Item { id: slotProjects_PV_TH; Layout.fillWidth: false; Layout.fillHeight: true }
-                        Item { id: slotFiles_PV_TH; Layout.fillWidth: true; Layout.fillHeight: true }
+                        Item {
+                            id: slotFiles_PV_TH
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: -window.filesPanelOverlapPx
+                        }
                     }
                 }
 
@@ -2265,20 +2292,30 @@ ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        spacing: 6
+                        spacing: 0
                         Item { id: slotTemplates_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
-                        Item { id: slotFiles_PH_TV; Layout.fillWidth: true; Layout.fillHeight: true }
+                        Item {
+                            id: slotFiles_PH_TV
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: -window.filesPanelOverlapPx
+                        }
                     }
                 }
 
                 RowLayout {   // Layout PV_TV   
                     id: case_PV_TV
                     anchors.fill: parent
-                    spacing: 6
+                    spacing: 0
                     visible: false
                     Item { id: slotProjects_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
                     Item { id: slotTemplates_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotFiles_PV_TV; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item {
+                        id: slotFiles_PV_TV
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.leftMargin: -window.filesPanelOverlapPx
+                    }
                 }
             }
 
@@ -2292,6 +2329,7 @@ ApplicationWindow {
 
         FolderBrowser {  // TemplatesBrowser
             id: templatesBrowser
+            debugName: "TemplatesBrowser"
             parent: floatingPool
             visible: templatesBrowserVisible
             path: standardPath
@@ -2380,6 +2418,7 @@ ApplicationWindow {
 
         FolderBrowser {  // ProjectsBrowser
             id: projectsBrowser
+            debugName: "ProjectsBrowser"
             parent: floatingPool
             visible: projectsBrowserVisible
             path: cwp
