@@ -12,5 +12,5 @@ There is a system for working with Markdown notes that you can extend with plugi
 It will appear slowly, bit by bit, as you grow into this system and need more of it. It will stay in the background when you don't. That's a core principle of the system you're going to experience.
 **Start small, grow big if needed. Everything is already there if needed. Everything stays simple and easy if no complexity is required.**
 
-[So let's go on!](<../Lesson3/Folders.md>)
+[So let's go on!](<Folders.md>)
 

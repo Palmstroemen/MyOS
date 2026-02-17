@@ -1,8 +1,8 @@
 You know OS-X? Are you familiar with these funny colorized dots to tag your files? Did you ever understand the idea?
 
 #### Here ist our take on tags.
-Tags are a powerful means to organize yourself. But tags need a meaning, a name, not just a color.
-And different projects might have different needs for tags. In one project you might want to have tags like:
+Tags are a powerful means to organize yourself. 
+Different projects might have different needs for various tags. In one project you might want to have tags like:
 * important
 * urgent
 * in work
@@ -20,7 +20,8 @@ And inside your finances you might have the need of tags like:
 * enforced
 * paid
 
-Manage all this with a few colorful dots! Good luck!
+So projects should kind of **reduce** the flood of tags that might overwhelm your whole system. That's what projects in MyOS can do. 
+
 We provide you with tags on steroids.
 Tag what you want, always, as you like in an easy to understand, human readable but consistent way.
 
