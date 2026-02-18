@@ -149,6 +149,19 @@ Item { // ROOT
     property bool s2CollapseTransitionRunning: false
     property bool s2CollapsedInS4: false
     property string s2CollapseTransitionKey: ""
+    property bool s2ReverseSequenceEnabled: true
+    property bool s2ReverseSequenceRunning: false
+    property int s2ReverseSequenceDelayMs: 36
+    property real s2CollapseProgress: 0.0
+    property bool s2PointerCarryEnabled: true
+    property real s2PointerCarryFactor: 0.5
+    property bool s2SystemPointerCarryEnabled: true
+    property real s2SystemPointerCarryFactor: 0.82
+    property real s2SystemPointerUserOffsetFactor: 0.35
+    property real previewPointerX: -1
+    property real s2PointerCarryStartX: -1
+    property real s2PointerCarryUserOffsetX: 0
+    property real s2SystemCarryAppliedX: 0
     property var s2CollapseSnapshotActivePaths: []
     property var s2CollapseSnapshotAnchorCenters: []
     property var s2CollapseSnapshotAnchorCentersY: []
@@ -158,7 +171,7 @@ Item { // ROOT
     property int h2LiftDurationMs: 1500
     property bool previewDebugBg: false
     property bool previewHoverDebug: false
-    property bool previewReopenDebug: true
+    property bool previewReopenDebug: false
     property int previewRowSpacing: 1
     property real previewShadeSliderMix: 0.65
     readonly property real previewRowShadeMix: Math.max(0, Math.min(1, 1 - previewShadeSliderMix))
@@ -182,7 +195,9 @@ Item { // ROOT
     property int previewCascadeGuardMs: 140
     property real previewLastApplyAtMs: 0
     property int previewLastApplyLevel: -1
-    property bool previewAnchorDebug: true
+    property bool previewAnchorDebug: false
+    // Safety cap for anchor viewport calculations to avoid runaway host heights.
+    property int previewAnchorViewportClampPx: 5000
     property string previewAnchorDebugLastLine: ""
     property int previewPendingLevel: 0
     property string previewPendingPath: ""
@@ -195,6 +210,7 @@ Item { // ROOT
     property int previewReopenSkipFoldersResetCount: 0
     property bool previewReopenStabilizing: false
     property int previewReopenStabilizeMs: 220
+    property bool previewInstantReopenEnabled: true
     property string previewReopenCommitPath: ""
     property var previewReopenActivePaths: []
     property var previewReopenAnchorCenters: []
@@ -477,6 +493,14 @@ Item { // ROOT
 
     function _setVerticalRightHoldTarget(nextWidth) {
         var target = Math.max(verticalMinWidth, Math.round(Number(nextWidth) || 0))
+        if (previewInstantReopenEnabled && previewReopenStabilizing) {
+            verticalRightColumnWidthHoldTarget = target
+            verticalRightColumnWidthHold = target
+            if (verticalRightWidthSmoother.running) {
+                verticalRightWidthSmoother.stop()
+            }
+            return
+        }
         verticalRightColumnWidthHoldTarget = target
         if (!verticalRightWidthSmoother.running) {
             verticalRightWidthSmoother.start()
@@ -630,6 +654,12 @@ Item { // ROOT
         s2CollapseSnapshotAnchorCenters = previewAnchorCenters.slice()
         s2CollapseSnapshotAnchorCentersY = previewAnchorCentersY.slice()
         s2CollapseSnapshotRows = previewRows.slice()
+        if (previewPointerX < 0) {
+            previewPointerX = Math.round(width * 0.5)
+        }
+        s2PointerCarryStartX = previewPointerX
+        s2PointerCarryUserOffsetX = 0
+        s2SystemCarryAppliedX = 0
         if (previewReopenDebug) {
             console.log(
                 "[preview-reopen:snapshot]",
@@ -640,6 +670,13 @@ Item { // ROOT
         }
         s2CollapsedInS4 = true
         s2CollapseTransitionRunning = true
+        // Restart progress each time so the carry phase is always visible.
+        s2CollapseProgress = 0.0
+        Qt.callLater(function() {
+            if (s2CollapseTransitionRunning) {
+                s2CollapseProgress = 1.0
+            }
+        })
         s2CollapseTransitionTimer.interval = s2CollapseDurationMs
         s2CollapseTransitionTimer.restart()
     }
@@ -647,6 +684,10 @@ Item { // ROOT
     function maybeResetS2CollapseTransition() {
         // Reset only on explicit return to S2/main column.
         if (pointerOverMainHoverColumn && !pointerOverPreviewColumns) {
+            if (s2ReverseSequenceEnabled && s2CollapsedInS4) {
+                startReverseS2Sequence()
+                return
+            }
             s2CollapseTransitionRunning = false
             s2CollapsedInS4 = false
             s2CollapseTransitionKey = ""
@@ -654,7 +695,97 @@ Item { // ROOT
             s2CollapseSnapshotAnchorCenters = []
             s2CollapseSnapshotAnchorCentersY = []
             s2CollapseSnapshotRows = []
+            s2PointerCarryStartX = -1
+            s2PointerCarryUserOffsetX = 0
+            s2SystemCarryAppliedX = 0
+            s2CollapseProgress = 0.0
             s2CollapseTransitionTimer.stop()
+        }
+    }
+
+    function restorePreviewFromCollapseSnapshotForReverse() {
+        if (!s2CollapseSnapshotRows || s2CollapseSnapshotRows.length === 0) {
+            return
+        }
+        var rows = []
+        for (var i = 0; i < s2CollapseSnapshotRows.length; i++) {
+            var rawRow = s2CollapseSnapshotRows[i]
+            if (!rawRow || !rawRow.entries || rawRow.entries.length === 0) {
+                continue
+            }
+            rows.push({
+                level: rows.length,
+                parentPath: String(rawRow.parentPath || ""),
+                color: colorToHex(rawRow.color, panelColor),
+                width: Number(rawRow.width) || calculateFoldersColumnWidthForEntries(rawRow.entries),
+                entries: rawRow.entries
+            })
+        }
+        if (rows.length === 0) {
+            return
+        }
+        previewLastHoverKey = ""
+        previewRows = rows
+        previewActivePaths = (s2CollapseSnapshotActivePaths || []).slice(0, rows.length)
+        previewAnchorCenters = (s2CollapseSnapshotAnchorCenters || []).slice(0, rows.length)
+        previewAnchorCentersY = (s2CollapseSnapshotAnchorCentersY || []).slice(0, rows.length)
+        previewLastApplyAtMs = Date.now()
+        previewLastApplyLevel = Math.max(-1, rows.length - 1)
+    }
+
+    function startReverseS2Sequence() {
+        if (s2ReverseSequenceRunning) {
+            return
+        }
+        s2ReverseSequenceRunning = true
+        // 1) Logical swap stage is already represented by pointer state entering S2.
+        // 2) Rebuild lost right-side columns immediately from snapshots.
+        restorePreviewFromCollapseSnapshotForReverse()
+        // 3) Animate the return only after rebuild is visible.
+        s2ReverseSequenceTimer.interval = s2ReverseSequenceDelayMs
+        s2ReverseSequenceTimer.restart()
+    }
+
+    function s2CarryOffsetForShift(baseShiftX) {
+        if (!s2PointerCarryEnabled || !s2CollapseTransitionRunning) {
+            return 0
+        }
+        var shift = Number(baseShiftX || 0)
+        if (shift >= 0) {
+            return 0
+        }
+        return (-shift * Math.max(0, s2PointerCarryFactor)) + Number(s2PointerCarryUserOffsetX || 0)
+    }
+
+    function s2PanelCarryOffsetForShift(baseShiftX) {
+        // When real system cursor carry is active, keep panel path stable and
+        // apply carry only to the cursor. This avoids cursor overshoot.
+        if (s2SystemPointerCarryEnabled) {
+            return 0
+        }
+        return s2CarryOffsetForShift(baseShiftX)
+    }
+
+    function syncSystemPointerCarry() {
+        if (!s2SystemPointerCarryEnabled || !s2CollapseTransitionRunning) {
+            return
+        }
+        if (!backend || typeof backend.moveCursorByX !== "function") {
+            return
+        }
+        var baseShift = 0
+        if (verticalRightColumnHost && typeof verticalRightColumnHost.previewColumnTargetWidth === "function") {
+            baseShift = -Number(verticalRightColumnHost.previewColumnTargetWidth(0) || 0) * Number(s2CollapseProgress || 0)
+        }
+        var desiredSystemX = (baseShift * Math.max(0, s2SystemPointerCarryFactor))
+            + (Number(s2PointerCarryUserOffsetX || 0) * Math.max(0, s2SystemPointerUserOffsetFactor))
+        var delta = desiredSystemX - Number(s2SystemCarryAppliedX || 0)
+        if (Math.abs(delta) < 0.2) {
+            return
+        }
+        if (backend.moveCursorByX(delta)) {
+            s2SystemCarryAppliedX += delta
+            previewPointerX = Number(previewPointerX || 0) + delta
         }
     }
 
@@ -875,6 +1006,11 @@ Item { // ROOT
             return false
         }
 
+        if (previewInstantReopenEnabled) {
+            // Enter stabilization before applying restored rows, so width/hold
+            // calculations in this frame are applied instantly (no wipe).
+            previewReopenStabilizing = true
+        }
         previewLastHoverKey = ""
         previewRows = restoredRows
         previewActivePaths = restoredActive
@@ -1116,6 +1252,9 @@ Item { // ROOT
     onPointerOverMainHoverColumnChanged: {
         maybeResetS2CollapseTransition()
     }
+    onS2CollapseProgressChanged: {
+        syncSystemPointerCarry()
+    }
     onPreviewFocusBackgroundChanged: _debugPreviewBgState("focusToggle")
 
     Timer {
@@ -1188,7 +1327,29 @@ Item { // ROOT
         repeat: false
         onTriggered: {
             root.s2CollapseTransitionRunning = false
+            root.s2PointerCarryStartX = -1
+            root.s2PointerCarryUserOffsetX = 0
+            root.s2SystemCarryAppliedX = 0
             root.commitS2ToS1ShiftIfNeeded()
+        }
+    }
+    Timer {
+        id: s2ReverseSequenceTimer
+        interval: root.s2ReverseSequenceDelayMs
+        repeat: false
+        onTriggered: {
+            root.s2CollapseTransitionRunning = false
+            root.s2CollapsedInS4 = false
+            root.s2CollapseTransitionKey = ""
+            root.s2PointerCarryStartX = -1
+            root.s2PointerCarryUserOffsetX = 0
+            root.s2SystemCarryAppliedX = 0
+            root.s2CollapseProgress = 0.0
+            root.s2CollapseSnapshotActivePaths = []
+            root.s2CollapseSnapshotAnchorCenters = []
+            root.s2CollapseSnapshotAnchorCentersY = []
+            root.s2CollapseSnapshotRows = []
+            root.s2ReverseSequenceRunning = false
         }
     }
 
@@ -1218,6 +1379,13 @@ Item { // ROOT
         target: root
         property: "verticalPreferredWidth"
         easing.type: Easing.OutCubic
+    }
+
+    Behavior on s2CollapseProgress {
+        NumberAnimation {
+            duration: root.s2CollapseDurationMs
+            easing.type: Easing.InOutCubic
+        }
     }
 
 
@@ -1367,6 +1535,12 @@ Item { // ROOT
         s2CollapseSnapshotAnchorCenters = []
         s2CollapseSnapshotAnchorCentersY = []
         s2CollapseSnapshotRows = []
+        s2PointerCarryStartX = -1
+        s2PointerCarryUserOffsetX = 0
+        s2SystemCarryAppliedX = 0
+        s2CollapseProgress = 0.0
+        s2ReverseSequenceRunning = false
+        s2ReverseSequenceTimer.stop()
         s2CollapseTransitionTimer.stop()
     }
 
@@ -1735,6 +1909,11 @@ Item { // ROOT
 
     function _applyVerticalPreferredWidth(nextWidth) {
         var target = Math.max(0, Math.round(Number(nextWidth) || 0))
+        if (previewInstantReopenEnabled && previewReopenStabilizing && verticalView) {
+            verticalWidthAnim.stop()
+            verticalPreferredWidth = target
+            return
+        }
         if (!verticalWidthAnimationEnabled || !verticalView) {
             verticalPreferredWidth = target
             return
@@ -1971,6 +2150,40 @@ Item { // ROOT
                             checkable: true
                             checked: verticalPreviewMode === "eng"
                             onTriggered: verticalPreviewMode = "eng"
+                        }
+                        MenuSeparator {}
+                        MenuItem {
+                            text: qsTr("Instant Reopen")
+                            checkable: true
+                            checked: previewInstantReopenEnabled
+                            onTriggered: previewInstantReopenEnabled = !previewInstantReopenEnabled
+                        }
+                        MenuItem {
+                            text: qsTr("Tuning: Soft")
+                            onTriggered: {
+                                s2PointerCarryFactor = 0.35
+                                s2CollapseDurationMs = 700
+                                previewReopenStabilizeMs = 280
+                                previewHoverDelayMs = 110
+                            }
+                        }
+                        MenuItem {
+                            text: qsTr("Tuning: Balanced")
+                            onTriggered: {
+                                s2PointerCarryFactor = 0.5
+                                s2CollapseDurationMs = 500
+                                previewReopenStabilizeMs = 220
+                                previewHoverDelayMs = 90
+                            }
+                        }
+                        MenuItem {
+                            text: qsTr("Tuning: Aggressive")
+                            onTriggered: {
+                                s2PointerCarryFactor = 0.7
+                                s2CollapseDurationMs = 380
+                                previewReopenStabilizeMs = 160
+                                previewHoverDelayMs = 60
+                            }
                         }
                     }
                     MouseArea {
@@ -2351,6 +2564,43 @@ Item { // ROOT
                                     checked: verticalPreviewMode === "eng"
                                     onTriggered: verticalPreviewMode = "eng"
                                 }
+                                MenuSeparator {}
+                                MenuItem {
+                                    text: qsTr("Instant Reopen")
+                                    checkable: true
+                                    checked: previewInstantReopenEnabled
+                                    onTriggered: previewInstantReopenEnabled = !previewInstantReopenEnabled
+                                }
+                                MenuItem {
+                                    text: qsTr("Tuning: Soft")
+                                    onTriggered: {
+                                        s2PointerCarryFactor = 0.35
+                                        s2SystemPointerCarryFactor = 0.72
+                                        s2CollapseDurationMs = 700
+                                        previewReopenStabilizeMs = 280
+                                        previewHoverDelayMs = 110
+                                    }
+                                }
+                                MenuItem {
+                                    text: qsTr("Tuning: Balanced")
+                                    onTriggered: {
+                                        s2PointerCarryFactor = 0.5
+                                        s2SystemPointerCarryFactor = 0.82
+                                        s2CollapseDurationMs = 500
+                                        previewReopenStabilizeMs = 220
+                                        previewHoverDelayMs = 90
+                                    }
+                                }
+                                MenuItem {
+                                    text: qsTr("Tuning: Aggressive")
+                                    onTriggered: {
+                                        s2PointerCarryFactor = 0.7
+                                        s2SystemPointerCarryFactor = 0.92
+                                        s2CollapseDurationMs = 380
+                                        previewReopenStabilizeMs = 160
+                                        previewHoverDelayMs = 60
+                                    }
+                                }
                             }
                             MouseArea {
                                 anchors.fill: parent
@@ -2639,6 +2889,14 @@ Item { // ROOT
                             anchors.fill: parent
                             acceptedButtons: Qt.NoButton
                             hoverEnabled: true
+                            onPositionChanged: function(mouse) {
+                                var mapped = mapToItem(root, Number(mouse.x || 0), Number(mouse.y || 0))
+                                root.previewPointerX = Number(mapped.x || 0)
+                                if (root.s2CollapseTransitionRunning && root.s2PointerCarryStartX >= 0) {
+                                    var rawDelta = root.previewPointerX - root.s2PointerCarryStartX
+                                    root.s2PointerCarryUserOffsetX = rawDelta - Number(root.s2SystemCarryAppliedX || 0)
+                                }
+                            }
                             onEntered: {
                                 root.pointerOverMainHoverColumn = true
                                 previewCloseTimer.stop()
@@ -2799,6 +3057,10 @@ Item { // ROOT
                         // Use a stable viewport height to avoid runaway hostHeight loops.
                         var stableHost = Math.max(0, Number(root.height) || 0)
                         var vh = stableHost > 0 ? Math.min(hh, stableHost) : hh
+                        var clampPx = Math.max(200, Number(root.previewAnchorViewportClampPx) || 0)
+                        if (vh > clampPx) {
+                            vh = clampPx
+                        }
                         var targetY = 0
                         var proposedTop = shiftedAnchor - (itemHeight / 2)
                         var maxTop = 0
@@ -2908,15 +3170,16 @@ Item { // ROOT
                         return cursor
                     }
                     function previewColumnX(columnIndex) {
+                        var collapseShift0 = -previewColumnTargetWidth(0) * root.s2CollapseProgress
+                        var collapseShiftFollowing = -(previewColumnTargetWidth(0) + previewColumnsSpacing) * root.s2CollapseProgress
                         if (columnIndex === 0 && (root.s2CollapseTransitionRunning || root.s2CollapsedInS4)) {
                             // Move current S3 (H1) left into S2 slot during S3->S4 transition.
-                            return previewColumnsStartX() - previewColumnTargetWidth(0)
+                            return previewColumnNormalX(0) + collapseShift0 + root.s2PanelCarryOffsetForShift(collapseShift0)
                         }
                         if (columnIndex > 0 && (root.s2CollapseTransitionRunning || root.s2CollapsedInS4)) {
                             // Pull following columns (S4/S5/...) left in X only by closing
                             // the horizontal gap left by S3.
-                            var closedGap = previewColumnTargetWidth(0) + previewColumnsSpacing
-                            return previewColumnNormalX(columnIndex) - closedGap
+                            return previewColumnNormalX(columnIndex) + collapseShiftFollowing + root.s2PanelCarryOffsetForShift(collapseShiftFollowing)
                         }
                         if (columnIndex === 1 && shouldLiftH2()) {
                             return previewColumnsStartX() + root.h2LiftLeftPx
@@ -2987,6 +3250,14 @@ Item { // ROOT
                         anchors.fill: parent
                         acceptedButtons: Qt.NoButton
                         hoverEnabled: true
+                        onPositionChanged: function(mouse) {
+                            var mapped = mapToItem(root, Number(mouse.x || 0), Number(mouse.y || 0))
+                            root.previewPointerX = Number(mapped.x || 0)
+                            if (root.s2CollapseTransitionRunning && root.s2PointerCarryStartX >= 0) {
+                                var rawDelta = root.previewPointerX - root.s2PointerCarryStartX
+                                root.s2PointerCarryUserOffsetX = rawDelta - Number(root.s2SystemCarryAppliedX || 0)
+                            }
+                        }
                         onEntered: {
                             root.pointerOverPreviewColumns = true
                             previewCloseTimer.stop()
@@ -3058,9 +3329,11 @@ Item { // ROOT
                                         boundsBehavior: Flickable.StopAtBounds
                                         clip: true
                                         Behavior on x {
+                                            enabled: !(root.s2CollapseTransitionRunning || root.s2CollapsedInS4)
+                                                     && !(root.previewInstantReopenEnabled && root.previewReopenStabilizing)
                                             NumberAnimation {
                                                 duration: root.h2LiftDurationMs
-                                                easing.type: Easing.OutCubic
+                                                easing.type: Easing.InOutCubic
                                             }
                                         }
                                         onHeightChanged: requestRefreshAnchorY()
@@ -3088,6 +3361,7 @@ Item { // ROOT
                                             width: parent.width
                                             spacing: 6
                                             Behavior on y {
+                                                enabled: !(root.previewInstantReopenEnabled && root.previewReopenStabilizing)
                                                 NumberAnimation {
                                                     duration: 120
                                                     easing.type: Easing.OutCubic

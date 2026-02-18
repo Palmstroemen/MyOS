@@ -26,7 +26,7 @@ from PySide6.QtCore import (
     QFileSystemWatcher,
     QTimer,
 )
-from PySide6.QtGui import QGuiApplication, QIcon, QImageReader, QImage
+from PySide6.QtGui import QGuiApplication, QIcon, QImageReader, QImage, QCursor
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
@@ -570,6 +570,18 @@ class Backend(QObject):
             self._engine.retranslate()
         except Exception:
             pass
+        return True
+
+    @Slot(float, result=bool)
+    def moveCursorByX(self, delta_x: float) -> bool:
+        try:
+            dx = float(delta_x)
+        except (TypeError, ValueError):
+            return False
+        if abs(dx) < 0.2:
+            return False
+        pos = QCursor.pos()
+        QCursor.setPos(int(round(pos.x() + dx)), int(pos.y()))
         return True
 
 
