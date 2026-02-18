@@ -130,6 +130,27 @@ Item { // ROOT
     property int contentHeight: 0
     property bool contentHeightUpdatePending: false
     property bool contentHeightSettlePending: false
+    property bool cwdHoverPanelOpen: false
+    property bool cwdHoverOverButton: false
+    property bool cwdHoverOverPanel: false
+    property int cwdHoverPanelHoverCount: 0
+    property bool cwdHoverMainPanelHovered: false
+    property var cwdHoverCascadePanelHovered: []
+    property real cwdHoverPanelX: 0
+    property real cwdHoverPanelY: 0
+    property real cwdHoverPanelWidth: 160
+    property int cwdHoverOutzonePx: 50
+    property var cwdHoverCascadePanels: []
+    property bool cwdHoverChildPanelOpen: false
+    property bool cwdHoverOverChildPanel: false
+    property real cwdHoverChildPanelY: 0
+    property string cwdHoverChildPanelPath: ""
+    property var cwdHoverChildEntries: []
+    property bool cwdHoverGrandchildPanelOpen: false
+    property bool cwdHoverOverGrandchildPanel: false
+    property real cwdHoverGrandchildPanelY: 0
+    property string cwdHoverGrandchildPanelPath: ""
+    property var cwdHoverGrandchildEntries: []
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
     property bool previewEnabled: true
@@ -1296,6 +1317,37 @@ Item { // ROOT
         onTriggered: root._applyQueuedPreviewHover(root.previewHoverPendingGeneration)
     }
     Timer {
+        id: cwdHoverCloseTimer
+        interval: 60
+        repeat: false
+        onTriggered: {
+            if (!root.cwdHoverOverButton && !root.anyCwdPanelHovered()) {
+                root.closeCwdHoverPanels()
+            }
+        }
+    }
+    Timer {
+        id: cwdHoverChildCloseTimer
+        interval: 220
+        repeat: false
+        onTriggered: {
+            if (!root.cwdHoverOverChildPanel && !root.cwdHoverOverPanel && !root.cwdHoverOverGrandchildPanel) {
+                root.cwdHoverChildPanelOpen = false
+                root.cwdHoverGrandchildPanelOpen = false
+            }
+        }
+    }
+    Timer {
+        id: cwdHoverGrandchildCloseTimer
+        interval: 220
+        repeat: false
+        onTriggered: {
+            if (!root.cwdHoverOverGrandchildPanel && !root.cwdHoverOverChildPanel) {
+                root.cwdHoverGrandchildPanelOpen = false
+            }
+        }
+    }
+    Timer {
         id: previewReopenRetryTimer
         interval: 34
         repeat: false
@@ -1853,10 +1905,134 @@ Item { // ROOT
         return paths
     }
 
+    function parentPathsFullChain() {
+        var parts = pathPartsFull()
+        var paths = []
+        for (var i = 0; i < parts.length - 1; i++) {
+            paths.push("/" + parts.slice(0, i + 1).join("/"))
+        }
+        return paths
+    }
+
     function visibleParentPaths() {
         var parents = parentPaths()
         if (parents.length <= maxParents) return parents
         return parents.slice(Math.max(0, parents.length - maxParents))
+    }
+
+    function cwdHoverOverlayHost() {
+        return (root.Window && root.Window.window && root.Window.window.contentItem)
+            ? root.Window.window.contentItem
+            : (root.parent ? root.parent : root)
+    }
+
+    function cascadePanelY(anchorY, panelHeight) {
+        var host = cwdHoverOverlayHost()
+        var hostHeight = Math.max(0, Number(host && host.height !== undefined ? host.height : root.height) || 0)
+        var h = Math.max(compactButtonHeight + 8, Number(panelHeight || 0))
+        var y = Number(anchorY || 0)
+        if (hostHeight > 0 && y > (hostHeight * 0.5)) {
+            y = y - h + compactButtonHeight
+        }
+        if (hostHeight <= 0) {
+            return Math.max(0, Math.round(y))
+        }
+        var maxY = Math.max(0, hostHeight - h)
+        return Math.max(0, Math.min(maxY, Math.round(y)))
+    }
+
+    function openCwdCascadePanel(depth, fullPath, sourceItem) {
+        var host = cwdHoverOverlayHost()
+        var p = sourceItem.mapToItem(host, sourceItem.width, 0)
+        var entries = listPreviewChildren(fullPath)
+        var next = cwdHoverCascadePanels.slice(0, Math.max(0, depth))
+        var nextHover = cwdHoverCascadePanelHovered.slice(0, Math.max(0, depth))
+        if (!entries || entries.length === 0) {
+            // No children => no panel on the right; also trim deeper panels.
+            cwdHoverCascadePanels = next
+            cwdHoverCascadePanelHovered = nextHover
+            return
+        }
+        next.push({
+            path: fullPath,
+            y: p.y,
+            entries: entries
+        })
+        nextHover.push(false)
+        cwdHoverCascadePanels = next
+        cwdHoverCascadePanelHovered = nextHover
+    }
+
+    function cwdPanelHoverEnter() {
+        cwdHoverPanelHoverCount += 1
+        cwdHoverOverPanel = true
+        cwdHoverCloseTimer.stop()
+    }
+
+    function cwdPanelHoverLeave() {
+        cwdHoverPanelHoverCount = Math.max(0, cwdHoverPanelHoverCount - 1)
+        cwdHoverOverPanel = anyCwdPanelHovered()
+        if (!cwdHoverOverPanel && !cwdHoverOverButton) {
+            cwdHoverCloseTimer.restart()
+        }
+    }
+
+    function anyCwdPanelHovered() {
+        if (cwdHoverMainPanelHovered) return true
+        for (var i = 0; i < cwdHoverCascadePanelHovered.length; i++) {
+            if (cwdHoverCascadePanelHovered[i]) return true
+        }
+        return false
+    }
+
+    function closeCwdHoverPanels() {
+        cwdHoverOverButton = false
+        cwdHoverOverPanel = false
+        cwdHoverOverChildPanel = false
+        cwdHoverOverGrandchildPanel = false
+        cwdHoverPanelHoverCount = 0
+        cwdHoverMainPanelHovered = false
+        cwdHoverCascadePanelHovered = []
+        cwdHoverPanelOpen = false
+        cwdHoverChildPanelOpen = false
+        cwdHoverGrandchildPanelOpen = false
+        cwdHoverCascadePanels = []
+        cwdHoverCloseTimer.stop()
+        cwdHoverChildCloseTimer.stop()
+        cwdHoverGrandchildCloseTimer.stop()
+    }
+
+    function setCwdCascadePanelHovered(panelIndex, hovered) {
+        var idx = Number(panelIndex)
+        if (idx < 0) return
+        var next = cwdHoverCascadePanelHovered.slice()
+        while (next.length <= idx) {
+            next.push(false)
+        }
+        next[idx] = !!hovered
+        cwdHoverCascadePanelHovered = next
+    }
+
+    function isCwdCascadePanelHovered(panelIndex) {
+        var idx = Number(panelIndex)
+        if (idx < 0 || idx >= cwdHoverCascadePanelHovered.length) return false
+        return !!cwdHoverCascadePanelHovered[idx]
+    }
+
+    function cwdCascadeSelectedPathForPanel(panelIndex) {
+        var idx = Number(panelIndex)
+        if (idx < 0) {
+            return cwdHoverCascadePanels.length > 0 ? String(cwdHoverCascadePanels[0].path || "") : ""
+        }
+        return cwdHoverCascadePanels.length > (idx + 1) ? String(cwdHoverCascadePanels[idx + 1].path || "") : ""
+    }
+
+    function cwdPanelOpacityMultiplier(panelIndex, fullPath) {
+        var selectedPath = cwdCascadeSelectedPathForPanel(panelIndex)
+        if (selectedPath.length === 0) return 1.0
+        var hovered = Number(panelIndex) < 0 ? cwdHoverMainPanelHovered : isCwdCascadePanelHovered(panelIndex)
+        if (hovered) return 1.0
+        return String(fullPath || "") === selectedPath ? 1.0 : 0.2
     }
 
     function scheduleLayoutUpdate() {
@@ -2274,6 +2450,35 @@ Item { // ROOT
                                 renaming: false
                                 renameEnabled: false
                                 onActivate: pathSegmentActivated(index)
+                                MouseArea {
+                                    visible: isCurrent && !root.verticalView
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.NoButton
+                                    hoverEnabled: true
+                                    onEntered: {
+                                        var host = root.cwdHoverOverlayHost()
+                                        var p = parent.mapToItem(host, 0, parent.height)
+                                        root.cwdHoverPanelX = p.x
+                                        root.cwdHoverPanelY = p.y
+                                        root.cwdHoverPanelWidth = Math.max(120, parent.width)
+                                        root.cwdHoverOverButton = true
+                                        root.cwdHoverPanelOpen = true
+                                        root.cwdHoverChildPanelOpen = false
+                                        root.cwdHoverGrandchildPanelOpen = false
+                                        root.cwdHoverPanelHoverCount = 0
+                                        root.cwdHoverMainPanelHovered = false
+                                        root.cwdHoverOverPanel = false
+                                        root.cwdHoverCascadePanels = []
+                                        root.cwdHoverCascadePanelHovered = []
+                                        root.cwdHoverChildPanelPath = ""
+                                        root.cwdHoverGrandchildPanelPath = ""
+                                        cwdHoverCloseTimer.stop()
+                                    }
+                                    onExited: {
+                                        root.cwdHoverOverButton = false
+                                        cwdHoverCloseTimer.restart()
+                                    }
+                                }
                                 DropArea {
                                     anchors.fill: parent
                                     enabled: allowDrops
@@ -3647,6 +3852,411 @@ Item { // ROOT
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            Item {
+                id: cwdHoverPanel
+                parent: root.cwdHoverOverlayHost()
+                visible: root.cwdHoverPanelOpen && !root.verticalView
+                x: root.cwdHoverPanelX
+                y: root.cwdHoverPanelY
+                z: 9999
+                width: root.cwdHoverPanelWidth
+                height: Math.max(root.compactButtonHeight + 8, cwdHoverPanelColumn.implicitHeight + 8)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: TagChips.CHIP_RADIUS_COMPACT
+                    color: root.panelColor
+                    border.color: root.panelBorderColor
+                }
+                Flickable {
+                    id: cwdHoverPanelFlick
+                    z: 1
+                    anchors.fill: parent
+                    anchors.leftMargin: 4
+                    anchors.rightMargin: 4
+                    anchors.bottomMargin: 4
+                    anchors.topMargin: 0
+                    clip: true
+                    contentWidth: width
+                    contentHeight: cwdHoverPanelColumn.implicitHeight
+                    interactive: false
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                        id: cwdHoverPanelColumn
+                        width: cwdHoverPanelFlick.width
+                        spacing: 4
+                        Repeater {
+                            model: root.parentPathsFullChain().slice().reverse()
+                            delegate: FolderItem {
+                                property var browserRoot: root
+                                property string fullPath: String(modelData || "")
+                                property var customColors: root.pathColorFunction ? root.pathColorFunction(fullPath, false) : null
+                                width: parent.width
+                                label: fullPath === "/" ? "/" : fullPath.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
+                                style: (root.effectiveStyle() === "largeIcon") ? "smallIcon" : root.effectiveStyle()
+                                compactHeight: root.compactButtonHeight
+                                largeHeight: root.largeButtonHeight
+                                largePadding: root.largeButtonPadding
+                                iconSmall: root.iconSizeSmall
+                                iconLarge: root.iconSizeLarge
+                                textYOffset: root.buttonTextYOffset
+                                iconSource: root.iconFolder
+                                textLeftInset: root.effectiveStyle() === "text" ? 8 : 0
+                                fillColor: customColors ? customColors.fill : root.pathButtonFill
+                                strokeColor: customColors ? customColors.stroke : root.pathButtonBorder
+                                textColor: root.text
+                                textSize: root.baseFont
+                                dimmedStyle: false
+                                flatBottomCorners: false
+                                tabHoverDropEnabled: true
+                                tabHoverDropPx: root.previewTabDropPx
+                                opacity: root.cwdPanelOpacityMultiplier(-1, fullPath)
+                                renaming: false
+                                renameEnabled: false
+                                onActivate: {
+                                    browserRoot.closeCwdHoverPanels()
+                                    browserRoot.folderActivated(fullPath)
+                                }
+                                HoverHandler {
+                                    acceptedDevices: PointerDevice.Mouse
+                                    onPointChanged: {
+                                        if (!hovered) return
+                                        var xPos = Number(point.position.x || 0)
+                                        var inOutzone = xPos >= (width - Math.max(1, root.cwdHoverOutzonePx))
+                                        if (inOutzone) {
+                                            root.openCwdCascadePanel(0, fullPath, parent)
+                                            root.cwdHoverChildPanelPath = fullPath
+                                            root.cwdHoverChildEntries = root.listPreviewChildren(fullPath)
+                                            root.cwdHoverChildPanelOpen = true
+                                            root.cwdHoverGrandchildPanelOpen = false
+                                            root.cwdHoverGrandchildPanelPath = ""
+                                            cwdHoverChildCloseTimer.stop()
+                                        } else if (root.cwdHoverChildPanelPath === fullPath && !root.cwdHoverOverChildPanel) {
+                                            cwdHoverChildCloseTimer.restart()
+                                        }
+                                    }
+                                    onHoveredChanged: {
+                                        if (!hovered && root.cwdHoverChildPanelPath === fullPath && !root.cwdHoverOverChildPanel) {
+                                            cwdHoverChildCloseTimer.restart()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                HoverHandler {
+                    acceptedDevices: PointerDevice.Mouse
+                    onHoveredChanged: {
+                        if (hovered) {
+                            root.cwdHoverMainPanelHovered = true
+                            root.cwdPanelHoverEnter()
+                        } else {
+                            root.cwdHoverMainPanelHovered = false
+                            root.cwdPanelHoverLeave()
+                        }
+                    }
+                }
+            }
+            Repeater {
+                model: root.cwdHoverCascadePanels
+                delegate: Item {
+                    required property int index
+                    required property var modelData
+                    property int cascadeIndex: index
+                    property string cascadeBasePath: String(modelData && modelData.path ? modelData.path : "")
+                    parent: root.cwdHoverOverlayHost()
+                    visible: root.cwdHoverPanelOpen && !root.verticalView
+                    x: root.cwdHoverPanelX + ((cascadeIndex + 1) * root.cwdHoverPanelWidth)
+                    y: root.cascadePanelY(Number(modelData && modelData.y !== undefined ? modelData.y : 0), height)
+                    z: 9999
+                    width: Math.max(140, root.cwdHoverPanelWidth)
+                    height: Math.max(root.compactButtonHeight + 8, cascadeColumn.implicitHeight + 8)
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: TagChips.CHIP_RADIUS_COMPACT
+                        color: root.panelColor
+                        border.color: root.panelBorderColor
+                    }
+                    Flickable {
+                        id: cascadeFlick
+                        z: 1
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        clip: true
+                        contentWidth: width
+                        contentHeight: cascadeColumn.implicitHeight
+                        interactive: false
+                        boundsBehavior: Flickable.StopAtBounds
+                        Column {
+                            id: cascadeColumn
+                            width: cascadeFlick.width
+                            spacing: 4
+                            Repeater {
+                                model: (modelData && modelData.entries) ? modelData.entries : []
+                                delegate: FolderItem {
+                                    property var browserRoot: root
+                                    property string parentPath: cascadeBasePath
+                                    property string fullPath: itemName(modelData).indexOf("/") === 0
+                                        ? itemName(modelData)
+                                        : root._resolveFullPath(parentPath, modelData)
+                                    width: parent.width
+                                    label: itemName(modelData)
+                                    style: root.effectiveStyle()
+                                    compactHeight: root.compactButtonHeight
+                                    largeHeight: root.largeButtonHeight
+                                    largePadding: root.largeButtonPadding
+                                    iconSmall: root.iconSizeSmall
+                                    iconLarge: root.iconSizeLarge
+                                    textYOffset: root.buttonTextYOffset
+                                    iconSource: root.iconFolder
+                                    fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
+                                    strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
+                                    textColor: root.textSoft
+                                    textSize: root.baseFont
+                                    dragEnabled: root.allowDrags && !root.itemIsEmbryo(modelData)
+                                    dragPayload: fullPath
+                                    tabHoverDropEnabled: true
+                                    tabHoverDropPx: root.previewTabDropPx
+                                    tabPinned: root.isPreviewPathActive(0, fullPath)
+                                    textBold: root.isPreviewPathActive(0, fullPath)
+                                    dimmedStyle: root.isPreviewDimmed(0, fullPath)
+                                    opacity: root.previewOpacityForEntry(0, fullPath) * root.cwdPanelOpacityMultiplier(cascadeIndex, fullPath)
+                                    renaming: false
+                                    renameEnabled: false
+                                    onActivate: {
+                                        browserRoot.closeCwdHoverPanels()
+                                        browserRoot.folderActivated(fullPath)
+                                    }
+                                    onHoverEntered: {
+                                        var centerPoint = mapToItem(root, width / 2, height / 2)
+                                        root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                    }
+                                    HoverHandler {
+                                        acceptedDevices: PointerDevice.Mouse
+                                        onPointChanged: {
+                                            if (!hovered) return
+                                            var xPos = Number(point.position.x || 0)
+                                            var inOutzone = xPos >= (width - Math.max(1, root.cwdHoverOutzonePx))
+                                            if (inOutzone) {
+                                                root.openCwdCascadePanel(cascadeIndex + 1, fullPath, parent)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    HoverHandler {
+                        acceptedDevices: PointerDevice.Mouse
+                        onHoveredChanged: {
+                            if (hovered) {
+                                root.setCwdCascadePanelHovered(cascadeIndex, true)
+                                root.cwdPanelHoverEnter()
+                            } else {
+                                root.setCwdCascadePanelHovered(cascadeIndex, false)
+                                root.cwdPanelHoverLeave()
+                            }
+                        }
+                    }
+                }
+            }
+            Item {
+                id: cwdHoverChildPanel
+                parent: root.cwdHoverOverlayHost()
+                visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && !root.verticalView && false
+                x: root.cwdHoverPanelX + root.cwdHoverPanelWidth
+                y: root.cascadePanelY(root.cwdHoverChildPanelY, height)
+                z: 9999
+                width: Math.max(140, root.cwdHoverPanelWidth)
+                height: Math.max(root.compactButtonHeight + 8, cwdHoverChildPanelColumn.implicitHeight + 8)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: TagChips.CHIP_RADIUS_COMPACT
+                    color: root.panelColor
+                    border.color: root.panelBorderColor
+                }
+                Flickable {
+                    id: cwdHoverChildPanelFlick
+                    z: 1
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    clip: true
+                    contentWidth: width
+                    contentHeight: cwdHoverChildPanelColumn.implicitHeight
+                    interactive: false
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                        id: cwdHoverChildPanelColumn
+                        width: cwdHoverChildPanelFlick.width
+                        spacing: 4
+                        Repeater {
+                            model: root.cwdHoverChildEntries
+                            delegate: FolderItem {
+                                property var browserRoot: root
+                                property string fullPath: itemName(modelData).indexOf("/") === 0
+                                    ? itemName(modelData)
+                                    : root._resolveFullPath(root.cwdHoverChildPanelPath, modelData)
+                                width: parent.width
+                                label: itemName(modelData)
+                                style: root.effectiveStyle()
+                                compactHeight: root.compactButtonHeight
+                                largeHeight: root.largeButtonHeight
+                                largePadding: root.largeButtonPadding
+                                iconSmall: root.iconSizeSmall
+                                iconLarge: root.iconSizeLarge
+                                textYOffset: root.buttonTextYOffset
+                                iconSource: root.iconFolder
+                                fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
+                                strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
+                                textColor: root.textSoft
+                                textSize: root.baseFont
+                                dragEnabled: root.allowDrags && !root.itemIsEmbryo(modelData)
+                                dragPayload: fullPath
+                                tabHoverDropEnabled: true
+                                tabHoverDropPx: root.previewTabDropPx
+                                tabPinned: root.isPreviewPathActive(0, fullPath)
+                                textBold: root.isPreviewPathActive(0, fullPath)
+                                dimmedStyle: root.isPreviewDimmed(0, fullPath)
+                                opacity: root.previewOpacityForEntry(0, fullPath)
+                                renaming: false
+                                renameEnabled: false
+                                onActivate: {
+                                    browserRoot.closeCwdHoverPanels()
+                                    browserRoot.folderActivated(fullPath)
+                                }
+                                onHoverEntered: {
+                                    var centerPoint = mapToItem(root, width / 2, height / 2)
+                                    root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.NoButton
+                                    hoverEnabled: true
+                                    onPositionChanged: function(mouse) {
+                                        if (!containsMouse) return
+                                        var inOutzone = Number(mouse.x || 0) >= (width - Math.max(1, root.cwdHoverOutzonePx))
+                                        if (inOutzone) {
+                                            var host = root.cwdHoverOverlayHost()
+                                            var p = parent.mapToItem(host, parent.width, 0)
+                                            root.cwdHoverGrandchildPanelY = p.y
+                                            root.cwdHoverGrandchildPanelPath = fullPath
+                                            root.cwdHoverGrandchildEntries = root.listPreviewChildren(fullPath)
+                                            root.cwdHoverGrandchildPanelOpen = true
+                                            cwdHoverGrandchildCloseTimer.stop()
+                                        } else if (root.cwdHoverGrandchildPanelPath === fullPath && !root.cwdHoverOverGrandchildPanel) {
+                                            cwdHoverGrandchildCloseTimer.restart()
+                                        }
+                                    }
+                                    onExited: {
+                                        if (root.cwdHoverGrandchildPanelPath === fullPath && !root.cwdHoverOverGrandchildPanel) {
+                                            cwdHoverGrandchildCloseTimer.restart()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                HoverHandler {
+                    acceptedDevices: PointerDevice.Mouse
+                    onHoveredChanged: {
+                        root.cwdHoverOverChildPanel = hovered
+                        if (hovered) {
+                            cwdHoverCloseTimer.stop()
+                            cwdHoverChildCloseTimer.stop()
+                        } else {
+                            cwdHoverCloseTimer.restart()
+                            cwdHoverChildCloseTimer.restart()
+                        }
+                    }
+                }
+            }
+            Item {
+                id: cwdHoverGrandchildPanel
+                parent: root.cwdHoverOverlayHost()
+                visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && root.cwdHoverGrandchildPanelOpen && !root.verticalView && false
+                x: root.cwdHoverPanelX + (2 * root.cwdHoverPanelWidth)
+                y: root.cascadePanelY(root.cwdHoverGrandchildPanelY, height)
+                z: 9999
+                width: Math.max(140, root.cwdHoverPanelWidth)
+                height: Math.max(root.compactButtonHeight + 8, cwdHoverGrandchildPanelColumn.implicitHeight + 8)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: TagChips.CHIP_RADIUS_COMPACT
+                    color: root.panelColor
+                    border.color: root.panelBorderColor
+                }
+                Flickable {
+                    id: cwdHoverGrandchildPanelFlick
+                    z: 1
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    clip: true
+                    contentWidth: width
+                    contentHeight: cwdHoverGrandchildPanelColumn.implicitHeight
+                    interactive: false
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                        id: cwdHoverGrandchildPanelColumn
+                        width: cwdHoverGrandchildPanelFlick.width
+                        spacing: 4
+                        Repeater {
+                            model: root.cwdHoverGrandchildEntries
+                            delegate: FolderItem {
+                                property var browserRoot: root
+                                property string fullPath: itemName(modelData).indexOf("/") === 0
+                                    ? itemName(modelData)
+                                    : root._resolveFullPath(root.cwdHoverGrandchildPanelPath, modelData)
+                                width: parent.width
+                                label: itemName(modelData)
+                                style: root.effectiveStyle()
+                                compactHeight: root.compactButtonHeight
+                                largeHeight: root.largeButtonHeight
+                                largePadding: root.largeButtonPadding
+                                iconSmall: root.iconSizeSmall
+                                iconLarge: root.iconSizeLarge
+                                textYOffset: root.buttonTextYOffset
+                                iconSource: root.iconFolder
+                                fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
+                                strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
+                                textColor: root.textSoft
+                                textSize: root.baseFont
+                                dragEnabled: root.allowDrags && !root.itemIsEmbryo(modelData)
+                                dragPayload: fullPath
+                                tabHoverDropEnabled: true
+                                tabHoverDropPx: root.previewTabDropPx
+                                tabPinned: root.isPreviewPathActive(0, fullPath)
+                                textBold: root.isPreviewPathActive(0, fullPath)
+                                dimmedStyle: root.isPreviewDimmed(0, fullPath)
+                                opacity: root.previewOpacityForEntry(0, fullPath)
+                                renaming: false
+                                renameEnabled: false
+                                onActivate: {
+                                    browserRoot.closeCwdHoverPanels()
+                                    browserRoot.folderActivated(fullPath)
+                                }
+                                onHoverEntered: {
+                                    var centerPoint = mapToItem(root, width / 2, height / 2)
+                                    root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                }
+                            }
+                        }
+                    }
+                }
+                HoverHandler {
+                    acceptedDevices: PointerDevice.Mouse
+                    onHoveredChanged: {
+                        root.cwdHoverOverGrandchildPanel = hovered
+                        if (hovered) {
+                            cwdHoverCloseTimer.stop()
+                            cwdHoverGrandchildCloseTimer.stop()
+                        } else {
+                            cwdHoverCloseTimer.restart()
+                            cwdHoverGrandchildCloseTimer.restart()
                         }
                     }
                 }
