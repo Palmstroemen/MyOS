@@ -181,7 +181,7 @@ def test_invalid_cache_values_do_not_break_entries_listing(tmp_path):
     assert by_name["note.md"]["tags"] == ["alpha"]
 
 
-def test_folder_sidecar_roundtrip_with_size_metadata(tmp_path):
+def test_folder_sidecar_roundtrip_and_cleanup_on_empty_tags(tmp_path):
     root = tmp_path / "Workspace"
     root.mkdir()
     folder = root / "Folder"
@@ -192,12 +192,34 @@ def test_folder_sidecar_roundtrip_with_size_metadata(tmp_path):
 
     sidecar = folder / ".MyOS" / "myTags.md"
     text = sidecar.read_text(encoding="utf-8")
-    assert "folder_size_bytes:" in text
     assert "#One" in text or "#one" in text
     assert "#two" in text
 
     tags = api.list_folder_tags(str(folder))
     assert sorted(tags, key=str.lower) == ["One", "two"]
+    assert api.set_folder_tags(str(folder), []) is True
+    assert not (folder / ".MyOS" / "myTags.md").exists()
+    assert not (folder / ".MyOS").exists()
+
+
+def test_set_folder_tags_keeps_myos_directory_when_other_files_exist(tmp_path):
+    root = tmp_path / "Workspace"
+    root.mkdir()
+    folder = root / "Folder"
+    folder.mkdir()
+
+    myos_dir = folder / ".MyOS"
+    myos_dir.mkdir()
+    (myos_dir / "other.md").write_text("keep", encoding="utf-8")
+
+    api = ScopeApi(str(root))
+    assert api.set_folder_tags(str(folder), ["tag1"]) is True
+    assert (myos_dir / "myTags.md").exists()
+
+    assert api.set_folder_tags(str(folder), []) is True
+    assert not (myos_dir / "myTags.md").exists()
+    assert (myos_dir / "other.md").exists()
+    assert myos_dir.exists()
 
 
 def test_list_tag_buckets_splits_folder_and_file_tags(tmp_path):
@@ -214,6 +236,52 @@ def test_list_tag_buckets_splits_folder_and_file_tags(tmp_path):
     assert buckets["fileTags"] == ["filetag"]
     assert isinstance(buckets["folderSizeBytes"], int)
     assert buckets["folderSizeBytes"] >= 0
+
+
+def test_list_entries_does_not_create_sidecar_for_untagged_folders(tmp_path):
+    project = tmp_path / "Project"
+    project.mkdir()
+    myos = project / ".MyOS"
+    myos.mkdir()
+    (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    folder = project / "Folder"
+    folder.mkdir()
+
+    api = ScopeApi(str(project))
+    api.list_entries(str(project))
+
+    assert not (folder / ".MyOS").exists()
+    assert not (folder / ".MyOS" / "myTags.md").exists()
+
+
+def test_folder_sizes_are_persisted_in_project_md_frontmatter_map(tmp_path):
+    project = tmp_path / "Project"
+    project.mkdir()
+    myos = project / ".MyOS"
+    myos.mkdir()
+    (myos / "Project.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "window_width_px: 900",
+                "---",
+                "color: #123456",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    folder = project / "Folder"
+    folder.mkdir()
+    (folder / "a.txt").write_text("abc", encoding="utf-8")
+
+    api = ScopeApi(str(project))
+    api.list_entries(str(project))
+
+    project_md_text = (myos / "Project.md").read_text(encoding="utf-8")
+    assert "window_width_px: 900" in project_md_text
+    assert "folder_sizes_bytes:" in project_md_text
+    assert "  Folder: 3" in project_md_text
 
 
 def test_folder_tag_colors_roundtrip_and_bucket_exposure(tmp_path):

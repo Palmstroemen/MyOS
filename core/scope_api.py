@@ -812,6 +812,7 @@ class ScopeApi:
         entries: List[FileEntryWithOptionalEmbryo] = []
         md_tag_cache = self._load_markdown_tag_cache(target)
         seen_md_files: set[str] = set()
+        folder_size_updates: Dict[Path, int] = {}
         try:
             for child in sorted(target.iterdir()):
                 acl_child = self._acl_probe("read_dir", child)
@@ -825,8 +826,7 @@ class ScopeApi:
                     sidecar = self._read_folder_sidecar(child)
                     entry_tags = sidecar["tags"]
                     folder_size_bytes = self._compute_folder_size_bytes(child)
-                    if sidecar["folder_size_bytes"] != folder_size_bytes:
-                        self._write_folder_sidecar(child, sidecar["tags"], folder_size_bytes)
+                    folder_size_updates[child] = folder_size_bytes
                 else:
                     entry_tags = self._read_entry_tags(child, md_tag_cache)
                 entry = self._build_file_entry(
@@ -860,6 +860,7 @@ class ScopeApi:
                     )
         # File-browser style order: folders first, then files, both alphabetic.
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
+        self._update_project_folder_size_index(folder_size_updates)
         self._prune_markdown_tag_cache(md_tag_cache, seen_md_files)
         self._save_markdown_tag_cache(target, md_tag_cache)
 
@@ -909,8 +910,7 @@ class ScopeApi:
             set(_normalize_tag_value(tag) for tag in (tags or []) if _normalize_tag_value(tag)),
             key=str.lower,
         )
-        sidecar = self._read_folder_sidecar(target)
-        self._write_folder_sidecar(target, cleaned, sidecar["folder_size_bytes"])
+        self._write_folder_sidecar(target, cleaned)
         self._remove_legacy_folder_tag_colors_file(target)
         return True
 
@@ -939,10 +939,8 @@ class ScopeApi:
                     file_bag[tag] = True
         file_tags = sorted([tag for tag in file_bag.keys() if tag not in folder_set], key=str.lower)
         file_tag_colors = {tag: all_tag_colors[tag] for tag in file_tags if tag in all_tag_colors}
-        folder_size = sidecar["folder_size_bytes"]
-        if folder_size is None:
-            folder_size = self._compute_folder_size_bytes(target)
-            self._write_folder_sidecar(target, folder_tags, folder_size)
+        folder_size = self._compute_folder_size_bytes(target)
+        self._update_project_folder_size_index({target: folder_size})
         return {
             "folderTags": folder_tags,
             "fileTags": file_tags,
@@ -1096,25 +1094,24 @@ class ScopeApi:
         result["folder_size_bytes"] = folder_size_bytes
         return result
 
-    def _write_folder_sidecar(self, folder_path: Path, tags: List[str], folder_size_bytes: Optional[int]) -> None:
+    def _write_folder_sidecar(self, folder_path: Path, tags: List[str]) -> None:
         myos_dir = folder_path / ".MyOS"
         sidecar = myos_dir / "myTags.md"
         cleaned = sorted(
             set(_normalize_tag_value(tag) for tag in (tags or []) if _normalize_tag_value(tag)),
             key=str.lower,
         )
-        size_value = 0
-        if folder_size_bytes is not None:
-            try:
-                parsed = int(folder_size_bytes)
-                if parsed >= 0:
-                    size_value = parsed
-            except (TypeError, ValueError):
-                size_value = 0
 
-        lines = ["---", f"folder_size_bytes: {size_value}", "---", ""]
-        for tag in cleaned:
-            lines.append(f"#{tag}")
+        if not cleaned:
+            try:
+                if sidecar.exists():
+                    sidecar.unlink()
+            except Exception:
+                return
+            self._cleanup_empty_folder_myos_dir(folder_path)
+            return
+
+        lines = [f"#{tag}" for tag in cleaned]
         content = "\n".join(lines).rstrip() + "\n"
 
         try:
@@ -1125,6 +1122,144 @@ class ScopeApi:
             sidecar.write_text(content, encoding="utf-8")
         except Exception:
             return
+
+    def _cleanup_empty_folder_myos_dir(self, folder_path: Path) -> None:
+        myos_dir = folder_path / ".MyOS"
+        if not myos_dir.exists() or not myos_dir.is_dir():
+            return
+        try:
+            next(myos_dir.iterdir())
+            return
+        except StopIteration:
+            pass
+        except Exception:
+            return
+        try:
+            myos_dir.rmdir()
+        except Exception:
+            return
+
+    def _project_md_path_for(self, entry_path: Path) -> Optional[Path]:
+        root = find_project_root(entry_path)
+        if not root:
+            return None
+        project_md = root / ".MyOS" / "Project.md"
+        if not project_md.parent.exists():
+            return None
+        return project_md
+
+    def _relative_key_for_project_path(self, project_root: Path, entry_path: Path) -> Optional[str]:
+        try:
+            rel = entry_path.resolve().relative_to(project_root.resolve())
+        except Exception:
+            return None
+        text = str(rel).replace("\\", "/")
+        return text if text else "."
+
+    def _parse_folder_sizes_map_from_frontmatter(self, frontmatter: str) -> Dict[str, int]:
+        result: Dict[str, int] = {}
+        lines = str(frontmatter or "").splitlines()
+        idx = 0
+        while idx < len(lines):
+            line = lines[idx]
+            match = re.match(r"^\s*folder_sizes_bytes\s*:\s*(.*)$", line)
+            if not match:
+                idx += 1
+                continue
+            idx += 1
+            while idx < len(lines):
+                nested = lines[idx]
+                if not nested.startswith((" ", "\t")):
+                    break
+                text = nested.strip()
+                if not text or ":" not in text:
+                    idx += 1
+                    continue
+                key_raw, value_raw = text.split(":", 1)
+                key = key_raw.strip().strip("'").strip('"')
+                if not key:
+                    idx += 1
+                    continue
+                try:
+                    value = int(value_raw.strip())
+                except ValueError:
+                    idx += 1
+                    continue
+                if value >= 0:
+                    result[key] = value
+                idx += 1
+        return result
+
+    def _replace_folder_sizes_map_in_frontmatter(self, frontmatter: str, size_map: Dict[str, int]) -> str:
+        lines = str(frontmatter or "").splitlines()
+        kept: List[str] = []
+        idx = 0
+        while idx < len(lines):
+            line = lines[idx]
+            if re.match(r"^\s*folder_sizes_bytes\s*:", line):
+                idx += 1
+                while idx < len(lines) and lines[idx].startswith((" ", "\t")):
+                    idx += 1
+                continue
+            kept.append(line)
+            idx += 1
+        while kept and not kept[-1].strip():
+            kept.pop()
+        if size_map:
+            if kept:
+                kept.append("")
+            kept.append("folder_sizes_bytes:")
+            for key in sorted(size_map.keys(), key=str.lower):
+                safe_key = str(key).replace("\n", " ").strip()
+                if safe_key:
+                    kept.append(f"  {safe_key}: {int(size_map[key])}")
+        return "\n".join(kept)
+
+    def _serialize_frontmatter_document(self, original_text: str, frontmatter: str, body: str) -> str:
+        if frontmatter.strip():
+            body_text = str(body or "")
+            if body_text and not body_text.startswith("\n"):
+                return f"---\n{frontmatter.rstrip()}\n---\n{body_text}"
+            return f"---\n{frontmatter.rstrip()}\n---{body_text}"
+        return str(body if original_text.startswith("---") else original_text)
+
+    def _update_project_folder_size_index(self, sizes_by_path: Dict[Path, int]) -> None:
+        if not sizes_by_path:
+            return
+        grouped: Dict[Path, Dict[str, int]] = {}
+        for folder_path, size in sizes_by_path.items():
+            project_md = self._project_md_path_for(folder_path)
+            if not project_md:
+                continue
+            project_root = project_md.parent.parent
+            rel_key = self._relative_key_for_project_path(project_root, folder_path)
+            if not rel_key:
+                continue
+            grouped.setdefault(project_md, {})[rel_key] = max(0, int(size or 0))
+
+        for project_md, updates in grouped.items():
+            try:
+                original = project_md.read_text(encoding="utf-8", errors="replace") if project_md.exists() else "# MyOS Project\n"
+            except Exception:
+                continue
+            frontmatter, body = _split_frontmatter(original)
+            current_map = self._parse_folder_sizes_map_from_frontmatter(frontmatter)
+            changed = False
+            for key, value in updates.items():
+                if current_map.get(key) != value:
+                    current_map[key] = value
+                    changed = True
+            if not changed:
+                continue
+            new_frontmatter = self._replace_folder_sizes_map_in_frontmatter(frontmatter, current_map)
+            updated = self._serialize_frontmatter_document(original, new_frontmatter, body)
+            if updated == original:
+                continue
+            try:
+                project_md.parent.mkdir(parents=True, exist_ok=True)
+                project_md.write_text(updated, encoding="utf-8")
+            except Exception:
+                continue
 
     def _compute_folder_size_bytes(self, folder_path: Path) -> int:
         total = 0
