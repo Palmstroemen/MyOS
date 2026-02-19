@@ -298,5 +298,15 @@ Failed: %3</translation>
         <source>U-Farbmix</source>
         <translation>U color mix</translation>
     </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="346"/>
+        <source>Ordnertags</source>
+        <translation>Folder tags</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="597"/>
+        <source>Filetags</source>
+        <translation>File tags</translation>
+    </message>
 </context>
 </TS>

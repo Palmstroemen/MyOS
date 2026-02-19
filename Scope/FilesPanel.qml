@@ -24,7 +24,7 @@ Rectangle { // Files panel
     property color projectTint: "#7b5bd6"
     property color projectTintBorder: "#7b5bd6"
     property color uPanelTintColor: projectTint
-    property real uPanelTintMix: 0.65
+    property real uPanelTintMix: 0.50
     property real projectTintOpacity: 1.0
     property bool allowDrags: true
     property bool halfTransparent: false
@@ -83,8 +83,11 @@ Rectangle { // Files panel
     property int tagChipFontPx: Math.max(9, Math.round(baseFont * 0.74))
     property int tagSectionLabelPx: Math.max(9, Math.round(baseFont * 0.74))
     property int tagInputHeightPx: Math.max(tagChipHeightPx, 22)
+    property int sidePanelInnerMargin: 8
+    property int sidePanelButtonSpacing: 6
+    readonly property int sidePanelDesiredInnerWidth: (2 * topRightButtonSize) + sidePanelButtonSpacing
+    readonly property int sidePanelDesiredWidth: sidePanelDesiredInnerWidth + (2 * sidePanelInnerMargin)
     property real filesPanelOverlayAlpha: 0.20
-    property int sideMixControlHeight: Math.max(54, compactButtonHeight + 22)
     readonly property real uPanelLuma: (0.2126 * backgroundColor.r) + (0.7152 * backgroundColor.g) + (0.0722 * backgroundColor.b)
     readonly property color uPanelColor: PanelColors.uPanelColor(showMyosButton, backgroundColor, uPanelTintColor, uPanelTintMix)
     readonly property color filesPanelOverlayColor: PanelColors.filesOverlayColor(uPanelLuma, filesPanelOverlayAlpha)
@@ -230,20 +233,20 @@ Rectangle { // Files panel
         anchors.topMargin: 10
         anchors.bottomMargin: 10
         anchors.rightMargin: 10
-        width: Math.max(110, Math.min(210, Math.round(parent.width * 0.22)))
+        width: Math.max(74, Math.min(Math.round(parent.width * 0.30), root.sidePanelDesiredWidth))
         radius: 0
         border.width: 0
-        color: Qt.rgba(root.panelAlt.r, root.panelAlt.g, root.panelAlt.b, 0.20)
+        color: "transparent"
         z: 2
 
         Column {
             anchors.fill: parent
-            anchors.margins: 8
-            spacing: 8
+            anchors.margins: root.sidePanelInnerMargin
+            spacing: root.sidePanelInnerMargin
 
             Row {
                 width: parent.width
-                spacing: 6
+                spacing: root.sidePanelButtonSpacing
 
                 Rectangle {
                     radius: root.chipRadiusMedium
@@ -319,37 +322,7 @@ Rectangle { // Files panel
 
             Rectangle {
                 width: parent.width
-                height: root.sideMixControlHeight
-                radius: root.tagChipRadius
-                border.width: 0
-                color: Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.25)
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 6
-                    spacing: 4
-                    Text {
-                        text: qsTr("U-Farbmix") + ": " + Math.round(root.uPanelTintMix * 100) + "%"
-                        color: root.smallButtonText
-                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.78))
-                        elide: Text.ElideRight
-                    }
-                    Slider {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        from: 0.0
-                        to: 1.0
-                        stepSize: 0.01
-                        value: root.uPanelTintMix
-                        onMoved: root.uPanelTintMix = value
-                        onValueChanged: root.uPanelTintMix = value
-                    }
-                }
-            }
-
-            Rectangle {
-                width: parent.width
-                height: Math.max(80, parent.height - root.topRightButtonSize - root.sideMixControlHeight - 28)
+                height: Math.max(80, parent.height - root.topRightButtonSize - 20)
                 radius: 0
                 border.width: 0
                 color: "transparent"
@@ -623,111 +596,146 @@ Rectangle { // Files panel
                                 }
                             }
 
-                            Text {
+                            Item {
+                                id: fileTagsSection
                                 width: parent.width
-                                text: qsTr("Filetags")
-                                color: root.smallButtonText
-                                font.pixelSize: root.tagSectionLabelPx
-                                elide: Text.ElideRight
-                            }
+                                height: fileTagsSectionColumn.height
 
-                            Repeater {
-                                model: root.fileTags ? root.fileTags : []
-                                delegate: Rectangle {
-                                    x: root.tagChipMargin
-                                    width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
-                                    height: root.tagChipHeightPx
-                                    radius: root.tagChipRightRadius
-                                    readonly property string tagValue: modelData
-                                    readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
-                                    readonly property bool dimmed: tagsColumn.hasSelectedTags && !selected
-                                    readonly property color customTagColor: {
-                                        var map = root.fileTagColors || ({})
-                                        var raw = map[tagValue]
-                                        return raw ? Qt.color(raw) : "transparent"
-                                    }
-                                    readonly property color baseTagColor: customTagColor !== "transparent" ? customTagColor : Qt.color("#ffd54f")
-                                    color: selected
-                                        ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
-                                        : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
-                                    opacity: dimmed ? 0.75 : 1.0
-                                    border.width: 1
-                                    border.color: selected
-                                        ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
-                                        : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
-
-                                    Rectangle {
-                                        anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        anchors.bottom: parent.bottom
-                                        width: Math.max(6, root.tagChipRightRadius - 2)
-                                        color: parent.color
-                                        border.width: parent.border.width
-                                        border.color: parent.border.color
-                                    }
+                                Column {
+                                    id: fileTagsSectionColumn
+                                    width: parent.width
+                                    spacing: 4
 
                                     Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: root.tagChipPadH
-                                        anchors.right: parent.right
-                                        anchors.rightMargin: root.tagChipPadH
-                                        text: (selected ? "✓  " : "    ") + "#" + tagValue
-                                        color: TagChipStyle.textColorForBg(parent.color)
-                                        font.pixelSize: root.tagChipFontPx
+                                        width: parent.width
+                                        text: qsTr("Filetags")
+                                        color: root.smallButtonText
+                                        font.pixelSize: root.tagSectionLabelPx
                                         elide: Text.ElideRight
-                                        horizontalAlignment: Text.AlignRight
                                     }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        onEntered: parent.border.width = 2
-                                        onExited: parent.border.width = 1
-                                        onClicked: root.tagToggled(parent.tagValue)
+
+                                    Item {
+                                        id: fileTagsListSurface
+                                        width: parent.width
+                                        height: fileTagsListColumn.height
+
+                                        Column {
+                                            id: fileTagsListColumn
+                                            width: parent.width
+                                            spacing: 4
+
+                                            Repeater {
+                                                model: root.fileTags ? root.fileTags : []
+                                                delegate: Rectangle {
+                                                    x: root.tagChipMargin
+                                                    width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
+                                                    height: root.tagChipHeightPx
+                                                    radius: root.tagChipRightRadius
+                                                    readonly property string tagValue: modelData
+                                                    readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
+                                                    readonly property bool dimmed: tagsColumn.hasSelectedTags && !selected
+                                                    readonly property color customTagColor: {
+                                                        var map = root.fileTagColors || ({})
+                                                        var raw = map[tagValue]
+                                                        return raw ? Qt.color(raw) : "transparent"
+                                                    }
+                                                    readonly property color baseTagColor: customTagColor !== "transparent" ? customTagColor : Qt.color("#ffd54f")
+                                                    color: selected
+                                                        ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+                                                        : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+                                                    opacity: dimmed ? 0.75 : 1.0
+                                                    border.width: 1
+                                                    border.color: selected
+                                                        ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
+                                                        : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+
+                                                    Rectangle {
+                                                        anchors.left: parent.left
+                                                        anchors.top: parent.top
+                                                        anchors.bottom: parent.bottom
+                                                        width: Math.max(6, root.tagChipRightRadius - 2)
+                                                        color: parent.color
+                                                        border.width: parent.border.width
+                                                        border.color: parent.border.color
+                                                    }
+
+                                                    Text {
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        anchors.left: parent.left
+                                                        anchors.leftMargin: root.tagChipPadH
+                                                        anchors.right: parent.right
+                                                        anchors.rightMargin: root.tagChipPadH
+                                                        text: (selected ? "✓  " : "    ") + "#" + tagValue
+                                                        color: TagChipStyle.textColorForBg(parent.color)
+                                                        font.pixelSize: root.tagChipFontPx
+                                                        elide: Text.ElideRight
+                                                        horizontalAlignment: Text.AlignRight
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        onEntered: parent.border.width = 2
+                                                        onExited: parent.border.width = 1
+                                                        onClicked: root.tagToggled(parent.tagValue)
+                                                    }
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                id: indexingPseudoTag
+                                                x: root.tagChipMargin
+                                                width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
+                                                height: root.tagChipHeightPx
+                                                radius: root.tagChipRightRadius
+                                                visible: root.isTagIndexing
+                                                color: "#ffd54f"
+                                                border.width: 1
+                                                border.color: Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+                                                opacity: 0.45
+
+                                                Rectangle {
+                                                    anchors.left: parent.left
+                                                    anchors.top: parent.top
+                                                    anchors.bottom: parent.bottom
+                                                    width: Math.max(6, root.tagChipRightRadius - 2)
+                                                    color: parent.color
+                                                    border.width: parent.border.width
+                                                    border.color: parent.border.color
+                                                }
+
+                                                Text {
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    anchors.left: parent.left
+                                                    anchors.leftMargin: root.tagChipPadH
+                                                    anchors.right: parent.right
+                                                    anchors.rightMargin: root.tagChipPadH
+                                                    text: qsTr("… parse tags")
+                                                    color: root.textMuted
+                                                    font.pixelSize: root.tagChipFontPx
+                                                    elide: Text.ElideRight
+                                                    horizontalAlignment: Text.AlignRight
+                                                }
+
+                                                SequentialAnimation on opacity {
+                                                    running: indexingPseudoTag.visible
+                                                    loops: Animation.Infinite
+                                                    NumberAnimation { from: 0.20; to: 0.65; duration: 450 }
+                                                    NumberAnimation { from: 0.65; to: 0.20; duration: 450 }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                            }
-
-                            Rectangle {
-                                id: indexingPseudoTag
-                                x: root.tagChipMargin
-                                width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
-                                height: root.tagChipHeightPx
-                                radius: root.tagChipRightRadius
-                                visible: root.isTagIndexing
-                                color: "#ffd54f"
-                                border.width: 1
-                                border.color: Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
-                                opacity: 0.45
 
                                 Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.top: parent.top
-                                    anchors.bottom: parent.bottom
-                                    width: Math.max(6, root.tagChipRightRadius - 2)
-                                    color: parent.color
-                                    border.width: parent.border.width
-                                    border.color: parent.border.color
-                                }
-
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: root.tagChipPadH
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: root.tagChipPadH
-                                    text: qsTr("… parse tags")
-                                    color: root.textMuted
-                                    font.pixelSize: root.tagChipFontPx
-                                    elide: Text.ElideRight
-                                    horizontalAlignment: Text.AlignRight
-                                }
-
-                                SequentialAnimation on opacity {
-                                    running: indexingPseudoTag.visible
-                                    loops: Animation.Infinite
-                                    NumberAnimation { from: 0.20; to: 0.65; duration: 450 }
-                                    NumberAnimation { from: 0.65; to: 0.20; duration: 450 }
+                                    x: -6
+                                    y: -6
+                                    width: parent.width + 12
+                                    height: parent.height + 12
+                                    color: Qt.rgba(1, 1, 1, 0.20)
+                                    radius: root.tagChipRadius
+                                    visible: (root.fileTags && root.fileTags.length > 0) || root.isTagIndexing
+                                    z: 6
                                 }
                             }
                         }
