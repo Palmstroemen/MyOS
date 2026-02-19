@@ -473,3 +473,60 @@ def test_scope_api_list_config_targets_hides_parent_when_inherit_not(tmp_path):
     ids = [item["id"] for item in targets]
     assert "current_project" in ids
     assert "nearest_parent_with_config" not in ids
+
+
+def test_scope_api_sort_config_scaffold_and_find(tmp_path):
+    root = tmp_path / "Workspace"
+    project_root = root / "Project"
+    project_root.mkdir(parents=True)
+    (project_root / ".MyOS").mkdir(parents=True)
+    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    api = ScopeApi(str(project_root))
+
+    ensure = api.ensure_project_config(str(project_root), "Sort.md")
+    found = api.find_config(str(project_root), "Sort.md")
+
+    assert ensure["ok"] is True
+    assert found is not None
+    assert found.endswith("/.MyOS/Sort.md")
+
+
+def test_scope_api_preview_and_apply_sort(tmp_path):
+    root = tmp_path / "Workspace"
+    project_root = root / "Project"
+    pictures = project_root / "Pictures"
+    pictures.mkdir(parents=True)
+    (project_root / ".MyOS").mkdir(parents=True)
+    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / ".MyOS" / "Sort.md").write_text(
+        "# Sort\nRoot: /Pictures\nPattern: {{YYYY}}/{{MM}}\nDateSource: fs_mtime\n",
+        encoding="utf-8",
+    )
+    file_path = pictures / "sample.txt"
+    file_path.write_text("sample", encoding="utf-8")
+    api = ScopeApi(str(project_root))
+
+    preview = api.preview_sort_target(str(file_path))
+    report = api.apply_sort_now(str(pictures))
+
+    assert preview["ok"] is True
+    assert "/Pictures/" in preview["target"]
+    assert report["ok"] is True
+
+
+def test_scope_api_lists_sort_watch_roots(tmp_path):
+    root = tmp_path / "Workspace"
+    project_root = root / "Project"
+    pictures = project_root / "Pictures"
+    pictures.mkdir(parents=True)
+    (project_root / ".MyOS").mkdir(parents=True)
+    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / ".MyOS" / "Sort.md").write_text(
+        "# Sort\nRoot: /Pictures\nPattern: {{YYYY}}/{{MM}}\n",
+        encoding="utf-8",
+    )
+    api = ScopeApi(str(project_root))
+
+    roots = api.list_sort_watch_roots(str(project_root))
+
+    assert str(pictures.resolve()) in roots

@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 from fuse import FUSE, FuseOSError, Operations
 from core.project import ProjectConfig
 from core.acl import ACLPolicy
+from core.sort import SortRule, resolve_effective_sort_rules
+from core.sort_runtime import SortRuntime
 
 import shutil
 import getpass
@@ -209,6 +211,8 @@ class Blueprint(Operations):
         
         self.template_names = self.config.get_effective_templates()
         self.embryo_tree = self._load_embryo_tree()
+        self.sort_rules: List[SortRule] = resolve_effective_sort_rules(self.project_root, config_name="Sort.md")
+        self.sort_runtime = SortRuntime()
         self.mount_time = time.time()
         
         # Cache for embryo status (path -> True/False)
@@ -548,6 +552,11 @@ class Blueprint(Operations):
             if embryo not in entries and self._has_write_permission_for_embryo(embryo):
                 entries.append(embryo)
 
+        # Optional virtual sort projection (first dynamic level under configured roots).
+        for virtual_name in self._sort_virtual_entries(path):
+            if virtual_name not in entries:
+                entries.append(virtual_name)
+
         return entries
 
     def mkdir(self, path: str, mode) -> None:
@@ -555,6 +564,7 @@ class Blueprint(Operations):
         rel_path = path.lstrip('/')
         if self.is_embryo(rel_path) or self.contains_embryos(path):
             self._birth_path(path)
+        self._materialize_sort_virtual_path(path)
         
         physical = self._physical_path(path)
         physical.mkdir(mode=mode, parents=True, exist_ok=True)
@@ -564,9 +574,52 @@ class Blueprint(Operations):
         rel_path = path.lstrip('/')
         if self.is_embryo(rel_path) or self.contains_embryos(path):
             self._birth_path(path)
+        self._materialize_sort_virtual_path(path)
         
         physical = self._physical_path(path)
         return os.open(physical, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+
+    def _sort_virtual_entries(self, path: str) -> List[str]:
+        if not self.sort_rules:
+            return []
+        physical = self._physical_path(path)
+        names: set[str] = set()
+        for rule in self.sort_rules:
+            root = rule.root_path
+            if physical.resolve() != root.resolve():
+                continue
+            try:
+                for item in root.iterdir():
+                    if not item.is_file():
+                        continue
+                    preview = self.sort_runtime.preview_target(item, [rule], event="move")
+                    if preview.get("ok") != "1":
+                        continue
+                    target = str(preview.get("target") or "").strip()
+                    if not target:
+                        continue
+                    resolved_target = Path(target).resolve()
+                    try:
+                        first_segment = resolved_target.relative_to(root).parts[0]
+                    except Exception:
+                        continue
+                    if first_segment and not first_segment.startswith("."):
+                        names.add(first_segment)
+            except Exception:
+                continue
+        return sorted(names)
+
+    def _materialize_sort_virtual_path(self, path: str) -> None:
+        physical = self._physical_path(path)
+        for rule in self.sort_rules:
+            root = rule.root_path
+            try:
+                physical.relative_to(root)
+            except ValueError:
+                continue
+            # Create missing parent chain when writing into projected sort nodes.
+            physical.parent.mkdir(parents=True, exist_ok=True)
+            return
 
     def write(self, path: str, data: bytes, offset: int, fh: Any) -> int:
         return os.pwrite(fh, data, offset)

@@ -550,6 +550,13 @@ ApplicationWindow {
             folderMoveConfirmDialog.open()
             return
         }
+        if (sources.length === 1 && hasBackend() && typeof backend.previewSortTargetForMove === "function") {
+            var preview = backend.previewSortTargetForMove(String(sources[0] || ""), targetDir)
+            if (preview && preview.ok && preview.target) {
+                moveReportMessage = qsTr("Nach dem Verschieben wird einsortiert nach:\n%1").arg(String(preview.target))
+                moveReportDialog.open()
+            }
+        }
         _performMove(sources, targetDir)
     }
 
@@ -2478,6 +2485,65 @@ ApplicationWindow {
                                 moveReportMessage = qsTr("Desk.md ist bereit im aktuellen Projekt.")
                             }
                             moveReportDialog.open()
+                        }
+                    }
+                }
+
+                Rectangle { // Ensure Sort.md in current project
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: theme.smallButtonBg
+                    border.color: theme.smallButtonBorder
+                    implicitWidth: 220
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("Ordnung aktivieren")
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (!hasBackend() || typeof backend.ensureProjectConfig !== "function") {
+                                return
+                            }
+                            var result = backend.ensureProjectConfig(cwp, "Sort.md")
+                            if (!result || !result.ok) {
+                                moveReportMessage = qsTr("Sort.md konnte nicht erstellt werden.")
+                            } else {
+                                moveReportMessage = qsTr("Sort.md ist bereit im aktuellen Projekt.")
+                            }
+                            moveReportDialog.open()
+                        }
+                    }
+                }
+
+                Rectangle { // Manual apply sort
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: theme.smallButtonBg
+                    border.color: theme.smallButtonBorder
+                    implicitWidth: 180
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("Jetzt einsortieren")
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (!hasBackend() || typeof backend.applySortNow !== "function") {
+                                return
+                            }
+                            var report = backend.applySortNow(cwp)
+                            var movedCount = (report && report.moved) ? report.moved.length : 0
+                            var errorCount = (report && report.errors) ? report.errors.length : 0
+                            moveReportMessage = qsTr("Sortierung: %1 verschoben, %2 Fehler")
+                                .arg(movedCount)
+                                .arg(errorCount)
+                            moveReportDialog.open()
+                            updateFiles()
                         }
                     }
                 }

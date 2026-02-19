@@ -29,6 +29,11 @@ class DeskService:
                 "capture": self._capture_kde_payload,
                 "render": self._render_desk_markdown,
                 "seed": "# Desk\nInherit: dynamic\n",
+            },
+            "Sort.md": {
+                "capture": self._capture_sort_payload,
+                "render": self._render_sort_markdown,
+                "seed": "# Sort\nRoot: /Pictures\nPattern: {{YYYY}}/{{MM}}/{{DD}}\nDateSource: exif_created,frontmatter_date,fs_mtime\nApplyOn: both\nMaterialization: on_use\nConflict: rename\nEnabled: true\n",
             }
         }
         self._last_result: Dict[str, Any] = {
@@ -281,6 +286,41 @@ class DeskService:
             lines.append(f"WallpaperPath: {wallpaper}")
         lines.append("Inherit: dynamic")
         return "\n".join(lines) + "\n"
+
+    def _capture_sort_payload(self) -> Dict[str, Any]:
+        return {"rules": []}
+
+    def _render_sort_markdown(self, state: Dict[str, Any]) -> str:
+        rules = state.get("rules")
+        if not isinstance(rules, list) or not rules:
+            return str(self._provider_seed("Sort.md"))
+        lines: List[str] = []
+        for item in rules:
+            if not isinstance(item, dict):
+                continue
+            root = str(item.get("root") or "/Pictures").strip()
+            pattern = str(item.get("pattern") or "{{YYYY}}/{{MM}}/{{DD}}").strip()
+            date_source = str(item.get("dateSource") or "exif_created,frontmatter_date,fs_mtime").strip()
+            apply_on = str(item.get("applyOn") or "both").strip()
+            materialization = str(item.get("materialization") or "on_use").strip()
+            conflict = str(item.get("conflict") or "rename").strip()
+            enabled = str(item.get("enabled") or "true").strip().lower()
+            lines.extend(
+                [
+                    "# Sort",
+                    f"Root: {root}",
+                    f"Pattern: {pattern}",
+                    f"DateSource: {date_source}",
+                    f"ApplyOn: {apply_on}",
+                    f"Materialization: {materialization}",
+                    f"Conflict: {conflict}",
+                    f"Enabled: {enabled}",
+                    "",
+                ]
+            )
+        if not lines:
+            return str(self._provider_seed("Sort.md"))
+        return "\n".join(lines).strip() + "\n"
 
     def _is_safe_config_name(self, value: str) -> bool:
         text = str(value or "").strip()

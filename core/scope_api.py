@@ -13,6 +13,8 @@ from core.tags import read_tags
 from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 from core.desk_service import DeskService
+from core.sort import SortRule, iter_sort_rule_roots, resolve_effective_sort_rules
+from core.sort_runtime import SortRuntime
 
 try:
     from core.localBlueprintLayer import Blueprint
@@ -286,6 +288,7 @@ class ScopeApi:
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
         self._desk_service = DeskService()
+        self._sort_runtime = SortRuntime()
         self.myos_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
         self._configure_acl_from_env()
@@ -429,6 +432,63 @@ class ScopeApi:
         candidate = root / ".MyOS" / config_name
         return candidate.exists() and candidate.is_file()
 
+    def find_config(self, path: str, config_name: str) -> Optional[str]:
+        if not self._desk_service.is_safe_config_name(config_name):
+            return None
+        target = self._resolve_path(path)
+        found = self._desk_service.find_config(target, config_name=config_name)
+        return str(found) if found else None
+
+    def preview_sort_target(self, file_path: str) -> Dict[str, Any]:
+        try:
+            target = self._resolve_path(file_path)
+        except Exception:
+            return {"ok": False, "reason": "invalid_path", "target": ""}
+        if not target.exists() or not target.is_file():
+            return {"ok": False, "reason": "missing_file", "target": ""}
+        rules = self._resolve_sort_rules_for_target(target)
+        resolved = self._sort_runtime.preview_target(target, rules, event="move")
+        return {"ok": resolved.get("ok") == "1", "reason": resolved.get("reason"), "target": resolved.get("target", "")}
+
+    def preview_sort_target_for_move(self, source_path: str, target_dir: str) -> Dict[str, Any]:
+        try:
+            source = self._resolve_path(source_path)
+            target = self._resolve_path(target_dir)
+        except Exception:
+            return {"ok": False, "reason": "invalid_path", "target": ""}
+        if not source.exists() or not source.is_file():
+            return {"ok": False, "reason": "missing_file", "target": ""}
+        simulated = target / source.name
+        rules = self._resolve_sort_rules_for_target(target)
+        resolved = self._sort_runtime.preview_target(simulated, rules, event="move")
+        return {"ok": resolved.get("ok") == "1", "reason": resolved.get("reason"), "target": resolved.get("target", "")}
+
+    def apply_sort_now(self, root_path: str) -> Dict[str, Any]:
+        try:
+            root = self._resolve_path(root_path)
+        except Exception:
+            return {"ok": False, "reason": "invalid_path", "moved": [], "errors": []}
+        rules = self._resolve_sort_rules_for_target(root)
+        return self._sort_runtime.apply_root(root, rules, event="move")
+
+    def list_sort_watch_roots(self, path: str) -> List[str]:
+        try:
+            target = self._resolve_path(path)
+        except Exception:
+            return []
+        rules = self._resolve_sort_rules_for_target(target)
+        roots = [str(root) for root in iter_sort_rule_roots(rules)]
+        return sorted(set(roots))
+
+    def _resolve_sort_rules_for_target(self, target: Path) -> List[SortRule]:
+        template_root = self._resolve_template_root_for_target(target)
+        return resolve_effective_sort_rules(
+            target,
+            template_root=template_root,
+            global_root=self.myos_root,
+            config_name="Sort.md",
+        )
+
     def _resolve_path(self, path: str) -> Path:
         return Path(path).expanduser().resolve()
 
@@ -449,6 +509,20 @@ class ScopeApi:
             bp = None
         self._blueprint_cache[key] = bp
         return root, bp
+
+    def _resolve_template_root_for_target(self, target: Path) -> Optional[Path]:
+        root, blueprint = self._resolve_context_for_target(target)
+        if not root or blueprint is None:
+            return None
+        templates_dir = getattr(blueprint, "templates_dir", None)
+        if not templates_dir:
+            return None
+        templates_base = Path(templates_dir).expanduser().resolve()
+        for template_name in getattr(blueprint, "template_names", []):
+            candidate = (templates_base / str(template_name)).resolve()
+            if is_within(target, candidate):
+                return candidate
+        return None
 
     def _resolve_template_color_for_context(self, blueprint: Any, rel_path: str, name: str) -> Optional[str]:
         if not blueprint:
@@ -1663,6 +1737,8 @@ class ScopeApi:
         destination = move_plan["destination"]
         try:
             shutil.move(str(src), str(destination))
+            rules = self._resolve_sort_rules_for_target(destination.parent)
+            self._sort_runtime.apply_file(destination, rules, event="move")
             return True
         except Exception:
             return False
@@ -1713,6 +1789,15 @@ class ScopeApi:
             try:
                 shutil.move(str(src), str(destination))
                 result["moved"].append({"source": src_key, "destination": str(destination)})
+                rules = self._resolve_sort_rules_for_target(destination.parent)
+                sorted_result = self._sort_runtime.apply_file(destination, rules, event="move")
+                if sorted_result.get("ok") == "1" and sorted_result.get("reason") == "moved":
+                    result.setdefault("sorted", []).append(
+                        {
+                            "source": str(sorted_result.get("source") or ""),
+                            "destination": str(sorted_result.get("destination") or ""),
+                        }
+                    )
             except Exception:
                 result["errors"].append({"source": src_key, "reason": "move_failed"})
 

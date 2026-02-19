@@ -235,6 +235,10 @@ class Backend(QObject):
         self._entries_pending: set[str] = set()
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._on_watched_file_changed)
+        self._sort_watcher = QFileSystemWatcher(self)
+        self._sort_watcher.directoryChanged.connect(self._on_sort_root_changed)
+        self._sort_watch_roots: set[str] = set()
+        self._sort_apply_timers: dict[str, QTimer] = {}
         self._watched_markdown_by_dir: dict[str, set[str]] = {}
         self._watch_refcount: dict[str, int] = {}
         self._thumb_refresh_timers: dict[str, QTimer] = {}
@@ -253,6 +257,7 @@ class Backend(QObject):
         initial_root = self._api.get_project_root() or ""
         if initial_root and self._desktop_state_hash:
             self._project_desktop_hash[initial_root] = self._desktop_state_hash
+        self._refresh_sort_watchers(self._api.get_start_path())
 
     @Slot(str, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool):
@@ -358,6 +363,7 @@ class Backend(QObject):
                         "options": options,
                     }
         self._api.update_context(path)
+        self._refresh_sort_watchers(path)
         next_root = self._api.get_project_root() or ""
         if next_root and self._desktop_state_hash and next_root not in self._project_desktop_hash:
             self._project_desktop_hash[next_root] = self._desktop_state_hash
@@ -365,6 +371,22 @@ class Backend(QObject):
     @Slot(str, str, result="QVariantMap")
     def ensureProjectConfig(self, path: str, configName: str):
         return self._api.ensure_project_config(path, configName)
+
+    @Slot(str, str, result="QString")
+    def findConfig(self, path: str, configName: str) -> str:
+        return self._api.find_config(path, configName) or ""
+
+    @Slot(str, result="QVariantMap")
+    def previewSortTarget(self, filePath: str):
+        return self._api.preview_sort_target(filePath)
+
+    @Slot(str, str, result="QVariantMap")
+    def previewSortTargetForMove(self, sourcePath: str, targetDir: str):
+        return self._api.preview_sort_target_for_move(sourcePath, targetDir)
+
+    @Slot(str, result="QVariantMap")
+    def applySortNow(self, rootPath: str):
+        return self._api.apply_sort_now(rootPath)
 
     @Slot(result="QVariantMap")
     def configPromptState(self):
@@ -508,6 +530,32 @@ class Backend(QObject):
         paths = [str(p) for p in candidates if p.exists()]
         if paths:
             self._desktop_watcher.addPaths(paths)
+
+    @Slot(str)
+    def _on_sort_root_changed(self, root_path: str) -> None:
+        resolved = str(Path(root_path).expanduser().resolve())
+        timer = self._sort_apply_timers.get(resolved)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda p=resolved: self._api.apply_sort_now(p))
+            self._sort_apply_timers[resolved] = timer
+        timer.start(250)
+        if resolved not in self._sort_watcher.directories() and Path(resolved).exists():
+            self._sort_watcher.addPath(resolved)
+
+    def _refresh_sort_watchers(self, path: str) -> None:
+        roots = set(self._api.list_sort_watch_roots(path))
+        current = set(self._sort_watcher.directories())
+        remove_paths = sorted(current - roots)
+        add_paths = sorted(roots - current)
+        if remove_paths:
+            self._sort_watcher.removePaths(remove_paths)
+        if add_paths:
+            existing = [p for p in add_paths if Path(p).exists()]
+            if existing:
+                self._sort_watcher.addPaths(existing)
+        self._sort_watch_roots = set(roots)
 
     def _capture_config_state_hash(self, config_name: str) -> str:
         result = self._api.capture_config_state(config_name)
