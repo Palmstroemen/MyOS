@@ -376,6 +376,30 @@ class Backend(QObject):
     def findConfig(self, path: str, configName: str) -> str:
         return self._api.find_config(path, configName) or ""
 
+    @Slot(str, result="QVariantList")
+    def listPerspectives(self, path: str):
+        return self._api.list_perspectives(path)
+
+    @Slot(str, result="QVariantMap")
+    def resolveActivePerspective(self, path: str):
+        return self._api.resolve_active_perspective(path)
+
+    @Slot(str, result=bool)
+    def setManualPerspective(self, perspectivePath: str) -> bool:
+        return self._api.set_manual_perspective(perspectivePath)
+
+    @Slot(result=bool)
+    def clearManualPerspective(self) -> bool:
+        return self._api.clear_manual_perspective()
+
+    @Slot(str, str, result="QVariantList")
+    def listPerspectiveSaveTargets(self, path: str, sourcePath: str):
+        return self._api.list_perspective_save_targets(path, sourcePath)
+
+    @Slot(str, str, str, str, result="QVariantMap")
+    def savePerspective(self, path: str, sourcePath: str, targetId: str, newName: str):
+        return self._api.save_perspective(path, sourcePath, targetId, newName)
+
     @Slot(str, result="QVariantMap")
     def previewSortTarget(self, filePath: str):
         return self._api.preview_sort_target(filePath)

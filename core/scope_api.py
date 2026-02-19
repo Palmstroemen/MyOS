@@ -13,6 +13,12 @@ from core.tags import read_tags
 from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 from core.desk_service import DeskService
+from core.perspective import (
+    EffectivePerspective,
+    find_perspectives_layers,
+    project_entries,
+    resolve_effective_perspective,
+)
 from core.sort import SortRule, iter_sort_rule_roots, resolve_effective_sort_rules
 from core.sort_runtime import SortRuntime
 
@@ -288,6 +294,7 @@ class ScopeApi:
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
         self._desk_service = DeskService()
+        self._manual_perspective_path: Optional[Path] = None
         self._sort_runtime = SortRuntime()
         self.myos_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
@@ -439,6 +446,167 @@ class ScopeApi:
         found = self._desk_service.find_config(target, config_name=config_name)
         return str(found) if found else None
 
+    def list_perspectives(self, path: str) -> List[Dict[str, Any]]:
+        target = self._resolve_path(path)
+        roots = self._resolve_perspective_roots_for_target(target)
+        layers = find_perspectives_layers(
+            target,
+            template_root=roots.get("templateRoot"),
+            project_root=roots.get("projectRoot"),
+            global_root=roots.get("globalRoot"),
+        )
+        out: List[Dict[str, Any]] = []
+        for layer in layers:
+            out.append(
+                {
+                    "name": layer.config.name,
+                    "path": str(layer.source_path),
+                    "scopeDir": str(layer.scope_dir),
+                    "originType": layer.origin_type,
+                    "sourceKind": layer.source_kind,
+                    "depth": int(layer.depth),
+                    "inherit": layer.config.inherit,
+                }
+            )
+        return out
+
+    def resolve_active_perspective(self, path: str) -> Dict[str, Any]:
+        target = self._resolve_path(path)
+        effective = self._resolve_effective_perspective_for_target(target)
+        if not effective:
+            return {
+                "active": False,
+                "name": "",
+                "mode": "auto",
+                "path": "",
+                "flatten": False,
+                "groups": [],
+                "chain": [],
+                "manualPath": str(self._manual_perspective_path) if self._manual_perspective_path else "",
+            }
+        first_path = effective.layers[0].source_path if effective.layers else None
+        return {
+            "active": True,
+            "name": effective.config.name,
+            "mode": effective.mode,
+            "path": str(first_path) if first_path else "",
+            "flatten": bool(effective.config.flatten),
+            "groups": list(effective.config.groups or []),
+            "chain": effective.explain_chain(),
+            "manualPath": str(self._manual_perspective_path) if self._manual_perspective_path else "",
+        }
+
+    def set_manual_perspective(self, perspective_path: str) -> bool:
+        text = str(perspective_path or "").strip()
+        if not text:
+            return self.clear_manual_perspective()
+        try:
+            resolved = Path(text).expanduser().resolve()
+        except Exception:
+            return False
+        if not resolved.exists() or not resolved.is_file():
+            return False
+        try:
+            # Validate parseability before activating.
+            _ = resolve_effective_perspective(resolved.parent, manual=resolved)
+        except Exception:
+            return False
+        self._manual_perspective_path = resolved
+        return True
+
+    def clear_manual_perspective(self) -> bool:
+        self._manual_perspective_path = None
+        return True
+
+    def list_perspective_save_targets(self, path: str, source_path: str) -> List[Dict[str, str]]:
+        target = self._resolve_path(path)
+        source = self._resolve_path(source_path) if str(source_path or "").strip() else None
+        roots = self._resolve_perspective_roots_for_target(target)
+        options: List[Dict[str, str]] = []
+        project_root = roots.get("projectRoot")
+        template_root = roots.get("templateRoot")
+        global_root = roots.get("globalRoot")
+        if project_root is not None:
+            options.append(
+                {
+                    "id": "project_local",
+                    "label": "Nur in diesem Projekt",
+                    "targetDir": str(project_root / ".MyOS" / "Perspectives"),
+                    "exists": "1" if source and source.exists() else "0",
+                }
+            )
+        if source is not None and source.exists():
+            options.append(
+                {
+                    "id": "source_scope",
+                    "label": "Im bisherigen Kontext",
+                    "targetDir": str(source.parent),
+                    "exists": "1",
+                }
+            )
+        if template_root is not None:
+            options.append(
+                {
+                    "id": "template_scope",
+                    "label": "Im Template-Kontext",
+                    "targetDir": str(template_root / ".MyOS" / "Perspectives"),
+                    "exists": "0",
+                }
+            )
+        if global_root is not None:
+            options.append(
+                {
+                    "id": "global_scope",
+                    "label": "Global in MyOS",
+                    "targetDir": str(global_root / ".MyOS" / "Perspectives"),
+                    "exists": "0",
+                }
+            )
+        options.append(
+            {
+                "id": "new_named",
+                "label": "Als neue Perspektive speichern",
+                "targetDir": str((project_root or target) / ".MyOS" / "Perspectives"),
+                "exists": "0",
+            }
+        )
+        return options
+
+    def save_perspective(self, path: str, source_path: str, target_id: str, new_name: str = "") -> Dict[str, Any]:
+        target = self._resolve_path(path)
+        source = self._resolve_path(source_path) if str(source_path or "").strip() else None
+        options = self.list_perspective_save_targets(str(target), str(source or ""))
+        chosen = None
+        for item in options:
+            if str(item.get("id")) == str(target_id):
+                chosen = item
+                break
+        if chosen is None:
+            return {"ok": False, "reason": "target_not_found", "path": ""}
+        if source is None or not source.exists() or not source.is_file():
+            return {"ok": False, "reason": "source_missing", "path": ""}
+        try:
+            content = source.read_text(encoding="utf-8")
+        except Exception:
+            return {"ok": False, "reason": "source_read_failed", "path": ""}
+
+        target_dir = Path(str(chosen.get("targetDir") or "")).expanduser().resolve()
+        if not str(target_dir):
+            return {"ok": False, "reason": "missing_target_dir", "path": ""}
+        file_name = source.name
+        if str(target_id) == "new_named":
+            cleaned = _clean_entry_name(str(new_name or "").strip(), allow_empty=False)
+            if not cleaned:
+                return {"ok": False, "reason": "invalid_new_name", "path": ""}
+            file_name = cleaned if cleaned.lower().endswith(".md") else f"{cleaned}.md"
+        destination = (target_dir / file_name).resolve()
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(content, encoding="utf-8")
+        except Exception:
+            return {"ok": False, "reason": "write_failed", "path": ""}
+        return {"ok": True, "reason": "written", "path": str(destination)}
+
     def preview_sort_target(self, file_path: str) -> Dict[str, Any]:
         try:
             target = self._resolve_path(file_path)
@@ -488,6 +656,64 @@ class ScopeApi:
             global_root=self.myos_root,
             config_name="Sort.md",
         )
+
+    def _resolve_perspective_roots_for_target(self, target: Path) -> Dict[str, Optional[Path]]:
+        template_root = self._resolve_template_root_for_target(target)
+        project_root = find_project_root(target)
+        return {
+            "templateRoot": template_root,
+            "projectRoot": project_root,
+            "globalRoot": self.myos_root,
+        }
+
+    def _resolve_effective_perspective_for_target(self, target: Path) -> Optional[EffectivePerspective]:
+        roots = self._resolve_perspective_roots_for_target(target)
+        return resolve_effective_perspective(
+            target,
+            manual=self._manual_perspective_path,
+            template_root=roots.get("templateRoot"),
+            project_root=roots.get("projectRoot"),
+            global_root=roots.get("globalRoot"),
+        )
+
+    def _list_entries_flattened(self, root_path: Path) -> List[FileEntryWithOptionalEmbryo]:
+        entries: List[FileEntryWithOptionalEmbryo] = []
+        stack: List[Path] = [root_path]
+        while stack:
+            current = stack.pop()
+            try:
+                children = sorted(current.iterdir(), key=lambda item: item.name.lower())
+            except Exception:
+                continue
+            for child in reversed(children):
+                if child.name.startswith("."):
+                    continue
+                acl_child = self._acl_probe("read_dir", child)
+                if acl_child and acl_child.enforced and not acl_child.allowed:
+                    continue
+                if child.is_dir():
+                    stack.append(child)
+                    sidecar = self._read_folder_sidecar(child)
+                    entries.append(
+                        self._build_file_entry(
+                            name=child.name,
+                            is_dir=True,
+                            path=str(child),
+                            tags=sidecar["tags"],
+                            folder_size_bytes=None,
+                        )
+                    )
+                else:
+                    entries.append(
+                        self._build_file_entry(
+                            name=child.name,
+                            is_dir=False,
+                            path=str(child),
+                            tags=self._read_entry_tags(child, None),
+                        )
+                    )
+        entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
+        return entries
 
     def _resolve_path(self, path: str) -> Path:
         return Path(path).expanduser().resolve()
@@ -809,6 +1035,7 @@ class ScopeApi:
         if target is None:
             return []
         self._acl_probe("read_dir", target)
+        effective_perspective = self._resolve_effective_perspective_for_target(target)
         entries: List[FileEntryWithOptionalEmbryo] = []
         md_tag_cache = self._load_markdown_tag_cache(target)
         seen_md_files: set[str] = set()
@@ -863,7 +1090,14 @@ class ScopeApi:
         self._update_project_folder_size_index(folder_size_updates)
         self._prune_markdown_tag_cache(md_tag_cache, seen_md_files)
         self._save_markdown_tag_cache(target, md_tag_cache)
-
+        if effective_perspective and effective_perspective.config.flatten:
+            entries = self._list_entries_flattened(target)
+        entries = project_entries(
+            entries,
+            cwd=target,
+            perspective=effective_perspective,
+            project_root=find_project_root(target),
+        )
         return entries
 
     def list_entries_filtered(

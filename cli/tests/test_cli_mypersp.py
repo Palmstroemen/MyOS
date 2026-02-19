@@ -72,3 +72,45 @@ def test_mypersp_resolve_fallback():
 
         assert result.returncode == 0
         assert result.stdout.strip() == "Root"
+
+
+def test_mypersp_activate_and_clear_manual_state():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        root = tmp / "Root"
+        sub = root / "Sub"
+        sub.mkdir(parents=True)
+        manual = root / ".MyOS"
+        manual.mkdir(parents=True)
+        _write_perspective(manual / "Perspective.md", "Manual")
+        _write_perspective(sub / "Perspective.md", "Auto")
+
+        activated = _run_cmd(["activate", str(manual / "Perspective.md")], cwd=tmpdir)
+        resolved = _run_cmd(["resolve", str(sub)], cwd=tmpdir)
+        cleared = _run_cmd(["clear"], cwd=tmpdir)
+        resolved_auto = _run_cmd(["resolve", str(sub)], cwd=tmpdir)
+
+        assert activated.returncode == 0
+        assert "Activated manual perspective" in activated.stdout
+        assert resolved.returncode == 0
+        assert resolved.stdout.strip() == "Manual"
+        assert cleared.returncode == 0
+        assert "Manual perspective cleared" in cleared.stdout
+        assert resolved_auto.returncode == 0
+        assert resolved_auto.stdout.strip() == "Auto"
+
+
+def test_mypersp_show_verbose_outputs_chain():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        root = tmp / "Root"
+        sub = root / "Sub"
+        sub.mkdir(parents=True)
+        _write_perspective(root / "Perspective.md", "Root")
+        _write_perspective(sub / "Perspective.md", "Sub")
+
+        result = _run_cmd(["show", str(sub), "--verbose"], cwd=tmpdir)
+
+        assert result.returncode == 0
+        assert "name: Sub" in result.stdout
+        assert "chain:" in result.stdout

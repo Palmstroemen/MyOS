@@ -7,6 +7,7 @@ import pytest
 
 from core.perspective import PerspectiveConfig
 from core.perspective import find_perspectives, resolve_active_perspective
+from core.perspective import find_perspectives_layers, project_entries, resolve_effective_perspective
 
 
 def _write_perspective(path: Path) -> None:
@@ -189,3 +190,152 @@ def test_resolve_active_perspective_falls_back_to_project():
         cfg = resolve_active_perspective(sub_dir)
 
         assert cfg.name == "Root"
+
+
+def test_find_perspectives_layers_includes_collection_files():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        root = tmp / "Project"
+        sub = root / "Sub"
+        coll = root / ".MyOS" / "Perspectives"
+        sub.mkdir(parents=True)
+        coll.mkdir(parents=True)
+        _write_named_perspective(coll / "Finance.md", "Finance")
+        _write_named_perspective(sub / "Perspective.md", "Sub")
+
+        layers = find_perspectives_layers(sub)
+
+        names = [layer.config.name for layer in layers]
+        assert names[0] == "Sub"
+        assert "Finance" in names
+
+
+def test_resolve_effective_perspective_merges_lists_and_nearest_scalars():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        root = tmp / "Project"
+        sub = root / "Sub"
+        root.mkdir(parents=True)
+        sub.mkdir(parents=True)
+        (root / "Perspective.md").write_text(
+            "\n".join(
+                [
+                    "# Perspective",
+                    "Name: Root",
+                    "",
+                    "## Include",
+                    "/finanz/",
+                    "",
+                    "## Group",
+                    "project",
+                    "",
+                    "## Desk",
+                    "DeskRoot.md",
+                    "",
+                    "## Flatten",
+                    "false",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (sub / "Perspective.md").write_text(
+            "\n".join(
+                [
+                    "# Perspective",
+                    "Name: Sub",
+                    "",
+                    "## Include",
+                    "/finanz/rechnungen/",
+                    "",
+                    "## Group",
+                    "tags",
+                    "",
+                    "## Desk",
+                    "DeskSub.md",
+                    "",
+                    "## Flatten",
+                    "true",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        effective = resolve_effective_perspective(sub)
+
+        assert effective is not None
+        assert effective.config.name == "Sub"
+        assert effective.config.include == ["/finanz/", "/finanz/rechnungen/"]
+        assert effective.config.groups == ["project", "tags"]
+        assert effective.config.desk == "DeskSub.md"
+        assert effective.config.flatten is True
+
+
+def test_resolve_effective_perspective_inherit_not_clears_parent_layers():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        root = tmp / "Project"
+        sub = root / "Sub"
+        root.mkdir(parents=True)
+        sub.mkdir(parents=True)
+        (root / "Perspective.md").write_text(
+            "# Perspective\nName: Root\n\n## Include\n/finanz/\n",
+            encoding="utf-8",
+        )
+        (sub / "Perspective.md").write_text(
+            "# Perspective\nName: Sub\nInherit: not\n\n## Include\n/recht/\n",
+            encoding="utf-8",
+        )
+
+        effective = resolve_effective_perspective(sub)
+
+        assert effective is not None
+        assert effective.config.include == ["/recht/"]
+        assert effective.layers[0].config.name == "Sub"
+
+
+def test_project_entries_applies_include_exclude_and_group():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        cwd = tmp / "Project"
+        finance = cwd / "finanz"
+        invoices = finance / "rechnungen"
+        invoices.mkdir(parents=True)
+        keep = invoices / "invoice1.pdf"
+        drop = invoices / "image.jpg"
+        keep.write_text("ok", encoding="utf-8")
+        drop.write_text("x", encoding="utf-8")
+        cfg_file = cwd / "Perspective.md"
+        cfg_file.write_text(
+            "\n".join(
+                [
+                    "# Perspective",
+                    "Name: Finance",
+                    "",
+                    "## Include",
+                    "/finanz/",
+                    "",
+                    "## Filter",
+                    "*.pdf",
+                    "",
+                    "## Group",
+                    "folder",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        effective = resolve_effective_perspective(cwd)
+        assert effective is not None
+        entries = [
+            {"name": "invoice1.pdf", "path": str(keep), "isDir": False, "tags": []},
+            {"name": "image.jpg", "path": str(drop), "isDir": False, "tags": []},
+        ]
+
+        projected = project_entries(entries, cwd=cwd, perspective=effective, project_root=cwd)
+
+        assert len(projected) == 1
+        assert projected[0]["name"] == "invoice1.pdf"
+        assert projected[0]["perspectiveActive"] is True
+        assert "perspectiveGroup" in projected[0]

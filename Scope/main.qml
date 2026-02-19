@@ -148,6 +148,12 @@ ApplicationWindow {
     property var pendingConfigPrompt: ({ pending: false, options: [] })
     property string pendingConfigPromptContext: ""
     property string pendingConfigPromptName: "Desk.md"
+    property var availablePerspectives: []
+    property var activePerspective: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
+    property string manualPerspectivePath: ""
+    property string perspectiveSaveSourcePath: ""
+    property var perspectiveSaveTargets: []
+    property string pendingPerspectiveNewName: ""
     property string selectionAnchorPath: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
@@ -1194,6 +1200,91 @@ ApplicationWindow {
         return ok
     }
 
+    function refreshPerspectives() {
+        var nextAvailable = []
+        var nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
+        if (hasBackend() && typeof backend.listPerspectives === "function") {
+            try {
+                nextAvailable = backend.listPerspectives(cwp) || []
+            } catch (e0) {
+                nextAvailable = []
+            }
+        }
+        if (hasBackend() && typeof backend.resolveActivePerspective === "function") {
+            try {
+                nextActive = backend.resolveActivePerspective(cwp) || nextActive
+            } catch (e1) {
+                nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
+            }
+        }
+        availablePerspectives = nextAvailable
+        activePerspective = nextActive
+        manualPerspectivePath = String(nextActive.manualPath || "")
+    }
+
+    function activatePerspectivePath(path) {
+        var target = String(path || "").trim()
+        if (!hasBackend() || typeof backend.setManualPerspective !== "function") {
+            return
+        }
+        if (!target) {
+            if (typeof backend.clearManualPerspective === "function") {
+                backend.clearManualPerspective()
+            }
+        } else {
+            var ok = backend.setManualPerspective(target)
+            if (!ok) {
+                moveReportMessage = qsTr("Perspektive konnte nicht aktiviert werden.")
+                moveReportDialog.open()
+            }
+        }
+        refreshPerspectives()
+        updateFiles()
+    }
+
+    function clearManualPerspectiveOverride() {
+        if (hasBackend() && typeof backend.clearManualPerspective === "function") {
+            backend.clearManualPerspective()
+        }
+        refreshPerspectives()
+        updateFiles()
+    }
+
+    function openActivePerspectiveSource() {
+        var sourcePath = String(activePerspective.path || "").trim()
+        if (!sourcePath.length) {
+            return
+        }
+        requestOpenWith(sourcePath)
+    }
+
+    function promptPerspectiveSave() {
+        var sourcePath = String(activePerspective.path || "").trim()
+        if (!sourcePath.length || !hasBackend() || typeof backend.listPerspectiveSaveTargets !== "function") {
+            return
+        }
+        perspectiveSaveSourcePath = sourcePath
+        perspectiveSaveTargets = backend.listPerspectiveSaveTargets(cwp, sourcePath) || []
+        pendingPerspectiveNewName = ""
+        perspectiveSaveDialog.open()
+    }
+
+    function applyPerspectiveSave(targetId) {
+        var target = String(targetId || "").trim()
+        if (!target.length || !hasBackend() || typeof backend.savePerspective !== "function") {
+            return
+        }
+        var result = backend.savePerspective(cwp, perspectiveSaveSourcePath, target, pendingPerspectiveNewName)
+        if (result && result.ok) {
+            moveReportMessage = qsTr("Perspektive gespeichert: %1").arg(String(result.path || ""))
+            moveReportDialog.open()
+            refreshPerspectives()
+            return
+        }
+        moveReportMessage = qsTr("Perspektive konnte nicht gespeichert werden.")
+        moveReportDialog.open()
+    }
+
     function updateFiles() {
         if (hasBackend() && typeof backend.invalidateEntries === "function") {
             backend.invalidateEntries(cwp)
@@ -1208,6 +1299,7 @@ ApplicationWindow {
                 hasProjectInCwp = false
             }
         }
+        refreshPerspectives()
     }
 
     function updateTemplates() {
@@ -2059,6 +2151,111 @@ ApplicationWindow {
     }
 
     Dialog {
+        id: perspectiveSaveDialog
+        title: qsTr("Perspektive speichern")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(560, Math.round(window.width * 0.44))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: _setDialogButtonText(perspectiveSaveDialog, Dialog.Cancel, qsTr("Abbrechen"))
+        contentItem: Column {
+            spacing: 10
+            Text {
+                text: qsTr("Sie haben eine Anpassung der Perspektive vorgenommen. Wo soll diese Anpassung gelten?")
+                wrapMode: Text.WordWrap
+                color: dialogTextStrong
+                font.pixelSize: baseFont
+            }
+            Repeater {
+                model: perspectiveSaveTargets || []
+                delegate: Button {
+                    width: Math.max(420, perspectiveSaveDialog.width - 60)
+                    text: String(modelData.label || modelData.id || "")
+                    onClicked: {
+                        var targetId = String(modelData.id || "")
+                        if (targetId === "new_named") {
+                            perspectiveNameDialog.open()
+                            return
+                        }
+                        applyPerspectiveSave(targetId)
+                        perspectiveSaveDialog.close()
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: perspectiveNameDialog
+        title: qsTr("Neue Perspektive")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(460, Math.round(window.width * 0.34))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(perspectiveNameDialog, Dialog.Ok, qsTr("Uebernehmen"))
+            _setDialogButtonText(perspectiveNameDialog, Dialog.Cancel, qsTr("Abbrechen"))
+            perspectiveNameInput.forceActiveFocus()
+            perspectiveNameInput.selectAll()
+        }
+        onAccepted: {
+            pendingPerspectiveNewName = String(perspectiveNameInput.text || "").trim()
+            applyPerspectiveSave("new_named")
+            perspectiveNameDialog.close()
+            perspectiveSaveDialog.close()
+        }
+        contentItem: Column {
+            spacing: 8
+            Text {
+                text: qsTr("Name fuer die neue Perspektive")
+                wrapMode: Text.WordWrap
+                color: dialogTextStrong
+                font.pixelSize: baseFont
+            }
+            TextField {
+                id: perspectiveNameInput
+                text: pendingPerspectiveNewName
+                placeholderText: qsTr("z.B. Eingangsrechnungen")
+                selectByMouse: true
+                color: dialogInputText
+                placeholderTextColor: dialogInputPlaceholder
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 12
+                rightPadding: 12
+                background: Rectangle {
+                    radius: 10
+                    color: dialogInputBg
+                    border.color: dialogInputBorder
+                    border.width: 1
+                }
+            }
+        }
+    }
+
+    Dialog {
         id: moveSelectedFoldersDialog
         title: qsTr("In neuen Ordner verschieben")
         modal: true
@@ -2377,7 +2574,7 @@ ApplicationWindow {
                         color: theme.accentPrimaryText
                         font.pixelSize: baseFont
                     }
-                    implicitWidth: 70
+                    implicitWidth: 62
                     MouseArea {
                         anchors.fill: parent
                         onClicked: darkTheme = !darkTheme
@@ -2389,10 +2586,10 @@ ApplicationWindow {
                     height: compactButtonHeight
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
-                    implicitWidth: 120
+                    implicitWidth: 62
                     Text {
                         anchors.centerIn: parent
-                        text: qsTr("Sprache") + ": " + uiLanguage.toUpperCase()
+                        text: uiLanguage.toUpperCase()
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -2402,12 +2599,77 @@ ApplicationWindow {
                     }
                 }
 
+                Rectangle { // Perspective toggle
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: activePerspective.active ? theme.smallButtonActiveBg : theme.smallButtonBg
+                    border.color: activePerspective.active ? theme.smallButtonActiveBorder : theme.smallButtonBorder
+                    implicitWidth: 210
+                    Text {
+                        anchors.centerIn: parent
+                        text: {
+                            if (!activePerspective || !activePerspective.active) {
+                                return qsTr("Perspektive: Auto")
+                            }
+                            var modeText = String(activePerspective.mode || "auto") === "manual" ? "M" : "A"
+                            var stacked = (activePerspective.chain && activePerspective.chain.length > 1) ? " +" : ""
+                            return qsTr("Perspektive") + ": " + String(activePerspective.name || "?") + " [" + modeText + "]" + stacked
+                        }
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                        elide: Text.ElideRight
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: perspectiveMenu.open()
+                    }
+                }
+
+                Menu {
+                    id: perspectiveMenu
+
+                    MenuItem {
+                        text: qsTr("Auto folgen")
+                        onTriggered: clearManualPerspectiveOverride()
+                    }
+                    MenuItem {
+                        text: qsTr("Aktive Perspektive oeffnen")
+                        enabled: String(activePerspective.path || "").length > 0
+                        onTriggered: openActivePerspectiveSource()
+                    }
+                    MenuItem {
+                        text: qsTr("Perspektive speichern ...")
+                        enabled: String(activePerspective.path || "").length > 0
+                        onTriggered: promptPerspectiveSave()
+                    }
+                    MenuSeparator {}
+                    Instantiator {
+                        model: availablePerspectives || []
+                        delegate: MenuItem {
+                            required property var modelData
+                            text: {
+                                var item = modelData || ({})
+                                var name = String(item.name || "")
+                                var origin = String(item.originType || "")
+                                var depth = Number(item.depth || 0)
+                                return name + " [" + origin + ", d" + depth + "]"
+                            }
+                            onTriggered: {
+                                var item = modelData || ({})
+                                activatePerspectivePath(String(item.path || ""))
+                            }
+                        }
+                        onObjectAdded: function(index, object) { perspectiveMenu.insertItem(index + 4, object) }
+                        onObjectRemoved: function(index, object) { perspectiveMenu.removeItem(object) }
+                    }
+                }
+
                 Rectangle { // Projects browser visibility toggle
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
                     color: projectsBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: projectsBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
-                    implicitWidth: 180
+                    implicitWidth: 146
                     
                     Text {
                         anchors.centerIn: parent
@@ -2427,7 +2689,7 @@ ApplicationWindow {
                     height: compactButtonHeight
                     color: templatesBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: templatesBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
-                    implicitWidth: 180
+                    implicitWidth: 146
                     
                     Text {
                         anchors.centerIn: parent
@@ -2447,7 +2709,7 @@ ApplicationWindow {
                     height: compactButtonHeight
                     color: filesPanelHalfTransparent ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: filesPanelHalfTransparent ? theme.smallButtonActiveBorder : theme.smallButtonBorder
-                    implicitWidth: 160
+                    implicitWidth: 118
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Dateien 50%")
@@ -2465,7 +2727,7 @@ ApplicationWindow {
                     height: compactButtonHeight
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
-                    implicitWidth: 230
+                    implicitWidth: 196
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Projekt mit Thema versehen")
@@ -2494,7 +2756,7 @@ ApplicationWindow {
                     height: compactButtonHeight
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
-                    implicitWidth: 220
+                    implicitWidth: 176
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Ordnung aktivieren")
@@ -2523,7 +2785,7 @@ ApplicationWindow {
                     height: compactButtonHeight
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
-                    implicitWidth: 180
+                    implicitWidth: 152
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Jetzt einsortieren")

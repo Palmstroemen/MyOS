@@ -786,7 +786,18 @@ Rectangle { // Files panel
                 readonly property bool selected: root.selectedPaths && itemPath.length > 0 && root.selectedPaths.indexOf(itemPath) !== -1
                 width: filesGrid.cellWidth - root.gridSpacing
                 height: filesGrid.cellHeight - (root.itemStyle === "largeIcon" ? root.gridSpacing : 4)
-                label: model.name
+                label: {
+                    var baseName = String(model.name || "")
+                    var group = String(model.perspectiveGroup || "")
+                    if (group.length > 0) {
+                        return "[" + group + "] " + baseName
+                    }
+                    if (model.perspectiveActive && model.originPath) {
+                        var origin = String(model.originPath || "")
+                        return baseName + "  •  " + origin
+                    }
+                    return baseName
+                }
                 style: root.itemStyle
                 compactHeight: root.compactButtonHeight
                 largeHeight: root.largeButtonHeight
