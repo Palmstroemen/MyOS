@@ -8,6 +8,7 @@ import os
 
 from core.project import ProjectConfig, ProjectFinder
 from core.project import find_projects, resolve_cwp
+from core.project import find_config_in_parents
 from core.config.parser import MarkdownConfigParser
 
 # Helper function for test setup
@@ -523,6 +524,44 @@ def test_resolve_cwp_none_when_no_project():
         sub.mkdir(parents=True)
 
         assert resolve_cwp(sub) is None
+
+
+def test_find_config_in_parents_returns_nearest_project_config():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "Root"
+        child = root / "Child"
+        deep = child / "Deep"
+        deep.mkdir(parents=True)
+
+        (root / ".MyOS").mkdir(parents=True)
+        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+
+        (child / ".MyOS").mkdir(parents=True)
+        (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (child / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Child\n", encoding="utf-8")
+
+        found = find_config_in_parents(deep, "Desk.md")
+        assert found == (child / ".MyOS" / "Desk.md")
+
+
+def test_find_config_in_parents_honors_inherit_not():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "Root"
+        child = root / "Child"
+        deep = child / "Deep"
+        deep.mkdir(parents=True)
+
+        (root / ".MyOS").mkdir(parents=True)
+        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+
+        (child / ".MyOS").mkdir(parents=True)
+        (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (child / ".MyOS" / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
+
+        found = find_config_in_parents(deep, "Desk.md")
+        assert found is None
 
 
 # Note: The make_project() function tests have been removed because 

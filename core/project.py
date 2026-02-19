@@ -18,6 +18,87 @@ logger = logging.getLogger(__name__)
 MYOS_VERSION = os.environ.get("MYOS_VERSION", "MyOS v0.1")
 
 
+def _coerce_search_dir(start_path: Union[str, Path]) -> Path:
+    target = Path(start_path).expanduser().resolve()
+    return target.parent if target.is_file() else target
+
+
+def _read_inherit_value_from_config_file(config_path: Path) -> Optional[str]:
+    """
+    Read inherit value from a <Section>.md config file.
+    Returns normalized inherit value or None when missing/unreadable.
+    """
+    try:
+        data = MarkdownConfigParser.parse_file(config_path)
+    except Exception:
+        return None
+    section_name = config_path.stem
+    section_data = None
+    if isinstance(data, dict):
+        section_data = data.get(section_name, data)
+    else:
+        section_data = data
+    inherit_values = MarkdownConfigParser.find_inherit(section_data)
+    if inherit_values is None:
+        return None
+    if isinstance(inherit_values, list):
+        if not inherit_values:
+            return None
+        value = str(inherit_values[0]).strip().lower()
+    else:
+        value = str(inherit_values).strip().lower()
+    if value in {"fix", "dynamic", "not"}:
+        return value
+    return None
+
+
+def find_config_in_parents(
+    start_path: Union[str, Path],
+    config_name: str,
+    *,
+    require_project_marker: bool = True,
+    honor_inherit_not: bool = True,
+) -> Optional[Path]:
+    """
+    Find nearest `.MyOS/<config_name>` by walking up from start_path.
+    """
+    search_dir = _coerce_search_dir(start_path)
+    for candidate in [search_dir, *search_dir.parents]:
+        if require_project_marker and not (candidate / ".MyOS" / "Project.md").exists():
+            continue
+        config_path = candidate / ".MyOS" / str(config_name)
+        if not (config_path.exists() and config_path.is_file()):
+            continue
+        if honor_inherit_not:
+            inherit_value = _read_inherit_value_from_config_file(config_path)
+            if inherit_value == "not":
+                return None
+        return config_path
+    return None
+
+
+def find_next_parent_config(
+    current_project: Union[str, Path],
+    config_name: str,
+    *,
+    require_project_marker: bool = True,
+    honor_inherit_not: bool = True,
+) -> Optional[Path]:
+    """
+    Find nearest parent config above the current project directory.
+    """
+    project_dir = _coerce_search_dir(current_project)
+    parent = project_dir.parent
+    if parent == project_dir:
+        return None
+    return find_config_in_parents(
+        parent,
+        config_name,
+        require_project_marker=require_project_marker,
+        honor_inherit_not=honor_inherit_not,
+    )
+
+
 
 
 class ProjectConfig:
@@ -611,44 +692,6 @@ class ProjectConfig:
         except Exception as e:
             logger.exception("Error saving Config.md: %s", e)
             return False
-
-    def _copy_parent_config(self, parent: 'ProjectConfig'):
-        """Copy config files from a parent project (creation helper)."""
-        try:
-            # Load parent config data
-            parent._load_config_data()
-            
-            # Copy files from parent .MyOS/
-            for item in parent.myos_dir.iterdir():
-                if item.is_file():
-                    # Handle Config.md separately
-                    if item.name == "Config.md":
-                        self._process_parent_config(item, parent)
-                    else:
-                        # Copy other files as-is
-                        import shutil
-                        shutil.copy2(item, self.myos_dir / item.name)
-                        
-        except Exception as e:
-            logger.warning("Could not copy parent config: %s", e)
-
-    def _process_parent_config(self, config_path: Path, parent: 'ProjectConfig'):
-        """Process parent Config.md with inherit rules."""
-        
-        data = MarkdownConfigParser.parse_file(config_path)
-        
-        # Filter out sections with inherit: fix
-        filtered_data = {}
-        for section_name, section_data in data.items():
-            inherit = MarkdownConfigParser.find_inherit(section_data)
-            if inherit and isinstance(inherit, list) and inherit[0].lower() == "fix":
-                # Skip fixed sections
-                continue
-            filtered_data[section_name] = section_data
-        
-        # Save filtered config data
-        self.config_data = filtered_data
-        self._save_config_data()
 
     def propagate_command():
         """CLI entry point to propagate config sections."""

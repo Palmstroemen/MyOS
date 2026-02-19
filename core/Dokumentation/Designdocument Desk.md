@@ -37,6 +37,8 @@ For each context change:
 4. If none is found, use global fallback profile (if configured).
 
 This rule removes direction-specific logic (no separate "going up/down" behavior).
+Resolver implementation should remain generic (for example `find_config_in_parents(path, "Desk.md")`)
+instead of introducing file-specific API methods.
 
 ## 4. Inheritance Semantics
 
@@ -104,6 +106,7 @@ Other desktop environments can be added later without changing `Desk.md` schema.
 
 - Missing `Desk.md`: no crash, continue with fallback/none.
 - Parse errors: skip invalid profile and continue upward/fallback.
+- `inherit:not` in a local `Desk.md` blocks upward resolution for that branch.
 - Backend command failure: report structured error, keep app alive.
 - Partial apply failure: keep last successful profile marker unchanged.
 

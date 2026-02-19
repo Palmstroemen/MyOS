@@ -34,14 +34,56 @@ def test_desk_service_find_config_nearest_ancestor(tmp_path):
     project = tmp_path / "Project"
     sub = project / "Sub"
     sub.mkdir(parents=True)
-    cfg = project / ".MyOS" / "Desk.md"
-    cfg.parent.mkdir(parents=True)
+    cfg_dir = project / ".MyOS"
+    cfg_dir.mkdir(parents=True)
+    (cfg_dir / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (sub / ".MyOS").mkdir(parents=True)
+    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    cfg = cfg_dir / "Desk.md"
     cfg.write_text("# Desk\nThemePreset: Demo\n", encoding="utf-8")
     service = DeskService(runtime=_FakeRuntime())
 
     found = service.find_config(sub)
 
     assert found == cfg
+
+
+def test_desk_service_find_config_local_override_wins(tmp_path):
+    project = tmp_path / "Project"
+    sub = project / "Sub"
+    sub.mkdir(parents=True)
+    parent_cfg = project / ".MyOS" / "Desk.md"
+    parent_cfg.parent.mkdir(parents=True)
+    parent_cfg.write_text("# Desk\nThemePreset: Parent\n", encoding="utf-8")
+    (sub / ".MyOS").mkdir(parents=True)
+    local_cfg = sub / ".MyOS" / "Desk.md"
+    local_cfg.write_text("# Desk\nThemePreset: Local\n", encoding="utf-8")
+    (project / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    service = DeskService(runtime=_FakeRuntime())
+
+    found = service.find_config(sub)
+
+    assert found == local_cfg
+
+
+def test_desk_service_find_config_respects_inherit_not(tmp_path):
+    project = tmp_path / "Project"
+    sub = project / "Sub"
+    sub.mkdir(parents=True)
+    parent_myos = project / ".MyOS"
+    parent_myos.mkdir(parents=True)
+    (parent_myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (parent_myos / "Desk.md").write_text("# Desk\nThemePreset: Parent\n", encoding="utf-8")
+    child_myos = sub / ".MyOS"
+    child_myos.mkdir(parents=True)
+    (child_myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (child_myos / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
+    service = DeskService(runtime=_FakeRuntime())
+
+    found = service.find_config(sub)
+
+    assert found is None
 
 
 def test_desk_service_rejects_unsafe_config_name_for_security(tmp_path):
@@ -81,5 +123,18 @@ def test_desk_service_rejects_non_ascii_spoofed_config_name_for_security(tmp_pat
     targets = service.list_config_targets(project, config_name=spoofed)
 
     assert found is None
+    assert len(targets) == 1
+    assert targets[0]["id"] == "discard"
+
+
+def test_desk_service_unsupported_config_returns_discard_only(tmp_path):
+    project = tmp_path / "Project"
+    project.mkdir(parents=True)
+    (project / ".MyOS").mkdir(parents=True)
+    (project / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    service = DeskService(runtime=_FakeRuntime())
+
+    assert service.find_config(project, config_name="Templates.md") is None
+    targets = service.list_config_targets(project, config_name="Templates.md")
     assert len(targets) == 1
     assert targets[0]["id"] == "discard"

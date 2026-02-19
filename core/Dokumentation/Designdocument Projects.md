@@ -86,11 +86,15 @@ A section in `Config.md` that starts with `# Templates` is equivalent to a file 
 - **`propagate_config(section, dry_run)`**  
   Materializes a section into child projects when explicitly requested.
 
+- **`find_config_in_parents(start_path, config_name)`**  
+  Generic file resolver for `/.MyOS/<config_name>` using nearest-ancestor lookup.
+
 **Override + Inheritance rules (resolve-on-read):**
 - **Single files override `Config.md`** for the same section.
 - **Nearest ancestor wins** for missing local sections.
 - **Inheritance can be defined in both** single files and `Config.md` sections.
 - If a section has **no inherit defined**, the default is **`dynamic`** (keep searching up).
+- API policy: prefer **parameterized generic commands** over file-specific methods.
 
 ### **5.2 Markdown Parser (`core/config/parser.py`)**
 The parser reads `# Section` blocks and converts lines into simple data structures

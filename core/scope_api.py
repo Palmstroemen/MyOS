@@ -74,10 +74,6 @@ def _extract_hash_line_tags_from_text(text: str) -> List[str]:
 
 _MD_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
 _MD_TAG_RE = re.compile(r"(?<!\w)#([\w\-/]+)", re.UNICODE)
-_SAFE_CONFIG_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
-_MAX_CONFIG_NAME_LEN = 120
-
-
 def _strip_wrapping_quotes(value: str) -> str:
     text = str(value or "").strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
@@ -339,7 +335,17 @@ class ScopeApi:
 
     def list_config_targets(self, path: str, config_name: str) -> List[Dict[str, str]]:
         # Security: reject traversal/path-injection in config filenames.
-        if not self._is_safe_config_name(config_name):
+        if not self._desk_service.is_safe_config_name(config_name):
+            return [
+                {
+                    "id": "discard",
+                    "label": "Nicht speichern",
+                    "targetPath": "",
+                    "configPath": "",
+                    "exists": "0",
+                }
+            ]
+        if not self._desk_service.supports_config(config_name):
             return [
                 {
                     "id": "discard",
@@ -371,7 +377,7 @@ class ScopeApi:
 
     def ensure_project_config(self, path: str, config_name: str) -> Dict[str, Any]:
         # Security: reject traversal/path-injection in config filenames.
-        if not self._is_safe_config_name(config_name):
+        if not self._desk_service.is_safe_config_name(config_name):
             return {"ok": False, "reason": "invalid_config_name", "path": ""}
         target = self._resolve_path(path)
         root = find_project_root(target)
@@ -381,13 +387,13 @@ class ScopeApi:
 
     def capture_config_state(self, config_name: str) -> Dict[str, Any]:
         # Security: reject traversal/path-injection in config filenames.
-        if not self._is_safe_config_name(config_name):
+        if not self._desk_service.is_safe_config_name(config_name):
             return {"ok": False, "reason": "invalid_config_name", "path": ""}
         return self._desk_service.capture_config_state(config_name=config_name)
 
     def apply_config_state_to_target(self, path: str, config_name: str, target_id: str) -> Dict[str, Any]:
         # Security: reject traversal/path-injection in config filenames.
-        if not self._is_safe_config_name(config_name):
+        if not self._desk_service.is_safe_config_name(config_name):
             return {"ok": False, "reason": "invalid_config_name", "path": ""}
         target = self._resolve_path(path)
         options = self.list_config_targets(str(target), config_name)
@@ -414,7 +420,7 @@ class ScopeApi:
 
     def has_local_config(self, path: str, config_name: str) -> bool:
         # Security: reject traversal/path-injection in config filenames.
-        if not self._is_safe_config_name(config_name):
+        if not self._desk_service.is_safe_config_name(config_name):
             return False
         target = self._resolve_path(path)
         root = find_project_root(target)
@@ -425,19 +431,6 @@ class ScopeApi:
 
     def _resolve_path(self, path: str) -> Path:
         return Path(path).expanduser().resolve()
-
-    def _is_safe_config_name(self, value: str) -> bool:
-        text = str(value or "").strip()
-        if not text:
-            return False
-        # Security: bound config filename length to avoid pathological paths.
-        if len(text) > _MAX_CONFIG_NAME_LEN:
-            return False
-        if "/" in text or "\\" in text:
-            return False
-        if text in {".", ".."} or ".." in text:
-            return False
-        return bool(_SAFE_CONFIG_NAME_RE.match(text))
 
     def _resolve_context_for_target(self, target: Path) -> tuple[Optional[Path], Optional[Any]]:
         root = find_project_root(target)

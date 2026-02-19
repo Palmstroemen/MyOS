@@ -432,3 +432,44 @@ def test_scope_api_rejects_non_ascii_spoofed_config_name_for_security(tmp_path):
     targets = api.list_config_targets(str(project_root), spoofed)
     assert len(targets) == 1
     assert targets[0]["id"] == "discard"
+
+
+def test_scope_api_list_config_targets_shows_nearest_parent_when_inherited(tmp_path):
+    root = tmp_path / "Workspace"
+    project_root = root / "Project"
+    child = project_root / "Child"
+    child.mkdir(parents=True)
+
+    (project_root / ".MyOS").mkdir(parents=True)
+    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+    (child / ".MyOS").mkdir(parents=True)
+    (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+
+    api = ScopeApi(str(child))
+    targets = api.list_config_targets(str(child), "Desk.md")
+
+    ids = [item["id"] for item in targets]
+    assert "current_project" in ids
+    assert "nearest_parent_with_config" in ids
+
+
+def test_scope_api_list_config_targets_hides_parent_when_inherit_not(tmp_path):
+    root = tmp_path / "Workspace"
+    project_root = root / "Project"
+    child = project_root / "Child"
+    child.mkdir(parents=True)
+
+    (project_root / ".MyOS").mkdir(parents=True)
+    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+    (child / ".MyOS").mkdir(parents=True)
+    (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (child / ".MyOS" / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
+
+    api = ScopeApi(str(child))
+    targets = api.list_config_targets(str(child), "Desk.md")
+
+    ids = [item["id"] for item in targets]
+    assert "current_project" in ids
+    assert "nearest_parent_with_config" not in ids

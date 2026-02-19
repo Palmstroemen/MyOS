@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from core.desk_runtime import DeskRuntime
+from core.project import find_config_in_parents, find_next_parent_config
 
 _SAFE_CONFIG_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
 _MAX_CONFIG_NAME_LEN = 120
@@ -23,6 +24,13 @@ class DeskService:
 
     def __init__(self, runtime: Optional[DeskRuntime] = None) -> None:
         self._runtime = runtime or DeskRuntime()
+        self._providers: Dict[str, Dict[str, Any]] = {
+            "Desk.md": {
+                "capture": self._capture_kde_payload,
+                "render": self._render_desk_markdown,
+                "seed": "# Desk\nInherit: dynamic\n",
+            }
+        }
         self._last_result: Dict[str, Any] = {
             "ok": True,
             "applied": False,
@@ -65,14 +73,14 @@ class DeskService:
         # Security: reject traversal/path-injection in config filenames.
         if not self._is_safe_config_name(config_name):
             return None
-        target = Path(start_path).expanduser().resolve()
-        if target.is_file():
-            target = target.parent
-        for candidate in [target, *target.parents]:
-            config_path = candidate / ".MyOS" / config_name
-            if config_path.exists() and config_path.is_file():
-                return config_path
-        return None
+        if not self._has_provider(config_name):
+            return None
+        return find_config_in_parents(
+            start_path,
+            config_name,
+            require_project_marker=True,
+            honor_inherit_not=True,
+        )
 
     def list_config_targets(
         self,
@@ -94,35 +102,58 @@ class DeskService:
                     "exists": "0",
                 }
             ]
+        if not self._has_provider(config_name):
+            return [
+                {
+                    "id": "discard",
+                    "label": "Nicht speichern",
+                    "targetPath": "",
+                    "configPath": "",
+                    "exists": "0",
+                }
+            ]
         target = Path(start_path).expanduser().resolve()
         if target.is_file():
             target = target.parent
         candidates: List[Dict[str, str]] = []
-        current_added = False
-        for candidate in [target, *target.parents]:
-            config_path = candidate / ".MyOS" / config_name
-            if not current_added:
-                candidates.append(
-                    {
-                        "id": "current_project",
-                        "label": "Aktuelles Projekt",
-                        "targetPath": str(candidate),
-                        "configPath": str(config_path),
-                        "exists": "1" if config_path.exists() else "0",
-                    }
+        current_project = self._resolve_project_dir(target)
+        if current_project is not None:
+            local_path = current_project / ".MyOS" / config_name
+            candidates.append(
+                {
+                    "id": "current_project",
+                    "label": "Aktuelles Projekt",
+                    "targetPath": str(current_project),
+                    "configPath": str(local_path),
+                    "exists": "1" if local_path.exists() else "0",
+                }
+            )
+            effective_from_current = find_config_in_parents(
+                current_project,
+                config_name,
+                require_project_marker=True,
+                honor_inherit_not=True,
+            )
+            parent_config = None
+            # If effective resolution is blocked locally (inherit:not), do not suggest parent.
+            if not (effective_from_current is None and local_path.exists()):
+                parent_config = find_next_parent_config(
+                    current_project,
+                    config_name,
+                    require_project_marker=True,
+                    honor_inherit_not=True,
                 )
-                current_added = True
-            elif config_path.exists():
+            if parent_config is not None:
+                parent_root = parent_config.parent.parent
                 candidates.append(
                     {
                         "id": "nearest_parent_with_config",
                         "label": "Naechstes Parent-Projekt",
-                        "targetPath": str(candidate),
-                        "configPath": str(config_path),
+                        "targetPath": str(parent_root),
+                        "configPath": str(parent_config),
                         "exists": "1",
                     }
                 )
-                break
         if global_root:
             root = Path(global_root).expanduser().resolve()
             config_path = root / ".MyOS" / config_name
@@ -159,9 +190,9 @@ class DeskService:
         return candidates
 
     def capture_config_state(self, *, config_name: str = "Desk.md") -> Dict[str, Any]:
-        if config_name != "Desk.md":
+        if not self._has_provider(config_name):
             return {"ok": False, "reason": "unsupported_config"}
-        payload = self._capture_kde_payload()
+        payload = self._provider_capture(config_name)
         encoded = json.dumps(payload, ensure_ascii=True, sort_keys=True)
         return {
             "ok": True,
@@ -178,7 +209,7 @@ class DeskService:
         state: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         root = Path(target_root).expanduser().resolve()
-        if config_name != "Desk.md":
+        if not self._has_provider(config_name):
             return {"ok": False, "reason": "unsupported_config", "path": ""}
         if not root.exists() or not root.is_dir():
             return {"ok": False, "reason": "target_missing", "path": ""}
@@ -189,7 +220,7 @@ class DeskService:
             state = dict(capture.get("state") or {})
         config_path = root / ".MyOS" / config_name
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        content = self._render_desk_markdown(state)
+        content = self._provider_render(config_name, state)
         config_path.write_text(content, encoding="utf-8")
         return {"ok": True, "reason": "written", "path": str(config_path)}
 
@@ -200,7 +231,7 @@ class DeskService:
         config_name: str = "Desk.md",
     ) -> Dict[str, Any]:
         root = Path(target_root).expanduser().resolve()
-        if config_name != "Desk.md":
+        if not self._has_provider(config_name):
             return {"ok": False, "reason": "unsupported_config", "path": ""}
         if not root.exists() or not root.is_dir():
             return {"ok": False, "reason": "target_missing", "path": ""}
@@ -208,8 +239,14 @@ class DeskService:
         if config_path.exists():
             return {"ok": True, "reason": "exists", "path": str(config_path)}
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text("# Desk\nInherit: dynamic\n", encoding="utf-8")
+        config_path.write_text(self._provider_seed(config_name), encoding="utf-8")
         return {"ok": True, "reason": "created", "path": str(config_path)}
+
+    def is_safe_config_name(self, value: str) -> bool:
+        return self._is_safe_config_name(value)
+
+    def supports_config(self, config_name: str) -> bool:
+        return self._has_provider(config_name)
 
     def _capture_kde_payload(self) -> Dict[str, str]:
         home = Path.home()
@@ -257,3 +294,24 @@ class DeskService:
         if text in {".", ".."} or ".." in text:
             return False
         return bool(_SAFE_CONFIG_NAME_RE.match(text))
+
+    def _resolve_project_dir(self, start_path: Path) -> Optional[Path]:
+        for candidate in [start_path, *start_path.parents]:
+            if (candidate / ".MyOS" / "Project.md").exists():
+                return candidate
+        return None
+
+    def _has_provider(self, config_name: str) -> bool:
+        return str(config_name or "").strip() in self._providers
+
+    def _provider_capture(self, config_name: str) -> Dict[str, Any]:
+        provider = self._providers[str(config_name)]
+        return dict(provider["capture"]())
+
+    def _provider_render(self, config_name: str, state: Dict[str, Any]) -> str:
+        provider = self._providers[str(config_name)]
+        return str(provider["render"](state))
+
+    def _provider_seed(self, config_name: str) -> str:
+        provider = self._providers[str(config_name)]
+        return str(provider.get("seed") or "")
