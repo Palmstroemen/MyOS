@@ -239,10 +239,20 @@ class Backend(QObject):
         self._watch_refcount: dict[str, int] = {}
         self._thumb_refresh_timers: dict[str, QTimer] = {}
         self._thumb_refresh_retries: dict[str, int] = {}
+        self._desktop_watcher = QFileSystemWatcher(self)
+        self._desktop_watcher.fileChanged.connect(self._on_desktop_config_changed)
+        self._desktop_state_hash: str = ""
+        self._project_desktop_hash: dict[str, str] = {}
+        self._pending_config_prompt: dict = {}
         self._translator: QTranslator | None = None
         self._language = "de"
         self._i18n_dir = Path(__file__).with_name("i18n")
         self.entriesReady.connect(self._on_entries_ready_for_watcher)
+        self._register_desktop_config_watchers()
+        self._desktop_state_hash = self._capture_config_state_hash("Desk.md")
+        initial_root = self._api.get_project_root() or ""
+        if initial_root and self._desktop_state_hash:
+            self._project_desktop_hash[initial_root] = self._desktop_state_hash
 
     @Slot(str, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool):
@@ -307,9 +317,78 @@ class Backend(QObject):
     def listProjectTags(self, path: str):
         return self._api.list_project_tags(path)
 
+    @Slot(str, result="QVariantList")
+    def listFolderTags(self, path: str):
+        return self._api.list_folder_tags(path)
+
+    @Slot(str, "QVariantList", result=bool)
+    def setFolderTags(self, path: str, tags) -> bool:
+        cleaned = [str(tag or "").strip() for tag in (tags or [])]
+        cleaned = [tag for tag in cleaned if tag]
+        return self._api.set_folder_tags(path, cleaned)
+
+    @Slot(str, result="QVariantMap")
+    def listTagBuckets(self, path: str):
+        return self._api.list_tag_buckets(path)
+
+    @Slot(str, str, str, result=bool)
+    def setFolderTagColor(self, path: str, tag: str, color: str) -> bool:
+        return self._api.set_folder_tag_color(path, tag, color)
+
     @Slot(str)
     def setContext(self, path: str) -> None:
+        previous_root = self._api.get_project_root() or ""
+        current_hash = self._capture_config_state_hash("Desk.md")
+        if current_hash:
+            self._desktop_state_hash = current_hash
+        if previous_root and current_hash:
+            previous_hash = self._project_desktop_hash.get(previous_root, "")
+            changed = previous_hash != current_hash
+            if changed:
+                if self._api.has_local_config(previous_root, "Desk.md"):
+                    apply_result = self._api.apply_config_state_to_target(previous_root, "Desk.md", "current_project")
+                    if bool(apply_result.get("ok")):
+                        self._project_desktop_hash[previous_root] = current_hash
+                else:
+                    options = self._api.list_config_targets(previous_root, "Desk.md")
+                    self._pending_config_prompt = {
+                        "pending": True,
+                        "configName": "Desk.md",
+                        "contextPath": previous_root,
+                        "options": options,
+                    }
         self._api.update_context(path)
+        next_root = self._api.get_project_root() or ""
+        if next_root and self._desktop_state_hash and next_root not in self._project_desktop_hash:
+            self._project_desktop_hash[next_root] = self._desktop_state_hash
+
+    @Slot(str, str, result="QVariantMap")
+    def ensureProjectConfig(self, path: str, configName: str):
+        return self._api.ensure_project_config(path, configName)
+
+    @Slot(result="QVariantMap")
+    def configPromptState(self):
+        if not self._pending_config_prompt:
+            return {"pending": False}
+        return dict(self._pending_config_prompt)
+
+    @Slot(str, result="QVariantMap")
+    def resolveConfigPrompt(self, targetId: str):
+        pending = dict(self._pending_config_prompt or {})
+        if not pending:
+            return {"ok": False, "reason": "no_pending_prompt"}
+        self._pending_config_prompt = {}
+        context_path = str(pending.get("contextPath") or "").strip()
+        config_name = str(pending.get("configName") or "Desk.md").strip() or "Desk.md"
+        if not context_path:
+            return {"ok": False, "reason": "missing_context_path"}
+        result = self._api.apply_config_state_to_target(context_path, config_name, targetId)
+        if bool(result.get("ok")) and targetId != "discard":
+            latest_hash = self._capture_config_state_hash(config_name)
+            if latest_hash:
+                self._project_desktop_hash[context_path] = latest_hash
+                self._desktop_state_hash = latest_hash
+        return result
 
     @Slot(str)
     def invalidateEntries(self, path: str) -> None:
@@ -411,6 +490,30 @@ class Backend(QObject):
         # QFileSystemWatcher may auto-drop paths after a change; re-register.
         if changed_path not in self._watcher.files():
             self._watcher.addPath(changed_path)
+
+    @Slot(str)
+    def _on_desktop_config_changed(self, changed_path: str) -> None:
+        self._desktop_state_hash = self._capture_config_state_hash("Desk.md")
+        if changed_path not in self._desktop_watcher.files() and Path(changed_path).exists():
+            self._desktop_watcher.addPath(changed_path)
+
+    def _register_desktop_config_watchers(self) -> None:
+        home = Path.home()
+        candidates = [
+            home / ".config" / "kdeglobals",
+            home / ".config" / "kwinrc",
+            home / ".config" / "plasmarc",
+            home / ".config" / "plasma-org.kde.plasma.desktop-appletsrc",
+        ]
+        paths = [str(p) for p in candidates if p.exists()]
+        if paths:
+            self._desktop_watcher.addPaths(paths)
+
+    def _capture_config_state_hash(self, config_name: str) -> str:
+        result = self._api.capture_config_state(config_name)
+        if not bool(result.get("ok")):
+            return ""
+        return str(result.get("stateHash") or "")
 
     def _schedule_thumbnail_refresh(self, full_path: str) -> None:
         timer = self._thumb_refresh_timers.get(full_path)

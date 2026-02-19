@@ -117,9 +117,16 @@ ApplicationWindow {
     property int fileItemsChunk: 160
     property bool hasMyosInCwp: false
     property bool hasProjectInCwp: false
-    property string tagFilterSource: "visible" // project | visible
+    property string tagFilterSource: "visible" // legacy
     property var availableTags: []
+    property var folderTags: []
+    property var fileTags: []
+    property var folderTagColors: ({})
+    property var fileTagColors: ({})
+    property var tagSuggestions: []
     property var selectedTags: []
+    property bool tagsIndexing: false
+    property int currentFolderSizeBytes: 0
     property string tagMatchMode: "or" // or | and
     property bool projectsShowEmbryos: true
     property bool templatesShowEmbryos: true
@@ -138,6 +145,9 @@ ApplicationWindow {
     property string pendingOpenWithPath: ""
     property string pendingOpenWithCommand: "xdg-open"
     property var openWithQuickCommands: ["xdg-open", "code", "libreoffice"]
+    property var pendingConfigPrompt: ({ pending: false, options: [] })
+    property string pendingConfigPromptContext: ""
+    property string pendingConfigPromptName: "Desk.md"
     property string selectionAnchorPath: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
@@ -390,6 +400,20 @@ ApplicationWindow {
         if (button) {
             button.text = text
         }
+    }
+
+    function _openConfigPromptIfPending() {
+        if (!hasBackend() || typeof backend.configPromptState !== "function") {
+            return
+        }
+        var prompt = backend.configPromptState()
+        if (!prompt || !prompt.pending) {
+            return
+        }
+        pendingConfigPrompt = prompt
+        pendingConfigPromptContext = String(prompt.contextPath || "")
+        pendingConfigPromptName = String(prompt.configName || "Desk.md")
+        configPromptDialog.open()
     }
 
     function toggleUiLanguage() {
@@ -691,7 +715,7 @@ ApplicationWindow {
 
     function applyEntries(entries) {
         fileItemsAll = entries || []
-        recomputeAvailableTags()
+        recomputeTagBuckets()
         filterEntries()
     }
 
@@ -909,43 +933,126 @@ ApplicationWindow {
         }
     }
 
-    function recomputeAvailableTags() {
-        var tags = []
-        if (tagFilterSource === "project" && hasBackend() && typeof backend.listProjectTags === "function") {
-            tags = backend.listProjectTags(cwp) || []
-        } else {
-            var source = fileItemsAll || []
-            var bag = {}
-            for (var i = 0; i < source.length; i++) {
-                var entry = source[i]
-                if (entry.name && entry.name.indexOf(".") === 0) {
-                    continue
-                }
-                if (!filesPane.showFolders && entry.isDir) {
-                    continue
-                }
-                var entryTags = entry.tags || []
-                for (var j = 0; j < entryTags.length; j++) {
-                    var value = entryTags[j]
-                    if (value && value.length > 0) {
-                        bag[value] = true
-                    }
+    function _fallbackFileTagsFromEntries() {
+        var source = fileItemsAll || []
+        var bag = {}
+        for (var i = 0; i < source.length; i++) {
+            var entry = source[i]
+            if (entry.name && entry.name.indexOf(".") === 0) {
+                continue
+            }
+            if (!filesPane.showFolders && entry.isDir) {
+                continue
+            }
+            var entryTags = entry.tags || []
+            for (var j = 0; j < entryTags.length; j++) {
+                var value = String(entryTags[j] || "").trim()
+                if (value.length > 0) {
+                    bag[value] = true
                 }
             }
-            tags = Object.keys(bag)
-            tags.sort(function(a, b) { return a.localeCompare(b) })
         }
-        availableTags = tags
+        var tags = Object.keys(bag)
+        tags.sort(function(a, b) { return a.localeCompare(b) })
+        return tags
+    }
+
+    function recomputeTagBuckets() {
+        tagsIndexing = true
+        var nextFolderTags = []
+        var nextFileTags = []
+        var nextFolderTagColors = ({})
+        var nextFileTagColors = ({})
+        var nextProjectTags = []
+        var nextFolderSize = currentFolderSizeBytes
+        if (hasBackend() && typeof backend.listTagBuckets === "function") {
+            try {
+                var buckets = backend.listTagBuckets(cwp) || {}
+                nextFolderTags = buckets.folderTags || []
+                nextFileTags = buckets.fileTags || []
+                nextFolderTagColors = buckets.folderTagColors || ({})
+                nextFileTagColors = buckets.fileTagColors || ({})
+                nextFolderSize = Number(buckets.folderSizeBytes !== undefined ? buckets.folderSizeBytes : currentFolderSizeBytes)
+            } catch (e) {
+                nextFileTags = _fallbackFileTagsFromEntries()
+            }
+        } else {
+            nextFileTags = _fallbackFileTagsFromEntries()
+        }
+        if (hasBackend() && typeof backend.listProjectTags === "function") {
+            try {
+                nextProjectTags = backend.listProjectTags(cwp) || []
+            } catch (e2) {
+                nextProjectTags = []
+            }
+        }
+
+        if (!nextFolderTags || nextFolderTags.length === 0) {
+            nextFolderTags = []
+        }
+        if (!nextFileTags || nextFileTags.length === 0) {
+            nextFileTags = []
+        }
+
+        var folderBag = {}
+        for (var i = 0; i < nextFolderTags.length; i++) {
+            var folderTag = String(nextFolderTags[i] || "").trim()
+            if (folderTag.length > 0) {
+                folderBag[folderTag] = true
+            }
+        }
+        var filteredFileTags = []
+        for (var j = 0; j < nextFileTags.length; j++) {
+            var fileTag = String(nextFileTags[j] || "").trim()
+            if (fileTag.length > 0 && !folderBag[fileTag]) {
+                filteredFileTags.push(fileTag)
+            }
+        }
+
+        folderTags = nextFolderTags
+        fileTags = filteredFileTags
+        folderTagColors = nextFolderTagColors
+        fileTagColors = nextFileTagColors
+        currentFolderSizeBytes = Math.max(0, Math.round(nextFolderSize || 0))
+        availableTags = folderTags.concat(fileTags)
+
+        var suggestionBag = {}
+        for (var p = 0; p < nextProjectTags.length; p++) {
+            var projectTag = String(nextProjectTags[p] || "").trim()
+            if (projectTag.length > 0 && !folderBag[projectTag]) {
+                suggestionBag[projectTag] = true
+            }
+        }
+        for (var f = 0; f < filteredFileTags.length; f++) {
+            var fileTagSuggestion = String(filteredFileTags[f] || "").trim()
+            if (fileTagSuggestion.length > 0 && !folderBag[fileTagSuggestion]) {
+                suggestionBag[fileTagSuggestion] = true
+            }
+        }
+        tagSuggestions = Object.keys(suggestionBag).sort(function(a, b) { return a.localeCompare(b) })
 
         var nextSelected = []
         for (var s = 0; s < selectedTags.length; s++) {
             var selected = selectedTags[s]
-            if (tags.indexOf(selected) !== -1) {
+            if (availableTags.indexOf(selected) !== -1) {
                 nextSelected.push(selected)
             }
         }
         if (nextSelected.length !== selectedTags.length) {
             selectedTags = nextSelected
+        }
+        tagsIndexing = false
+    }
+
+    function setFolderTagColor(tag, color) {
+        var normalizedTag = String(tag || "").trim()
+        var normalizedColor = String(color || "").trim()
+        if (!normalizedTag || !normalizedColor) {
+            return
+        }
+        if (hasBackend() && typeof backend.setFolderTagColor === "function") {
+            backend.setFolderTagColor(cwp, normalizedTag, normalizedColor)
+            recomputeTagBuckets()
         }
     }
 
@@ -961,6 +1068,54 @@ ApplicationWindow {
             next.splice(idx, 1)
         }
         selectedTags = next
+    }
+
+    function addFolderTag(tag) {
+        var raw = String(tag || "").trim()
+        if (!raw.length) {
+            return
+        }
+        var normalized = raw
+        while (normalized.length > 0 && normalized[0] === "#") {
+            normalized = normalized.slice(1).trim()
+        }
+        if (!normalized.length) {
+            return
+        }
+        var next = folderTags ? folderTags.slice(0) : []
+        if (next.indexOf(normalized) === -1) {
+            next.push(normalized)
+        }
+        next.sort(function(a, b) { return a.localeCompare(b) })
+        if (hasBackend() && typeof backend.setFolderTags === "function") {
+            backend.setFolderTags(cwp, next)
+        }
+        recomputeTagBuckets()
+        filterEntries()
+    }
+
+    function removeFolderTag(tag) {
+        var raw = String(tag || "").trim()
+        if (!raw.length) {
+            return
+        }
+        var normalized = raw
+        while (normalized.length > 0 && normalized[0] === "#") {
+            normalized = normalized.slice(1).trim()
+        }
+        if (!normalized.length) {
+            return
+        }
+        var next = folderTags ? folderTags.slice(0) : []
+        var idx = next.indexOf(normalized)
+        if (idx !== -1) {
+            next.splice(idx, 1)
+        }
+        if (hasBackend() && typeof backend.setFolderTags === "function") {
+            backend.setFolderTags(cwp, next)
+        }
+        recomputeTagBuckets()
+        filterEntries()
     }
 
     function appendNextChunk() {
@@ -1101,6 +1256,7 @@ ApplicationWindow {
         selectedTags = []
         if (hasBackend() && typeof backend.setContext === "function") {
             backend.setContext(cwp)
+            _openConfigPromptIfPending()
         }
         updateDefaultProjectTint()
         updateCurrentProjectTint()
@@ -1443,7 +1599,7 @@ ApplicationWindow {
     onLevel2SearchTextChanged: updateStandardFolders()
     onTagFilterSourceChanged: {
         selectedTags = []
-        recomputeAvailableTags()
+        recomputeTagBuckets()
         filterEntries()
     }
     onSelectedTagsChanged: filterEntries()
@@ -1658,6 +1814,59 @@ ApplicationWindow {
                     Keys.onEscapePressed: {
                         searchText = ""
                         searchActive = false
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: configPromptDialog
+        title: qsTr("Desktop-Aenderungen speichern")
+        modal: true
+        focus: true
+        standardButtons: Dialog.NoButton
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(520, Math.round(window.width * 0.36))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onClosed: {
+            pendingConfigPrompt = ({ pending: false, options: [] })
+            pendingConfigPromptContext = ""
+        }
+        contentItem: Column {
+            spacing: 12
+            padding: 14
+            Text {
+                text: qsTr("Desktop-Aenderungen fuer Kontext: ") + pendingConfigPromptContext
+                color: dialogTextStrong
+                wrapMode: Text.Wrap
+                font.pixelSize: baseFont
+            }
+            Text {
+                text: qsTr("Wohin soll die Konfiguration gespeichert werden?")
+                color: dialogTextMuted
+                wrapMode: Text.Wrap
+                font.pixelSize: baseFont
+            }
+            Repeater {
+                model: (pendingConfigPrompt && pendingConfigPrompt.options) ? pendingConfigPrompt.options : []
+                delegate: Button {
+                    width: 460
+                    text: String(modelData.label || modelData.id || "")
+                    onClicked: {
+                        if (hasBackend() && typeof backend.resolveConfigPrompt === "function") {
+                            backend.resolveConfigPrompt(String(modelData.id || "discard"))
+                        }
+                        configPromptDialog.close()
                     }
                 }
             }
@@ -2243,6 +2452,35 @@ ApplicationWindow {
                         onClicked: filesPanelHalfTransparent = !filesPanelHalfTransparent
                     }
                 }
+
+                Rectangle { // Ensure Desk.md in current project
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: theme.smallButtonBg
+                    border.color: theme.smallButtonBorder
+                    implicitWidth: 230
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("Projekt mit Thema versehen")
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (!hasBackend() || typeof backend.ensureProjectConfig !== "function") {
+                                return
+                            }
+                            var result = backend.ensureProjectConfig(cwp, "Desk.md")
+                            if (!result || !result.ok) {
+                                moveReportMessage = qsTr("Desk.md konnte nicht erstellt werden.")
+                            } else {
+                                moveReportMessage = qsTr("Desk.md ist bereit im aktuellen Projekt.")
+                            }
+                            moveReportDialog.open()
+                        }
+                    }
+                }
                 
                 Item { Layout.fillWidth: true }
             }
@@ -2420,8 +2658,11 @@ ApplicationWindow {
             id: projectsBrowser
             debugName: "ProjectsBrowser"
             parent: floatingPool
+            z: 8
             visible: projectsBrowserVisible
+            maxParents: 0
             path: cwp
+            pathDisplayPrefix: cwp
             folders: subProjects
             childrenProvider: function(targetPath) { return listChildren(targetPath) }
             showEmbryos: window.projectsShowEmbryos
@@ -2549,6 +2790,7 @@ ApplicationWindow {
         FilesPanel {  // FilesPanel
             id: filesPane
             parent: floatingPool
+            z: 1
             itemsModel: filesModel
             baseFont: window.baseFont
             text: theme.text
@@ -2584,9 +2826,16 @@ ApplicationWindow {
             showMyosButton: window.hasProjectInCwp
             showCreateProject: !window.hasProjectInCwp
             availableTags: window.availableTags
+            folderTags: window.folderTags
+            fileTags: window.fileTags
+            folderTagColors: window.folderTagColors
+            fileTagColors: window.fileTagColors
+            tagSuggestions: window.tagSuggestions
             selectedPaths: window.selectedEntryPaths
             selectedTags: window.selectedTags
             tagSource: window.tagFilterSource
+            isTagIndexing: window.tagsIndexing
+            folderSizeBytes: window.currentFolderSizeBytes
             onRequestMore: appendNextChunk()
             onFilterChanged: filterEntries()
             onItemActivated: function(path, ctrlPressed, shiftPressed) {
@@ -2595,6 +2844,9 @@ ApplicationWindow {
             onSelectionBoxApplied: function(paths, additive) { applySelectionBox(paths, additive) }
             onMoveEntriesRequested: function(payload, targetDir) { moveEntry(payload, targetDir) }
             onTagToggled: function(tag) { toggleTagSelection(tag) }
+            onAddFolderTagRequested: function(tag) { addFolderTag(tag) }
+            onRemoveFolderTagRequested: function(tag) { removeFolderTag(tag) }
+            onFolderTagColorRequested: function(tag, color) { setFolderTagColor(tag, color) }
             onRequestTagSourceChange: function(source) { tagFilterSource = source }
             onCreateNoteRequested: createNewNote()
             onMoveSelectedIntoNewFolderRequested: function(paths) {

@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "Theme/tag_chips.js" as TagChips
+import "Theme/tag_chip_style.js" as TagChipStyle
 import "Theme/panel_colors.js" as PanelColors
 
 Rectangle { // Files panel
@@ -29,9 +30,16 @@ Rectangle { // Files panel
     property bool halfTransparent: false
     property bool showFolders: false
     property var availableTags: []
+    property var folderTags: []
+    property var fileTags: []
+    property var folderTagColors: ({})
+    property var fileTagColors: ({})
+    property var tagSuggestions: []
     property var selectedTags: []
     property var selectedPaths: []
     property string tagSource: "visible"
+    property bool isTagIndexing: false
+    property int folderSizeBytes: 0
     property real templatesBrowserWidth: 0
     property real projectsBrowserWidth: 0
     property string iconFolder: ""
@@ -65,6 +73,16 @@ Rectangle { // Files panel
     property real tagChipSelectedBorderAlpha: TagChips.TAG_CHIP_SELECTED_BORDER_ALPHA
     property real tagChipIdleBorderAlpha: TagChips.TAG_CHIP_IDLE_BORDER_ALPHA
     property real tagFilterIdleBgAlpha: TagChips.TAG_FILTER_IDLE_BG_ALPHA
+    property int tagChipLeftRadius: TagChipStyle.CHIP_LEFT_RADIUS
+    property int tagChipRightRadius: TagChipStyle.CHIP_RIGHT_RADIUS
+    property int tagChipPadV: TagChipStyle.CHIP_PADDING_V
+    property int tagChipPadH: TagChipStyle.CHIP_PADDING_H
+    property int tagChipMargin: TagChipStyle.CHIP_MARGIN
+    // Explicit chip sizing for PostFix-like proportions (independent from compact buttons).
+    property int tagChipHeightPx: Math.max(18, Math.round(baseFont * 1.25))
+    property int tagChipFontPx: Math.max(9, Math.round(baseFont * 0.74))
+    property int tagSectionLabelPx: Math.max(9, Math.round(baseFont * 0.74))
+    property int tagInputHeightPx: Math.max(tagChipHeightPx, 22)
     property real filesPanelOverlayAlpha: 0.20
     property int sideMixControlHeight: Math.max(54, compactButtonHeight + 22)
     readonly property real uPanelLuma: (0.2126 * backgroundColor.r) + (0.7152 * backgroundColor.g) + (0.0722 * backgroundColor.b)
@@ -82,6 +100,9 @@ Rectangle { // Files panel
     signal filterChanged(bool showFolders)
     signal tagToggled(string tag)
     signal requestTagSourceChange(string source)
+    signal addFolderTagRequested(string tag)
+    signal removeFolderTagRequested(string tag)
+    signal folderTagColorRequested(string tag, string color)
     signal itemActivated(string path, bool ctrlPressed, bool shiftPressed)
     signal selectionBoxApplied(var paths, bool additive)
     signal moveEntriesRequested(string payload, string targetDir)
@@ -94,6 +115,7 @@ Rectangle { // Files panel
     signal openWithRequested(string path)
 
     onShowFoldersChanged: filterChanged(showFolders)
+    property string folderTagColorTarget: ""
 
     function selectedPayloadFor(itemPath, itemIsSelected) {
         var paths = []
@@ -331,60 +353,16 @@ Rectangle { // Files panel
                 radius: 0
                 border.width: 0
                 color: "transparent"
-                visible: (root.availableTags && root.availableTags.length > 0)
+                visible: true
 
                 Column {
                     anchors.fill: parent
                     spacing: 6
 
-                    Row {
-                        width: parent.width
-                        spacing: 6
-
-                        Rectangle {
-                            width: (parent.width - 6) / 2
-                            height: root.compactButtonHeight
-                            radius: root.tagChipRadius
-                            color: root.tagSource === "project"
-                                ? root.smallButtonActiveBg
-                                : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, root.tagFilterIdleBgAlpha)
-                            border.color: root.tagSource === "project" ? root.smallButtonActiveBorder : root.smallButtonBorder
-                            Text {
-                                anchors.centerIn: parent
-                                text: qsTr("Project")
-                                color: root.smallButtonText
-                                font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: root.requestTagSourceChange("project")
-                            }
-                        }
-
-                        Rectangle {
-                            width: (parent.width - 6) / 2
-                            height: root.compactButtonHeight
-                            radius: root.tagChipRadius
-                            color: root.tagSource === "visible"
-                                ? root.smallButtonActiveBg
-                                : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, root.tagFilterIdleBgAlpha)
-                            border.color: root.tagSource === "visible" ? root.smallButtonActiveBorder : root.smallButtonBorder
-                            Text {
-                                anchors.centerIn: parent
-                                text: qsTr("Visible")
-                                color: root.smallButtonText
-                                font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: root.requestTagSourceChange("visible")
-                            }
-                        }
-                    }
-
                     Flickable {
+                        id: tagsFlick
                         width: parent.width
-                        height: parent.height - root.compactButtonHeight - 6
+                        height: parent.height
                         contentWidth: width
                         contentHeight: tagsColumn.height
                         clip: true
@@ -394,36 +372,362 @@ Rectangle { // Files panel
                             width: parent.width
                             spacing: 4
 
+                            Text {
+                                width: parent.width
+                                text: qsTr("Ordnertags")
+                                color: root.smallButtonText
+                                font.pixelSize: root.tagSectionLabelPx
+                                elide: Text.ElideRight
+                            }
+
+                            readonly property bool hasSelectedTags: root.selectedTags && root.selectedTags.length > 0
+
                             Repeater {
-                                model: root.availableTags ? root.availableTags : []
+                                model: root.folderTags ? root.folderTags : []
                                 delegate: Rectangle {
-                                    width: tagsColumn.width
-                                    height: Math.max(root.tagChipMinHeight, Math.round(root.compactButtonHeight * root.tagChipHeightFactor))
-                                    radius: root.tagChipRadius
+                                    property int deleteZonePx: 15
+                                    property bool chipHovered: false
+                                    x: root.tagChipMargin
+                                    width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
+                                    height: root.tagChipHeightPx
+                                    radius: root.tagChipRightRadius
                                     readonly property string tagValue: modelData
                                     readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
+                                    readonly property bool dimmed: tagsColumn.hasSelectedTags && !selected
+                                    readonly property color customTagColor: {
+                                        var map = root.folderTagColors || ({})
+                                        var raw = map[tagValue]
+                                        return raw ? Qt.color(raw) : "transparent"
+                                    }
+                                    readonly property color baseTagColor: customTagColor !== "transparent" ? customTagColor : Qt.color("#ffd54f")
                                     color: selected
-                                        ? Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, root.tagChipSelectedFillAlpha)
-                                        : Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, root.tagChipIdleFillAlpha)
+                                        ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+                                        : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+                                    opacity: dimmed ? 0.75 : 1.0
+                                    border.width: 1
                                     border.color: selected
-                                        ? Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, root.tagChipSelectedBorderAlpha)
-                                        : Qt.rgba(root.smallButtonBorder.r, root.smallButtonBorder.g, root.smallButtonBorder.b, root.tagChipIdleBorderAlpha)
+                                        ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
+                                        : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+
+                                    // QtQuick 2.15 Rectangle has only uniform radius. Mask left side to keep it square.
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.top: parent.top
+                                        anchors.bottom: parent.bottom
+                                        width: Math.max(6, root.tagChipRightRadius - 2)
+                                        color: parent.color
+                                        border.width: parent.border.width
+                                        border.color: parent.border.color
+                                    }
 
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         anchors.left: parent.left
-                                        anchors.leftMargin: 8
-                                        anchors.right: parent.right
-                                        anchors.rightMargin: 6
-                                        text: "#" + tagValue
-                                        color: selected ? "#ffffff" : root.textMuted
-                                        font.pixelSize: Math.max(10, Math.round(root.baseFont * 0.82))
+                                        anchors.leftMargin: root.tagChipPadH
+                                        anchors.right: removeXBtn.left
+                                        anchors.rightMargin: parent.chipHovered ? 2 : 6
+                                        text: (selected ? "✓ " : "  ") + "#" + tagValue
+                                        color: TagChipStyle.textColorForBg(parent.color)
+                                        font.pixelSize: root.tagChipFontPx
                                         elide: Text.ElideRight
+                                        horizontalAlignment: Text.AlignRight
+                                    }
+                                    Text {
+                                        id: removeXBtn
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 2
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.chipHovered ? parent.deleteZonePx : 0
+                                        text: "×"
+                                        color: "#e53935"
+                                        font.pixelSize: Math.round(root.tagChipFontPx * 1.2)
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        opacity: parent.chipHovered ? 1.0 : 0.0
+                                        visible: width > 0
+                                        Behavior on width { NumberAnimation { duration: 90 } }
+                                        Behavior on opacity { NumberAnimation { duration: 90 } }
                                     }
                                     MouseArea {
                                         anchors.fill: parent
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        hoverEnabled: true
+                                        onEntered: {
+                                            parent.border.width = 2
+                                            parent.chipHovered = true
+                                        }
+                                        onExited: {
+                                            parent.border.width = 1
+                                            parent.chipHovered = false
+                                        }
+                                        onClicked: function(mouse) {
+                                            var inDeleteZone = mouse.button === Qt.LeftButton
+                                                && Number(mouse.x || 0) >= (parent.width - parent.deleteZonePx)
+                                            if (inDeleteZone) {
+                                                root.removeFolderTagRequested(parent.tagValue)
+                                                return
+                                            }
+                                            if (mouse.button === Qt.RightButton) {
+                                                var p = mapToItem(root, mouse.x, mouse.y)
+                                                root.folderTagColorTarget = parent.tagValue
+                                                folderTagColorMenu.x = p.x
+                                                folderTagColorMenu.y = p.y
+                                                folderTagColorMenu.open()
+                                                return
+                                            }
+                                            root.tagToggled(parent.tagValue)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: parent.width
+                                height: root.tagInputHeightPx
+                                radius: root.tagChipRadius
+                                color: Qt.rgba(1, 1, 1, 0.10)
+                                border.color: Qt.rgba(root.smallButtonBorder.r, root.smallButtonBorder.g, root.smallButtonBorder.b, 0.45)
+                                z: 20
+
+                                TextField {
+                                    id: newFolderTagInput
+                                    property bool suppressCompletion: false
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 8
+                                    anchors.rightMargin: 8
+                                    topPadding: 0
+                                    bottomPadding: 0
+                                    leftPadding: 0
+                                    rightPadding: 0
+                                    font.pixelSize: root.tagChipFontPx
+                                    clip: true
+                                    selectByMouse: true
+                                    placeholderText: qsTr("Neuer Ordnertag ...")
+                                    color: root.text
+                                    background: Item {}
+                                    onTextEdited: suppressCompletion = false
+                                    onAccepted: {
+                                        var value = String(text || "").trim()
+                                        if (value.length > 0) {
+                                            root.addFolderTagRequested(value)
+                                            text = ""
+                                        }
+                                        suppressCompletion = true
+                                        focus = false
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: tagSuggestionDropdown
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.bottom
+                                    anchors.topMargin: 2
+                                    z: 30
+                                    radius: root.tagChipRadius
+                                    color: Qt.rgba(root.smallButtonBg.r, root.smallButtonBg.g, root.smallButtonBg.b, 0.96)
+                                    border.color: root.smallButtonBorder
+                                    clip: true
+
+                                    property var completionModel: {
+                                        var src = root.tagSuggestions || []
+                                        var needle = String(newFolderTagInput.text || "").trim().toLowerCase()
+                                        var out = []
+                                        for (var i = 0; i < src.length; i++) {
+                                            var candidate = String(src[i] || "").trim()
+                                            if (!candidate.length) continue
+                                            var lower = candidate.toLowerCase()
+                                            if (needle.length === 0 || lower.indexOf(needle) === 0) {
+                                                out.push(candidate)
+                                            }
+                                            if (out.length >= 8) break
+                                        }
+                                        return out
+                                    }
+                                    visible: newFolderTagInput.activeFocus
+                                        && !newFolderTagInput.suppressCompletion
+                                        && completionModel.length > 0
+                                    height: Math.min(8, completionModel.length) * Math.max(root.tagChipMinHeight, root.tagChipHeightPx - 2) + 2
+
+                                    Column {
+                                        id: completionColumn
+                                        anchors.fill: parent
+                                        anchors.margins: 1
+                                        spacing: 0
+
+                                        Repeater {
+                                            model: tagSuggestionDropdown.completionModel
+                                            delegate: Rectangle {
+                                                x: root.tagChipMargin
+                                                width: Math.max(20, completionColumn.width - (2 * root.tagChipMargin))
+                                                height: Math.max(root.tagChipMinHeight, root.tagChipHeightPx - 2)
+                                                radius: root.tagChipRightRadius
+                                                readonly property string tagValue: String(modelData || "")
+                                                readonly property color suggestionColor: {
+                                                    var f = root.fileTagColors || ({})
+                                                    var c = f[tagValue]
+                                                    if (c) return Qt.color(c)
+                                                    var d = root.folderTagColors || ({})
+                                                    c = d[tagValue]
+                                                    if (c) return Qt.color(c)
+                                                    return Qt.color("#ffd54f")
+                                                }
+                                                color: completionHover.containsMouse
+                                                    ? Qt.rgba(suggestionColor.r, suggestionColor.g, suggestionColor.b, 0.85)
+                                                    : Qt.rgba(suggestionColor.r, suggestionColor.g, suggestionColor.b, 1.0)
+                                                border.width: completionHover.containsMouse ? 2 : 1
+                                                border.color: completionHover.containsMouse
+                                                    ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
+                                                    : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+
+                                                Rectangle {
+                                                    anchors.left: parent.left
+                                                    anchors.top: parent.top
+                                                    anchors.bottom: parent.bottom
+                                                    width: Math.max(6, root.tagChipRightRadius - 2)
+                                                    color: parent.color
+                                                    border.width: parent.border.width
+                                                    border.color: parent.border.color
+                                                }
+
+                                                Text {
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    anchors.left: parent.left
+                                                    anchors.leftMargin: root.tagChipPadH
+                                                    anchors.right: parent.right
+                                                    anchors.rightMargin: root.tagChipPadH
+                                                    text: "+ #" + tagValue
+                                                    color: TagChipStyle.textColorForBg(parent.color)
+                                                    font.pixelSize: root.tagChipFontPx
+                                                    elide: Text.ElideRight
+                                                    horizontalAlignment: Text.AlignRight
+                                                }
+
+                                                MouseArea {
+                                                    id: completionHover
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    onClicked: {
+                                                        var suggestion = String(modelData || "").trim()
+                                                        if (suggestion.length > 0) {
+                                                            root.addFolderTagRequested(suggestion)
+                                                        }
+                                                        newFolderTagInput.text = ""
+                                                        newFolderTagInput.suppressCompletion = true
+                                                        newFolderTagInput.focus = false
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: qsTr("Filetags")
+                                color: root.smallButtonText
+                                font.pixelSize: root.tagSectionLabelPx
+                                elide: Text.ElideRight
+                            }
+
+                            Repeater {
+                                model: root.fileTags ? root.fileTags : []
+                                delegate: Rectangle {
+                                    x: root.tagChipMargin
+                                    width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
+                                    height: root.tagChipHeightPx
+                                    radius: root.tagChipRightRadius
+                                    readonly property string tagValue: modelData
+                                    readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
+                                    readonly property bool dimmed: tagsColumn.hasSelectedTags && !selected
+                                    readonly property color customTagColor: {
+                                        var map = root.fileTagColors || ({})
+                                        var raw = map[tagValue]
+                                        return raw ? Qt.color(raw) : "transparent"
+                                    }
+                                    readonly property color baseTagColor: customTagColor !== "transparent" ? customTagColor : Qt.color("#ffd54f")
+                                    color: selected
+                                        ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+                                        : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+                                    opacity: dimmed ? 0.75 : 1.0
+                                    border.width: 1
+                                    border.color: selected
+                                        ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
+                                        : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.top: parent.top
+                                        anchors.bottom: parent.bottom
+                                        width: Math.max(6, root.tagChipRightRadius - 2)
+                                        color: parent.color
+                                        border.width: parent.border.width
+                                        border.color: parent.border.color
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: root.tagChipPadH
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: root.tagChipPadH
+                                        text: (selected ? "✓  " : "    ") + "#" + tagValue
+                                        color: TagChipStyle.textColorForBg(parent.color)
+                                        font.pixelSize: root.tagChipFontPx
+                                        elide: Text.ElideRight
+                                        horizontalAlignment: Text.AlignRight
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onEntered: parent.border.width = 2
+                                        onExited: parent.border.width = 1
                                         onClicked: root.tagToggled(parent.tagValue)
                                     }
+                                }
+                            }
+
+                            Rectangle {
+                                id: indexingPseudoTag
+                                x: root.tagChipMargin
+                                width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
+                                height: root.tagChipHeightPx
+                                radius: root.tagChipRightRadius
+                                visible: root.isTagIndexing
+                                color: "#ffd54f"
+                                border.width: 1
+                                border.color: Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+                                opacity: 0.45
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    width: Math.max(6, root.tagChipRightRadius - 2)
+                                    color: parent.color
+                                    border.width: parent.border.width
+                                    border.color: parent.border.color
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: root.tagChipPadH
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: root.tagChipPadH
+                                    text: qsTr("… parse tags")
+                                    color: root.textMuted
+                                    font.pixelSize: root.tagChipFontPx
+                                    elide: Text.ElideRight
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                SequentialAnimation on opacity {
+                                    running: indexingPseudoTag.visible
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 0.20; to: 0.65; duration: 450 }
+                                    NumberAnimation { from: 0.65; to: 0.20; duration: 450 }
                                 }
                             }
                         }
@@ -732,6 +1036,26 @@ Rectangle { // Files panel
             enabled: root.contextTargetSelection.length > 1
             onTriggered: root.moveSelectedIntoNewFolderRequested(root.contextTargetSelection)
         }
+    }
+
+    Menu {
+        id: folderTagColorMenu
+
+        function applyColor(hexColor) {
+            if (!root.folderTagColorTarget || root.folderTagColorTarget.length === 0) {
+                return
+            }
+            root.folderTagColorRequested(root.folderTagColorTarget, hexColor)
+        }
+
+        MenuItem { text: qsTr("Farbe: Rot"); onTriggered: folderTagColorMenu.applyColor("#d64f4f") }
+        MenuItem { text: qsTr("Farbe: Orange"); onTriggered: folderTagColorMenu.applyColor("#d68b39") }
+        MenuItem { text: qsTr("Farbe: Gelb"); onTriggered: folderTagColorMenu.applyColor("#c9b332") }
+        MenuItem { text: qsTr("Farbe: Gruen"); onTriggered: folderTagColorMenu.applyColor("#4ea35a") }
+        MenuItem { text: qsTr("Farbe: Cyan"); onTriggered: folderTagColorMenu.applyColor("#3ca2a6") }
+        MenuItem { text: qsTr("Farbe: Blau"); onTriggered: folderTagColorMenu.applyColor("#4c72d9") }
+        MenuItem { text: qsTr("Farbe: Violett"); onTriggered: folderTagColorMenu.applyColor("#8a58cf") }
+        MenuItem { text: qsTr("Farbe: Grau"); onTriggered: folderTagColorMenu.applyColor("#7b7f89") }
     }
 
     Shortcut {
