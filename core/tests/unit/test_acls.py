@@ -105,6 +105,29 @@ def test_acl_users_role_mapping():
         assert policy.roles_for_user("Unknown") == set()
 
 
+def test_acl_roles_from_inherited_templates_runtime_resolution():
+    from core.acl import ACLPolicy
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "RootProject"
+        child = root / "SubProject"
+        root.mkdir(parents=True)
+        child.mkdir(parents=True)
+
+        _write_templates(root, "Standard", ["admin", "info", "kommunikation"])
+        _write_project_config(root, "Standard")
+        _write_acls(root)
+
+        child_myos = child / ".MyOS"
+        child_myos.mkdir(parents=True)
+        (child_myos / "Project.md").write_text("# MyOS Project\n")
+
+        policy = ACLPolicy.from_project(child)
+        assert "admin" in policy.roles
+        assert "info" in policy.roles
+        assert "kommunikation" in policy.roles
+
+
 def test_acl_finance_glob_patterns_and_default_deny():
     from core.acl import ACLPolicy, PermissionRule
 

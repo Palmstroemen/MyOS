@@ -148,3 +148,30 @@ def test_default_export_name_format():
 
         name = result.package_path.name
         assert re.match(r"^MyProject_export_\d{8}$", name)
+
+
+def test_export_subproject_uses_runtime_inherited_templates():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        root = tmp / "RootProject"
+        child = root / "SubProject"
+        root.mkdir(parents=True)
+        child.mkdir(parents=True)
+
+        _create_project(root, template_name="Standard")
+        _create_templates(root, template_name="Standard")
+
+        child_myos = child / ".MyOS"
+        child_myos.mkdir(parents=True, exist_ok=True)
+        (child_myos / "Project.md").write_text("# MyOS Project\n")
+
+        subtree = child / "finanz"
+        subtree.mkdir(parents=True)
+        (subtree / "note.txt").write_text("N1")
+
+        output_dir = tmp / "exports"
+        result = export_subtree(subtree, output_dir)
+
+        package_root = result.package_path
+        assert (package_root / "finanz" / "note.txt").exists()
+        assert (package_root / "Templates" / "Standard" / "admin").exists()

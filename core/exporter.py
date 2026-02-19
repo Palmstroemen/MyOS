@@ -103,7 +103,8 @@ def export_subtree(
 
 def _copy_templates(export_root: Path, package_path: Path) -> None:
     config = ProjectConfig(export_root)
-    if not config.templates:
+    template_names = config.get_effective_templates()
+    if not template_names:
         logger.debug("No templates configured for %s", export_root)
         return
 
@@ -115,7 +116,7 @@ def _copy_templates(export_root: Path, package_path: Path) -> None:
     target_root = package_path / "Templates"
     target_root.mkdir(parents=True, exist_ok=True)
 
-    for template_name in config.templates:
+    for template_name in template_names:
         source = templates_source / template_name
         if not source.exists():
             logger.warning("Template '%s' not found in %s", template_name, templates_source)
@@ -127,6 +128,14 @@ def _resolve_templates_dir(export_root: Path) -> Optional[Path]:
     env_dir = os.environ.get("MYOS_TEMPLATES_DIR")
     if env_dir:
         return Path(env_dir).expanduser().resolve()
+    current = Path(export_root).expanduser().resolve()
+    while True:
+        candidate = current / "Templates"
+        if candidate.exists():
+            return candidate
+        if current == current.parent:
+            break
+        current = current.parent
     return export_root / "Templates"
 
 

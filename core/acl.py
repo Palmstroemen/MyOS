@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import fnmatch
+import os
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -46,7 +47,7 @@ class ACLPolicy:
         if not config.is_valid():
             raise ValueError(f"Not a valid MyOS project: {project_root}")
 
-        template_roles = _roles_from_templates(project_root, config.templates)
+        template_roles = _roles_from_templates(project_root, config.get_effective_templates())
         acl_roles, role_permissions, folder_defaults, users = _roles_from_acls(project_root)
 
         roles = {*_normalize_roles(template_roles), *_normalize_roles(acl_roles)}
@@ -186,7 +187,9 @@ def _casbin_path_match(request_path: str, policy_path: str) -> bool:
 
 def _roles_from_templates(project_root: Path, template_names: Iterable[str]) -> Set[str]:
     roles: Set[str] = set()
-    templates_root = project_root / "Templates"
+    templates_root = _resolve_templates_dir(project_root)
+    if not templates_root or not templates_root.exists():
+        return roles
     for template in template_names:
         template_dir = templates_root / template
         if not template_dir.exists():
@@ -195,6 +198,21 @@ def _roles_from_templates(project_root: Path, template_names: Iterable[str]) -> 
             if child.is_dir():
                 roles.add(child.name)
     return roles
+
+
+def _resolve_templates_dir(project_root: Path) -> Optional[Path]:
+    env_dir = os.environ.get("MYOS_TEMPLATES_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser().resolve()
+    current = Path(project_root).expanduser().resolve()
+    while True:
+        candidate = current / "Templates"
+        if candidate.exists():
+            return candidate
+        if current == current.parent:
+            break
+        current = current.parent
+    return None
 
 
 def _roles_from_acls(

@@ -256,26 +256,24 @@ class TestProjectInheritance:
         
         print(f"✓ Inherit status detection works")
     
-    def test_create_project_copies_config(self):
-        """Test that create() copies configuration from parent."""
+    def test_create_project_initializes_minimal_marker(self):
+        """Test that create() initializes only minimal project marker."""
         # Create child directory
         child_dir = self.root / "NeuesProjekt"
         child_dir.mkdir()
         
-        # Create project (should find parent and copy)
+        # Create project (should find parent, but not copy full config)
         config = ProjectConfig.create(child_dir)
         
-        # Check that files were copied
+        # Check minimal marker exists
         child_myos = child_dir / ".MyOS"
-        assert (child_myos / "Templates.md").exists()
-        assert (child_myos / "ACLs.md").exists()
-        assert (child_myos / "Manifest.md").exists()
-        assert (child_myos / "Config.md").exists()
+        assert (child_myos / "Project.md").exists()
+        assert not (child_myos / "Templates.md").exists()
+        assert not (child_myos / "ACLs.md").exists()
+        assert not (child_myos / "Manifest.md").exists()
+        assert not (child_myos / "Config.md").exists()
         
-        # Info.md should NOT have been copied (inherit: not)
-        assert not (child_myos / "Info.md").exists()
-        
-        print(f"✓ Config correctly copied, Info.md correctly omitted")
+        print("✓ Minimal project marker created without dynamic copies")
     
     def test_create_project_without_parent_fails(self):
         """Test that create() fails when no parent found."""
@@ -290,42 +288,40 @@ class TestProjectInheritance:
             
             print(f"✓ Correctly fails when no parent found")
     
-    def test_inherit_not_deletes_file(self):
-        """Test that inherit:not deletes file after copying."""
-        # Simulate manual copy
-        child_dir = self.root / "TestProjekt"
+    def test_effective_templates_inherit_from_parent_when_missing_locally(self):
+        """Runtime inheritance resolves Templates from nearest ancestor."""
+        child_dir = self.root / "InheritedProject"
         child_dir.mkdir()
+        ProjectConfig.create(child_dir)
+
+        child_cfg = ProjectConfig(child_dir)
+        assert child_cfg.templates == []
+        assert child_cfg.get_effective_templates() == ["Standard", "Person", "Finanzen"]
+
+    def test_effective_templates_use_local_override_when_present(self):
+        """Local Templates.md overrides ancestor templates."""
+        child_dir = self.root / "LocalOverrideProject"
+        child_dir.mkdir()
+        ProjectConfig.create(child_dir)
+
         child_myos = child_dir / ".MyOS"
-        child_myos.mkdir()
-        
-        # Copy all files (like copytree would)
-        for config_file in (self.root / ".MyOS").glob("*.md"):
-            shutil.copy2(config_file, child_myos / config_file.name)
-        
-        # Now delete files with inherit:not
-        for config_file in child_myos.glob("*.md"):
-            if config_file.name == "Project.md":
-                continue
-            
-            try:
-                data = MarkdownConfigParser.parse_file(config_file)
-                section_name = config_file.stem
-                
-                if section_name in data:
-                    # Use parser to find inherit status
-                    inherit_values = MarkdownConfigParser.find_inherit(data[section_name])
-                    if inherit_values and isinstance(inherit_values, list) and inherit_values[0] == "not":
-                        config_file.unlink()
-                        print(f"  Deleted {config_file.name} (inherit: not)")
-            except Exception as e:
-                print(f"  Warning processing {config_file}: {e}")
-        
-        # Check results
-        assert (child_myos / "Templates.md").exists()
-        assert (child_myos / "ACLs.md").exists()
-        assert not (child_myos / "Info.md").exists()
-        
-        print(f"✓ inherit:not correctly handled")
+        (child_myos / "Templates.md").write_text("# Templates\nOnlyLocal\n")
+
+        child_cfg = ProjectConfig(child_dir)
+        assert child_cfg.templates == ["OnlyLocal"]
+        assert child_cfg.get_effective_templates() == ["OnlyLocal"]
+
+    def test_effective_templates_respect_inherit_not(self):
+        """inherit:not in local Config.md disables template inheritance."""
+        child_dir = self.root / "NoInheritProject"
+        child_dir.mkdir()
+        ProjectConfig.create(child_dir)
+
+        child_myos = child_dir / ".MyOS"
+        (child_myos / "Config.md").write_text("# Templates\ninherit: not\n")
+
+        child_cfg = ProjectConfig(child_dir)
+        assert child_cfg.get_effective_templates() == []
     
     def test_config_propagation_dry_run(self):
         """Test propagating config changes to children with dry run."""

@@ -224,6 +224,152 @@ class ProjectConfig:
         logger.warning("Invalid inherit value '%s' in section '%s', defaulting to dynamic", inherit_value, section_name)
         return "dynamic"
 
+    def _get_local_section_data(self, section_name: str) -> Tuple[Any, bool]:
+        """
+        Return local section data from <Section>.md first, then Config.md.
+        """
+        section = str(section_name or "").strip()
+        if not section:
+            return None, False
+
+        section_file = self.myos_dir / f"{section}.md"
+        if section_file.exists():
+            try:
+                parsed = MarkdownConfigParser.parse_file(section_file)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, dict):
+                if section in parsed:
+                    return parsed.get(section), True
+                return parsed, True
+            if parsed is not None:
+                return parsed, True
+
+        if not self.config_data:
+            self._load_config_data()
+        if section in self.config_data:
+            return self.config_data.get(section), True
+        return None, False
+
+    @staticmethod
+    def _inherit_from_section_data(section_data: Any) -> str:
+        inherit_values = MarkdownConfigParser.find_inherit(section_data)
+        if inherit_values is None:
+            return "dynamic"
+        if isinstance(inherit_values, list):
+            if not inherit_values:
+                return "dynamic"
+            inherit_value = str(inherit_values[0]).strip().lower()
+        else:
+            inherit_value = str(inherit_values).strip().lower()
+        if inherit_value in ("fix", "dynamic", "not"):
+            return inherit_value
+        return "dynamic"
+
+    def resolve_effective_section(self, section_name: str) -> Any:
+        """
+        Resolve a section by walking project ancestors.
+        Nearest local section wins. Missing inherit defaults to dynamic.
+        """
+        section = str(section_name or "").strip()
+        if not section:
+            return None
+
+        current = self.path
+        while True:
+            marker = current / ".MyOS" / "Project.md"
+            if marker.exists():
+                myos_dir = current / ".MyOS"
+                local_data = None
+                found = False
+
+                section_file = myos_dir / f"{section}.md"
+                if section_file.exists():
+                    try:
+                        parsed = MarkdownConfigParser.parse_file(section_file)
+                    except Exception:
+                        parsed = None
+                    if isinstance(parsed, dict):
+                        if section in parsed:
+                            local_data = parsed.get(section)
+                        else:
+                            local_data = parsed
+                        found = True
+                    elif parsed is not None:
+                        local_data = parsed
+                        found = True
+
+                if not found:
+                    config_md = myos_dir / "Config.md"
+                    if config_md.exists():
+                        try:
+                            parsed_config = MarkdownConfigParser.parse_file(config_md)
+                        except Exception:
+                            parsed_config = {}
+                        if isinstance(parsed_config, dict) and section in parsed_config:
+                            local_data = parsed_config.get(section)
+                            found = True
+
+                if found:
+                    inherit_state = self._inherit_from_section_data(local_data)
+                    if inherit_state == "not":
+                        return None
+                    return local_data
+            if current == current.parent:
+                break
+            current = current.parent
+        return None
+
+    @staticmethod
+    def _extract_templates_from_section(section_data: Any) -> List[str]:
+        if section_data is None:
+            return []
+        values: List[str] = []
+        if isinstance(section_data, list):
+            for item in section_data:
+                if isinstance(item, dict):
+                    items = item.get("items")
+                    if isinstance(items, list):
+                        values.extend(str(v).strip() for v in items if str(v).strip())
+                    elif isinstance(items, str) and items.strip():
+                        values.append(items.strip())
+                else:
+                    text = str(item).strip()
+                    if text:
+                        values.append(text)
+        elif isinstance(section_data, dict):
+            items = section_data.get("items")
+            if isinstance(items, list):
+                values.extend(str(v).strip() for v in items if str(v).strip())
+            elif isinstance(items, str) and items.strip():
+                values.append(items.strip())
+            elif "Templates" in section_data:
+                inner = section_data.get("Templates")
+                if isinstance(inner, list):
+                    values.extend(str(v).strip() for v in inner if str(v).strip())
+                elif isinstance(inner, str) and inner.strip():
+                    values.append(inner.strip())
+        elif isinstance(section_data, str):
+            text = section_data.strip()
+            if text:
+                values.append(text)
+        # Keep insertion order while removing duplicates.
+        unique: List[str] = []
+        seen = set()
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            unique.append(value)
+        return unique
+
+    def get_effective_templates(self) -> List[str]:
+        """
+        Resolve effective Templates section from nearest project ancestor.
+        """
+        section_data = self.resolve_effective_section("Templates")
+        return self._extract_templates_from_section(section_data)
+
     def get_parent_project(self) -> Optional['ProjectConfig']:
         """Find the nearest parent project (one directory above)."""
         parent_dir = self.path.parent
@@ -335,7 +481,7 @@ class ProjectConfig:
     @classmethod
     def create(cls, dir_path: Union[str, Path]) -> 'ProjectConfig':
         """
-        Create a new project by copying .MyOS/ from a parent directory.
+        Create a new project marker without copying dynamic config files.
         """
         dir_path = Path(dir_path)
         
@@ -343,50 +489,15 @@ class ProjectConfig:
         parent_myos = cls._find_parent_myos(dir_path)
         if not parent_myos:
             raise ValueError(f"No parent .MyOS directory found for {dir_path}")
-        
-        # Copy parent .MyOS/ into target
+        # Ensure target directory exists and initialize minimal .MyOS marker.
+        dir_path.mkdir(parents=True, exist_ok=True)
         target_myos = dir_path / ".MyOS"
-        import shutil
-        # Security: symlink suppression
-        def _ignore_symlinks(src, names):
-            ignored = []
-            for name in names:
-                full = Path(src) / name
-                if full.is_symlink():
-                    ignored.append(name)
-            return ignored
-        shutil.copytree(parent_myos, target_myos, symlinks=False, ignore=_ignore_symlinks)
-        
-        # Remove files marked with inherit: not
-        for config_file in list(target_myos.glob("*.md")):  # Use list to allow deletes during iteration
-            if config_file.name == "Project.md":
-                continue
-                
-            try:
-                # Parse file to find inherit rule
-                data = MarkdownConfigParser.parse_file(config_file)
-                section_name = config_file.stem
-                
-                if section_name in data:
-                    inherit_status = None
-                    # Extract inherit value
-                    inherit_values = MarkdownConfigParser.find_inherit(data[section_name])
-                    
-                    if inherit_values:
-                        if isinstance(inherit_values, list):
-                            if inherit_values:
-                                inherit_status = inherit_values[0].lower()
-                        else:
-                            inherit_status = str(inherit_values).lower()
-                        
-                        if inherit_status == "not":
-                            config_file.unlink()
-                            logger.debug("Removed %s (inherit: not)", config_file.name)
-            except Exception as e:
-                logger.warning("Could not process %s: %s", config_file, e)
-                # Keep the file when parsing fails
-        
-        # Return fresh ProjectConfig
+        target_myos.mkdir(parents=True, exist_ok=True)
+        project_marker = target_myos / "Project.md"
+        if not project_marker.exists():
+            project_marker.write_text("# MyOS Project\n")
+
+        # Return fresh ProjectConfig.
         project = cls(dir_path)
         project._load_config_data()
         return project
@@ -404,7 +515,7 @@ class ProjectConfig:
 
     def propagate_config(self, section_name: str, dry_run: bool = False) -> Dict[str, Union[bool, str]]:
         """
-        Propagate a config section to all child projects.
+        Materialize a config section to child projects on demand.
         
         Args:
             section_name: Config section name (e.g., "Templates")

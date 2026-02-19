@@ -207,7 +207,7 @@ class Blueprint(Operations):
         
         self.birth_clinic = BirthClinic(self)
         
-        self.template_names = self.config.templates if self.config.templates else []
+        self.template_names = self.config.get_effective_templates()
         self.embryo_tree = self._load_embryo_tree()
         self.mount_time = time.time()
         

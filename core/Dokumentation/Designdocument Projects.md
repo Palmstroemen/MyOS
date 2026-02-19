@@ -65,7 +65,8 @@ A section in `Config.md` that starts with `# Templates` is equivalent to a file 
   Checks whether `.MyOS/Project.md` exists (marker file).
 
 - **`load()`**  
-  Loads **local** `.MyOS/` files only (no automatic parent merge).
+  Loads local `.MyOS/` files and resolves effective template config at runtime
+  via nearest-ancestor lookup.
 
 - **`_load_from_myos()`**  
   Loads individual files:
@@ -79,16 +80,17 @@ A section in `Config.md` that starts with `# Templates` is equivalent to a file 
 - **`create(path)`**  
   Turns a folder into a project:  
   1) Finds a parent with `.MyOS/`  
-  2) Copies the parent configuration  
-  3) Removes files with `inherit: not`
+  2) Creates only `.MyOS/Project.md` in the new folder  
+  3) Leaves section inheritance to resolve-on-read (no dynamic copy step)
 
 - **`propagate_config(section, dry_run)`**  
-  Writes a section into child projects (skips `inherit: fix`).
+  Materializes a section into child projects when explicitly requested.
 
-**Override + Inheritance rules:**
+**Override + Inheritance rules (resolve-on-read):**
 - **Single files override `Config.md`** for the same section.
+- **Nearest ancestor wins** for missing local sections.
 - **Inheritance can be defined in both** single files and `Config.md` sections.
-- If a section has **no inherit defined**, the default is **`dynamic`**.
+- If a section has **no inherit defined**, the default is **`dynamic`** (keep searching up).
 
 ### **5.2 Markdown Parser (`core/config/parser.py`)**
 The parser reads `# Section` blocks and converts lines into simple data structures
@@ -104,7 +106,7 @@ The template system combines multiple template folders into a single **embryo tr
 ## **7. FUSE Integration**
 The FUSE blueprint layer:
 - Validates the project with `ProjectConfig.is_valid()`.
-- Reads `ProjectConfig.templates` and builds the embryo tree.
+- Reads effective templates from `ProjectConfig.get_effective_templates()` and builds the embryo tree.
 - Exposes the merged structure as a virtual filesystem view.
 
 ## **8. CLI Commands (Future)**
@@ -142,9 +144,10 @@ test_lab/
 ### **9.2 Key Test Cases**
 1. **Empty .MyOS/** with `Project.md` - Valid project
 2. **Missing Templates.md** - Templates list is empty
-3. **inherit:not** - File is deleted on `create()`
-4. **propagate_config(dry_run)** - Reports affected children
-5. **Malformed Markdown** - Parser falls back safely
+3. **Missing local Templates.md** - Inherits nearest ancestor templates at runtime
+4. **inherit:not** - Stops runtime inheritance for that section
+5. **propagate_config(dry_run)** - Reports materialization targets
+6. **Malformed Markdown** - Parser falls back safely
 
 ## **10. Error Handling & Validation**
 
