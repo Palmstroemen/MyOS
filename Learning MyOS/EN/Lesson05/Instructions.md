@@ -8,5 +8,5 @@ Now you should see "standard" folders inside your vacation folder — similar to
 
 Now try again to sort your files into these folders. If you wonder where to put your photos, think of your vacation in a more abstract, generalized way. What are your photos if not the **documentation** of what you did?
 
-After you're done, proceed to [[MyOS/Learning MyOS/Lesson06/Readme|the next lesson]].
+After you're done, proceed to [[MyOS/Learning MyOS/EN/Lesson06/Readme|the next lesson]].
 
