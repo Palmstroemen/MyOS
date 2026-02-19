@@ -150,6 +150,8 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self._vault_root = None
         self._app_json_path = None
         self._app_json_data = {}
+        self._desk_service = None
+        self._last_desk_result = {}
         # Always wire editor->window theme callback; dynamic attribute on SmartEditor.
         self.editor.on_theme_color_changed = self.apply_theme_color_hex
         self.editor.on_source_text_replaced = self._on_editor_text_changed

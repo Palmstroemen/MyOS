@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
+from core.desk_service import DeskService
 
 try:
     from core.localBlueprintLayer import Blueprint
@@ -29,6 +30,15 @@ def find_project_root(start_path: Path) -> Optional[Path]:
     return None
 
 
+def find_top_project_root(start_path: Path) -> Optional[Path]:
+    start_path = start_path.resolve()
+    found: Optional[Path] = None
+    for candidate in [start_path] + list(start_path.parents):
+        if (candidate / ".MyOS" / "Project.md").exists():
+            found = candidate
+    return found
+
+
 def is_within(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
@@ -40,9 +50,17 @@ def is_within(path: Path, root: Path) -> bool:
 def _read_markdown_tag_list(path: Path) -> List[str]:
     if not path.exists():
         return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return []
+    return _extract_hash_line_tags_from_text(text)
+
+
+def _extract_hash_line_tags_from_text(text: str) -> List[str]:
     tags: List[str] = []
     try:
-        for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        for raw in str(text or "").splitlines():
             line = raw.strip()
             if not line.startswith("#"):
                 continue
@@ -54,12 +72,158 @@ def _read_markdown_tag_list(path: Path) -> List[str]:
     return sorted(set(tags), key=str.lower)
 
 
+_MD_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
+_MD_TAG_RE = re.compile(r"(?<!\w)#([\w\-/]+)", re.UNICODE)
+_SAFE_CONFIG_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
+_MAX_CONFIG_NAME_LEN = 120
+
+
+def _strip_wrapping_quotes(value: str) -> str:
+    text = str(value or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+        return text[1:-1].strip()
+    return text
+
+
+def _normalize_tag_value(value: str) -> str:
+    text = _strip_wrapping_quotes(value)
+    while text.startswith("#"):
+        text = text[1:]
+    return text.strip()
+
+
+def _split_frontmatter(text: str) -> tuple[str, str]:
+    raw = str(text or "")
+    if not raw.startswith("---"):
+        return "", raw
+    lines = raw.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return "", raw
+    closing = -1
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            closing = idx
+            break
+    if closing < 0:
+        return "", raw
+    frontmatter = "\n".join(lines[1:closing])
+    body = "\n".join(lines[closing + 1 :])
+    return frontmatter, body
+
+
+def _parse_inline_frontmatter_tags(raw_value: str) -> List[str]:
+    text = str(raw_value or "").strip()
+    if not text:
+        return []
+    if text.startswith("[") and text.endswith("]"):
+        text = text[1:-1]
+    values = []
+    for chunk in text.split(","):
+        tag = _normalize_tag_value(chunk)
+        if tag:
+            values.append(tag)
+    return values
+
+
+def _extract_frontmatter_tags(frontmatter: str) -> List[str]:
+    lines = str(frontmatter or "").splitlines()
+    tags: List[str] = []
+    idx = 0
+    while idx < len(lines):
+        line = lines[idx]
+        stripped = line.strip()
+        if not stripped:
+            idx += 1
+            continue
+        key_match = re.match(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$", stripped)
+        if not key_match:
+            idx += 1
+            continue
+        key = key_match.group(1).strip().lower()
+        value = key_match.group(2)
+        if key != "tags":
+            idx += 1
+            continue
+        if value.strip():
+            tags.extend(_parse_inline_frontmatter_tags(value))
+            idx += 1
+            continue
+        idx += 1
+        while idx < len(lines):
+            candidate = lines[idx]
+            if not candidate.strip():
+                idx += 1
+                continue
+            list_match = re.match(r"^\s*-\s*(.+)$", candidate)
+            if list_match:
+                tag = _normalize_tag_value(list_match.group(1))
+                if tag:
+                    tags.append(tag)
+                idx += 1
+                continue
+            if re.match(r"^\s*[A-Za-z0-9_-]+\s*:", candidate):
+                break
+            idx += 1
+    return sorted(set(tags), key=str.lower)
+
+
+def _extract_markdown_hashtags(text: str) -> List[str]:
+    tags: List[str] = []
+    for raw_line in str(text or "").splitlines():
+        if _MD_HEADING_RE.match(raw_line):
+            continue
+        for match in _MD_TAG_RE.finditer(raw_line):
+            tag = _normalize_tag_value(match.group(1))
+            if tag:
+                tags.append(tag)
+    return sorted(set(tags), key=str.lower)
+
+
+def _read_markdown_content_tags(path: Path) -> List[str]:
+    if not path.exists():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return []
+    frontmatter, body = _split_frontmatter(text)
+    tags = _extract_frontmatter_tags(frontmatter)
+    tags.extend(_extract_markdown_hashtags(body))
+    return sorted(set(tags), key=str.lower)
+
+
+_MD_TAG_CACHE_VERSION = 1
+_MD_TAG_CACHE_FILE = ".TagsHere.json"
+_HEX_COLOR_RE = re.compile(r"^#([0-9a-fA-F]{6})$")
+
+
 def _split_stem_and_ext(name: str) -> tuple[str, str]:
     file_name = str(name or "")
     dot = file_name.rfind(".")
     if dot <= 0:
         return file_name, ""
     return file_name[:dot], file_name[dot:]
+
+
+def _normalize_hex_color(value: str) -> Optional[str]:
+    text = str(value or "").strip()
+    match = _HEX_COLOR_RE.match(text)
+    if not match:
+        return None
+    return "#" + match.group(1).lower()
+
+
+def _lighten_hex(color_hex: str, factor: float = 0.72) -> str:
+    normalized = _normalize_hex_color(color_hex)
+    if not normalized:
+        return color_hex
+    r = int(normalized[1:3], 16)
+    g = int(normalized[3:5], 16)
+    b = int(normalized[5:7], 16)
+    rn = int(r + (255 - r) * factor)
+    gn = int(g + (255 - g) * factor)
+    bn = int(b + (255 - b) * factor)
+    return f"#{rn:02x}{gn:02x}{bn:02x}"
 
 
 def _longest_common_prefix(values: List[str]) -> str:
@@ -109,6 +273,7 @@ class FileEntry(TypedDict):
 
 class FileEntryWithOptionalEmbryo(FileEntry, total=False):
     isEmbryo: bool
+    folderSizeBytes: int
 
 
 class ScopeApi:
@@ -124,8 +289,11 @@ class ScopeApi:
         self._acl_audit_events: List[Dict[str, Any]] = []
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
+        self._desk_service = DeskService()
+        self.myos_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
         self._configure_acl_from_env()
+        self._refresh_desk_context(self.start_path)
 
     def _set_project_root(self, root: Optional[Path]) -> None:
         self.project_root = root
@@ -149,15 +317,127 @@ class ScopeApi:
     def get_project_root(self) -> Optional[str]:
         return str(self.project_root) if self.project_root else None
 
+    def get_myos_root(self) -> Optional[str]:
+        return str(self.myos_root) if self.myos_root else None
+
     def update_context(self, path: str) -> None:
         target = self._resolve_path(path)
         root = find_project_root(target)
         if root != self.project_root:
             self._set_project_root(root)
             self._configure_acl_from_env()
+        self._refresh_desk_context(target)
+
+    def _refresh_desk_context(self, target: Path) -> None:
+        self._desk_service.refresh_context(target)
+
+    def get_active_desk_profile(self) -> Dict[str, Optional[str]]:
+        return self._desk_service.get_active_profile()
+
+    def get_last_desk_result(self) -> Dict[str, Any]:
+        return self._desk_service.get_last_result()
+
+    def list_config_targets(self, path: str, config_name: str) -> List[Dict[str, str]]:
+        # Security: reject traversal/path-injection in config filenames.
+        if not self._is_safe_config_name(config_name):
+            return [
+                {
+                    "id": "discard",
+                    "label": "Nicht speichern",
+                    "targetPath": "",
+                    "configPath": "",
+                    "exists": "0",
+                }
+            ]
+        target = self._resolve_path(path)
+        template_root: Optional[Path] = None
+        root, blueprint = self._resolve_context_for_target(target)
+        if root and blueprint is not None:
+            templates_dir = getattr(blueprint, "templates_dir", None)
+            if templates_dir:
+                templates_base = Path(templates_dir).expanduser().resolve()
+                for template_name in getattr(blueprint, "template_names", []):
+                    candidate = (templates_base / str(template_name)).resolve()
+                    if is_within(target, candidate):
+                        template_root = candidate
+                        break
+        return self._desk_service.list_config_targets(
+            target,
+            config_name=config_name,
+            global_root=self.myos_root,
+            include_template_target=template_root is not None,
+            template_root=template_root,
+        )
+
+    def ensure_project_config(self, path: str, config_name: str) -> Dict[str, Any]:
+        # Security: reject traversal/path-injection in config filenames.
+        if not self._is_safe_config_name(config_name):
+            return {"ok": False, "reason": "invalid_config_name", "path": ""}
+        target = self._resolve_path(path)
+        root = find_project_root(target)
+        if not root:
+            return {"ok": False, "reason": "no_project_root", "path": ""}
+        return self._desk_service.ensure_config_file(root, config_name=config_name)
+
+    def capture_config_state(self, config_name: str) -> Dict[str, Any]:
+        # Security: reject traversal/path-injection in config filenames.
+        if not self._is_safe_config_name(config_name):
+            return {"ok": False, "reason": "invalid_config_name", "path": ""}
+        return self._desk_service.capture_config_state(config_name=config_name)
+
+    def apply_config_state_to_target(self, path: str, config_name: str, target_id: str) -> Dict[str, Any]:
+        # Security: reject traversal/path-injection in config filenames.
+        if not self._is_safe_config_name(config_name):
+            return {"ok": False, "reason": "invalid_config_name", "path": ""}
+        target = self._resolve_path(path)
+        options = self.list_config_targets(str(target), config_name)
+        chosen = None
+        for item in options:
+            if str(item.get("id")) == str(target_id):
+                chosen = item
+                break
+        if chosen is None:
+            return {"ok": False, "reason": "target_not_found", "path": ""}
+        if str(chosen.get("id")) == "discard":
+            return {"ok": True, "reason": "discarded", "path": ""}
+        target_path = str(chosen.get("targetPath") or "").strip()
+        if not target_path:
+            return {"ok": False, "reason": "missing_target_path", "path": ""}
+        state_result = self._desk_service.capture_config_state(config_name=config_name)
+        if not state_result.get("ok"):
+            return {"ok": False, "reason": "capture_failed", "path": ""}
+        return self._desk_service.write_config_from_state(
+            Path(target_path),
+            config_name=config_name,
+            state=dict(state_result.get("state") or {}),
+        )
+
+    def has_local_config(self, path: str, config_name: str) -> bool:
+        # Security: reject traversal/path-injection in config filenames.
+        if not self._is_safe_config_name(config_name):
+            return False
+        target = self._resolve_path(path)
+        root = find_project_root(target)
+        if not root:
+            return False
+        candidate = root / ".MyOS" / config_name
+        return candidate.exists() and candidate.is_file()
 
     def _resolve_path(self, path: str) -> Path:
         return Path(path).expanduser().resolve()
+
+    def _is_safe_config_name(self, value: str) -> bool:
+        text = str(value or "").strip()
+        if not text:
+            return False
+        # Security: bound config filename length to avoid pathological paths.
+        if len(text) > _MAX_CONFIG_NAME_LEN:
+            return False
+        if "/" in text or "\\" in text:
+            return False
+        if text in {".", ".."} or ".." in text:
+            return False
+        return bool(_SAFE_CONFIG_NAME_RE.match(text))
 
     def _resolve_context_for_target(self, target: Path) -> tuple[Optional[Path], Optional[Any]]:
         root = find_project_root(target)
@@ -463,18 +743,31 @@ class ScopeApi:
             return []
         self._acl_probe("read_dir", target)
         entries: List[FileEntryWithOptionalEmbryo] = []
+        md_tag_cache = self._load_markdown_tag_cache(target)
+        seen_md_files: set[str] = set()
         try:
             for child in sorted(target.iterdir()):
                 acl_child = self._acl_probe("read_dir", child)
                 if acl_child and acl_child.enforced and not acl_child.allowed:
                     continue
                 is_dir = child.is_dir()
-                entry_tags = self._read_entry_tags(child)
+                if not is_dir and child.suffix.lower() in {".md", ".markdown"}:
+                    seen_md_files.add(child.name)
+                folder_size_bytes: Optional[int] = None
+                if is_dir:
+                    sidecar = self._read_folder_sidecar(child)
+                    entry_tags = sidecar["tags"]
+                    folder_size_bytes = self._compute_folder_size_bytes(child)
+                    if sidecar["folder_size_bytes"] != folder_size_bytes:
+                        self._write_folder_sidecar(child, sidecar["tags"], folder_size_bytes)
+                else:
+                    entry_tags = self._read_entry_tags(child, md_tag_cache)
                 entry = self._build_file_entry(
                     name=child.name,
                     is_dir=is_dir,
                     path=str(child),
                     tags=entry_tags,
+                    folder_size_bytes=folder_size_bytes,
                 )
                 entries.append(entry)
         except Exception:
@@ -500,6 +793,8 @@ class ScopeApi:
                     )
         # File-browser style order: folders first, then files, both alphabetic.
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
+        self._prune_markdown_tag_cache(md_tag_cache, seen_md_files)
+        self._save_markdown_tag_cache(target, md_tag_cache)
 
         return entries
 
@@ -533,18 +828,400 @@ class ScopeApi:
         tags_file = root / ".MyOS" / "Tags.md"
         return _read_markdown_tag_list(tags_file)
 
-    def _read_entry_tags(self, entry_path: Path) -> List[str]:
+    def list_folder_tags(self, path: str) -> List[str]:
+        target = self._resolve_path(path)
+        if not target.exists() or not target.is_dir():
+            return []
+        return self._read_folder_sidecar(target)["tags"]
+
+    def set_folder_tags(self, path: str, tags: List[str]) -> bool:
+        target = self._resolve_path(path)
+        if not target.exists() or not target.is_dir():
+            return False
+        cleaned = sorted(
+            set(_normalize_tag_value(tag) for tag in (tags or []) if _normalize_tag_value(tag)),
+            key=str.lower,
+        )
+        sidecar = self._read_folder_sidecar(target)
+        self._write_folder_sidecar(target, cleaned, sidecar["folder_size_bytes"])
+        self._remove_legacy_folder_tag_colors_file(target)
+        return True
+
+    def list_tag_buckets(self, path: str) -> Dict[str, Any]:
+        target = self._resolve_dir(path)
+        if target is None:
+            return {
+                "folderTags": [],
+                "fileTags": [],
+                "folderTagColors": {},
+                "fileTagColors": {},
+                "folderSizeBytes": 0,
+            }
+        sidecar = self._read_folder_sidecar(target)
+        folder_tags = sidecar["tags"]
+        folder_set = set(folder_tags)
+        all_tag_colors = self._read_folder_tag_colors(target)
+        folder_tag_colors = {tag: all_tag_colors[tag] for tag in folder_tags if tag in all_tag_colors}
+        file_bag: Dict[str, bool] = {}
+        for entry in self.list_entries(str(target)):
+            if entry.get("isDir"):
+                continue
+            for raw in entry.get("tags") or []:
+                tag = str(raw or "").strip()
+                if tag:
+                    file_bag[tag] = True
+        file_tags = sorted([tag for tag in file_bag.keys() if tag not in folder_set], key=str.lower)
+        file_tag_colors = {tag: all_tag_colors[tag] for tag in file_tags if tag in all_tag_colors}
+        folder_size = sidecar["folder_size_bytes"]
+        if folder_size is None:
+            folder_size = self._compute_folder_size_bytes(target)
+            self._write_folder_sidecar(target, folder_tags, folder_size)
+        return {
+            "folderTags": folder_tags,
+            "fileTags": file_tags,
+            "folderTagColors": folder_tag_colors,
+            "fileTagColors": file_tag_colors,
+            "folderSizeBytes": int(folder_size or 0),
+        }
+
+    def set_folder_tag_color(self, path: str, tag: str, color: str) -> bool:
+        target = self._resolve_path(path)
+        if not target.exists() or not target.is_dir():
+            return False
+        normalized_tag = _normalize_tag_value(tag)
+        if not normalized_tag:
+            return False
+        normalized_color = _normalize_hex_color(color)
+        if not normalized_color:
+            return False
+        folder_tags = self._read_folder_sidecar(target)["tags"]
+        if normalized_tag not in folder_tags:
+            return False
+        colors = self._read_folder_tag_colors(target)
+        colors[normalized_tag] = normalized_color
+        self._write_folder_tag_colors(target, colors)
+        self._remove_legacy_folder_tag_colors_file(target)
+        return True
+
+    def _read_entry_tags(self, entry_path: Path, md_tag_cache: Optional[Dict[str, Any]] = None) -> List[str]:
         tags: List[str] = []
         if entry_path.is_dir():
             # Directory tags live in a sidecar and do NOT imply "project".
-            tags.extend(_read_markdown_tag_list(entry_path / ".MyOS" / "myTags.md"))
-        try:
-            tags_map = read_tags(entry_path)
-        except Exception:
-            tags_map = {}
-        tags.extend(str(tag).strip() for tag in tags_map.keys())
+            tags.extend(self._read_folder_sidecar(entry_path)["tags"])
+        else:
+            if entry_path.suffix.lower() in {".md", ".markdown"}:
+                tags.extend(self._read_markdown_tags_with_cache(entry_path, md_tag_cache))
+            try:
+                tags_map = read_tags(entry_path)
+            except Exception:
+                tags_map = {}
+            tags.extend(str(tag).strip() for tag in tags_map.keys())
         tags = [tag for tag in tags if tag]
         return sorted(set(tags), key=str.lower)
+
+    def _markdown_tag_cache_path(self, directory: Path) -> Path:
+        return directory / _MD_TAG_CACHE_FILE
+
+    def _load_markdown_tag_cache(self, directory: Path) -> Dict[str, Any]:
+        state: Dict[str, Any] = {"entries": {}, "dirty": False}
+        cache_path = self._markdown_tag_cache_path(directory)
+        try:
+            raw = json.loads(cache_path.read_text(encoding="utf-8"))
+        except Exception:
+            return state
+        if not isinstance(raw, dict):
+            return state
+        if int(raw.get("version", 0)) != _MD_TAG_CACHE_VERSION:
+            return state
+        entries = raw.get("entries", {})
+        if isinstance(entries, dict):
+            state["entries"] = entries
+        return state
+
+    def _prune_markdown_tag_cache(self, cache_state: Dict[str, Any], keep_names: set[str]) -> None:
+        entries = cache_state.get("entries")
+        if not isinstance(entries, dict):
+            cache_state["entries"] = {}
+            cache_state["dirty"] = True
+            return
+        for key in list(entries.keys()):
+            if key not in keep_names:
+                entries.pop(key, None)
+                cache_state["dirty"] = True
+
+    def _save_markdown_tag_cache(self, directory: Path, cache_state: Dict[str, Any]) -> None:
+        if not cache_state.get("dirty"):
+            return
+        entries = cache_state.get("entries", {})
+        if not isinstance(entries, dict):
+            return
+        payload = {"version": _MD_TAG_CACHE_VERSION, "entries": entries}
+        cache_path = self._markdown_tag_cache_path(directory)
+        try:
+            cache_path.write_text(json.dumps(payload, ensure_ascii=True, separators=(",", ":")), encoding="utf-8")
+            cache_state["dirty"] = False
+        except Exception:
+            # Cache write failures must not break directory listing.
+            return
+
+    def _read_markdown_tags_with_cache(self, entry_path: Path, cache_state: Optional[Dict[str, Any]]) -> List[str]:
+        if not cache_state or not isinstance(cache_state.get("entries"), dict):
+            return _read_markdown_content_tags(entry_path)
+
+        try:
+            stat = entry_path.stat()
+        except OSError:
+            return _read_markdown_content_tags(entry_path)
+
+        entry_name = entry_path.name
+        entries = cache_state["entries"]
+        cached = entries.get(entry_name)
+        mtime_ns = int(stat.st_mtime_ns)
+        size = int(stat.st_size)
+
+        if isinstance(cached, dict):
+            try:
+                cached_mtime = int(cached.get("mtime_ns", -1))
+                cached_size = int(cached.get("size", -1))
+            except (TypeError, ValueError):
+                cached_mtime = -1
+                cached_size = -1
+            cached_tags = cached.get("tags", [])
+            if cached_mtime == mtime_ns and cached_size == size and isinstance(cached_tags, list):
+                return sorted(set(str(tag).strip() for tag in cached_tags if str(tag).strip()), key=str.lower)
+
+        tags = _read_markdown_content_tags(entry_path)
+        entries[entry_name] = {
+            "mtime_ns": mtime_ns,
+            "size": size,
+            "tags": tags,
+        }
+        cache_state["dirty"] = True
+        return tags
+
+    def _read_folder_sidecar(self, folder_path: Path) -> Dict[str, Any]:
+        result: Dict[str, Any] = {"tags": [], "folder_size_bytes": None}
+        sidecar = folder_path / ".MyOS" / "myTags.md"
+        if not sidecar.exists():
+            return result
+        try:
+            text = sidecar.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return result
+        frontmatter, body = _split_frontmatter(text)
+        tags = _extract_hash_line_tags_from_text(body if frontmatter else text)
+        folder_size_bytes: Optional[int] = None
+        if frontmatter:
+            for raw in frontmatter.splitlines():
+                line = str(raw or "").strip()
+                if not line or ":" not in line:
+                    continue
+                key, value = line.split(":", 1)
+                if key.strip().lower() != "folder_size_bytes":
+                    continue
+                try:
+                    parsed = int(value.strip())
+                    if parsed >= 0:
+                        folder_size_bytes = parsed
+                except ValueError:
+                    pass
+        result["tags"] = tags
+        result["folder_size_bytes"] = folder_size_bytes
+        return result
+
+    def _write_folder_sidecar(self, folder_path: Path, tags: List[str], folder_size_bytes: Optional[int]) -> None:
+        myos_dir = folder_path / ".MyOS"
+        sidecar = myos_dir / "myTags.md"
+        cleaned = sorted(
+            set(_normalize_tag_value(tag) for tag in (tags or []) if _normalize_tag_value(tag)),
+            key=str.lower,
+        )
+        size_value = 0
+        if folder_size_bytes is not None:
+            try:
+                parsed = int(folder_size_bytes)
+                if parsed >= 0:
+                    size_value = parsed
+            except (TypeError, ValueError):
+                size_value = 0
+
+        lines = ["---", f"folder_size_bytes: {size_value}", "---", ""]
+        for tag in cleaned:
+            lines.append(f"#{tag}")
+        content = "\n".join(lines).rstrip() + "\n"
+
+        try:
+            myos_dir.mkdir(parents=True, exist_ok=True)
+            old_content = sidecar.read_text(encoding="utf-8", errors="replace") if sidecar.exists() else None
+            if old_content == content:
+                return
+            sidecar.write_text(content, encoding="utf-8")
+        except Exception:
+            return
+
+    def _compute_folder_size_bytes(self, folder_path: Path) -> int:
+        total = 0
+        stack: List[Path] = [folder_path]
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_symlink():
+                                continue
+                            if entry.is_dir(follow_symlinks=False):
+                                stack.append(Path(entry.path))
+                            elif entry.is_file(follow_symlinks=False):
+                                total += int(entry.stat(follow_symlinks=False).st_size)
+                        except OSError:
+                            continue
+            except OSError:
+                continue
+        return max(0, int(total))
+
+    def _read_folder_tag_colors(self, folder_path: Path) -> Dict[str, str]:
+        registry_path = self._resolve_tag_registry_path(folder_path)
+        if not registry_path or not registry_path.exists():
+            return {}
+        try:
+            raw = json.loads(registry_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        plugin = raw.get("colored-tags-wrangler", {})
+        entries = plugin.get("tags", []) if isinstance(plugin, dict) else []
+        if not isinstance(entries, list):
+            return {}
+        result: Dict[str, str] = {}
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            color = _normalize_hex_color(str(entry.get("color", "")).strip())
+            if not color:
+                continue
+            names_raw = str(entry.get("name", ""))
+            for part in [piece.strip() for piece in names_raw.split(";") if piece.strip()]:
+                tag = _normalize_tag_value(part)
+                if tag:
+                    result[tag] = color
+        return result
+
+    def _write_folder_tag_colors(self, folder_path: Path, colors: Dict[str, str]) -> None:
+        registry_path = self._resolve_tag_registry_path(folder_path)
+        if not registry_path:
+            return
+        payload: Dict[str, str] = {}
+        for key, value in (colors or {}).items():
+            tag = _normalize_tag_value(str(key or ""))
+            color = _normalize_hex_color(str(value or ""))
+            if tag and color:
+                payload[tag] = color
+        if not payload:
+            return
+        try:
+            existing = {}
+            if registry_path.exists():
+                loaded = json.loads(registry_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    existing = loaded
+            if not isinstance(existing, dict):
+                existing = {}
+            for tag, color in payload.items():
+                self._assign_tag_color_in_registry(existing, tag, color)
+            registry_path.parent.mkdir(parents=True, exist_ok=True)
+            registry_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            return
+
+    def _assign_tag_color_in_registry(self, registry_data: Dict[str, Any], tag: str, color_hex: str) -> bool:
+        safe_tag = _normalize_tag_value(tag)
+        normalized_color = _normalize_hex_color(color_hex)
+        if not safe_tag or not normalized_color:
+            return False
+        root = registry_data if isinstance(registry_data, dict) else {}
+        plugin = root.setdefault("colored-tags-wrangler", {})
+        if not isinstance(plugin, dict):
+            plugin = {}
+            root["colored-tags-wrangler"] = plugin
+        entries = plugin.setdefault("tags", [])
+        if not isinstance(entries, list):
+            entries = []
+            plugin["tags"] = entries
+        settings = plugin.setdefault("settings", {})
+        if not isinstance(settings, dict):
+            settings = {}
+            plugin["settings"] = settings
+        separate_background = bool(settings.get("separateBackground", True))
+
+        target_idx = None
+        target_names: List[str] = []
+        for idx, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            names = [_normalize_tag_value(p.strip()) for p in str(entry.get("name", "")).split(";") if p.strip()]
+            names = [n for n in names if n]
+            if safe_tag in names:
+                target_idx = idx
+                target_names = names
+                break
+
+        if target_idx is None:
+            new_entry: Dict[str, Any] = {"name": safe_tag, "color": normalized_color, "luminanceOffset": 15}
+            if separate_background:
+                new_entry["background"] = _lighten_hex(normalized_color)
+            entries.append(new_entry)
+            return True
+
+        entry = entries[target_idx]
+        if len(target_names) <= 1:
+            entry["color"] = normalized_color
+            if separate_background:
+                entry["background"] = _lighten_hex(normalized_color)
+            elif "background" in entry:
+                entry.pop("background", None)
+            return True
+
+        remaining = [n for n in target_names if n != safe_tag]
+        entry["name"] = ";".join(remaining)
+        new_entry = {"name": safe_tag, "color": normalized_color, "luminanceOffset": int(entry.get("luminanceOffset", 15))}
+        if separate_background:
+            new_entry["background"] = _lighten_hex(normalized_color)
+        entries.append(new_entry)
+        return True
+
+    def _find_vault_root_for_path(self, file_path: Path) -> Optional[Path]:
+        start = file_path if file_path.is_dir() else file_path.parent
+        for parent in [start, *start.parents]:
+            if (parent / "app.json").exists() or (parent / ".obsidian" / "app.json").exists() or (parent / ".obsidian").exists():
+                return parent
+        return None
+
+    def _resolve_tag_registry_path(self, folder_path: Path) -> Optional[Path]:
+        vault_root = self._find_vault_root_for_path(folder_path)
+        if vault_root is None:
+            project_root = find_project_root(folder_path)
+            vault_root = project_root if project_root else None
+        if vault_root is None:
+            return None
+        root_app = vault_root / "app.json"
+        obs_app = vault_root / ".obsidian" / "app.json"
+        if root_app.exists():
+            return root_app
+        if obs_app.exists():
+            return obs_app
+        if (vault_root / ".obsidian").exists():
+            return obs_app
+        return root_app
+
+    def _remove_legacy_folder_tag_colors_file(self, folder_path: Path) -> None:
+        legacy = folder_path / ".MyOS" / "tagColors.json"
+        try:
+            if legacy.exists():
+                legacy.unlink()
+        except OSError:
+            pass
 
     def _build_folder_entry(
         self,
@@ -570,6 +1247,7 @@ class ScopeApi:
         path: str,
         tags: List[str],
         is_embryo: bool = False,
+        folder_size_bytes: Optional[int] = None,
     ) -> FileEntryWithOptionalEmbryo:
         entry: FileEntryWithOptionalEmbryo = {
             "name": str(name),
@@ -579,6 +1257,8 @@ class ScopeApi:
         }
         if is_embryo:
             entry["isEmbryo"] = True
+        if is_dir and folder_size_bytes is not None:
+            entry["folderSizeBytes"] = int(folder_size_bytes)
         return entry
 
     def has_myos_dir(self, path: str) -> bool:

@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from core.desk_service import DeskService
+
 try:
     from core.project import notify_config_changed
 except Exception:
@@ -30,6 +32,17 @@ except ImportError:
 
 
 class WindowTagsMixin:
+    def _ensure_desk_service(self):
+        if hasattr(self, "_desk_service") and self._desk_service is not None:
+            return
+        self._desk_service = DeskService()
+        self._last_desk_result = {}
+
+    def _apply_desk_context(self, file_path: Path | None):
+        self._ensure_desk_service()
+        target = file_path.parent if file_path else Path.cwd()
+        self._last_desk_result = self._desk_service.refresh_context(target)
+
     def _on_editor_tags_changed(self, tags: list[str]):
         ordered: list[str] = []
         seen: set[str] = set()
@@ -79,6 +92,7 @@ class WindowTagsMixin:
 
     def _reload_tag_context(self):
         file_path = getattr(self.editor, "current_path", None)
+        self._apply_desk_context(file_path)
         self._vault_root = self._find_vault_root(file_path)
         if self._vault_root:
             root_app = self._vault_root / "app.json"
