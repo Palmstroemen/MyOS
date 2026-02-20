@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import replace
 import os
 import subprocess
 import sys
@@ -21,6 +22,14 @@ from core.perspective import (
 )
 from core.sort import SortRule, iter_sort_rule_roots, resolve_effective_sort_rules
 from core.sort_runtime import SortRuntime
+from core.perspective_resolver import (
+    PerspectiveContext,
+    ResolveResult as PerspectiveResolveResult,
+    list_virtual_dir,
+    perspective_open as resolver_perspective_open,
+    resolve_real_path,
+    resolve_virtual_dir_for_read,
+)
 
 try:
     from core.localBlueprintLayer import Blueprint
@@ -295,6 +304,7 @@ class ScopeApi:
         self._acl_audit_max_bytes: int = 262_144
         self._desk_service = DeskService()
         self._manual_filter_path: Optional[Path] = None
+        self._perspective_ctx: Optional[PerspectiveContext] = None
         self._sort_runtime = SortRuntime()
         self.myos_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
@@ -326,6 +336,132 @@ class ScopeApi:
     def get_myos_root(self) -> Optional[str]:
         return str(self.myos_root) if self.myos_root else None
 
+    def perspective_open(self, path: str, perspective_id: str = "flipped") -> Dict[str, Any]:
+        target = self._resolve_path(path)
+        project_root = self._resolve_perspective_project_root(target)
+        if project_root is None:
+            return {"active": False, "ok": False, "errorCode": "invalid_path", "message": "missing project_root"}
+        try:
+            self._perspective_ctx = resolver_perspective_open(
+                perspective_id=str(perspective_id or "flipped"),
+                project_root=str(project_root),
+                start_real_path=str(target),
+                role=None,
+            )
+        except Exception as exc:
+            self._perspective_ctx = None
+            return {"active": False, "ok": False, "errorCode": "invalid_path", "message": str(exc)}
+        return self.perspective_state()
+
+    def perspective_state(self) -> Dict[str, Any]:
+        if self._perspective_ctx is None:
+            return {
+                "active": False,
+                "perspectiveId": "",
+                "projectRoot": "",
+                "cpd": "",
+                "cwdReal": "",
+                "role": "",
+                "templateHead": [],
+            }
+        ctx = self._perspective_ctx
+        return {
+            "active": True,
+            "perspectiveId": str(ctx.perspective_id),
+            "projectRoot": str(ctx.project_root),
+            "cpd": str(ctx.cpd),
+            "cwdReal": str(ctx.cwd_real),
+            "role": str(ctx.role or ""),
+            "templateHead": [str(part) for part in tuple(ctx.template_head or ())],
+        }
+
+    def perspective_set_cpd(self, cpd: str) -> Dict[str, Any]:
+        ctx = self._ensure_perspective_ctx()
+        if ctx is None:
+            return {"ok": False, "errorCode": "invalid_path", "message": "perspective context unavailable"}
+        result = resolve_virtual_dir_for_read(ctx=ctx, cpd=str(cpd or ""))
+        if result.ok:
+            # CPD changes must not implicitly move CWD. CWD remains controlled
+            # by explicit navigation actions (e.g. left click/right navigation).
+            self._perspective_ctx = replace(ctx, cpd=str(result.cpd))
+        return self._serialize_perspective_result(result)
+
+    def perspective_resolve_cpd(self, cpd: str) -> Dict[str, Any]:
+        ctx = self._ensure_perspective_ctx()
+        if ctx is None:
+            return {"ok": False, "errorCode": "invalid_path", "message": "perspective context unavailable"}
+        result = resolve_virtual_dir_for_read(ctx=ctx, cpd=str(cpd or ""))
+        return self._serialize_perspective_result(result)
+
+    def perspective_resolve_real(self, path: str) -> Dict[str, Any]:
+        ctx = self._ensure_perspective_ctx()
+        if ctx is None:
+            return {"ok": False, "errorCode": "invalid_path", "message": "perspective context unavailable"}
+        result = resolve_real_path(ctx=ctx, real_path=str(path or ""))
+        if result.ok:
+            self._perspective_ctx = replace(ctx, cpd=str(result.cpd), cwd_real=str(result.real_path or ctx.cwd_real))
+        return self._serialize_perspective_result(result)
+
+    def perspective_list_dir(self, cpd: str = "") -> List[Dict[str, Any]]:
+        ctx = self._ensure_perspective_ctx()
+        if ctx is None:
+            return []
+        listing_cpd = str(cpd or ctx.cpd)
+        entries = list_virtual_dir(ctx=ctx, cpd=listing_cpd)
+        out: List[Dict[str, Any]] = []
+        for item in entries:
+            out.append(
+                {
+                    "name": str(item.get("name") or ""),
+                    "cpd": str(item.get("cpd") or ""),
+                    "nodeType": str(item.get("nodeType") or ""),
+                    "realPath": str(item.get("realPath") or ""),
+                    "isVirtual": bool(item.get("isVirtual")),
+                    "fallbackApplied": bool(item.get("fallbackApplied")),
+                }
+            )
+        return out
+
+    def perspective_list_templates(self, cpd: str = "") -> List[Dict[str, Any]]:
+        ctx = self._ensure_perspective_ctx()
+        if ctx is None:
+            return []
+        listing_cpd = str(cpd or ctx.cpd)
+        parsed = self._parse_perspective_cpd(listing_cpd)
+        if not parsed["valid"]:
+            return []
+        project_name = str(parsed["projectName"] or "")
+        if project_name == "":
+            return []
+        template_parts = [str(part) for part in list(parsed["templateParts"]) + list(parsed["tailParts"])]
+        base = Path(ctx.project_root).expanduser().resolve() / project_name
+        target = base
+        for part in template_parts:
+            target = target / part
+        rows = self.list_templates(str(target), include_embryos=True)
+        out: List[Dict[str, Any]] = []
+        for item in rows:
+            name = str(item.get("name") or "")
+            if name == "":
+                continue
+            child_template_parts = template_parts + [name]
+            child_cpd = self._build_perspective_cpd(child_template_parts, project_name)
+            out.append(
+                {
+                    "name": name,
+                    "cpd": child_cpd,
+                    "nodeType": "dir",
+                    "realPath": "",
+                    "isVirtual": True,
+                    "fallbackApplied": False,
+                }
+            )
+        return out
+
+    def perspective_clear(self) -> bool:
+        self._perspective_ctx = None
+        return True
+
     def update_context(self, path: str) -> None:
         target = self._resolve_path(path)
         root = find_project_root(target)
@@ -333,6 +469,78 @@ class ScopeApi:
             self._set_project_root(root)
             self._configure_acl_from_env()
         self._refresh_desk_context(target)
+
+    def _ensure_perspective_ctx(self) -> Optional[PerspectiveContext]:
+        if self._perspective_ctx is not None:
+            return self._perspective_ctx
+        opened = self.perspective_open(str(self.start_path))
+        if opened.get("active"):
+            return self._perspective_ctx
+        return None
+
+    def _resolve_perspective_project_root(self, target: Path) -> Optional[Path]:
+        resolved_target = Path(target).expanduser().resolve()
+        # Pick the nearest ancestor that provides a valid "Projekte" anchor
+        # containing the target. This avoids CPD mixes in nested workspaces.
+        for candidate in [resolved_target] + list(resolved_target.parents):
+            marker = candidate / ".MyOS" / "Project.md"
+            if not marker.exists():
+                continue
+            projects_dir = (candidate / "Projekte").resolve()
+            if projects_dir.exists() and projects_dir.is_dir() and is_within(resolved_target, projects_dir):
+                return projects_dir
+            if candidate.name == "Projekte" and is_within(resolved_target, candidate):
+                return candidate
+
+        fallback = self.myos_root or find_top_project_root(resolved_target) or find_project_root(resolved_target)
+        if fallback is None:
+            return None
+        root = Path(fallback).expanduser().resolve()
+        if not is_within(resolved_target, root):
+            return None
+        projects_dir = (root / "Projekte").resolve()
+        if projects_dir.exists() and projects_dir.is_dir() and is_within(resolved_target, projects_dir):
+            return projects_dir
+        if root.name == "Projekte":
+            return root
+        return root
+
+    def _serialize_perspective_result(self, result: PerspectiveResolveResult) -> Dict[str, Any]:
+        return {
+            "ok": bool(result.ok),
+            "cpd": str(result.cpd or ""),
+            "realPath": str(result.real_path or ""),
+            "effectiveReadPath": str(result.effective_read_path or ""),
+            "fallbackApplied": bool(result.fallback_applied),
+            "fallbackFrom": str(result.fallback_from or ""),
+            "fallbackTo": str(result.fallback_to or ""),
+            "nodeType": str(result.node_type or ""),
+            "errorCode": str(result.error_code or ""),
+            "message": str(result.message or ""),
+        }
+
+    def _parse_perspective_cpd(self, cpd: str) -> Dict[str, Any]:
+        raw = str(cpd or "").strip()
+        parts = [part for part in raw.split("/") if part]
+        idx = -1
+        for i, part in enumerate(parts):
+            if part == "Projekte":
+                idx = i
+                break
+        if idx < 0 or idx + 1 >= len(parts):
+            return {"valid": False, "templateParts": [], "projectName": "", "tailParts": []}
+        return {
+            "valid": True,
+            "templateParts": parts[:idx],
+            "projectName": str(parts[idx + 1] or ""),
+            "tailParts": parts[idx + 2 :],
+        }
+
+    def _build_perspective_cpd(self, template_parts: List[str], project_name: str) -> str:
+        out: List[str] = [str(part or "") for part in template_parts]
+        out.append("Projekte")
+        out.append(str(project_name or ""))
+        return "/" + "/".join([part for part in out if part])
 
     def _refresh_desk_context(self, target: Path) -> None:
         self._desk_service.refresh_context(target)

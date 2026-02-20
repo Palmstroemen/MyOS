@@ -400,6 +400,34 @@ class Backend(QObject):
     def saveFilter(self, path: str, sourcePath: str, targetId: str, newName: str):
         return self._api.save_filter(path, sourcePath, targetId, newName)
 
+    @Slot(str, str, result="QVariantMap")
+    def perspectiveOpen(self, path: str, perspectiveId: str):
+        return self._api.perspective_open(path, perspectiveId)
+
+    @Slot(result="QVariantMap")
+    def perspectiveState(self):
+        return self._api.perspective_state()
+
+    @Slot(str, result="QVariantMap")
+    def perspectiveSetCpd(self, cpd: str):
+        return self._api.perspective_set_cpd(cpd)
+
+    @Slot(str, result="QVariantMap")
+    def perspectiveResolveCpd(self, cpd: str):
+        return self._api.perspective_resolve_cpd(cpd)
+
+    @Slot(str, result="QVariantMap")
+    def perspectiveResolveReal(self, path: str):
+        return self._api.perspective_resolve_real(path)
+
+    @Slot(str, result="QVariantList")
+    def perspectiveListDir(self, cpd: str):
+        return self._api.perspective_list_dir(cpd)
+
+    @Slot(result=bool)
+    def perspectiveClear(self) -> bool:
+        return self._api.perspective_clear()
+
     @Slot(str, result="QVariantMap")
     def previewSortTarget(self, filePath: str):
         return self._api.preview_sort_target(filePath)

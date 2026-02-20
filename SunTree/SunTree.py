@@ -123,6 +123,14 @@ class SunTreeBackend(QObject):
     def listEmbryos(self):
         return self._adapter.list_templates(self._cwd)
 
+    @Slot(str, result="QVariantList")
+    def listEmbryosAt(self, path: str):
+        try:
+            target = str(Path(path).expanduser().resolve())
+        except Exception:
+            return []
+        return self._adapter.list_templates(target)
+
     @Slot(result="QVariantList")
     def listClipboardEntries(self):
         return self._adapter.list_entries(self._clipboard)
@@ -130,6 +138,39 @@ class SunTreeBackend(QObject):
     @Slot(result="QVariantList")
     def listFilters(self):
         return self._adapter.list_filters(self._cwd)
+
+    @Slot(str, result="QVariantMap")
+    def openPerspective(self, path: str):
+        target = str(path or "").strip() or self._cwd
+        return self._adapter.perspective_open(target)
+
+    @Slot(result="QVariantMap")
+    def getPerspectiveState(self):
+        return self._adapter.perspective_state()
+
+    @Slot(str, result="QVariantMap")
+    def setPerspectiveCpd(self, cpd: str):
+        return self._adapter.perspective_set_cpd(cpd)
+
+    @Slot(str, result="QVariantMap")
+    def resolvePerspectiveCpd(self, cpd: str):
+        return self._adapter.perspective_resolve_cpd(cpd)
+
+    @Slot(str, result="QVariantMap")
+    def resolvePerspectiveReal(self, path: str):
+        return self._adapter.perspective_resolve_real(path)
+
+    @Slot(str, result="QVariantList")
+    def listPerspectiveDir(self, cpd: str):
+        return self._adapter.perspective_list_dir(cpd)
+
+    @Slot(str, result="QVariantList")
+    def listPerspectiveTemplates(self, cpd: str):
+        return self._adapter.perspective_list_templates(cpd)
+
+    @Slot(result=bool)
+    def clearPerspective(self) -> bool:
+        return self._adapter.perspective_clear()
 
     @Slot(str, result=bool)
     def setCwd(self, path: str) -> bool:
@@ -226,6 +267,30 @@ class MyOSBackendAdapter:
 
     def list_filters(self, path: str) -> list:
         return self._api.list_filters(path)
+
+    def perspective_open(self, path: str, perspective_id: str = "flipped") -> dict:
+        return self._api.perspective_open(path, perspective_id)
+
+    def perspective_state(self) -> dict:
+        return self._api.perspective_state()
+
+    def perspective_set_cpd(self, cpd: str) -> dict:
+        return self._api.perspective_set_cpd(cpd)
+
+    def perspective_resolve_cpd(self, cpd: str) -> dict:
+        return self._api.perspective_resolve_cpd(cpd)
+
+    def perspective_resolve_real(self, path: str) -> dict:
+        return self._api.perspective_resolve_real(path)
+
+    def perspective_list_dir(self, cpd: str = "") -> list:
+        return self._api.perspective_list_dir(cpd)
+
+    def perspective_list_templates(self, cpd: str = "") -> list:
+        return self._api.perspective_list_templates(cpd)
+
+    def perspective_clear(self) -> bool:
+        return self._api.perspective_clear()
 
     def move_entry(self, source_path: str, target_dir: str) -> bool:
         return self._api.move_entry(source_path, target_dir)

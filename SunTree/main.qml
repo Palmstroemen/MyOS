@@ -18,15 +18,24 @@ ApplicationWindow {
     property string selectedFilterName: ""
     property string cpdPath: ""
     property string cpdLabel: ""
+    property var perspectiveState: ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
     property int hoveredLeftIndex: -1
     property int hoveredRightIndex: -1
     property int hoveredCenterIndex: -1
+    property int hoveredCpdIndex: -1
     property int hoveredTopIndex: -1
     property int selectedLeftIndex: -1
+    property int pendingLeftClickIndex: -1
+    property int leftEventSeq: 0
 
     function refreshModels() {
         foldersModel = sunTreeBackend.listFolders()
-        embryosModel = sunTreeBackend.listEmbryos()
+        syncPerspectiveState()
+        if (perspectiveState.active) {
+            embryosModel = sunTreeBackend.listPerspectiveTemplates(String(perspectiveState.cpd || ""))
+        } else {
+            embryosModel = sunTreeBackend.listEmbryos()
+        }
         clipboardModel = sunTreeBackend.listClipboardEntries()
         filtersModel = sunTreeBackend.listFilters()
         parentModel = sunTreeBackend.listParents()
@@ -45,6 +54,12 @@ ApplicationWindow {
         if (!entry) {
             return ""
         }
+        var explicitPath = String(entry.path || "")
+        if (explicitPath.length > 0) {
+            if (explicitPath.charAt(0) === "/") {
+                return explicitPath
+            }
+        }
         var raw = String(entry.name || "")
         if (raw.length === 0) {
             return ""
@@ -62,10 +77,24 @@ ApplicationWindow {
     function leftEntries() {
         var rows = []
         for (var i = 0; i < embryosModel.length; i++) {
+            var item = embryosModel[i]
+            if (perspectiveState.active) {
+                if (String((item && item.nodeType) ? item.nodeType : "") !== "dir") {
+                    continue
+                }
+                rows.push({
+                    kind: "template",
+                    label: String((item && item.name) ? item.name : ""),
+                    cpd: String((item && item.cpd) ? item.cpd : ""),
+                    entry: item
+                })
+                continue
+            }
             rows.push({
                 kind: "template",
-                label: String((embryosModel[i] && embryosModel[i].name) ? embryosModel[i].name : ""),
-                entry: embryosModel[i]
+                label: String((item && item.name) ? item.name : ""),
+                cpd: "",
+                entry: item
             })
         }
         return rows
@@ -127,46 +156,254 @@ ApplicationWindow {
         return out
     }
 
-    function templateRelativePathFor(label) {
-        var leaf = String(label || "").trim()
-        if (leaf.length === 0) {
-            return ""
+    function parsePerspectiveCpd(cpd) {
+        var raw = String(cpd || "").trim()
+        var parts = raw.split("/").filter(function(p) { return p.length > 0 })
+        var idx = -1
+        for (var i = 0; i < parts.length; i++) {
+            if (parts[i] === "Projekte") {
+                idx = i
+                break
+            }
         }
-        var rootName = String(selectedFilterName || "").trim()
-        if (rootName.length === 0) {
-            rootName = "Standard"
+        if (idx < 0 || idx + 1 >= parts.length) {
+            return { valid: false, templateParts: [], projectName: "", tailParts: [] }
         }
-        return "/Templates/" + rootName + "/" + leaf + "/"
+        return {
+            valid: true,
+            templateParts: parts.slice(0, idx),
+            projectName: String(parts[idx + 1] || ""),
+            tailParts: parts.slice(idx + 2)
+        }
     }
 
-    function appendToCpdPath(label) {
-        var leaf = String(label || "").trim().replace(/\//g, "")
-        if (leaf.length === 0) {
-            return cpdPath
+    function buildPerspectiveCpd(templateParts, projectName, tailParts) {
+        var out = []
+        for (var i = 0; i < templateParts.length; i++) out.push(String(templateParts[i]))
+        out.push("Projekte")
+        out.push(String(projectName || ""))
+        for (var j = 0; j < tailParts.length; j++) out.push(String(tailParts[j]))
+        return "/" + out.filter(function(p) { return p.length > 0 }).join("/")
+    }
+
+    function displayPathFromPerspectiveCpd(cpd) {
+        var parsed = parsePerspectiveCpd(cpd)
+        if (!parsed.valid) {
+            return ""
         }
-        var base = String(cpdPath || "")
-        if (base.length === 0) {
-            return templateRelativePathFor(leaf)
+        var displayParts = ["Templates"].concat(parsed.templateParts).concat(parsed.tailParts)
+        return "/" + displayParts.join("/") + "/"
+    }
+
+    function parseApdFromPath(path) {
+        var raw = String(path || "").trim()
+        var parts = raw.split("/").filter(function(p) { return p.length > 0 })
+        var idx = -1
+        for (var i = parts.length - 1; i >= 0; i--) {
+            if (parts[i] === "Projekte" && i + 1 < parts.length) {
+                idx = i
+                break
+            }
         }
-        var parts = base.split("/").filter(function(p) { return p.length > 0 })
-        if (parts.length === 0) {
-            return templateRelativePathFor(leaf)
+        if (idx < 0) {
+            return { valid: false, apdPath: "", apdParts: [], projectName: "", tailParts: [] }
         }
-        if (String(parts[parts.length - 1]).toLowerCase() !== leaf.toLowerCase()) {
-            parts.push(leaf)
+        var apdParts = parts.slice(0, idx + 2)
+        return {
+            valid: true,
+            apdPath: "/" + apdParts.join("/"),
+            apdParts: apdParts,
+            projectName: String(parts[idx + 1] || ""),
+            tailParts: parts.slice(idx + 2)
         }
-        return "/" + parts.join("/") + "/"
+    }
+
+    function sanitizeTailParts(parts) {
+        var out = []
+        for (var i = 0; i < (parts || []).length; i++) {
+            var part = String(parts[i] || "").replace(/\//g, "").trim()
+            if (part.length > 0) {
+                out.push(part)
+            }
+        }
+        return out
+    }
+
+    function tailPartsFromLeftRow(row) {
+        if (row && String(row.cpd || "").length > 0) {
+            var parsedCpd = parsePerspectiveCpd(String(row.cpd || ""))
+            if (parsedCpd.valid) {
+                return sanitizeTailParts(parsedCpd.templateParts.concat(parsedCpd.tailParts))
+            }
+        }
+        var entryPath = String((row && row.entry && row.entry.path) ? row.entry.path : "")
+        if (entryPath.length > 0) {
+            var parsedPath = parseApdFromPath(entryPath)
+            if (parsedPath.valid) {
+                return sanitizeTailParts(parsedPath.tailParts)
+            }
+        }
+        var label = String((row && row.label) ? row.label : "").replace(/\//g, "").trim()
+        if (label.length > 0) {
+            return [label]
+        }
+        return []
+    }
+
+    function _isPrefixParts(prefix, full) {
+        if ((prefix || []).length > (full || []).length) {
+            return false
+        }
+        for (var i = 0; i < prefix.length; i++) {
+            if (String(prefix[i] || "") !== String(full[i] || "")) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function derivePerspectiveTailForLeftDoubleClick(row) {
+        var parsedState = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
+        var baseTail = parsedState.valid ? sanitizeTailParts(parsedState.templateParts.concat(parsedState.tailParts)) : []
+        var parsedRow = parsePerspectiveCpd(String((row && row.cpd) ? row.cpd : ""))
+        if (parsedRow.valid) {
+            var rowTail = sanitizeTailParts(parsedRow.templateParts.concat(parsedRow.tailParts))
+            // Accept resolver-provided CPD only when it extends current CPD tail.
+            if (_isPrefixParts(baseTail, rowTail) && rowTail.length >= baseTail.length) {
+                return rowTail
+            }
+        }
+        var label = String((row && row.label) ? row.label : "").replace(/\//g, "").trim()
+        if (label.length === 0) {
+            return baseTail
+        }
+        return baseTail.concat([label])
+    }
+
+    function buildRealPathFromApdAndTail(apd, tailParts) {
+        if (!apd || !apd.valid) {
+            return ""
+        }
+        var cleanTail = sanitizeTailParts(tailParts)
+        var allParts = []
+        for (var i = 0; i < apd.apdParts.length; i++) {
+            allParts.push(String(apd.apdParts[i] || ""))
+        }
+        for (var j = 0; j < cleanTail.length; j++) {
+            allParts.push(cleanTail[j])
+        }
+        return "/" + allParts.filter(function(p) { return p.length > 0 }).join("/")
+    }
+
+    function buildCpdFromApdAndTail(apd, tailParts) {
+        if (!apd || !apd.valid) {
+            return ""
+        }
+        return buildPerspectiveCpd(sanitizeTailParts(tailParts), String(apd.projectName || ""), [])
+    }
+
+    function ensurePerspectiveOpenFromCwd() {
+        if (perspectiveState.active) {
+            return true
+        }
+        var opened = sunTreeBackend.openPerspective(String(sunTreeBackend.cwd() || ""))
+        console.log("[SunTree] openPerspective from left dblclick", JSON.stringify(opened))
+        syncPerspectiveState()
+        if (!perspectiveState.active) {
+            console.warn("[SunTree] perspective open failed from current CWD", String(sunTreeBackend.cwd() || ""))
+            return false
+        }
+        return true
+    }
+
+    function applyLeftClick(index) {
+        var rows = leftEntries()
+        if (!(index >= 0 && index < rows.length)) {
+            return
+        }
+        var row = rows[index]
+        var apd = parseApdFromPath(String(sunTreeBackend.cwd() || ""))
+        if (!apd.valid) {
+            console.warn("[SunTree] left click missing APD in CWD", String(sunTreeBackend.cwd() || ""))
+            return
+        }
+        var tail = tailPartsFromLeftRow(row)
+        var targetReal = buildRealPathFromApdAndTail(apd, tail)
+        console.log("[SunTree] left click -> CWD", JSON.stringify({ apdPath: apd.apdPath, tail: tail, targetReal: targetReal }))
+        if (targetReal.length > 0) {
+            sunTreeBackend.enterFolder(targetReal)
+        }
+    }
+
+    function applyLeftDoubleClick(index) {
+        var rows = leftEntries()
+        if (!(index >= 0 && index < rows.length)) {
+            return
+        }
+        if (!ensurePerspectiveOpenFromCwd()) {
+            return
+        }
+        var row = rows[index]
+        var apd = parseApdFromPath(String(sunTreeBackend.cwd() || ""))
+        if (!apd.valid) {
+            console.warn("[SunTree] left dblclick missing APD in CWD", String(sunTreeBackend.cwd() || ""))
+            return
+        }
+        var tail = perspectiveState.active
+                   ? derivePerspectiveTailForLeftDoubleClick(row)
+                   : tailPartsFromLeftRow(row)
+        var targetCpd = buildCpdFromApdAndTail(apd, tail)
+        console.log("[SunTree] left dblclick -> CPD", JSON.stringify({ projectName: apd.projectName, tail: tail, targetCpd: targetCpd }))
+        if (targetCpd.length === 0) {
+            console.warn("[SunTree] left dblclick no target CPD", index, JSON.stringify(row))
+            return
+        }
+        var setRes = sunTreeBackend.setPerspectiveCpd(targetCpd)
+        console.log("[SunTree] setPerspectiveCpd result", JSON.stringify(setRes))
+        if (!setRes || !setRes.ok) {
+            console.warn("[SunTree] setPerspectiveCpd failed", targetCpd, JSON.stringify(setRes || {}))
+            return
+        }
+        syncPerspectiveState()
+        cpdLabel = String((row && row.label) ? row.label : "")
+        selectedLeftIndex = index
+        refreshModels()
+        leftSectorCanvas.requestPaint()
+    }
+
+    function syncPerspectiveState() {
+        var next = sunTreeBackend.getPerspectiveState() || ({ active: false, cpd: "" })
+        perspectiveState = next
+        var rendered = next.active ? displayPathFromPerspectiveCpd(next.cpd) : ""
+        cpdPath = rendered.length > 0 ? rendered : String(next.active ? (next.cpd || "") : "")
     }
 
     function cpdStackEntries() {
-        var raw = String(cpdPath || "")
-        if (raw.length === 0) {
+        var parsed = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
+        if (!parsed.valid) {
             return []
         }
-        var parts = raw.split("/").filter(function(p) { return p.length > 0 })
+        var displayParts = ["Templates"].concat(parsed.templateParts).concat(parsed.tailParts)
         var out = []
-        for (var i = 0; i < parts.length; i++) {
-            out.push({ label: "/" + parts[i] + "/" })
+        var templateLen = parsed.templateParts.length
+        for (var i = 0; i < displayParts.length; i++) {
+            var nextTemplate = []
+            var nextTail = []
+            if (i === 0) {
+                nextTemplate = []
+                nextTail = []
+            } else if (i <= templateLen) {
+                nextTemplate = parsed.templateParts.slice(0, i)
+                nextTail = []
+            } else {
+                nextTemplate = parsed.templateParts.slice(0)
+                var tailCount = i - templateLen
+                nextTail = parsed.tailParts.slice(0, tailCount)
+            }
+            out.push({
+                label: "/" + displayParts[i] + "/",
+                cpd: buildPerspectiveCpd(nextTemplate, parsed.projectName, nextTail)
+            })
         }
         return out
     }
@@ -248,6 +485,25 @@ ApplicationWindow {
     }
 
     Component.onCompleted: refreshModels()
+
+    Timer {
+        id: leftClickDelayTimer
+        interval: 170
+        repeat: false
+        onTriggered: {
+            var idx = pendingLeftClickIndex
+            leftEventSeq += 1
+            console.log("[SunTree][L-Event#" + leftEventSeq + "] timer triggered", JSON.stringify({
+                hoveredLeftIndex: hoveredLeftIndex,
+                pendingLeftClickIndex: pendingLeftClickIndex,
+                resolvedIndex: idx,
+                rowsLen: leftEntries().length,
+                ts: Date.now()
+            }))
+            pendingLeftClickIndex = -1
+            applyLeftClick(idx)
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -395,8 +651,7 @@ ApplicationWindow {
                         height: layoutRoot.shellDiameter
                         radius: width * 0.5
                         color: "#273847"
-                        border.width: 2
-                        border.color: "#4e8b9a"
+                        border.width: 0
                     }
 
                     Canvas {
@@ -426,9 +681,6 @@ ApplicationWindow {
                                 ctx.closePath()
                                 ctx.fillStyle = selected ? "#4d7f8d" : (hovered ? "#5d95a6" : "#3b6b7d")
                                 ctx.fill()
-                                ctx.strokeStyle = selected ? "#d3f3ff" : (hovered ? "#c5ebff" : "#7ea8b4")
-                                ctx.lineWidth = 1
-                                ctx.stroke()
                                 var mid = (a0 + a1) * 0.5
                                 var r = layoutRoot.halfInnerRadius + 16
                                 var tx = cx + Math.cos(mid) * r
@@ -455,6 +707,28 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
+                        onPressed: function(mouse) {
+                            leftEventSeq += 1
+                            console.log("[SunTree][L-Event#" + leftEventSeq + "] pressed", JSON.stringify({
+                                x: mouse.x,
+                                y: mouse.y,
+                                hoveredLeftIndex: hoveredLeftIndex,
+                                pendingLeftClickIndex: pendingLeftClickIndex,
+                                rowsLen: leftEntries().length,
+                                ts: Date.now()
+                            }))
+                        }
+                        onReleased: function(mouse) {
+                            leftEventSeq += 1
+                            console.log("[SunTree][L-Event#" + leftEventSeq + "] released", JSON.stringify({
+                                x: mouse.x,
+                                y: mouse.y,
+                                hoveredLeftIndex: hoveredLeftIndex,
+                                pendingLeftClickIndex: pendingLeftClickIndex,
+                                rowsLen: leftEntries().length,
+                                ts: Date.now()
+                            }))
+                        }
                         onPositionChanged: function(mouse) {
                             hoveredLeftIndex = leftSectorIndex(
                                 mouse.x, mouse.y,
@@ -469,18 +743,28 @@ ApplicationWindow {
                             hoveredLeftIndex = -1
                             leftSectorCanvas.requestPaint()
                         }
+                        onClicked: {
+                            leftEventSeq += 1
+                            console.log("[SunTree][L-Event#" + leftEventSeq + "] clicked", JSON.stringify({
+                                hoveredLeftIndex: hoveredLeftIndex,
+                                pendingLeftClickIndex: pendingLeftClickIndex,
+                                rowsLen: leftEntries().length,
+                                ts: Date.now()
+                            }))
+                            pendingLeftClickIndex = hoveredLeftIndex
+                            leftClickDelayTimer.restart()
+                        }
                         onDoubleClicked: {
-                            var rows = leftEntries()
-                            if (hoveredLeftIndex >= 0 && hoveredLeftIndex < rows.length) {
-                                var label = String((rows[hoveredLeftIndex] && rows[hoveredLeftIndex].label) ? rows[hoveredLeftIndex].label : "")
-                                var logical = appendToCpdPath(label)
-                                if (logical.length > 0) {
-                                    cpdPath = logical
-                                    cpdLabel = label
-                                    selectedLeftIndex = hoveredLeftIndex
-                                    leftSectorCanvas.requestPaint()
-                                }
-                            }
+                            leftEventSeq += 1
+                            console.log("[SunTree][L-Event#" + leftEventSeq + "] doubleclicked", JSON.stringify({
+                                hoveredLeftIndex: hoveredLeftIndex,
+                                pendingLeftClickIndex: pendingLeftClickIndex,
+                                rowsLen: leftEntries().length,
+                                ts: Date.now()
+                            }))
+                            leftClickDelayTimer.stop()
+                            pendingLeftClickIndex = -1
+                            applyLeftDoubleClick(hoveredLeftIndex)
                         }
                     }
                 }
@@ -500,8 +784,7 @@ ApplicationWindow {
                         height: layoutRoot.shellDiameter
                         radius: width * 0.5
                         color: "#2d3750"
-                        border.width: 2
-                        border.color: "#6d86ad"
+                        border.width: 0
                     }
 
                     Canvas {
@@ -529,9 +812,6 @@ ApplicationWindow {
                                 ctx.closePath()
                                 ctx.fillStyle = hovered ? "#6f89b8" : "#4e668f"
                                 ctx.fill()
-                                ctx.strokeStyle = hovered ? "#d4e2ff" : "#90a8ce"
-                                ctx.lineWidth = 1
-                                ctx.stroke()
                                 var mid = (a0 + a1) * 0.5
                                 var r = layoutRoot.halfInnerRadius + 10
                                 var tx = cx + Math.cos(mid) * r
@@ -591,9 +871,15 @@ ApplicationWindow {
                     height: Math.max(80, layoutRoot.cwdY - y - 10)
                     radius: 10
                     color: "#1a2d35"
-                    border.width: 1
-                    border.color: "#4e8b9a"
-                    visible: cpdPath.length > 0
+                    border.width: 0
+                    visible: perspectiveState.active
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        hoverEnabled: true
+                        onExited: hoveredCpdIndex = -1
+                    }
 
                     Flickable {
                         anchors.fill: parent
@@ -628,6 +914,21 @@ ApplicationWindow {
                                         font.pixelSize: 12
                                         elide: Text.ElideRight
                                     }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onEntered: hoveredCpdIndex = index
+                                        onExited: if (hoveredCpdIndex === index) hoveredCpdIndex = -1
+                                        onClicked: {
+                                            var targetCpd = String((rowData && rowData.cpd) ? rowData.cpd : "")
+                                            if (targetCpd.length > 0) {
+                                                sunTreeBackend.setPerspectiveCpd(targetCpd)
+                                                syncPerspectiveState()
+                                                root.refreshModels()
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -642,8 +943,7 @@ ApplicationWindow {
                     height: Math.max(120, layoutRoot.shellBottom - y - 10)
                     radius: 10
                     color: "#1f2a3d"
-                    border.width: 1
-                    border.color: "#4b5f86"
+                    border.width: 0
 
                     Flickable {
                         anchors.fill: parent
@@ -726,6 +1026,122 @@ ApplicationWindow {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: sunTreeBackend.refreshAll()
+                    }
+                }
+
+                Canvas {
+                    id: rightArrowBottomToRight
+                    width: 30
+                    height: 30
+                    x: cwdOval.x + cwdOval.width - width - 8
+                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
+                    z: 22
+                    visible: hoveredCenterIndex >= 0
+                    antialiasing: true
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.reset()
+                        ctx.strokeStyle = "#ffdd74"
+                        ctx.lineWidth = 2
+                        ctx.lineCap = "round"
+                        // Right icon: arc 9h -> 12h, arrow at 12h.
+                        ctx.beginPath()
+                        ctx.moveTo(5, 15)
+                        ctx.quadraticCurveTo(5, 5, 15, 5)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(15, 5)
+                        ctx.lineTo(11, 8)
+                        ctx.moveTo(15, 5)
+                        ctx.lineTo(19, 8)
+                        ctx.stroke()
+                    }
+                }
+
+                Canvas {
+                    id: rightArrowRightToDown
+                    width: 30
+                    height: 30
+                    x: cwdOval.x + cwdOval.width - width - 8
+                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
+                    z: 22
+                    visible: hoveredRightIndex >= 0
+                    antialiasing: true
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.reset()
+                        ctx.strokeStyle = "#ffdd74"
+                        ctx.lineWidth = 2
+                        ctx.lineCap = "round"
+                        // Right icon: arc 9h -> 12h, arrow at 9h (reverse).
+                        ctx.beginPath()
+                        ctx.moveTo(5, 15)
+                        ctx.quadraticCurveTo(5, 5, 15, 5)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(5, 15)
+                        ctx.lineTo(9, 12)
+                        ctx.moveTo(5, 15)
+                        ctx.lineTo(9, 18)
+                        ctx.stroke()
+                    }
+                }
+
+                Canvas {
+                    id: leftArrowTopToLeft
+                    width: 30
+                    height: 30
+                    x: cwdOval.x + 8
+                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
+                    z: 22
+                    visible: hoveredCpdIndex >= 0
+                    antialiasing: true
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.reset()
+                        ctx.strokeStyle = "#ffdd74"
+                        ctx.lineWidth = 2
+                        ctx.lineCap = "round"
+                        // Left icon: arc 3h -> 6h, arrow at 3h.
+                        ctx.beginPath()
+                        ctx.moveTo(25, 15)
+                        ctx.quadraticCurveTo(25, 25, 15, 25)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(25, 15)
+                        ctx.lineTo(21, 12)
+                        ctx.moveTo(25, 15)
+                        ctx.lineTo(21, 18)
+                        ctx.stroke()
+                    }
+                }
+
+                Canvas {
+                    id: leftArrowLeftToUp
+                    width: 30
+                    height: 30
+                    x: cwdOval.x + 8
+                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
+                    z: 22
+                    visible: hoveredLeftIndex >= 0
+                    antialiasing: true
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.reset()
+                        ctx.strokeStyle = "#ffdd74"
+                        ctx.lineWidth = 2
+                        ctx.lineCap = "round"
+                        // Left icon: arc 3h -> 6h, arrow at 6h (reverse).
+                        ctx.beginPath()
+                        ctx.moveTo(25, 15)
+                        ctx.quadraticCurveTo(25, 25, 15, 25)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(15, 25)
+                        ctx.lineTo(12, 21)
+                        ctx.moveTo(15, 25)
+                        ctx.lineTo(18, 21)
+                        ctx.stroke()
                     }
                 }
             }

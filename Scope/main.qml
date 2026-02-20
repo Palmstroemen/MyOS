@@ -150,6 +150,8 @@ ApplicationWindow {
     property string pendingConfigPromptName: "Desk.md"
     property var availableFilters: []
     property var activeFilter: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
+    property var perspectiveState: ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
+    property bool perspectiveModeEnabled: false
     property string manualFilterPath: ""
     property string filterSaveSourcePath: ""
     property var filterSaveTargets: []
@@ -276,6 +278,7 @@ ApplicationWindow {
 
     function setCwp(path) {
         cwp = path
+        refreshPerspectiveState()
         updateSubProjects()
         updateFiles()
     }
@@ -291,6 +294,63 @@ ApplicationWindow {
     function toFileUrl(path) {
         if (path.indexOf("file://") === 0) return path
         return "file://" + path
+    }
+
+    function refreshPerspectiveState() {
+        if (!hasBackend() || typeof backend.perspectiveState !== "function") {
+            perspectiveState = ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
+            perspectiveModeEnabled = false
+            return
+        }
+        perspectiveState = backend.perspectiveState() || ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
+        perspectiveModeEnabled = !!perspectiveState.active
+    }
+
+    function ensurePerspectiveOpenForTemplates() {
+        refreshPerspectiveState()
+        if (!hasBackend() || typeof backend.perspectiveOpen !== "function") {
+            return false
+        }
+        if (perspectiveState.active) {
+            return true
+        }
+        var opened = backend.perspectiveOpen(cwp, "flipped") || ({ active: false })
+        refreshPerspectiveState()
+        return !!opened.active || !!perspectiveState.active
+    }
+
+    function applyPerspectiveCpd(targetCpd) {
+        var next = String(targetCpd || "").trim()
+        if (next.length === 0) {
+            return false
+        }
+        if (!hasBackend() || typeof backend.perspectiveSetCpd !== "function") {
+            return false
+        }
+        var result = backend.perspectiveSetCpd(next) || ({ ok: false })
+        refreshPerspectiveState()
+        if (!result.ok) {
+            return false
+        }
+        standardPath = String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : next)
+        standardFolders = listTemplates(standardPath)
+        updateStandardFolders()
+        return true
+    }
+
+    function listPerspectiveTemplates(cpd) {
+        if (!hasBackend() || typeof backend.perspectiveListDir !== "function") {
+            return []
+        }
+        var rows = backend.perspectiveListDir(cpd || "")
+        var out = []
+        for (var i = 0; i < rows.length; i++) {
+            var nodeType = String((rows[i] && rows[i].nodeType) ? rows[i].nodeType : "")
+            if (nodeType === "dir") {
+                out.push(String((rows[i] && rows[i].name) ? rows[i].name : ""))
+            }
+        }
+        return out
     }
 
     function listChildren(path) {
@@ -311,6 +371,9 @@ ApplicationWindow {
     }
 
     function listTemplates(path) {
+        if (perspectiveModeEnabled && perspectiveState.active) {
+            return listPerspectiveTemplates(String(perspectiveState.cpd || ""))
+        }
         if (hasBackend() && typeof backend.listTemplates === "function") {
             return backend.listTemplates(path, templatesShowEmbryos)
         }
@@ -1305,6 +1368,10 @@ ApplicationWindow {
     function updateTemplates() {
         if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
             console.log("[scope] updateTemplates cwp", cwp)
+        }
+        if (ensurePerspectiveOpenForTemplates()) {
+            standardPath = String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : cwp)
+            return
         }
         standardPath = cwp
     }
@@ -2898,8 +2965,10 @@ ApplicationWindow {
             debugName: "TemplatesBrowser"
             parent: floatingPool
             visible: templatesBrowserVisible
-            path: standardPath
-            pathDisplayPrefix: cwp
+            path: (perspectiveModeEnabled && perspectiveState.active)
+                  ? String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : standardPath)
+                  : standardPath
+            pathDisplayPrefix: (perspectiveModeEnabled && perspectiveState.active) ? "" : cwp
             showEmbryos: window.templatesShowEmbryos
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
@@ -2967,6 +3036,12 @@ ApplicationWindow {
             updateStandardFolders()
         }
             onPathSegmentActivated: function(index) {
+                if (perspectiveModeEnabled && perspectiveState.active && hasBackend() && typeof backend.perspectiveSetCpd === "function") {
+                    var cpdParts = String(perspectiveState.cpd || "").split("/").filter(function(p){ return p.length > 0 })
+                    var nextCpd = "/" + cpdParts.slice(0, index + 1).join("/")
+                    applyPerspectiveCpd(nextCpd)
+                    return
+                }
                 if (templatesBrowser.fullPathForDisplayIndex) {
                     standardPath = templatesBrowser.fullPathForDisplayIndex(index)
                     return
@@ -2974,8 +3049,20 @@ ApplicationWindow {
                 var parts = standardPath.split("/").filter(function(p){ return p.length > 0 })
                 standardPath = "/" + parts.slice(0, index + 1).join("/")
             }
-            onPathSelected: function(path) { standardPath = path }
+            onPathSelected: function(path) {
+                if (perspectiveModeEnabled && perspectiveState.active && hasBackend() && typeof backend.perspectiveSetCpd === "function") {
+                    applyPerspectiveCpd(path)
+                    return
+                }
+                standardPath = path
+            }
             onFolderActivated: {
+                if (perspectiveModeEnabled && perspectiveState.active && hasBackend() && typeof backend.perspectiveSetCpd === "function") {
+                    var baseCpd = String(perspectiveState.cpd || "").replace(/\/+$/, "")
+                    var nextCpd = baseCpd + "/" + name
+                    applyPerspectiveCpd(nextCpd)
+                    return
+                }
                 var base = standardPath.endsWith("/") ? standardPath.slice(0, -1) : standardPath
                 standardPath = base + "/" + name
             }
