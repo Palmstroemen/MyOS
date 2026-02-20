@@ -79,6 +79,37 @@ def test_t19_create_persists_to_prepared_real_path(adapter: PerspectiveFuseAdapt
     assert target.read_bytes() == b"content"
 
 
+def test_readdir_uses_directory_fallback(adapter: PerspectiveFuseAdapter):
+    got = set(adapter.readdir("/kommunikation/email/Projekte/ProjektA/inbox/2026", None))
+    # Fallback to inbox should expose its children.
+    assert "mail1.eml" in got
+    assert "." in got
+    assert ".." in got
+
+
+def test_getattr_directory_uses_fallback(adapter: PerspectiveFuseAdapter):
+    st = adapter.getattr("/kommunikation/email/Projekte/ProjektA/inbox/2026")
+    assert stat.S_ISDIR(int(st["st_mode"]))
+
+
+def test_readdir_fallback_order_is_stable(adapter: PerspectiveFuseAdapter):
+    first = list(adapter.readdir("/kommunikation/email/Projekte/ProjektA/inbox/2026", None))
+    second = list(adapter.readdir("/kommunikation/email/Projekte/ProjektA/inbox/2026", None))
+    assert first == second
+
+
+def test_open_missing_file_stays_strict_enoent(adapter: PerspectiveFuseAdapter):
+    with pytest.raises(FuseOSError) as exc:
+        adapter.open("/kommunikation/email/Projekte/ProjektA/inbox/2026/missing.eml", os.O_RDONLY)
+    assert exc.value.errno == errno.ENOENT
+
+
+def test_create_in_unborn_branch_stays_strict_enoent(adapter: PerspectiveFuseAdapter):
+    with pytest.raises(FuseOSError) as exc:
+        adapter.create("/kommunikation/email/Projekte/ProjektA/inbox/2026/new.eml", 0o644)
+    assert exc.value.errno == errno.ENOENT
+
+
 def test_error_mapping_is_stable():
     assert resolver_error_to_errno("not_found") == errno.ENOENT
     assert resolver_error_to_errno("denied") == errno.EACCES

@@ -31,6 +31,7 @@ from core.perspective_resolver import (
     perspective_open,
     prepare_create,
     prepare_rename,
+    resolve_virtual_dir_for_read,
     resolve_virtual_path,
 )
 
@@ -112,6 +113,12 @@ class PerspectiveFuseAdapter(Operations):
             self._fail("unsupported")
         return resolved.real_path
 
+    def _looks_like_directory_path(self, cpd: str) -> bool:
+        if cpd.endswith("/"):
+            return True
+        name = Path(cpd).name
+        return "." not in name
+
     # FUSE API ---------------------------------------------------------------
     def access(self, path: str, mode: int) -> int:
         cpd = self._cpd(path)
@@ -126,6 +133,29 @@ class PerspectiveFuseAdapter(Operations):
         cpd = self._cpd(path)
         resolved = resolve_virtual_path(ctx=self.ctx, cpd=cpd)
         if not resolved.ok:
+            # Apply parent fallback only for directory-like getattr requests.
+            if self._looks_like_directory_path(cpd):
+                dir_read = resolve_virtual_dir_for_read(ctx=self.ctx, cpd=cpd)
+                if dir_read.ok and dir_read.node_type == "dir":
+                    fallback_real = dir_read.effective_read_path
+                    if fallback_real:
+                        st = os.lstat(fallback_real)
+                        self._log_op(
+                            "getattr",
+                            cpd=cpd,
+                            real=fallback_real,
+                            error_code=("fallback" if dir_read.fallback_applied else None),
+                        )
+                        return {
+                            "st_mode": st.st_mode,
+                            "st_nlink": st.st_nlink,
+                            "st_size": st.st_size,
+                            "st_ctime": st.st_ctime,
+                            "st_mtime": st.st_mtime,
+                            "st_atime": st.st_atime,
+                            "st_uid": st.st_uid,
+                            "st_gid": st.st_gid,
+                        }
             self._log_op("getattr", cpd=cpd, real=resolved.real_path, error_code=resolved.error_code)
             self._fail(resolved.error_code)
 
@@ -158,12 +188,21 @@ class PerspectiveFuseAdapter(Operations):
 
     def readdir(self, path: str, fh) -> Iterable[str]:
         cpd = self._cpd(path)
+        dir_read = resolve_virtual_dir_for_read(ctx=self.ctx, cpd=cpd)
+        if not dir_read.ok:
+            self._log_op("readdir", cpd=cpd, real=dir_read.real_path, error_code=dir_read.error_code)
+            self._fail(dir_read.error_code)
         entries = [".", ".."]
         for item in list_virtual_dir(ctx=self.ctx, cpd=cpd):
             name = str(item.get("name") or "")
             if name:
                 entries.append(name)
-        self._log_op("readdir", cpd=cpd, real=None, error_code=None)
+        self._log_op(
+            "readdir",
+            cpd=cpd,
+            real=dir_read.effective_read_path,
+            error_code=("fallback" if dir_read.fallback_applied else None),
+        )
         return entries
 
     def open(self, path: str, flags: int) -> int:

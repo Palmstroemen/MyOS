@@ -87,6 +87,19 @@ For resolver tests, normalize this to CPD form (without mount prefix if desired)
 - **When** resolver is called
 - **Then** result is `ok=False`, `error_code=invalid_path`
 
+### T07b - Directory-Read Parent Fallback (v1.1)
+
+- **Given** CPD points to a non-existing directory below an existing parent
+- **When** directory-read resolver path is used
+- **Then** result is `ok=True` with `fallback_applied=True`
+- **And** `effective_read_path` is the nearest existing parent in the same project branch
+
+### T07c - File-Read Stays Strict (v1.1)
+
+- **Given** CPD points to a non-existing file in a non-born branch
+- **When** strict file resolver path is used
+- **Then** result is `ok=False`, `error_code=not_found` (no fallback)
+
 ### T08 - ACL Denied Read
 
 - **Given** path resolves physically but ACL denies read
@@ -166,11 +179,23 @@ For resolver tests, normalize this to CPD form (without mount prefix if desired)
 - **When** FUSE `getattr` is invoked
 - **Then** status and node type match `resolve_virtual_path`
 
+### T17b - FUSE getattr(dir) Uses Fallback (v1.1)
+
+- **Given** directory CPD in a non-born branch
+- **When** FUSE `getattr` is invoked for directory intent
+- **Then** adapter returns directory stat from `effective_read_path`
+
 ### T18 - FUSE readdir Parity
 
 - **Given** a CPD directory
 - **When** FUSE `readdir` is invoked
 - **Then** entries match `list_virtual_dir` contract (name and node identity)
+
+### T18b - FUSE open(file) Remains Strict (v1.1)
+
+- **Given** non-existing file CPD in a non-born branch
+- **When** FUSE `open` is invoked
+- **Then** adapter returns `ENOENT` (no fallback)
 
 ### T19 - FUSE Create + Real Filesystem Persistence
 

@@ -43,6 +43,10 @@ class ResolveResult:
     node_type: NodeType
     error_code: Optional[ResolverErrorCode] = None
     message: Optional[str] = None
+    effective_read_path: Optional[str] = None
+    fallback_applied: bool = False
+    fallback_from: Optional[str] = None
+    fallback_to: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,7 @@ def resolve_virtual_path(
             node_type="missing",
             error_code="invalid_path",
             message="invalid CPD format",
+            effective_read_path=None,
         )
 
     if parsed.is_projects_anchor:
@@ -116,6 +121,7 @@ def resolve_virtual_path(
             node_type="virtual_anchor",
             error_code=None,
             message=None,
+            effective_read_path=None,
         )
 
     if parsed.project_name is None:
@@ -126,6 +132,7 @@ def resolve_virtual_path(
             node_type="missing",
             error_code="invalid_path",
             message="missing project segment",
+            effective_read_path=None,
         )
 
     real_path = _to_real_path(ctx, parsed)
@@ -137,6 +144,7 @@ def resolve_virtual_path(
             node_type="missing",
             error_code="invalid_path",
             message="resolved path escapes project_root",
+            effective_read_path=None,
         )
 
     if _is_denied(ctx, real_path, "read"):
@@ -147,6 +155,7 @@ def resolve_virtual_path(
             node_type="missing",
             error_code="denied",
             message="read denied",
+            effective_read_path=None,
         )
 
     if not real_path.exists():
@@ -157,6 +166,7 @@ def resolve_virtual_path(
             node_type="missing",
             error_code="not_found",
             message="path does not exist",
+            effective_read_path=None,
         )
 
     node_type: NodeType = "dir" if real_path.is_dir() else "file"
@@ -167,6 +177,138 @@ def resolve_virtual_path(
         node_type=node_type,
         error_code=None,
         message=None,
+        effective_read_path=str(real_path),
+    )
+
+
+def resolve_virtual_dir_for_read(
+    *,
+    ctx: PerspectiveContext,
+    cpd: str,
+) -> ResolveResult:
+    """
+    Resolve a CPD for directory-read semantics.
+
+    If the canonical CPD directory does not physically exist yet, fall back to
+    the nearest existing parent in the same project branch. File reads remain
+    strict via resolve_virtual_path().
+    """
+    cpd_norm = _normalize_cpd(cpd)
+    parsed = _parse_cpd(cpd_norm)
+    if parsed is None:
+        return ResolveResult(
+            ok=False,
+            cpd=cpd_norm,
+            real_path=None,
+            node_type="missing",
+            error_code="invalid_path",
+            message="invalid CPD format",
+            effective_read_path=None,
+        )
+    if parsed.is_projects_anchor:
+        return ResolveResult(
+            ok=True,
+            cpd=cpd_norm,
+            real_path=None,
+            node_type="virtual_anchor",
+            error_code=None,
+            message=None,
+            effective_read_path=None,
+        )
+    if parsed.project_name is None:
+        return ResolveResult(
+            ok=False,
+            cpd=cpd_norm,
+            real_path=None,
+            node_type="missing",
+            error_code="invalid_path",
+            message="missing project segment",
+            effective_read_path=None,
+        )
+
+    root = Path(ctx.project_root)
+    canonical = _to_real_path(ctx, parsed)
+    if not _is_within(canonical, root):
+        return ResolveResult(
+            ok=False,
+            cpd=cpd_norm,
+            real_path=None,
+            node_type="missing",
+            error_code="invalid_path",
+            message="resolved path escapes project_root",
+            effective_read_path=None,
+        )
+    if _is_denied(ctx, canonical, "read"):
+        return ResolveResult(
+            ok=False,
+            cpd=cpd_norm,
+            real_path=str(canonical),
+            node_type="missing",
+            error_code="denied",
+            message="read denied",
+            effective_read_path=None,
+        )
+
+    if canonical.exists():
+        node_type: NodeType = "dir" if canonical.is_dir() else "file"
+        return ResolveResult(
+            ok=True,
+            cpd=cpd_norm,
+            real_path=str(canonical),
+            node_type=node_type,
+            error_code=None,
+            message=None,
+            effective_read_path=str(canonical),
+            fallback_applied=False,
+        )
+
+    # Parent fallback for directory reads: walk up only within the same project.
+    # Walk over the full branch path (template + tail), so missing template
+    # segments can still fall back to existing project parents.
+    branch_parts = list(parsed.template_parts + parsed.tail_parts)
+    template_len = len(parsed.template_parts)
+    current = canonical
+    while branch_parts:
+        current = current.parent
+        branch_parts.pop()
+        if not _is_within(current, root):
+            break
+        if _is_denied(ctx, current, "read"):
+            return ResolveResult(
+                ok=False,
+                cpd=cpd_norm,
+                real_path=str(canonical),
+                node_type="missing",
+                error_code="denied",
+                message="read denied on fallback path",
+                effective_read_path=None,
+            )
+        if current.exists() and current.is_dir():
+            remaining_template_len = min(template_len, len(branch_parts))
+            fallback_template = tuple(branch_parts[:remaining_template_len])
+            fallback_tail = tuple(branch_parts[remaining_template_len:])
+            fallback_to = _build_cpd(fallback_template, parsed.project_name, fallback_tail)
+            return ResolveResult(
+                ok=True,
+                cpd=cpd_norm,
+                real_path=str(canonical),
+                node_type="dir",
+                error_code=None,
+                message=None,
+                effective_read_path=str(current),
+                fallback_applied=True,
+                fallback_from=cpd_norm,
+                fallback_to=fallback_to,
+            )
+
+    return ResolveResult(
+        ok=False,
+        cpd=cpd_norm,
+        real_path=str(canonical),
+        node_type="missing",
+        error_code="not_found",
+        message="path does not exist",
+        effective_read_path=None,
     )
 
 
@@ -258,20 +400,24 @@ def list_virtual_dir(
             )
         return entries
 
-    resolved = resolve_virtual_path(ctx=ctx, cpd=cpd_norm)
-    if not resolved.ok or resolved.node_type != "dir" or not resolved.real_path:
+    resolved = resolve_virtual_dir_for_read(ctx=ctx, cpd=cpd_norm)
+    if not resolved.ok or resolved.node_type != "dir":
         return []
 
-    parent = Path(resolved.real_path)
+    if not resolved.effective_read_path:
+        return []
+    parent = Path(resolved.effective_read_path)
+    listing_cpd = str(resolved.fallback_to or cpd_norm)
     for child in sorted(parent.iterdir(), key=lambda p: p.name.lower()):
-        child_cpd = _join_cpd(cpd_norm, child.name)
+        child_cpd = _join_cpd(listing_cpd, child.name)
         entries.append(
             {
                 "name": child.name,
                 "cpd": child_cpd,
                 "nodeType": "dir" if child.is_dir() else "file",
                 "realPath": str(child),
-                "isVirtual": False,
+                "isVirtual": bool(resolved.fallback_applied),
+                "fallbackApplied": bool(resolved.fallback_applied),
             }
         )
     return entries

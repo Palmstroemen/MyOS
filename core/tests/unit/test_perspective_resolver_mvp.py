@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -7,12 +8,13 @@ import pytest
 
 from core.perspective_resolver import (
     PerspectiveContext,
+    list_virtual_dir,
     perspective_open,
     prepare_create,
     prepare_rename,
+    resolve_virtual_dir_for_read,
     resolve_real_path,
     resolve_virtual_path,
-    list_virtual_dir,
 )
 
 
@@ -84,6 +86,78 @@ def test_t06_not_found_branch_returns_not_found(ctx: PerspectiveContext):
     assert out.ok is False
     assert out.error_code == "not_found"
     assert out.node_type == "missing"
+
+
+def test_dir_read_falls_back_to_nearest_existing_parent(ctx: PerspectiveContext, workspace: dict[str, Path]):
+    out = resolve_virtual_dir_for_read(
+        ctx=ctx,
+        cpd="/kommunikation/email/Projekte/ProjektA/inbox/2026",
+    )
+    assert out.ok is True
+    assert out.node_type == "dir"
+    assert out.fallback_applied is True
+    assert out.effective_read_path == str(workspace["a_inbox"])
+    assert out.fallback_to == "/kommunikation/email/Projekte/ProjektA/inbox"
+
+
+def test_dir_read_fallback_stays_in_same_project(ctx: PerspectiveContext, workspace: dict[str, Path]):
+    out = resolve_virtual_dir_for_read(
+        ctx=ctx,
+        cpd="/kommunikation/email/Projekte/ProjektB/inbox/2026",
+    )
+    assert out.ok is True
+    assert out.fallback_applied is True
+    assert out.effective_read_path == str(workspace["b"])
+    assert out.fallback_to == "/Projekte/ProjektB"
+
+
+def test_dir_read_projects_anchor_has_no_parent_fallback(ctx: PerspectiveContext):
+    out = resolve_virtual_dir_for_read(
+        ctx=ctx,
+        cpd="/kommunikation/email/Projekte",
+    )
+    assert out.ok is True
+    assert out.node_type == "virtual_anchor"
+    assert out.fallback_applied is False
+    assert out.effective_read_path is None
+
+
+def test_dir_read_fallback_denied_on_effective_parent(ctx: PerspectiveContext, workspace: dict[str, Path]):
+    inbox_path = workspace["a_inbox"].resolve()
+
+    def _checker(_role: str | None, path: Path, action: str) -> bool:
+        # Allow canonical missing path checks, but deny the fallback parent.
+        if action != "read":
+            return True
+        return path.resolve() != inbox_path
+
+    deny_fallback_ctx = replace(ctx, acl_checker=_checker)
+    out = resolve_virtual_dir_for_read(
+        ctx=deny_fallback_ctx,
+        cpd="/kommunikation/email/Projekte/ProjektA/inbox/2026",
+    )
+    assert out.ok is False
+    assert out.error_code == "denied"
+
+
+def test_file_read_remains_strict_not_found(ctx: PerspectiveContext):
+    out = resolve_virtual_path(
+        ctx=ctx,
+        cpd="/kommunikation/email/Projekte/ProjektA/inbox/2026/missing.eml",
+    )
+    assert out.ok is False
+    assert out.error_code == "not_found"
+
+
+def test_prepare_create_in_unborn_branch_stays_strict_not_found(ctx: PerspectiveContext):
+    out = prepare_create(
+        ctx=ctx,
+        cpd_parent="/kommunikation/email/Projekte/ProjektA/inbox/2026",
+        name="new.eml",
+        node_type="file",
+    )
+    assert out.ok is False
+    assert out.error_code == "not_found"
 
 
 def test_t07_invalid_path_traversal_rejected(ctx: PerspectiveContext):

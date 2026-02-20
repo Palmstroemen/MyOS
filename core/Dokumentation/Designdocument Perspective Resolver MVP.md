@@ -244,6 +244,19 @@ Use the dedicated Given/When/Then matrix:
 ## 14. Explicit MVP Limits
 
 - Only perspective id `flipped` is supported.
-- No small-project fallback rule in v1.
+- No file-read fallback rule in v1.1.
 - Cross-project rename is rejected as `unsupported`.
 - Performance optimizations/caching beyond safety are postponed to v2.
+
+---
+
+## 15. v1.1 Directory-Read Fallback Semantics
+
+- `readdir` and directory-oriented `getattr` may fall back to the nearest
+  existing parent in the same project branch when the canonical CPD directory
+  is not physically present yet.
+- File reads (`open/read`) remain strict-canonical and return `not_found`/`ENOENT`
+  when the canonical target file does not exist.
+- Write operations remain strict-canonical.
+- Birth/materialization of missing parents is owned by BlueprintLayer and must
+  not be re-implemented in perspective resolver/FUSE logic.
