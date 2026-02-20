@@ -446,6 +446,7 @@ class ScopeApi:
                 continue
             child_template_parts = template_parts + [name]
             child_cpd = self._build_perspective_cpd(child_template_parts, project_name)
+            color = item.get("color")
             out.append(
                 {
                     "name": name,
@@ -454,6 +455,7 @@ class ScopeApi:
                     "realPath": "",
                     "isVirtual": True,
                     "fallbackApplied": False,
+                    "color": str(color) if color is not None else "",
                 }
             )
         return out

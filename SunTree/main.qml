@@ -27,9 +27,14 @@ ApplicationWindow {
     property int selectedLeftIndex: -1
     property int pendingLeftClickIndex: -1
     property int leftEventSeq: 0
+    property string lastCpdStackDebugSignature: ""
+    property string cwdPath: ""
+    property string currentProjectColor: ""
 
     function refreshModels() {
+        cwdPath = String(sunTreeBackend.cwd() || "")
         foldersModel = sunTreeBackend.listFolders()
+        currentProjectColor = String(sunTreeBackend.effectiveProjectColor(cwdPath) || "")
         syncPerspectiveState()
         if (perspectiveState.active) {
             embryosModel = sunTreeBackend.listPerspectiveTemplates(String(perspectiveState.cpd || ""))
@@ -86,6 +91,7 @@ ApplicationWindow {
                     kind: "template",
                     label: String((item && item.name) ? item.name : ""),
                     cpd: String((item && item.cpd) ? item.cpd : ""),
+                    color: String((item && item.color) ? item.color : ""),
                     entry: item
                 })
                 continue
@@ -94,6 +100,7 @@ ApplicationWindow {
                 kind: "template",
                 label: String((item && item.name) ? item.name : ""),
                 cpd: "",
+                color: String((item && item.color) ? item.color : ""),
                 entry: item
             })
         }
@@ -106,10 +113,57 @@ ApplicationWindow {
             rows.push({
                 kind: "project",
                 label: String((foldersModel[i] && foldersModel[i].name) ? foldersModel[i].name : ""),
+                color: String((foldersModel[i] && foldersModel[i].color) ? foldersModel[i].color : ""),
                 entry: foldersModel[i]
             })
         }
         return rows
+    }
+
+    function cwdLeafName() {
+        var cwd = String(cwdPath || "")
+        var parts = cwd.split("/").filter(function(p) { return p.length > 0 })
+        if (parts.length === 0) {
+            return "/"
+        }
+        return String(parts[parts.length - 1] || "/")
+    }
+
+    function projectNameFromCwd() {
+        var parsed = parseApdFromPath(String(cwdPath || ""))
+        return parsed.valid ? String(parsed.projectName || "") : ""
+    }
+
+    function _adjustColor(hex, factor) {
+        var text = String(hex || "").trim()
+        var m = text.match(/^#([0-9a-fA-F]{6})$/)
+        if (!m) {
+            return text
+        }
+        var value = m[1]
+        var r = parseInt(value.slice(0, 2), 16)
+        var g = parseInt(value.slice(2, 4), 16)
+        var b = parseInt(value.slice(4, 6), 16)
+        var clamp = function(v) { return Math.max(0, Math.min(255, Math.round(v))) }
+        var toHex = function(v) {
+            var s = clamp(v).toString(16)
+            return s.length < 2 ? ("0" + s) : s
+        }
+        return "#" + toHex(r * factor) + toHex(g * factor) + toHex(b * factor)
+    }
+
+    function _sectorColor(base, hovered, selected, fallback) {
+        var source = String(base || "")
+        if (source.length === 0) {
+            source = fallback
+        }
+        if (selected) {
+            return _adjustColor(source, 1.12)
+        }
+        if (hovered) {
+            return _adjustColor(source, 0.92)
+        }
+        return _adjustColor(source, 0.82)
     }
 
     function topBandEntries() {
@@ -150,7 +204,8 @@ ApplicationWindow {
             }
             out.push({
                 label: label.length > 0 ? label : path,
-                path: path
+                path: path,
+                color: String((row && row.color) ? row.color : "")
             })
         }
         return out
@@ -381,9 +436,27 @@ ApplicationWindow {
     function cpdStackEntries() {
         var parsed = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
         if (!parsed.valid) {
+            if (String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "").length > 0) {
+                var invalidSig = "invalid|" + String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "")
+                if (lastCpdStackDebugSignature !== invalidSig) {
+                    lastCpdStackDebugSignature = invalidSig
+                    console.warn("[SunTree][CPDStack] invalid parsed CPD", String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
+                }
+            }
             return []
         }
         var displayParts = ["Templates"].concat(parsed.templateParts).concat(parsed.tailParts)
+        var sig = String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "") + "|" + displayParts.join("/")
+        if (lastCpdStackDebugSignature !== sig) {
+            lastCpdStackDebugSignature = sig
+            console.log("[SunTree][CPDStack]", JSON.stringify({
+                cpd: String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""),
+                templateParts: parsed.templateParts,
+                projectName: parsed.projectName,
+                tailParts: parsed.tailParts,
+                displayParts: displayParts
+            }))
+        }
         var out = []
         var templateLen = parsed.templateParts.length
         for (var i = 0; i < displayParts.length; i++) {
@@ -675,11 +748,12 @@ ApplicationWindow {
                                 var a1 = (startDeg + (segPos + 1) * slice) * Math.PI / 180
                                 var selected = (selectedLeftIndex === i)
                                 var hovered = (hoveredLeftIndex === i)
+                                var baseColor = String((rows[i] && rows[i].color) ? rows[i].color : "")
                                 ctx.beginPath()
                                 ctx.arc(cx, cy, layoutRoot.halfOuterRadius, a0, a1, false)
                                 ctx.arc(cx, cy, layoutRoot.halfInnerRadius, a1, a0, true)
                                 ctx.closePath()
-                                ctx.fillStyle = selected ? "#4d7f8d" : (hovered ? "#5d95a6" : "#3b6b7d")
+                                ctx.fillStyle = _sectorColor(baseColor, hovered, selected, "#3b6b7d")
                                 ctx.fill()
                                 var mid = (a0 + a1) * 0.5
                                 var r = layoutRoot.halfInnerRadius + 16
@@ -806,11 +880,12 @@ ApplicationWindow {
                                 var a0 = (startDeg + i * slice) * Math.PI / 180
                                 var a1 = (startDeg + (i + 1) * slice) * Math.PI / 180
                                 var hovered = (hoveredRightIndex === i)
+                                var baseColor = String((rows[i] && rows[i].color) ? rows[i].color : "")
                                 ctx.beginPath()
                                 ctx.arc(cx, cy, layoutRoot.halfOuterRadius, a0, a1, false)
                                 ctx.arc(cx, cy, layoutRoot.halfInnerRadius, a1, a0, true)
                                 ctx.closePath()
-                                ctx.fillStyle = hovered ? "#6f89b8" : "#4e668f"
+                                ctx.fillStyle = _sectorColor(baseColor, hovered, false, "#4e668f")
                                 ctx.fill()
                                 var mid = (a0 + a1) * 0.5
                                 var r = layoutRoot.halfInnerRadius + 10
@@ -963,9 +1038,13 @@ ApplicationWindow {
                                     width: parent.width
                                     height: 32
                                     radius: 7
-                                    color: hoveredCenterIndex === index ? "#546c97" : "#324663"
+                                    color: hoveredCenterIndex === index
+                                           ? (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 0.96) || "#546c97")
+                                           : (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 0.78) || "#324663")
                                     border.width: 1
-                                    border.color: hoveredCenterIndex === index ? "#c0d6ff" : "#6d82a8"
+                                    border.color: hoveredCenterIndex === index
+                                                  ? (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 1.16) || "#c0d6ff")
+                                                  : (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 0.98) || "#6d82a8")
 
                                     Text {
                                         anchors.fill: parent
@@ -1004,9 +1083,9 @@ ApplicationWindow {
                     x: layoutRoot.centerX - width * 0.5
                     y: layoutRoot.cwdY
                     z: 20
-                    color: "#2f3d60"
+                    color: _adjustColor(currentProjectColor, 0.72) || "#2f3d60"
                     border.width: 2
-                    border.color: "#9cb7f0"
+                    border.color: _adjustColor(currentProjectColor, 1.1) || "#9cb7f0"
 
                     Column {
                         anchors.centerIn: parent
@@ -1015,10 +1094,21 @@ ApplicationWindow {
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: "CWD"
+                            text: cwdLeafName()
                             color: "#dbe5ff"
                             font.bold: true
                             font.pixelSize: 13
+                            elide: Text.ElideRight
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: projectNameFromCwd()
+                            color: "#b7c8ef"
+                            font.pixelSize: 11
+                            visible: text.length > 0
                         }
                     }
 

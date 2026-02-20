@@ -109,10 +109,23 @@ class SunTreeBackend(QObject):
         if not parts:
             return []
         current = Path(parts[0])
-        rows = [{"label": str(current), "path": str(current)}]
+        rows = [
+            {
+                "label": str(current),
+                "path": str(current),
+                "color": str(self._adapter.get_effective_project_color(str(current)) or ""),
+            }
+        ]
         for part in parts[1:]:
             current = current / part
-            rows.append({"label": part, "path": str(current)})
+            path_str = str(current)
+            rows.append(
+                {
+                    "label": part,
+                    "path": path_str,
+                    "color": str(self._adapter.get_effective_project_color(path_str) or ""),
+                }
+            )
         return rows
 
     @Slot(result="QVariantList")
@@ -171,6 +184,10 @@ class SunTreeBackend(QObject):
     @Slot(result=bool)
     def clearPerspective(self) -> bool:
         return self._adapter.perspective_clear()
+
+    @Slot(str, result="QString")
+    def effectiveProjectColor(self, path: str) -> str:
+        return self._adapter.get_effective_project_color(path) or ""
 
     @Slot(str, result=bool)
     def setCwd(self, path: str) -> bool:
@@ -291,6 +308,9 @@ class MyOSBackendAdapter:
 
     def perspective_clear(self) -> bool:
         return self._api.perspective_clear()
+
+    def get_effective_project_color(self, path: str) -> Optional[str]:
+        return self._api.get_effective_project_color(path)
 
     def move_entry(self, source_path: str, target_dir: str) -> bool:
         return self._api.move_entry(source_path, target_dir)
