@@ -19,6 +19,8 @@ ApplicationWindow {
     property string cpdPath: ""
     property string cpdLabel: ""
     property var perspectiveState: ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
+    property string lastSyncedPerspectiveCpd: ""
+    property bool lastSyncedPerspectiveActive: false
     property int hoveredLeftIndex: -1
     property int hoveredRightIndex: -1
     property int hoveredCenterIndex: -1
@@ -27,7 +29,6 @@ ApplicationWindow {
     property int selectedLeftIndex: -1
     property int pendingLeftClickIndex: -1
     property int leftEventSeq: 0
-    property string lastCpdStackDebugSignature: ""
     property string cwdPath: ""
     property string currentProjectColor: ""
 
@@ -184,6 +185,14 @@ ApplicationWindow {
             label: "Dummy Ablage"
         })
         return rows
+    }
+
+    function currentTemplateRootName() {
+        var fromState = String((perspectiveState && perspectiveState.templateRoot) ? perspectiveState.templateRoot : "").trim()
+        if (fromState.length > 0) {
+            return fromState
+        }
+        return "Standard"
     }
 
     function centerStackEntries() {
@@ -428,53 +437,56 @@ ApplicationWindow {
 
     function syncPerspectiveState() {
         var next = sunTreeBackend.getPerspectiveState() || ({ active: false, cpd: "" })
+        var nextActive = !!next.active
+        var nextCpd = String(next.cpd || "")
+        var changed = (nextActive !== lastSyncedPerspectiveActive) || (nextCpd !== lastSyncedPerspectiveCpd)
         perspectiveState = next
         var rendered = next.active ? displayPathFromPerspectiveCpd(next.cpd) : ""
         cpdPath = rendered.length > 0 ? rendered : String(next.active ? (next.cpd || "") : "")
+        if (changed) {
+            lastSyncedPerspectiveActive = nextActive
+            lastSyncedPerspectiveCpd = nextCpd
+            embryosModel = nextActive
+                          ? sunTreeBackend.listPerspectiveTemplates(nextCpd)
+                          : sunTreeBackend.listEmbryos()
+            leftSectorCanvas.requestPaint()
+        }
     }
 
     function cpdStackEntries() {
         var parsed = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
         if (!parsed.valid) {
-            if (String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "").length > 0) {
-                var invalidSig = "invalid|" + String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "")
-                if (lastCpdStackDebugSignature !== invalidSig) {
-                    lastCpdStackDebugSignature = invalidSig
-                    console.warn("[SunTree][CPDStack] invalid parsed CPD", String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
-                }
-            }
             return []
         }
-        var displayParts = ["Templates"].concat(parsed.templateParts).concat(parsed.tailParts)
-        var sig = String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "") + "|" + displayParts.join("/")
-        if (lastCpdStackDebugSignature !== sig) {
-            lastCpdStackDebugSignature = sig
-            console.log("[SunTree][CPDStack]", JSON.stringify({
-                cpd: String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""),
-                templateParts: parsed.templateParts,
-                projectName: parsed.projectName,
-                tailParts: parsed.tailParts,
-                displayParts: displayParts
-            }))
+        var templateRootName = currentTemplateRootName()
+        var normalizedTemplateParts = parsed.templateParts.slice(0)
+        var cpdTemplatePrefix = []
+        if (normalizedTemplateParts.length > 0 && String(normalizedTemplateParts[0] || "") === templateRootName) {
+            cpdTemplatePrefix = [templateRootName]
+            normalizedTemplateParts = normalizedTemplateParts.slice(1)
         }
+        var displayParts = ["Templates", templateRootName].concat(normalizedTemplateParts).concat(parsed.tailParts)
         var out = []
-        var templateLen = parsed.templateParts.length
+        var templateLen = normalizedTemplateParts.length
         for (var i = 0; i < displayParts.length; i++) {
             var nextTemplate = []
             var nextTail = []
             if (i === 0) {
                 nextTemplate = []
                 nextTail = []
-            } else if (i <= templateLen) {
-                nextTemplate = parsed.templateParts.slice(0, i)
+            } else if (i === 1) {
+                nextTemplate = cpdTemplatePrefix.slice(0)
+                nextTail = []
+            } else if (i <= (templateLen + 1)) {
+                nextTemplate = cpdTemplatePrefix.concat(normalizedTemplateParts.slice(0, i - 1))
                 nextTail = []
             } else {
-                nextTemplate = parsed.templateParts.slice(0)
-                var tailCount = i - templateLen
+                nextTemplate = cpdTemplatePrefix.concat(normalizedTemplateParts.slice(0))
+                var tailCount = i - (templateLen + 1)
                 nextTail = parsed.tailParts.slice(0, tailCount)
             }
             out.push({
-                label: "/" + displayParts[i] + "/",
+                label: i === 0 ? "Perspective OFF" : ("/" + displayParts[i] + "/"),
                 cpd: buildPerspectiveCpd(nextTemplate, parsed.projectName, nextTail)
             })
         }
@@ -969,6 +981,7 @@ ApplicationWindow {
                             spacing: 6
 
                             Repeater {
+                                id: cpdRepeater
                                 model: cpdStackEntries()
                                 delegate: Rectangle {
                                     property var rowData: modelData
@@ -976,7 +989,7 @@ ApplicationWindow {
                                     height: 30
                                     radius: 7
                                     color: "#355767"
-                                    border.width: 1
+                                    border.width: (index === 0 || index === (cpdRepeater.count - 1)) ? 1 : 0
                                     border.color: "#8cb8c4"
 
                                     Text {
@@ -999,8 +1012,8 @@ ApplicationWindow {
                                             var targetCpd = String((rowData && rowData.cpd) ? rowData.cpd : "")
                                             if (targetCpd.length > 0) {
                                                 sunTreeBackend.setPerspectiveCpd(targetCpd)
-                                                syncPerspectiveState()
-                                                root.refreshModels()
+                                                // Trigger the normal backend->UI refresh path.
+                                                sunTreeBackend.refreshAll()
                                             }
                                         }
                                     }
