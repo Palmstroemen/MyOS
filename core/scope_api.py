@@ -14,10 +14,10 @@ from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 from core.desk_service import DeskService
 from core.perspective import (
-    EffectivePerspective,
-    find_perspectives_layers,
-    project_entries,
-    resolve_effective_perspective,
+    EffectiveFilter,
+    apply_filter_projection,
+    find_filters_layers,
+    resolve_effective_filter,
 )
 from core.sort import SortRule, iter_sort_rule_roots, resolve_effective_sort_rules
 from core.sort_runtime import SortRuntime
@@ -294,7 +294,7 @@ class ScopeApi:
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
         self._desk_service = DeskService()
-        self._manual_perspective_path: Optional[Path] = None
+        self._manual_filter_path: Optional[Path] = None
         self._sort_runtime = SortRuntime()
         self.myos_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
@@ -446,10 +446,10 @@ class ScopeApi:
         found = self._desk_service.find_config(target, config_name=config_name)
         return str(found) if found else None
 
-    def list_perspectives(self, path: str) -> List[Dict[str, Any]]:
+    def list_filters(self, path: str) -> List[Dict[str, Any]]:
         target = self._resolve_path(path)
-        roots = self._resolve_perspective_roots_for_target(target)
-        layers = find_perspectives_layers(
+        roots = self._resolve_filter_roots_for_target(target)
+        layers = find_filters_layers(
             target,
             template_root=roots.get("templateRoot"),
             project_root=roots.get("projectRoot"),
@@ -470,9 +470,9 @@ class ScopeApi:
             )
         return out
 
-    def resolve_active_perspective(self, path: str) -> Dict[str, Any]:
+    def resolve_active_filter(self, path: str) -> Dict[str, Any]:
         target = self._resolve_path(path)
-        effective = self._resolve_effective_perspective_for_target(target)
+        effective = self._resolve_effective_filter_for_target(target)
         if not effective:
             return {
                 "active": False,
@@ -482,7 +482,7 @@ class ScopeApi:
                 "flatten": False,
                 "groups": [],
                 "chain": [],
-                "manualPath": str(self._manual_perspective_path) if self._manual_perspective_path else "",
+                "manualPath": str(self._manual_filter_path) if self._manual_filter_path else "",
             }
         first_path = effective.layers[0].source_path if effective.layers else None
         return {
@@ -493,13 +493,13 @@ class ScopeApi:
             "flatten": bool(effective.config.flatten),
             "groups": list(effective.config.groups or []),
             "chain": effective.explain_chain(),
-            "manualPath": str(self._manual_perspective_path) if self._manual_perspective_path else "",
+            "manualPath": str(self._manual_filter_path) if self._manual_filter_path else "",
         }
 
-    def set_manual_perspective(self, perspective_path: str) -> bool:
-        text = str(perspective_path or "").strip()
+    def set_manual_filter(self, filter_path: str) -> bool:
+        text = str(filter_path or "").strip()
         if not text:
-            return self.clear_manual_perspective()
+            return self.clear_manual_filter()
         try:
             resolved = Path(text).expanduser().resolve()
         except Exception:
@@ -508,20 +508,20 @@ class ScopeApi:
             return False
         try:
             # Validate parseability before activating.
-            _ = resolve_effective_perspective(resolved.parent, manual=resolved)
+            _ = resolve_effective_filter(resolved.parent, manual=resolved)
         except Exception:
             return False
-        self._manual_perspective_path = resolved
+        self._manual_filter_path = resolved
         return True
 
-    def clear_manual_perspective(self) -> bool:
-        self._manual_perspective_path = None
+    def clear_manual_filter(self) -> bool:
+        self._manual_filter_path = None
         return True
 
-    def list_perspective_save_targets(self, path: str, source_path: str) -> List[Dict[str, str]]:
+    def list_filter_save_targets(self, path: str, source_path: str) -> List[Dict[str, str]]:
         target = self._resolve_path(path)
         source = self._resolve_path(source_path) if str(source_path or "").strip() else None
-        roots = self._resolve_perspective_roots_for_target(target)
+        roots = self._resolve_filter_roots_for_target(target)
         options: List[Dict[str, str]] = []
         project_root = roots.get("projectRoot")
         template_root = roots.get("templateRoot")
@@ -531,7 +531,7 @@ class ScopeApi:
                 {
                     "id": "project_local",
                     "label": "Nur in diesem Projekt",
-                    "targetDir": str(project_root / ".MyOS" / "Perspectives"),
+                    "targetDir": str(project_root / ".MyOS" / "Filters"),
                     "exists": "1" if source and source.exists() else "0",
                 }
             )
@@ -549,7 +549,7 @@ class ScopeApi:
                 {
                     "id": "template_scope",
                     "label": "Im Template-Kontext",
-                    "targetDir": str(template_root / ".MyOS" / "Perspectives"),
+                    "targetDir": str(template_root / ".MyOS" / "Filters"),
                     "exists": "0",
                 }
             )
@@ -558,7 +558,7 @@ class ScopeApi:
                 {
                     "id": "global_scope",
                     "label": "Global in MyOS",
-                    "targetDir": str(global_root / ".MyOS" / "Perspectives"),
+                    "targetDir": str(global_root / ".MyOS" / "Filters"),
                     "exists": "0",
                 }
             )
@@ -566,16 +566,16 @@ class ScopeApi:
             {
                 "id": "new_named",
                 "label": "Als neue Perspektive speichern",
-                "targetDir": str((project_root or target) / ".MyOS" / "Perspectives"),
+                "targetDir": str((project_root or target) / ".MyOS" / "Filters"),
                 "exists": "0",
             }
         )
         return options
 
-    def save_perspective(self, path: str, source_path: str, target_id: str, new_name: str = "") -> Dict[str, Any]:
+    def save_filter(self, path: str, source_path: str, target_id: str, new_name: str = "") -> Dict[str, Any]:
         target = self._resolve_path(path)
         source = self._resolve_path(source_path) if str(source_path or "").strip() else None
-        options = self.list_perspective_save_targets(str(target), str(source or ""))
+        options = self.list_filter_save_targets(str(target), str(source or ""))
         chosen = None
         for item in options:
             if str(item.get("id")) == str(target_id):
@@ -657,7 +657,7 @@ class ScopeApi:
             config_name="Sort.md",
         )
 
-    def _resolve_perspective_roots_for_target(self, target: Path) -> Dict[str, Optional[Path]]:
+    def _resolve_filter_roots_for_target(self, target: Path) -> Dict[str, Optional[Path]]:
         template_root = self._resolve_template_root_for_target(target)
         project_root = find_project_root(target)
         return {
@@ -666,11 +666,11 @@ class ScopeApi:
             "globalRoot": self.myos_root,
         }
 
-    def _resolve_effective_perspective_for_target(self, target: Path) -> Optional[EffectivePerspective]:
-        roots = self._resolve_perspective_roots_for_target(target)
-        return resolve_effective_perspective(
+    def _resolve_effective_filter_for_target(self, target: Path) -> Optional[EffectiveFilter]:
+        roots = self._resolve_filter_roots_for_target(target)
+        return resolve_effective_filter(
             target,
-            manual=self._manual_perspective_path,
+            manual=self._manual_filter_path,
             template_root=roots.get("templateRoot"),
             project_root=roots.get("projectRoot"),
             global_root=roots.get("globalRoot"),
@@ -1035,7 +1035,7 @@ class ScopeApi:
         if target is None:
             return []
         self._acl_probe("read_dir", target)
-        effective_perspective = self._resolve_effective_perspective_for_target(target)
+        effective_filter = self._resolve_effective_filter_for_target(target)
         entries: List[FileEntryWithOptionalEmbryo] = []
         md_tag_cache = self._load_markdown_tag_cache(target)
         seen_md_files: set[str] = set()
@@ -1090,12 +1090,12 @@ class ScopeApi:
         self._update_project_folder_size_index(folder_size_updates)
         self._prune_markdown_tag_cache(md_tag_cache, seen_md_files)
         self._save_markdown_tag_cache(target, md_tag_cache)
-        if effective_perspective and effective_perspective.config.flatten:
+        if effective_filter and effective_filter.config.flatten:
             entries = self._list_entries_flattened(target)
-        entries = project_entries(
+        entries = apply_filter_projection(
             entries,
             cwd=target,
-            perspective=effective_perspective,
+            filter_state=effective_filter,
             project_root=find_project_root(target),
         )
         return entries

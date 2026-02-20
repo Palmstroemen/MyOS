@@ -38,13 +38,13 @@ Examples:
 
 ---
 
-## **mypersp**
-Perspective utilities (list and resolve).
+## **myfilter**
+Filter utilities (list and resolve).
 
 Examples:
-- `mypersp list .`
-- `mypersp resolve .`
-- `mypersp resolve . --manual /path/to/Perspective.md`
+- `myfilter list .`
+- `myfilter resolve .`
+- `myfilter resolve . --manual /path/to/Filter.md`
 
 ---
 

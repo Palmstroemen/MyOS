@@ -1,17 +1,17 @@
-# test_perspective_config.py
+# test_filter_config.py
 
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from core.perspective import PerspectiveConfig
-from core.perspective import find_perspectives, resolve_active_perspective
-from core.perspective import find_perspectives_layers, project_entries, resolve_effective_perspective
+from core.perspective import FilterConfig
+from core.perspective import apply_filter_projection, find_filters, find_filters_layers, resolve_active_filter
+from core.perspective import resolve_effective_filter
 
 
-def _write_perspective(path: Path) -> None:
-    content = """# Perspective
+def _write_filter(path: Path) -> None:
+    content = """# Filter
 Name: Finance
 Scope: /finanz/
 
@@ -42,66 +42,66 @@ Desk.md
     path.write_text(content)
 
 
-def _write_named_perspective(path: Path, name: str) -> None:
-    path.write_text(f"# Perspective\nName: {name}\n")
+def _write_named_filter(path: Path, name: str) -> None:
+    path.write_text(f"# Filter\nName: {name}\n")
 
 
-def test_perspective_parse_basic():
+def test_filter_parse_basic():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        cfg = tmp / "Perspective.md"
-        _write_perspective(cfg)
+        cfg = tmp / "Filter.md"
+        _write_filter(cfg)
 
-        perspective = PerspectiveConfig.from_file(cfg)
+        parsed = FilterConfig.from_file(cfg)
 
-        assert perspective.name == "Finance"
-        assert perspective.scope == "/finanz/"
-        assert perspective.include == ["/finanz/", "/rechtliches/"]
-        assert perspective.exclude == ["/finanz/schwarzgeld/"]
-        assert "*/rechnung.pdf" in perspective.filters
-        assert perspective.flatten is True
-        assert perspective.groups == ["project", "tags"]
-        assert perspective.desk == "Desk.md"
+        assert parsed.name == "Finance"
+        assert parsed.scope == "/finanz/"
+        assert parsed.include == ["/finanz/", "/rechtliches/"]
+        assert parsed.exclude == ["/finanz/schwarzgeld/"]
+        assert "*/rechnung.pdf" in parsed.filters
+        assert parsed.flatten is True
+        assert parsed.groups == ["project", "tags"]
+        assert parsed.desk == "Desk.md"
 
 
-def test_perspective_missing_name_is_error():
+def test_filter_missing_name_is_error():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        cfg = tmp / "Perspective.md"
-        cfg.write_text("# Perspective\nScope: /finanz/\n")
+        cfg = tmp / "Filter.md"
+        cfg.write_text("# Filter\nScope: /finanz/\n")
 
         with pytest.raises(ValueError):
-            PerspectiveConfig.from_file(cfg)
+            FilterConfig.from_file(cfg)
 
 
-def test_perspective_flatten_default_false():
+def test_filter_flatten_default_false():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        cfg = tmp / "Perspective.md"
-        cfg.write_text("# Perspective\nName: Simple\n")
+        cfg = tmp / "Filter.md"
+        cfg.write_text("# Filter\nName: Simple\n")
 
-        perspective = PerspectiveConfig.from_file(cfg)
+        parsed = FilterConfig.from_file(cfg)
 
-        assert perspective.flatten is False
+        assert parsed.flatten is False
 
 
-def test_perspective_missing_scope_is_allowed():
+def test_filter_missing_scope_is_allowed():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        cfg = tmp / "Perspective.md"
-        cfg.write_text("# Perspective\nName: Minimal\n")
+        cfg = tmp / "Filter.md"
+        cfg.write_text("# Filter\nName: Minimal\n")
 
-        perspective = PerspectiveConfig.from_file(cfg)
+        parsed = FilterConfig.from_file(cfg)
 
-        assert perspective.scope is None
+        assert parsed.scope is None
 
 
-def test_perspective_duplicate_sections_merge():
+def test_filter_duplicate_sections_merge():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        cfg = tmp / "Perspective.md"
+        cfg = tmp / "Filter.md"
         cfg.write_text(
-            "# Perspective\n"
+            "# Filter\n"
             "Name: Finance\n"
             "\n"
             "## Include\n"
@@ -117,13 +117,13 @@ def test_perspective_duplicate_sections_merge():
             "tags\n"
         )
 
-        perspective = PerspectiveConfig.from_file(cfg)
+        parsed = FilterConfig.from_file(cfg)
 
-        assert perspective.include == ["/finanz/", "/rechtliches/"]
-        assert perspective.groups == ["project", "tags"]
+        assert parsed.include == ["/finanz/", "/rechtliches/"]
+        assert parsed.groups == ["project", "tags"]
 
 
-def test_find_perspectives_orders_by_specificity():
+def test_find_filters_orders_by_specificity():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
@@ -132,15 +132,15 @@ def test_find_perspectives_orders_by_specificity():
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
 
-        _write_named_perspective(myos_dir / "Perspective.md", "Root")
-        _write_named_perspective(sub_dir / "Perspective.md", "Sub")
+        _write_named_filter(myos_dir / "Filter.md", "Root")
+        _write_named_filter(sub_dir / "Filter.md", "Sub")
 
-        results = find_perspectives(sub_dir)
+        results = find_filters(sub_dir)
 
         assert [cfg.name for _, cfg in results] == ["Sub", "Root"]
 
 
-def test_resolve_active_perspective_manual_wins():
+def test_resolve_active_filter_manual_wins():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
@@ -149,17 +149,17 @@ def test_resolve_active_perspective_manual_wins():
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
 
-        manual = myos_dir / "Perspective.md"
-        auto = sub_dir / "Perspective.md"
-        _write_named_perspective(manual, "Manual")
-        _write_named_perspective(auto, "Auto")
+        manual = myos_dir / "Filter.md"
+        auto = sub_dir / "Filter.md"
+        _write_named_filter(manual, "Manual")
+        _write_named_filter(auto, "Auto")
 
-        cfg = resolve_active_perspective(sub_dir, manual=str(manual))
+        cfg = resolve_active_filter(sub_dir, manual=str(manual))
 
         assert cfg.name == "Manual"
 
 
-def test_resolve_active_perspective_auto_nearest_folder():
+def test_resolve_active_filter_auto_nearest_folder():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
@@ -168,15 +168,15 @@ def test_resolve_active_perspective_auto_nearest_folder():
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
 
-        _write_named_perspective(myos_dir / "Perspective.md", "Root")
-        _write_named_perspective(sub_dir / "Perspective.md", "Sub")
+        _write_named_filter(myos_dir / "Filter.md", "Root")
+        _write_named_filter(sub_dir / "Filter.md", "Sub")
 
-        cfg = resolve_active_perspective(sub_dir)
+        cfg = resolve_active_filter(sub_dir)
 
         assert cfg.name == "Sub"
 
 
-def test_resolve_active_perspective_falls_back_to_project():
+def test_resolve_active_filter_falls_back_to_project():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
@@ -185,42 +185,42 @@ def test_resolve_active_perspective_falls_back_to_project():
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
 
-        _write_named_perspective(myos_dir / "Perspective.md", "Root")
+        _write_named_filter(myos_dir / "Filter.md", "Root")
 
-        cfg = resolve_active_perspective(sub_dir)
+        cfg = resolve_active_filter(sub_dir)
 
         assert cfg.name == "Root"
 
 
-def test_find_perspectives_layers_includes_collection_files():
+def test_find_filters_layers_includes_collection_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Project"
         sub = root / "Sub"
-        coll = root / ".MyOS" / "Perspectives"
+        coll = root / ".MyOS" / "Filters"
         sub.mkdir(parents=True)
         coll.mkdir(parents=True)
-        _write_named_perspective(coll / "Finance.md", "Finance")
-        _write_named_perspective(sub / "Perspective.md", "Sub")
+        _write_named_filter(coll / "Finance.md", "Finance")
+        _write_named_filter(sub / "Filter.md", "Sub")
 
-        layers = find_perspectives_layers(sub)
+        layers = find_filters_layers(sub)
 
         names = [layer.config.name for layer in layers]
         assert names[0] == "Sub"
         assert "Finance" in names
 
 
-def test_resolve_effective_perspective_merges_lists_and_nearest_scalars():
+def test_resolve_effective_filter_merges_lists_and_nearest_scalars():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Project"
         sub = root / "Sub"
         root.mkdir(parents=True)
         sub.mkdir(parents=True)
-        (root / "Perspective.md").write_text(
+        (root / "Filter.md").write_text(
             "\n".join(
                 [
-                    "# Perspective",
+                    "# Filter",
                     "Name: Root",
                     "",
                     "## Include",
@@ -239,10 +239,10 @@ def test_resolve_effective_perspective_merges_lists_and_nearest_scalars():
             + "\n",
             encoding="utf-8",
         )
-        (sub / "Perspective.md").write_text(
+        (sub / "Filter.md").write_text(
             "\n".join(
                 [
-                    "# Perspective",
+                    "# Filter",
                     "Name: Sub",
                     "",
                     "## Include",
@@ -262,7 +262,7 @@ def test_resolve_effective_perspective_merges_lists_and_nearest_scalars():
             encoding="utf-8",
         )
 
-        effective = resolve_effective_perspective(sub)
+        effective = resolve_effective_filter(sub)
 
         assert effective is not None
         assert effective.config.name == "Sub"
@@ -272,30 +272,30 @@ def test_resolve_effective_perspective_merges_lists_and_nearest_scalars():
         assert effective.config.flatten is True
 
 
-def test_resolve_effective_perspective_inherit_not_clears_parent_layers():
+def test_resolve_effective_filter_inherit_not_clears_parent_layers():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Project"
         sub = root / "Sub"
         root.mkdir(parents=True)
         sub.mkdir(parents=True)
-        (root / "Perspective.md").write_text(
-            "# Perspective\nName: Root\n\n## Include\n/finanz/\n",
+        (root / "Filter.md").write_text(
+            "# Filter\nName: Root\n\n## Include\n/finanz/\n",
             encoding="utf-8",
         )
-        (sub / "Perspective.md").write_text(
-            "# Perspective\nName: Sub\nInherit: not\n\n## Include\n/recht/\n",
+        (sub / "Filter.md").write_text(
+            "# Filter\nName: Sub\nInherit: not\n\n## Include\n/recht/\n",
             encoding="utf-8",
         )
 
-        effective = resolve_effective_perspective(sub)
+        effective = resolve_effective_filter(sub)
 
         assert effective is not None
         assert effective.config.include == ["/recht/"]
         assert effective.layers[0].config.name == "Sub"
 
 
-def test_project_entries_applies_include_exclude_and_group():
+def test_apply_filter_projection_applies_include_exclude_and_group():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         cwd = tmp / "Project"
@@ -306,11 +306,11 @@ def test_project_entries_applies_include_exclude_and_group():
         drop = invoices / "image.jpg"
         keep.write_text("ok", encoding="utf-8")
         drop.write_text("x", encoding="utf-8")
-        cfg_file = cwd / "Perspective.md"
+        cfg_file = cwd / "Filter.md"
         cfg_file.write_text(
             "\n".join(
                 [
-                    "# Perspective",
+                    "# Filter",
                     "Name: Finance",
                     "",
                     "## Include",
@@ -326,16 +326,16 @@ def test_project_entries_applies_include_exclude_and_group():
             + "\n",
             encoding="utf-8",
         )
-        effective = resolve_effective_perspective(cwd)
+        effective = resolve_effective_filter(cwd)
         assert effective is not None
         entries = [
             {"name": "invoice1.pdf", "path": str(keep), "isDir": False, "tags": []},
             {"name": "image.jpg", "path": str(drop), "isDir": False, "tags": []},
         ]
 
-        projected = project_entries(entries, cwd=cwd, perspective=effective, project_root=cwd)
+        projected = apply_filter_projection(entries, cwd=cwd, filter_state=effective, project_root=cwd)
 
         assert len(projected) == 1
         assert projected[0]["name"] == "invoice1.pdf"
-        assert projected[0]["perspectiveActive"] is True
-        assert "perspectiveGroup" in projected[0]
+        assert projected[0]["filterActive"] is True
+        assert "filterGroup" in projected[0]

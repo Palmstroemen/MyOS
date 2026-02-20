@@ -788,11 +788,11 @@ Rectangle { // Files panel
                 height: filesGrid.cellHeight - (root.itemStyle === "largeIcon" ? root.gridSpacing : 4)
                 label: {
                     var baseName = String(model.name || "")
-                    var group = String(model.perspectiveGroup || "")
+                    var group = String(model.filterGroup || "")
                     if (group.length > 0) {
                         return "[" + group + "] " + baseName
                     }
-                    if (model.perspectiveActive && model.originPath) {
+                    if (model.filterActive && model.originPath) {
                         var origin = String(model.originPath || "")
                         return baseName + "  •  " + origin
                     }

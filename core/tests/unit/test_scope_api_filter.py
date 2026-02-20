@@ -9,53 +9,53 @@ def _write_project_marker(root: Path) -> None:
     (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
 
-def _write_perspective(path: Path, name: str, extra: str = "") -> None:
-    body = "# Perspective\n" + f"Name: {name}\n"
+def _write_filter(path: Path, name: str, extra: str = "") -> None:
+    body = "# Filter\n" + f"Name: {name}\n"
     if extra:
         body += "\n" + extra.strip() + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body, encoding="utf-8")
 
 
-def test_scope_api_lists_and_resolves_perspectives(tmp_path):
+def test_scope_api_lists_and_resolves_filters(tmp_path):
     root = tmp_path / "Project"
     sub = root / "Sub"
     sub.mkdir(parents=True)
     _write_project_marker(root)
-    _write_perspective(root / ".MyOS" / "Perspectives" / "Finance.md", "Finance")
-    _write_perspective(sub / "Perspective.md", "Sub")
+    _write_filter(root / ".MyOS" / "Filters" / "Finance.md", "Finance")
+    _write_filter(sub / "Filter.md", "Sub")
 
     api = ScopeApi(str(sub))
-    listed = api.list_perspectives(str(sub))
+    listed = api.list_filters(str(sub))
     names = [str(item.get("name") or "") for item in listed]
     assert names[0] == "Sub"
     assert "Finance" in names
 
-    resolved_auto = api.resolve_active_perspective(str(sub))
+    resolved_auto = api.resolve_active_filter(str(sub))
     assert resolved_auto.get("active") is True
     assert resolved_auto.get("name") == "Sub"
     assert resolved_auto.get("mode") == "auto"
     assert len(resolved_auto.get("chain") or []) >= 1
 
-    manual_path = str(root / ".MyOS" / "Perspectives" / "Finance.md")
-    assert api.set_manual_perspective(manual_path) is True
-    resolved_manual = api.resolve_active_perspective(str(sub))
+    manual_path = str(root / ".MyOS" / "Filters" / "Finance.md")
+    assert api.set_manual_filter(manual_path) is True
+    resolved_manual = api.resolve_active_filter(str(sub))
     assert resolved_manual.get("active") is True
     assert resolved_manual.get("name") == "Finance"
     assert resolved_manual.get("mode") == "manual"
 
-    assert api.clear_manual_perspective() is True
-    resolved_cleared = api.resolve_active_perspective(str(sub))
+    assert api.clear_manual_filter() is True
+    resolved_cleared = api.resolve_active_filter(str(sub))
     assert resolved_cleared.get("name") == "Sub"
 
 
-def test_scope_api_applies_perspective_projection_to_entries(tmp_path):
+def test_scope_api_applies_filter_projection_to_entries(tmp_path):
     root = tmp_path / "Project"
     sub = root / "Sub"
     sub.mkdir(parents=True)
     _write_project_marker(root)
-    _write_perspective(
-        sub / "Perspective.md",
+    _write_filter(
+        sub / "Filter.md",
         "OnlyText",
         extra="## Filter\n*.txt\n",
     )
@@ -69,22 +69,22 @@ def test_scope_api_applies_perspective_projection_to_entries(tmp_path):
     assert "drop.jpg" not in names
 
 
-def test_scope_api_perspective_save_targets_and_copy(tmp_path):
+def test_scope_api_filter_save_targets_and_copy(tmp_path):
     root = tmp_path / "Project"
     sub = root / "Sub"
     sub.mkdir(parents=True)
     _write_project_marker(root)
-    source = sub / "Perspective.md"
-    _write_perspective(source, "Source")
+    source = sub / "Filter.md"
+    _write_filter(source, "Source")
 
     api = ScopeApi(str(sub))
-    targets = api.list_perspective_save_targets(str(sub), str(source))
+    targets = api.list_filter_save_targets(str(sub), str(source))
     ids = [str(item.get("id") or "") for item in targets]
     assert "project_local" in ids
     assert "source_scope" in ids
     assert "new_named" in ids
 
-    result = api.save_perspective(str(sub), str(source), "new_named", "InvoiceFocus")
+    result = api.save_filter(str(sub), str(source), "new_named", "InvoiceFocus")
     assert result.get("ok") is True
     saved = Path(str(result.get("path") or ""))
     assert saved.exists()

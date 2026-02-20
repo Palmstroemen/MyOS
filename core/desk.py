@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from core.config.parser import MarkdownConfigParser
-from core.perspective import find_perspectives
+from core.perspective import find_filters
 
 
 _TRUE_VALUES = {"true", "yes", "1", "on"}
@@ -84,13 +84,13 @@ def resolve_active_desk(
     manual: Optional[Union[str, Path]] = None,
     fallback: Optional[Union[str, Path]] = None,
     include_root_desk: bool = False,
-    prefer_perspective_desk: bool = True,
+    prefer_filter_desk: bool = True,
 ) -> Optional[DeskConfig]:
     """
     Resolve the active desk profile for a path.
     Precedence:
       1) manual desk file
-      2) desk linked by active perspective (optional)
+      2) desk linked by active filter (optional)
       3) nearest ancestor desk profile
       4) fallback desk file
     """
@@ -118,10 +118,10 @@ def resolve_active_desk(
     if target.is_file():
         target = target.parent
 
-    if prefer_perspective_desk:
-        perspective_desk = _resolve_perspective_desk(target)
-        if perspective_desk is not None:
-            return perspective_desk
+    if prefer_filter_desk:
+        filter_desk = _resolve_filter_desk(target)
+        if filter_desk is not None:
+            return filter_desk
 
     matches = find_desks(target, include_root_desk=include_root_desk)
     if matches:
@@ -136,17 +136,17 @@ def resolve_active_desk(
     return None
 
 
-def _resolve_perspective_desk(cwd: Path) -> Optional[DeskConfig]:
-    for perspective_path, perspective in find_perspectives(cwd):
-        desk_ref = str(getattr(perspective, "desk", "") or "").strip()
+def _resolve_filter_desk(cwd: Path) -> Optional[DeskConfig]:
+    for filter_path, filter_cfg in find_filters(cwd):
+        desk_ref = str(getattr(filter_cfg, "desk", "") or "").strip()
         if not desk_ref:
             continue
-        base_dir = perspective_path.parent.resolve()
+        base_dir = filter_path.parent.resolve()
         try:
             desk_path = (base_dir / desk_ref).expanduser().resolve()
         except Exception:
             continue
-        # Security: perspective desk references must stay inside their base dir.
+        # Security: filter desk references must stay inside their base dir.
         try:
             desk_path.relative_to(base_dir)
         except ValueError:

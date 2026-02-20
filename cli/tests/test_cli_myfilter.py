@@ -1,4 +1,4 @@
-# cli/tests/test_cli_mypersp.py
+# cli/tests/test_cli_myfilter.py
 
 import subprocess
 import sys
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def _run_cmd(args, cwd):
-    script = Path(__file__).parent.parent.parent / "cli" / "mypersp.py"
+    script = Path(__file__).parent.parent.parent / "cli" / "myfilter.py"
     return subprocess.run(
         [sys.executable, str(script)] + args,
         capture_output=True,
@@ -16,11 +16,11 @@ def _run_cmd(args, cwd):
     )
 
 
-def _write_perspective(path: Path, name: str) -> None:
-    path.write_text(f"# Perspective\nName: {name}\n")
+def _write_filter(path: Path, name: str) -> None:
+    path.write_text(f"# Filter\nName: {name}\n")
 
 
-def test_mypersp_list_orders_by_specificity():
+def test_myfilter_list_orders_by_specificity():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Root"
@@ -28,8 +28,8 @@ def test_mypersp_list_orders_by_specificity():
         sub.mkdir(parents=True)
 
         (root / ".MyOS").mkdir(parents=True)
-        _write_perspective(root / ".MyOS" / "Perspective.md", "Root")
-        _write_perspective(sub / "Perspective.md", "Sub")
+        _write_filter(root / ".MyOS" / "Filter.md", "Root")
+        _write_filter(sub / "Filter.md", "Sub")
 
         result = _run_cmd(["list", str(sub)], cwd=tmpdir)
 
@@ -39,7 +39,7 @@ def test_mypersp_list_orders_by_specificity():
         assert lines[1].startswith("Root ")
 
 
-def test_mypersp_resolve_manual_wins():
+def test_myfilter_resolve_manual_wins():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Root"
@@ -48,16 +48,16 @@ def test_mypersp_resolve_manual_wins():
 
         manual = root / ".MyOS"
         manual.mkdir(parents=True)
-        _write_perspective(manual / "Perspective.md", "Manual")
-        _write_perspective(sub / "Perspective.md", "Auto")
+        _write_filter(manual / "Filter.md", "Manual")
+        _write_filter(sub / "Filter.md", "Auto")
 
-        result = _run_cmd(["resolve", str(sub), "--manual", str(manual / "Perspective.md")], cwd=tmpdir)
+        result = _run_cmd(["resolve", str(sub), "--manual", str(manual / "Filter.md")], cwd=tmpdir)
 
         assert result.returncode == 0
         assert result.stdout.strip() == "Manual"
 
 
-def test_mypersp_resolve_fallback():
+def test_myfilter_resolve_fallback():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Root"
@@ -66,7 +66,7 @@ def test_mypersp_resolve_fallback():
 
         myos = root / ".MyOS"
         myos.mkdir(parents=True)
-        _write_perspective(myos / "Perspective.md", "Root")
+        _write_filter(myos / "Filter.md", "Root")
 
         result = _run_cmd(["resolve", str(sub)], cwd=tmpdir)
 
@@ -74,7 +74,7 @@ def test_mypersp_resolve_fallback():
         assert result.stdout.strip() == "Root"
 
 
-def test_mypersp_activate_and_clear_manual_state():
+def test_myfilter_activate_and_clear_manual_state():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Root"
@@ -82,32 +82,32 @@ def test_mypersp_activate_and_clear_manual_state():
         sub.mkdir(parents=True)
         manual = root / ".MyOS"
         manual.mkdir(parents=True)
-        _write_perspective(manual / "Perspective.md", "Manual")
-        _write_perspective(sub / "Perspective.md", "Auto")
+        _write_filter(manual / "Filter.md", "Manual")
+        _write_filter(sub / "Filter.md", "Auto")
 
-        activated = _run_cmd(["activate", str(manual / "Perspective.md")], cwd=tmpdir)
+        activated = _run_cmd(["activate", str(manual / "Filter.md")], cwd=tmpdir)
         resolved = _run_cmd(["resolve", str(sub)], cwd=tmpdir)
         cleared = _run_cmd(["clear"], cwd=tmpdir)
         resolved_auto = _run_cmd(["resolve", str(sub)], cwd=tmpdir)
 
         assert activated.returncode == 0
-        assert "Activated manual perspective" in activated.stdout
+        assert "Activated manual filter" in activated.stdout
         assert resolved.returncode == 0
         assert resolved.stdout.strip() == "Manual"
         assert cleared.returncode == 0
-        assert "Manual perspective cleared" in cleared.stdout
+        assert "Manual filter cleared" in cleared.stdout
         assert resolved_auto.returncode == 0
         assert resolved_auto.stdout.strip() == "Auto"
 
 
-def test_mypersp_show_verbose_outputs_chain():
+def test_myfilter_show_verbose_outputs_chain():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         root = tmp / "Root"
         sub = root / "Sub"
         sub.mkdir(parents=True)
-        _write_perspective(root / "Perspective.md", "Root")
-        _write_perspective(sub / "Perspective.md", "Sub")
+        _write_filter(root / "Filter.md", "Root")
+        _write_filter(sub / "Filter.md", "Sub")
 
         result = _run_cmd(["show", str(sub), "--verbose"], cwd=tmpdir)
 

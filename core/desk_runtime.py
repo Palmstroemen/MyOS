@@ -26,7 +26,7 @@ class DeskRuntimeSettings:
     dry_run: bool
     backend_name: str
     include_root_desk: bool
-    prefer_perspective_desk: bool
+    prefer_filter_desk: bool
     fallback_profile: Optional[str]
 
     @classmethod
@@ -36,7 +36,7 @@ class DeskRuntimeSettings:
             dry_run=env_flag_is_true(os.environ.get("MYOS_DESK_DRY_RUN", "1")),
             backend_name=str(os.environ.get("MYOS_DESK_BACKEND", "none")).strip().lower() or "none",
             include_root_desk=env_flag_is_true(os.environ.get("MYOS_DESK_INCLUDE_ROOT", "0")),
-            prefer_perspective_desk=not env_flag_is_true(os.environ.get("MYOS_DESK_DISABLE_PERSPECTIVE", "0")),
+            prefer_filter_desk=not env_flag_is_true(os.environ.get("MYOS_DESK_DISABLE_FILTER", "0")),
             fallback_profile=(str(os.environ.get("MYOS_DESK_FALLBACK", "")).strip() or None),
         )
 
@@ -90,7 +90,7 @@ class DeskRuntime:
             manual=manual_desk,
             fallback=self.settings.fallback_profile,
             include_root_desk=self.settings.include_root_desk,
-            prefer_perspective_desk=self.settings.prefer_perspective_desk,
+            prefer_filter_desk=self.settings.prefer_filter_desk,
         )
         if desk is None:
             logger.debug("desk.handle_context no profile target=%s", target)

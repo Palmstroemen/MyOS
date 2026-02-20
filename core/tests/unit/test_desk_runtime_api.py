@@ -31,7 +31,7 @@ def test_runtime_settings_from_env(monkeypatch):
     monkeypatch.setenv("MYOS_DESK_DRY_RUN", "0")
     monkeypatch.setenv("MYOS_DESK_BACKEND", "kde")
     monkeypatch.setenv("MYOS_DESK_INCLUDE_ROOT", "1")
-    monkeypatch.setenv("MYOS_DESK_DISABLE_PERSPECTIVE", "1")
+    monkeypatch.setenv("MYOS_DESK_DISABLE_FILTER", "1")
     monkeypatch.setenv("MYOS_DESK_FALLBACK", "/tmp/fallback/Desk.md")
 
     settings = DeskRuntimeSettings.from_env()
@@ -40,7 +40,7 @@ def test_runtime_settings_from_env(monkeypatch):
     assert settings.dry_run is False
     assert settings.backend_name == "kde"
     assert settings.include_root_desk is True
-    assert settings.prefer_perspective_desk is False
+    assert settings.prefer_filter_desk is False
     assert settings.fallback_profile == "/tmp/fallback/Desk.md"
 
 
@@ -53,7 +53,7 @@ def test_runtime_returns_no_profile_for_empty_context(tmp_path):
             dry_run=True,
             backend_name="none",
             include_root_desk=False,
-            prefer_perspective_desk=True,
+            prefer_filter_desk=True,
             fallback_profile=None,
         )
     )
@@ -75,7 +75,7 @@ def test_runtime_disabled_tracks_profile_without_applying(tmp_path):
             dry_run=True,
             backend_name="none",
             include_root_desk=False,
-            prefer_perspective_desk=True,
+            prefer_filter_desk=True,
             fallback_profile=None,
         )
     )
@@ -96,7 +96,7 @@ def test_runtime_rejects_invalid_context_path():
             dry_run=True,
             backend_name="none",
             include_root_desk=False,
-            prefer_perspective_desk=True,
+            prefer_filter_desk=True,
             fallback_profile=None,
         )
     )
@@ -113,15 +113,15 @@ def test_build_backend_returns_expected_types():
     assert backend.name in {"kde", "none"}
 
 
-def test_perspective_desk_path_traversal_is_ignored(tmp_path):
+def test_filter_desk_path_traversal_is_ignored(tmp_path):
     root = tmp_path / "Project"
     work = root / "Work"
     work.mkdir(parents=True)
     _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
     outside = tmp_path / "OutsideDesk.md"
     _write_desk(outside, "OutsideTheme")
-    (work / "Perspective.md").write_text(
-        "# Perspective\nName: Unsafe\n\n## Desk\n../../OutsideDesk.md\n",
+    (work / "Filter.md").write_text(
+        "# Filter\nName: Unsafe\n\n## Desk\n../../OutsideDesk.md\n",
         encoding="utf-8",
     )
 

@@ -1,19 +1,21 @@
-# **MyOS Perspectives - Design Document (Draft)**
+# **MyOS Filters & Perspectives - Design Document (Draft)**
 
 ## **1. Purpose**
-Perspectives are view layers that shape how data is shown without changing permissions. They are the “glasses” through which users see a subset of data in a structured, understandable way. They are like complex filters that let you work inside your data (create, edit, delete, ...). Filters are short‑lived, while perspectives shape the environment you are working in.
+The currently implemented system in MyOS is called **Filter**. Filters shape how data is shown without changing permissions and provide include/exclude/rule/group/flatten behavior.
+
+The term **Perspective** is reserved for a future flipped path-space navigation model and is intentionally not used for the current filter runtime API.
 
 ---
 
 ## **2. Core Principles**
-- **ACLs rule**: perspectives never reveal data beyond ACL permissions.
+- **ACLs rule**: filters never reveal data beyond ACL permissions.
 - **Flattened but traceable**: flattened views always know about origin and path and can show or use it on demand.
-- **Self‑explanatory**: perspective rules should be readable by non‑technical users.
-- **Portable**: perspectives are stored as Markdown configs in `.MyOS/`.
+- **Self‑explanatory**: filter rules should be readable by non‑technical users.
+- **Portable**: filters are stored as Markdown configs in `.MyOS/`.
 
 ---
 
-## **3. What a Perspective Can Do**
+## **3. What a Filter Can Do**
 - Include or exclude paths and folders (e.g., `/finanz/` with exceptions)
 - Filter by filename patterns or extensions (e.g., `*.pdf`, `*rechnung*`)
 - Filter by tags (future)
@@ -24,19 +26,19 @@ Perspectives are view layers that shape how data is shown without changing permi
 
 ---
 
-## **4. Types of Perspectives**
-### **4.1 Auto Perspective**
+## **4. Types of Filters**
+### **4.1 Auto Filter**
 Automatically applied when entering a folder context (e.g., CWD in `/finanz/`).
 
-### **4.2 Manual Perspective**
-Explicitly selected by the user. Manual perspectives override auto perspectives.
+### **4.2 Manual Filter**
+Explicitly selected by the user. Manual filters override auto filters.
 
-Rule: The most specific explicit manual perspective wins. If none is set, auto perspective applies.
+Rule: The most specific explicit manual filter wins. If none is set, auto filter applies.
 
 ---
 
 ## **5. Persistence and Inheritance**
-Perspectives are stored in `.MyOS/` as Markdown files and can exist in:
+Filters are stored in `.MyOS/` as Markdown files and can exist in:
 - project roots (inherited by subprojects)
 - template roots (shared by template instances)
 - normal folders in the tree or in templates (e.g., `/finanz/` in the template for auto perspective)
@@ -45,11 +47,11 @@ Inheritance follows standard rules with `dynamic` as default. A future global mo
 
 ---
 
-## **6. Perspective Definition (Draft)**
-Perspectives are defined with sections for scope, rules, and display. The parser accepts simple lines directly under headers and stops at empty lines, so the draft format below avoids blank lines inside sections.
+## **6. Filter Definition (Draft)**
+Filters are defined with sections for scope, rules, and display. The parser accepts simple lines directly under headers and stops at empty lines, so the draft format below avoids blank lines inside sections.
 
 ```
-# Perspective
+# Filter
 Name: Finance
 Scope: /finanz/
 
@@ -102,37 +104,38 @@ Grouping defines how views are organized:
 ---
 
 ## **9. Security Considerations**
-- perspectives never bypass ACLs
+- filters never bypass ACLs
 - hidden/system folders are excluded by default
 - perspective rules are data, not executable scripts
 
 ---
 
-## **10. Public API (Draft)**
-Public API should live in `core/perspective.py` and be used by CLI/GUI:
-- `PerspectiveConfig.from_file(path)`
-- `PerspectiveConfig.from_data(data)`
-- `find_perspectives(start_path)` (planned)
-- `resolve_active_perspective(cwd, manual=None)` (planned)
+## **10. Public API (Current)**
+Public API currently lives in `core/perspective.py` and is used by CLI/GUI:
+- `FilterConfig.from_file(path)`
+- `FilterConfig.from_data(data)`
+- `find_filters(start_path)`
+- `resolve_active_filter(cwd, manual=None)`
+
+Reserved term note: **Perspective** is reserved for the upcoming flipped path-space navigation model and will be implemented via new, separate APIs.
 
 ---
 
 ## **11. Open Questions**
-- final file format and section names
-- default storage location for global perspectives
+- default storage location for global filters
 - rule syntax for tags and AI filters
 
 ---
 
 ## **12. Not Realized Yet**
-- tag‑based perspectives
-- AI‑based perspectives
+- tag‑based filters
+- AI‑based filters
 - `sparse` inheritance mode
 
 ---
 
 ## **13. Summary**
-Perspectives provide user‑friendly, powerful views over MyOS data:
+Filters provide user‑friendly, powerful views over MyOS data:
 - they filter and shape data without changing permissions
 - they can flatten and group complex trees
 - they are stored as portable Markdown configs

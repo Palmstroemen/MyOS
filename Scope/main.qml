@@ -148,12 +148,12 @@ ApplicationWindow {
     property var pendingConfigPrompt: ({ pending: false, options: [] })
     property string pendingConfigPromptContext: ""
     property string pendingConfigPromptName: "Desk.md"
-    property var availablePerspectives: []
-    property var activePerspective: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
-    property string manualPerspectivePath: ""
-    property string perspectiveSaveSourcePath: ""
-    property var perspectiveSaveTargets: []
-    property string pendingPerspectiveNewName: ""
+    property var availableFilters: []
+    property var activeFilter: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
+    property string manualFilterPath: ""
+    property string filterSaveSourcePath: ""
+    property var filterSaveTargets: []
+    property string pendingFilterNewName: ""
     property string selectionAnchorPath: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
@@ -1200,88 +1200,88 @@ ApplicationWindow {
         return ok
     }
 
-    function refreshPerspectives() {
+    function refreshFilters() {
         var nextAvailable = []
         var nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
-        if (hasBackend() && typeof backend.listPerspectives === "function") {
+        if (hasBackend() && typeof backend.listFilters === "function") {
             try {
-                nextAvailable = backend.listPerspectives(cwp) || []
+                nextAvailable = backend.listFilters(cwp) || []
             } catch (e0) {
                 nextAvailable = []
             }
         }
-        if (hasBackend() && typeof backend.resolveActivePerspective === "function") {
+        if (hasBackend() && typeof backend.resolveActiveFilter === "function") {
             try {
-                nextActive = backend.resolveActivePerspective(cwp) || nextActive
+                nextActive = backend.resolveActiveFilter(cwp) || nextActive
             } catch (e1) {
                 nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
             }
         }
-        availablePerspectives = nextAvailable
-        activePerspective = nextActive
-        manualPerspectivePath = String(nextActive.manualPath || "")
+        availableFilters = nextAvailable
+        activeFilter = nextActive
+        manualFilterPath = String(nextActive.manualPath || "")
     }
 
-    function activatePerspectivePath(path) {
+    function activateFilterPath(path) {
         var target = String(path || "").trim()
-        if (!hasBackend() || typeof backend.setManualPerspective !== "function") {
+        if (!hasBackend() || typeof backend.setManualFilter !== "function") {
             return
         }
         if (!target) {
-            if (typeof backend.clearManualPerspective === "function") {
-                backend.clearManualPerspective()
+            if (typeof backend.clearManualFilter === "function") {
+                backend.clearManualFilter()
             }
         } else {
-            var ok = backend.setManualPerspective(target)
+            var ok = backend.setManualFilter(target)
             if (!ok) {
-                moveReportMessage = qsTr("Perspektive konnte nicht aktiviert werden.")
+                moveReportMessage = qsTr("Filter konnte nicht aktiviert werden.")
                 moveReportDialog.open()
             }
         }
-        refreshPerspectives()
+        refreshFilters()
         updateFiles()
     }
 
-    function clearManualPerspectiveOverride() {
-        if (hasBackend() && typeof backend.clearManualPerspective === "function") {
-            backend.clearManualPerspective()
+    function clearManualFilterOverride() {
+        if (hasBackend() && typeof backend.clearManualFilter === "function") {
+            backend.clearManualFilter()
         }
-        refreshPerspectives()
+        refreshFilters()
         updateFiles()
     }
 
-    function openActivePerspectiveSource() {
-        var sourcePath = String(activePerspective.path || "").trim()
+    function openActiveFilterSource() {
+        var sourcePath = String(activeFilter.path || "").trim()
         if (!sourcePath.length) {
             return
         }
         requestOpenWith(sourcePath)
     }
 
-    function promptPerspectiveSave() {
-        var sourcePath = String(activePerspective.path || "").trim()
-        if (!sourcePath.length || !hasBackend() || typeof backend.listPerspectiveSaveTargets !== "function") {
+    function promptFilterSave() {
+        var sourcePath = String(activeFilter.path || "").trim()
+        if (!sourcePath.length || !hasBackend() || typeof backend.listFilterSaveTargets !== "function") {
             return
         }
-        perspectiveSaveSourcePath = sourcePath
-        perspectiveSaveTargets = backend.listPerspectiveSaveTargets(cwp, sourcePath) || []
-        pendingPerspectiveNewName = ""
-        perspectiveSaveDialog.open()
+        filterSaveSourcePath = sourcePath
+        filterSaveTargets = backend.listFilterSaveTargets(cwp, sourcePath) || []
+        pendingFilterNewName = ""
+        filterSaveDialog.open()
     }
 
-    function applyPerspectiveSave(targetId) {
+    function applyFilterSave(targetId) {
         var target = String(targetId || "").trim()
-        if (!target.length || !hasBackend() || typeof backend.savePerspective !== "function") {
+        if (!target.length || !hasBackend() || typeof backend.saveFilter !== "function") {
             return
         }
-        var result = backend.savePerspective(cwp, perspectiveSaveSourcePath, target, pendingPerspectiveNewName)
+        var result = backend.saveFilter(cwp, filterSaveSourcePath, target, pendingFilterNewName)
         if (result && result.ok) {
-            moveReportMessage = qsTr("Perspektive gespeichert: %1").arg(String(result.path || ""))
+            moveReportMessage = qsTr("Filter gespeichert: %1").arg(String(result.path || ""))
             moveReportDialog.open()
-            refreshPerspectives()
+            refreshFilters()
             return
         }
-        moveReportMessage = qsTr("Perspektive konnte nicht gespeichert werden.")
+        moveReportMessage = qsTr("Filter konnte nicht gespeichert werden.")
         moveReportDialog.open()
     }
 
@@ -1299,7 +1299,7 @@ ApplicationWindow {
                 hasProjectInCwp = false
             }
         }
-        refreshPerspectives()
+        refreshFilters()
     }
 
     function updateTemplates() {
@@ -2151,8 +2151,8 @@ ApplicationWindow {
     }
 
     Dialog {
-        id: perspectiveSaveDialog
-        title: qsTr("Perspektive speichern")
+        id: filterSaveDialog
+        title: qsTr("Filter speichern")
         modal: true
         focus: true
         standardButtons: Dialog.Cancel
@@ -2168,28 +2168,28 @@ ApplicationWindow {
             border.color: dialogPanelBorder
             border.width: 2
         }
-        onOpened: _setDialogButtonText(perspectiveSaveDialog, Dialog.Cancel, qsTr("Abbrechen"))
+        onOpened: _setDialogButtonText(filterSaveDialog, Dialog.Cancel, qsTr("Abbrechen"))
         contentItem: Column {
             spacing: 10
             Text {
-                text: qsTr("Sie haben eine Anpassung der Perspektive vorgenommen. Wo soll diese Anpassung gelten?")
+                text: qsTr("Sie haben eine Anpassung des Filters vorgenommen. Wo soll diese Anpassung gelten?")
                 wrapMode: Text.WordWrap
                 color: dialogTextStrong
                 font.pixelSize: baseFont
             }
             Repeater {
-                model: perspectiveSaveTargets || []
+                model: filterSaveTargets || []
                 delegate: Button {
-                    width: Math.max(420, perspectiveSaveDialog.width - 60)
+                    width: Math.max(420, filterSaveDialog.width - 60)
                     text: String(modelData.label || modelData.id || "")
                     onClicked: {
                         var targetId = String(modelData.id || "")
                         if (targetId === "new_named") {
-                            perspectiveNameDialog.open()
+                            filterNameDialog.open()
                             return
                         }
-                        applyPerspectiveSave(targetId)
-                        perspectiveSaveDialog.close()
+                        applyFilterSave(targetId)
+                        filterSaveDialog.close()
                     }
                 }
             }
@@ -2197,8 +2197,8 @@ ApplicationWindow {
     }
 
     Dialog {
-        id: perspectiveNameDialog
-        title: qsTr("Neue Perspektive")
+        id: filterNameDialog
+        title: qsTr("Neuer Filter")
         modal: true
         focus: true
         standardButtons: Dialog.Ok | Dialog.Cancel
@@ -2215,28 +2215,28 @@ ApplicationWindow {
             border.width: 2
         }
         onOpened: {
-            _setDialogButtonText(perspectiveNameDialog, Dialog.Ok, qsTr("Uebernehmen"))
-            _setDialogButtonText(perspectiveNameDialog, Dialog.Cancel, qsTr("Abbrechen"))
-            perspectiveNameInput.forceActiveFocus()
-            perspectiveNameInput.selectAll()
+            _setDialogButtonText(filterNameDialog, Dialog.Ok, qsTr("Uebernehmen"))
+            _setDialogButtonText(filterNameDialog, Dialog.Cancel, qsTr("Abbrechen"))
+            filterNameInput.forceActiveFocus()
+            filterNameInput.selectAll()
         }
         onAccepted: {
-            pendingPerspectiveNewName = String(perspectiveNameInput.text || "").trim()
-            applyPerspectiveSave("new_named")
-            perspectiveNameDialog.close()
-            perspectiveSaveDialog.close()
+            pendingFilterNewName = String(filterNameInput.text || "").trim()
+            applyFilterSave("new_named")
+            filterNameDialog.close()
+            filterSaveDialog.close()
         }
         contentItem: Column {
             spacing: 8
             Text {
-                text: qsTr("Name fuer die neue Perspektive")
+                text: qsTr("Name fuer den neuen Filter")
                 wrapMode: Text.WordWrap
                 color: dialogTextStrong
                 font.pixelSize: baseFont
             }
             TextField {
-                id: perspectiveNameInput
-                text: pendingPerspectiveNewName
+                id: filterNameInput
+                text: pendingFilterNewName
                 placeholderText: qsTr("z.B. Eingangsrechnungen")
                 selectByMouse: true
                 color: dialogInputText
@@ -2599,21 +2599,21 @@ ApplicationWindow {
                     }
                 }
 
-                Rectangle { // Perspective toggle
+                Rectangle { // Filter toggle
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: activePerspective.active ? theme.smallButtonActiveBg : theme.smallButtonBg
-                    border.color: activePerspective.active ? theme.smallButtonActiveBorder : theme.smallButtonBorder
+                    color: activeFilter.active ? theme.smallButtonActiveBg : theme.smallButtonBg
+                    border.color: activeFilter.active ? theme.smallButtonActiveBorder : theme.smallButtonBorder
                     implicitWidth: 210
                     Text {
                         anchors.centerIn: parent
                         text: {
-                            if (!activePerspective || !activePerspective.active) {
-                                return qsTr("Perspektive: Auto")
+                            if (!activeFilter || !activeFilter.active) {
+                                return qsTr("Filter: Auto")
                             }
-                            var modeText = String(activePerspective.mode || "auto") === "manual" ? "M" : "A"
-                            var stacked = (activePerspective.chain && activePerspective.chain.length > 1) ? " +" : ""
-                            return qsTr("Perspektive") + ": " + String(activePerspective.name || "?") + " [" + modeText + "]" + stacked
+                            var modeText = String(activeFilter.mode || "auto") === "manual" ? "M" : "A"
+                            var stacked = (activeFilter.chain && activeFilter.chain.length > 1) ? " +" : ""
+                            return qsTr("Filter") + ": " + String(activeFilter.name || "?") + " [" + modeText + "]" + stacked
                         }
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
@@ -2621,30 +2621,30 @@ ApplicationWindow {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: perspectiveMenu.open()
+                        onClicked: filterMenu.open()
                     }
                 }
 
                 Menu {
-                    id: perspectiveMenu
+                    id: filterMenu
 
                     MenuItem {
                         text: qsTr("Auto folgen")
-                        onTriggered: clearManualPerspectiveOverride()
+                        onTriggered: clearManualFilterOverride()
                     }
                     MenuItem {
-                        text: qsTr("Aktive Perspektive oeffnen")
-                        enabled: String(activePerspective.path || "").length > 0
-                        onTriggered: openActivePerspectiveSource()
+                        text: qsTr("Aktiven Filter oeffnen")
+                        enabled: String(activeFilter.path || "").length > 0
+                        onTriggered: openActiveFilterSource()
                     }
                     MenuItem {
-                        text: qsTr("Perspektive speichern ...")
-                        enabled: String(activePerspective.path || "").length > 0
-                        onTriggered: promptPerspectiveSave()
+                        text: qsTr("Filter speichern ...")
+                        enabled: String(activeFilter.path || "").length > 0
+                        onTriggered: promptFilterSave()
                     }
                     MenuSeparator {}
                     Instantiator {
-                        model: availablePerspectives || []
+                        model: availableFilters || []
                         delegate: MenuItem {
                             required property var modelData
                             text: {
@@ -2656,11 +2656,11 @@ ApplicationWindow {
                             }
                             onTriggered: {
                                 var item = modelData || ({})
-                                activatePerspectivePath(String(item.path || ""))
+                                activateFilterPath(String(item.path || ""))
                             }
                         }
-                        onObjectAdded: function(index, object) { perspectiveMenu.insertItem(index + 4, object) }
-                        onObjectRemoved: function(index, object) { perspectiveMenu.removeItem(object) }
+                        onObjectAdded: function(index, object) { filterMenu.insertItem(index + 4, object) }
+                        onObjectRemoved: function(index, object) { filterMenu.removeItem(object) }
                     }
                 }
 

@@ -31,11 +31,11 @@ This document provides a high-level overview of the public Python APIs used by C
 **Public API (examples):**
 - `import_package(package_path, target_root=None, mode="adopt", conflict="merge")`
 
-### **2.5 Perspectives**
+### **2.5 Filters (Current System)**
 **Module:** `core/perspective.py`  
 **Public API (examples):**
-- `PerspectiveConfig.from_file(path)`
-- `PerspectiveConfig.from_data(data)`
+- `FilterConfig.from_file(path)`
+- `FilterConfig.from_data(data)`
 
 ---
 

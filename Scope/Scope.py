@@ -377,28 +377,28 @@ class Backend(QObject):
         return self._api.find_config(path, configName) or ""
 
     @Slot(str, result="QVariantList")
-    def listPerspectives(self, path: str):
-        return self._api.list_perspectives(path)
+    def listFilters(self, path: str):
+        return self._api.list_filters(path)
 
     @Slot(str, result="QVariantMap")
-    def resolveActivePerspective(self, path: str):
-        return self._api.resolve_active_perspective(path)
+    def resolveActiveFilter(self, path: str):
+        return self._api.resolve_active_filter(path)
 
     @Slot(str, result=bool)
-    def setManualPerspective(self, perspectivePath: str) -> bool:
-        return self._api.set_manual_perspective(perspectivePath)
+    def setManualFilter(self, filterPath: str) -> bool:
+        return self._api.set_manual_filter(filterPath)
 
     @Slot(result=bool)
-    def clearManualPerspective(self) -> bool:
-        return self._api.clear_manual_perspective()
+    def clearManualFilter(self) -> bool:
+        return self._api.clear_manual_filter()
 
     @Slot(str, str, result="QVariantList")
-    def listPerspectiveSaveTargets(self, path: str, sourcePath: str):
-        return self._api.list_perspective_save_targets(path, sourcePath)
+    def listFilterSaveTargets(self, path: str, sourcePath: str):
+        return self._api.list_filter_save_targets(path, sourcePath)
 
     @Slot(str, str, str, str, result="QVariantMap")
-    def savePerspective(self, path: str, sourcePath: str, targetId: str, newName: str):
-        return self._api.save_perspective(path, sourcePath, targetId, newName)
+    def saveFilter(self, path: str, sourcePath: str, targetId: str, newName: str):
+        return self._api.save_filter(path, sourcePath, targetId, newName)
 
     @Slot(str, result="QVariantMap")
     def previewSortTarget(self, filePath: str):

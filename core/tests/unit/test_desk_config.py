@@ -138,16 +138,16 @@ def test_root_desk_candidate_requires_opt_in(tmp_path):
     assert with_opt_in.source_path == (root / "Desk.md")
 
 
-def test_perspective_linked_desk_overrides_nearest_ancestor(tmp_path):
+def test_filter_linked_desk_overrides_nearest_ancestor(tmp_path):
     root = tmp_path / "Project"
     work = root / "Work"
     work.mkdir(parents=True)
     _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
     _write_desk(work / "FinanceDesk.md", "FinanceTheme")
-    (work / "Perspective.md").write_text(
+    (work / "Filter.md").write_text(
         "\n".join(
             [
-                "# Perspective",
+                "# Filter",
                 "Name: Finance",
                 "",
                 "## Desk",
@@ -186,7 +186,7 @@ def test_symlinked_local_desk_is_ignored_for_security(tmp_path):
     assert resolved.theme_preset == "RootTheme"
 
 
-def test_perspective_symlink_escape_is_ignored_for_security(tmp_path):
+def test_filter_symlink_escape_is_ignored_for_security(tmp_path):
     root = tmp_path / "Project"
     work = root / "Work"
     work.mkdir(parents=True)
@@ -198,8 +198,8 @@ def test_perspective_symlink_escape_is_ignored_for_security(tmp_path):
         desk_link.symlink_to(outside)
     except OSError:
         pytest.skip("Symlink creation not supported in this environment")
-    (work / "Perspective.md").write_text(
-        "# Perspective\nName: Unsafe\n\n## Desk\nDeskLink.md\n",
+    (work / "Filter.md").write_text(
+        "# Filter\nName: Unsafe\n\n## Desk\nDeskLink.md\n",
         encoding="utf-8",
     )
 
@@ -224,7 +224,7 @@ def test_runtime_reapplies_only_when_profile_identity_changes(tmp_path):
             dry_run=True,
             backend_name="none",
             include_root_desk=False,
-            prefer_perspective_desk=True,
+            prefer_filter_desk=True,
             fallback_profile=None,
         ),
         backend=backend,
@@ -266,7 +266,7 @@ def test_runtime_stops_on_first_failed_step_and_triggers_rollback(tmp_path):
             dry_run=False,
             backend_name="none",
             include_root_desk=False,
-            prefer_perspective_desk=True,
+            prefer_filter_desk=True,
             fallback_profile=None,
         ),
         backend=backend,
