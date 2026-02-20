@@ -1009,6 +1009,12 @@ ApplicationWindow {
                                         onEntered: hoveredCpdIndex = index
                                         onExited: if (hoveredCpdIndex === index) hoveredCpdIndex = -1
                                         onClicked: {
+                                            if (index === 0) {
+                                                // "Perspective OFF" should disable perspective mode entirely.
+                                                sunTreeBackend.clearPerspective()
+                                                sunTreeBackend.refreshAll()
+                                                return
+                                            }
                                             var targetCpd = String((rowData && rowData.cpd) ? rowData.cpd : "")
                                             if (targetCpd.length > 0) {
                                                 sunTreeBackend.setPerspectiveCpd(targetCpd)
