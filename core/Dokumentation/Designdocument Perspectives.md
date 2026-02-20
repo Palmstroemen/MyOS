@@ -139,3 +139,12 @@ Filters provide user‑friendly, powerful views over MyOS data:
 - they filter and shape data without changing permissions
 - they can flatten and group complex trees
 - they are stored as portable Markdown configs
+
+---
+
+## **14. Next Step: Perspective Runtime Contract**
+The upcoming flipped path-space Perspective runtime uses a separate contract document:
+
+- `core/Dokumentation/Designdocument Perspective Resolver MVP.md`
+
+This split keeps current Filter behavior stable while defining CPD/CWD resolver semantics for the new Perspective model.

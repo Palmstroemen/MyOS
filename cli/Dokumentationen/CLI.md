@@ -67,3 +67,17 @@ Examples:
 - `myedit tags .`
 - `myedit templates /path/to/project`
 - `myedit acls /path/to/project`
+
+---
+
+## **myperspectivefs**
+Mount the flipped perspective FUSE adapter as a separate filesystem.
+
+Examples:
+- `myperspectivefs --project-root /data/Projekte --mount-point /mnt/myos-structure --foreground`
+- `myperspectivefs --project-root /data/Projekte --mount-point /mnt/myos-structure --start-real-path /data/Projekte/ProjektA/kommunikation/email`
+
+Notes (MVP):
+- v1 supports only `--perspective flipped`
+- no small-project fallback behavior yet
+- adapter is thin: mapping semantics come from the core perspective resolver
