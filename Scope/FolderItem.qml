@@ -35,6 +35,9 @@ Rectangle {
     readonly property bool hoverActive: hitArea.containsMouse
     property bool tabPinned: false
     property real tabDropOffset: (tabHoverDropEnabled && (hoverActive || tabPinned)) ? tabHoverDropPx : 0
+    property bool pendingSingleClick: false
+    property bool pendingSingleClickCtrl: false
+    property bool pendingSingleClickShift: false
     signal activate(bool ctrlPressed, bool shiftPressed)
     signal doubleActivate()
     signal hoverEntered()
@@ -43,6 +46,14 @@ Rectangle {
     signal renameTextEdited(string text)
     signal renameAccepted()
     signal renameCanceled()
+
+    function dispatchPendingSingleClick() {
+        if (!pendingSingleClick) {
+            return
+        }
+        pendingSingleClick = false
+        root.activate(pendingSingleClickCtrl, pendingSingleClickShift)
+    }
 
     function _containsItemPoint(item, px, py) {
         if (!item || !item.visible) {
@@ -383,10 +394,10 @@ Rectangle {
                 root.contextMenuRequested(mouse.x, mouse.y, (mouse.modifiers & Qt.ControlModifier) !== 0)
                 return
             }
-            root.activate(
-                (mouse.modifiers & Qt.ControlModifier) !== 0,
-                (mouse.modifiers & Qt.ShiftModifier) !== 0
-            )
+            pendingSingleClickCtrl = (mouse.modifiers & Qt.ControlModifier) !== 0
+            pendingSingleClickShift = (mouse.modifiers & Qt.ShiftModifier) !== 0
+            pendingSingleClick = true
+            singleClickTimer.restart()
         }
         onDoubleClicked: function(mouse) {
             if (renaming) return
@@ -394,6 +405,8 @@ Rectangle {
                 mouse.accepted = false
                 return
             }
+            pendingSingleClick = false
+            singleClickTimer.stop()
             root.doubleActivate()
         }
         onEntered: root.hoverEntered()
@@ -405,5 +418,12 @@ Rectangle {
         onPressAndHold: {
             if (renameEnabled) root.renameRequested()
         }
+    }
+
+    Timer {
+        id: singleClickTimer
+        interval: 220
+        repeat: false
+        onTriggered: dispatchPendingSingleClick()
     }
 }

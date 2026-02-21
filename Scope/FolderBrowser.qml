@@ -47,6 +47,7 @@ Item { // ROOT
     property int indent: 0
     property string iconFolder: ""
     property string iconSearch: ""
+    property var debugLogger: null
     property color panelColor: "#1b1d26"
     property color panelBorderColor: "#3a4158"
     property color panelAltColor: "#151821"
@@ -71,6 +72,8 @@ Item { // ROOT
     property color pathButtonBorder: pillBorder
     property color folderButtonFill: pill
     property color folderButtonBorder: pillBorder
+    property bool isPerspective: false
+    readonly property bool is_perspective: isPerspective
     property bool tintPathAsProject: false
     property real cwdOpacity: 1.0
     property real pathProjectOpacity: 0.7
@@ -86,7 +89,10 @@ Item { // ROOT
 
     signal pathSegmentActivated(int index)
     signal pathSelected(string path)
+    // Primary click intent (single click)
     signal folderActivated(string name)
+    // Secondary click intent (double click)
+    signal folderDoubleActivated(string name)
     signal toggleMode()
     signal toggleSearch()
     signal toggleTheme()
@@ -555,7 +561,13 @@ Item { // ROOT
     function calculateContentHeight() {
         if (!mainColumn) return 0
         if (verticalView) {
-            return Math.round(verticalMainColumn.childrenRect.height + 12)
+            // Keep vertical implicit height stable to prevent feedback loops
+            // between contentHeight-driven relayout and fill-height spacers.
+            var preferred = Number(verticalPreferredHeight || 0)
+            if (preferred > 0) {
+                return Math.round(preferred)
+            }
+            return 360
         }
         var top = topRow ? topRow.implicitHeight : 0
         var bottom = (bottomRow && bottomRow.visible) ? (bottomRow.implicitHeight + mainColumn.spacing) : 0
@@ -2129,13 +2141,19 @@ Item { // ROOT
     }
 
     function updateFlowPlacement() {
+        if (verticalView) return
         if (!topFoldersRow || !topRow || !rightButtonsRow || !pathRow) return
         if (topRow.width <= 0) return
         var toggleWidth = (showModeToggle && modeToggleButton) ? modeToggleButton.width : 0
         var gapCount = showModeToggle ? 4 : 3
         var rightWidth = rightButtonsRow.implicitWidth
+        var visibleFoldersWidth = (!flowOnSecondLine && topFlowHost && topFlowHost.visible) ? topFoldersRow.implicitWidth : 0
+        var usedVisible = pathRow.implicitWidth + visibleFoldersWidth + rightWidth + toggleWidth + (topRow.spacing * gapCount)
+        var slackVisible = topRow.width - usedVisible
         var used = pathRow.implicitWidth + topFoldersRow.implicitWidth + rightWidth + toggleWidth + (topRow.spacing * gapCount)
         var slack = topRow.width - used
+        // Decide wrapping using the hypothetical single-row layout (full used width)
+        // to avoid wrap/unwap oscillation caused by state-dependent width metrics.
         var shouldWrap = flowOnSecondLine ? (slack < wrapSlackOff) : (slack < wrapSlackOn)
         if (flowOnSecondLine !== shouldWrap) {
             flowOnSecondLine = shouldWrap
@@ -2152,11 +2170,15 @@ Item { // ROOT
         var showRightColumn = shouldShowVerticalRightColumn()
         var freeHeight          = verticalSpacer ? verticalSpacer.height : 0
         var uListHeight         = verticalRightPreviewColumns ? verticalRightPreviewColumns.implicitHeight : 0
-        var shouldWrap          = showRightColumn
-            ? false
-            : (foldersInSecondColumn
-                ? (freeHeight*2 <= uListHeight + 10)
-                : (freeHeight < 1))
+        var hasRightContent = (previewRows && previewRows.length > 0)
+                              || previewColumnsHoldActive
+                              || (uListHeight > 0.5)
+        var shouldWrap          = false
+        if (hasRightContent && !showRightColumn) {
+            shouldWrap = foldersInSecondColumn
+                ? (freeHeight * 2 <= uListHeight + 10)
+                : (freeHeight < 1)
+        }
         if (debugVerticalWrap) {
             console.log(
                 "[vwidth:wrap-check]",
@@ -2589,6 +2611,7 @@ Item { // ROOT
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
+                                onDoubleActivate: folderDoubleActivated(fullPath)
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
@@ -3187,6 +3210,7 @@ Item { // ROOT
                                     onRenameAccepted: renameAccepted()
                                     onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
+                                onDoubleActivate: folderDoubleActivated(fullPath)
                                 onHoverEntered: {
                                     if (!verticalView) {
                                         return
@@ -3613,6 +3637,7 @@ Item { // ROOT
                                                     onRenameAccepted: renameAccepted()
                                                     onRenameCanceled: renameCanceled()
                                                     onActivate: folderActivated(fullPath)
+                                                    onDoubleActivate: folderDoubleActivated(fullPath)
                                                     onHoverEntered: {
                                                         if (!verticalView) {
                                                             return
@@ -3693,6 +3718,7 @@ Item { // ROOT
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
                                 onActivate: folderActivated(fullPath)
+                                onDoubleActivate: folderDoubleActivated(fullPath)
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
@@ -3846,6 +3872,7 @@ Item { // ROOT
                                     dimmedStyle: root.isPreviewDimmed(previewLevel + 1, fullPath)
                                     opacity: root.previewOpacityForEntry(previewLevel + 1, fullPath)
                                     onActivate: folderActivated(fullPath)
+                                    onDoubleActivate: folderDoubleActivated(fullPath)
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
                                         updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)

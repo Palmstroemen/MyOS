@@ -424,6 +424,10 @@ class Backend(QObject):
     def perspectiveListDir(self, cpd: str):
         return self._api.perspective_list_dir(cpd)
 
+    @Slot(str, result="QVariantList")
+    def perspectiveListTemplates(self, cpd: str):
+        return self._api.perspective_list_templates(cpd)
+
     @Slot(result=bool)
     def perspectiveClear(self) -> bool:
         return self._api.perspective_clear()
