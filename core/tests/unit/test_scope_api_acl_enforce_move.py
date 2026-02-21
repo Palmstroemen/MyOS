@@ -5,6 +5,26 @@ from core.acl_enforcement import ACLEnforcementService
 from core.scope_api import ScopeApi
 
 
+def _write_project_marker(root: Path) -> None:
+    myos = root / ".MyOS"
+    myos.mkdir(parents=True, exist_ok=True)
+    (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+
+
+def _write_templates_config(root: Path, template_name: str) -> None:
+    myos = root / ".MyOS"
+    myos.mkdir(parents=True, exist_ok=True)
+    (myos / "Templates.md").write_text(f"# Templates\n{template_name}\n", encoding="utf-8")
+
+
+def _setup_embryo_project(tmp_path: Path) -> Path:
+    root = tmp_path / "lab"
+    _write_project_marker(root)
+    _write_templates_config(root, "Standard")
+    (root / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def _build_service(mode: str, root: Path) -> ACLEnforcementService:
     finance_rule = f"{(root / 'Finanz').resolve()}/**"
     policy = ACLPolicy(
@@ -95,3 +115,21 @@ def test_scope_api_enforce_blocks_single_move_entry_on_acl_denied(tmp_path):
     assert ok is False
     assert src.exists()
     assert not (dst_dir / "single.txt").exists()
+
+
+def test_scope_api_enforce_blocks_embryo_target_materialization_when_target_denied(tmp_path):
+    root = _setup_embryo_project(tmp_path)
+    src_dir = root / "Finanz"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    src = src_dir / "single.txt"
+    src.write_text("x", encoding="utf-8")
+    embryo_target = root / "admin"
+
+    api = ScopeApi(str(root))
+    api.set_acl_enforcement(_build_service("enforce", root), user="bertha")
+
+    ok = api.move_entry(str(src), str(embryo_target))
+
+    assert ok is False
+    assert src.exists()
+    assert not embryo_target.exists()

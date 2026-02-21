@@ -1,4 +1,26 @@
+from pathlib import Path
+
 from core.scope_api import ScopeApi
+
+
+def _write_project_marker(root: Path) -> None:
+    myos = root / ".MyOS"
+    myos.mkdir(parents=True, exist_ok=True)
+    (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+
+
+def _write_templates_config(root: Path, template_name: str) -> None:
+    myos = root / ".MyOS"
+    myos.mkdir(parents=True, exist_ok=True)
+    (myos / "Templates.md").write_text(f"# Templates\n{template_name}\n", encoding="utf-8")
+
+
+def _setup_embryo_project(tmp_path: Path) -> Path:
+    root = tmp_path / "Project"
+    _write_project_marker(root)
+    _write_templates_config(root, "Standard")
+    (root / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def test_move_entries_reports_moved_and_errors(tmp_path):
@@ -47,6 +69,53 @@ def test_move_entry_rejects_target_inside_source(tmp_path):
 
     api = ScopeApi(str(tmp_path))
     assert api.move_entry(str(source_dir), str(nested_target)) is False
+
+
+def test_move_entry_materializes_embryo_target_dir(tmp_path):
+    root = _setup_embryo_project(tmp_path)
+    source = root / "inbox" / "doc.txt"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("x", encoding="utf-8")
+    embryo_target = root / "admin"
+
+    api = ScopeApi(str(root))
+    ok = api.move_entry(str(source), str(embryo_target))
+
+    assert ok is True
+    assert not source.exists()
+    assert embryo_target.is_dir()
+    assert (embryo_target / "doc.txt").exists()
+
+
+def test_move_entries_materializes_embryo_target_dir_for_directory_source(tmp_path):
+    root = _setup_embryo_project(tmp_path)
+    source_dir = root / "inbox"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "nested.txt").write_text("x", encoding="utf-8")
+    embryo_target = root / "admin"
+
+    api = ScopeApi(str(root))
+    report = api.move_entries([str(source_dir)], str(embryo_target))
+
+    assert report["ok"] is True
+    assert source_dir.exists() is False
+    assert embryo_target.is_dir()
+    assert (embryo_target / "inbox" / "nested.txt").exists()
+
+
+def test_move_entry_rejects_non_embryo_missing_target(tmp_path):
+    root = _setup_embryo_project(tmp_path)
+    source = root / "inbox" / "doc.txt"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("x", encoding="utf-8")
+    missing_target = root / "not_an_embryo"
+
+    api = ScopeApi(str(root))
+    ok = api.move_entry(str(source), str(missing_target))
+
+    assert ok is False
+    assert source.exists()
+    assert not missing_target.exists()
 
 
 def test_delete_entries_reports_missing_and_ignores_duplicate(tmp_path):

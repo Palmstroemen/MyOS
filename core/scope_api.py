@@ -363,8 +363,11 @@ class ScopeApi:
                 "cwdReal": "",
                 "role": "",
                 "templateHead": [],
+                "templateRoot": "",
+                "templateRoots": [],
             }
         ctx = self._perspective_ctx
+        template_roots = self._perspective_template_roots(ctx)
         return {
             "active": True,
             "perspectiveId": str(ctx.perspective_id),
@@ -373,6 +376,8 @@ class ScopeApi:
             "cwdReal": str(ctx.cwd_real),
             "role": str(ctx.role or ""),
             "templateHead": [str(part) for part in tuple(ctx.template_head or ())],
+            "templateRoot": str(template_roots[0]) if template_roots else "",
+            "templateRoots": [str(name) for name in template_roots],
         }
 
     def perspective_set_cpd(self, cpd: str) -> Dict[str, Any]:
@@ -543,6 +548,20 @@ class ScopeApi:
         out.append("Projekte")
         out.append(str(project_name or ""))
         return "/" + "/".join([part for part in out if part])
+
+    def _perspective_template_roots(self, ctx: PerspectiveContext) -> List[str]:
+        try:
+            cwd = Path(str(ctx.cwd_real)).expanduser().resolve()
+        except Exception:
+            return []
+        _, blueprint = self._resolve_context_for_target(cwd)
+        if blueprint is None:
+            return []
+        try:
+            names = [str(name) for name in list(getattr(blueprint, "template_names", []))]
+        except Exception:
+            return []
+        return [name for name in names if name]
 
     def _refresh_desk_context(self, target: Path) -> None:
         self._desk_service.refresh_context(target)
@@ -996,6 +1015,44 @@ class ScopeApi:
         except Exception:
             return None
         return target if target.is_dir() else None
+
+    def _resolve_or_materialize_target_dir(self, target_dir: str) -> tuple[Optional[Path], str]:
+        try:
+            target = self._resolve_path(target_dir)
+        except Exception:
+            return None, "invalid_path"
+
+        if target.is_dir():
+            return target, ""
+
+        acl_target = self._acl_probe("write_dir", target)
+        if acl_target and acl_target.enforced and not acl_target.allowed:
+            return None, "acl_denied_target"
+
+        context_root, context_blueprint = self._resolve_context_for_target(target)
+        if not context_root or context_blueprint is None:
+            return None, "target_not_directory"
+        if not is_within(target, context_root):
+            return None, "target_not_directory"
+
+        rel_target = "" if target == context_root else str(target.relative_to(context_root))
+        if not rel_target:
+            return None, "target_not_directory"
+
+        is_embryo_target = bool(context_blueprint.is_embryo(rel_target))
+        contains_embryos = bool(context_blueprint.contains_embryos(f"/{rel_target}"))
+        if not is_embryo_target and not contains_embryos:
+            return None, "target_not_directory"
+
+        try:
+            context_blueprint.mkdir(f"/{rel_target}", 0o755)
+        except Exception:
+            return None, "target_not_directory"
+
+        resolved = self._resolve_dir(str(target))
+        if resolved is None:
+            return None, "target_not_directory"
+        return resolved, ""
 
     def set_acl_enforcement(self, service: Optional[ACLEnforcementService], user: Optional[str] = None) -> None:
         self._acl_enforcement = service
@@ -2299,7 +2356,7 @@ class ScopeApi:
             src = self._resolve_path(source)
         except Exception:
             return False
-        dst_dir = self._resolve_dir(target_dir)
+        dst_dir, _ = self._resolve_or_materialize_target_dir(target_dir)
         if dst_dir is None:
             return False
         acl_target = self._acl_probe("write_dir", dst_dir)
@@ -2329,10 +2386,11 @@ class ScopeApi:
             "skipped": [],
             "errors": [],
         }
-        dst_dir = self._resolve_path(target_dir)
-        if not dst_dir.is_dir():
+        dst_dir, target_reason = self._resolve_or_materialize_target_dir(target_dir)
+        if dst_dir is None:
             result["ok"] = False
-            result["errors"].append({"source": "", "reason": "target_not_directory", "target": str(dst_dir)})
+            reason = target_reason or "target_not_directory"
+            result["errors"].append({"source": "", "reason": reason, "target": str(target_dir)})
             return result
         acl_target = self._acl_probe("write_dir", dst_dir)
         if acl_target and acl_target.enforced and not acl_target.allowed:
