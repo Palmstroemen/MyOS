@@ -13,4 +13,4 @@ We really do not want to bother you here with these internals, but it's importan
 
 If you want to deep dive into this you'll find some exercises here in this lesson.
 
-[[Perspectives|Let's move on!]]
+[[Filters|Let's move on!]]

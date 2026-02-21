@@ -13,4 +13,4 @@ Wir wollen dich hier wirklich nicht mit diesen Interna belasten, aber es ist wic
 
 Wenn du tiefer einsteigen willst, findest du in dieser Lektion einige Übungen.
 
-[[MyOS/Learning MyOS/DE/Lektion12/Perspektiven|Weiter!]]
+[[Filter|Weiter!]]
