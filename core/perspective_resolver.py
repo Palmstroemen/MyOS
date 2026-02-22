@@ -57,6 +57,16 @@ class ParsedCpd:
     is_projects_anchor: bool
 
 
+@dataclass(frozen=True)
+class ParsedMergedTemplatesCpd:
+    valid: bool
+    cpd: str
+    project_name: Optional[str]
+    template_hint: Optional[str]
+    tail_parts: Tuple[str, ...]
+    is_off: bool
+
+
 def perspective_open(
     *,
     perspective_id: str,
@@ -421,6 +431,109 @@ def list_virtual_dir(
             }
         )
     return entries
+
+
+def parse_merged_templates_cpd(
+    *,
+    cpd: str,
+    fallback_project_name: Optional[str] = None,
+    fallback_template_hint: Optional[str] = None,
+) -> ParsedMergedTemplatesCpd:
+    """
+    Parse CPD for merged template listing semantics.
+
+    - Canonical OFF anchor: /Templates (project inferred from fallback).
+    - Flipped CPD format keeps the template segment as hint only.
+    """
+    cpd_norm = _normalize_cpd(cpd)
+    if cpd_norm.startswith("/../"):
+        return ParsedMergedTemplatesCpd(
+            valid=False,
+            cpd=cpd_norm,
+            project_name=None,
+            template_hint=None,
+            tail_parts=(),
+            is_off=False,
+        )
+
+    if cpd_norm in {"/Templates", "/Templates/"}:
+        project_name = str(fallback_project_name or "").strip() or None
+        template_hint = str(fallback_template_hint or "").strip() or None
+        return ParsedMergedTemplatesCpd(
+            valid=project_name is not None,
+            cpd="/Templates",
+            project_name=project_name,
+            template_hint=template_hint,
+            tail_parts=(),
+            is_off=True,
+        )
+    if cpd_norm.startswith("/Templates/"):
+        project_name = str(fallback_project_name or "").strip() or None
+        tail_with_hint = [part for part in cpd_norm.split("/")[2:] if part]
+        template_hint = str(tail_with_hint[0] or "").strip() if tail_with_hint else ""
+        if not template_hint:
+            template_hint = str(fallback_template_hint or "").strip()
+        template_hint = template_hint or None
+        tail = tuple(tail_with_hint[1:]) if tail_with_hint else ()
+        return ParsedMergedTemplatesCpd(
+            valid=project_name is not None,
+            cpd=cpd_norm,
+            project_name=project_name,
+            template_hint=template_hint,
+            tail_parts=tail,
+            is_off=(len(tail) == 0),
+        )
+
+    parsed = _parse_cpd(cpd_norm)
+    if parsed is None or parsed.project_name is None:
+        return ParsedMergedTemplatesCpd(
+            valid=False,
+            cpd=cpd_norm,
+            project_name=None,
+            template_hint=None,
+            tail_parts=(),
+            is_off=False,
+        )
+
+    template_parts = list(parsed.template_parts)
+    template_hint: Optional[str] = None
+    merged_tail: List[str] = []
+    if template_parts:
+        if template_parts[0] == "Templates":
+            if len(template_parts) > 1:
+                template_hint = str(template_parts[1] or "")
+                merged_tail.extend(str(part) for part in template_parts[2:])
+        else:
+            template_hint = str(template_parts[0] or "")
+            merged_tail.extend(str(part) for part in template_parts[1:])
+    merged_tail.extend(str(part) for part in parsed.tail_parts)
+    merged_tail = [part for part in merged_tail if part]
+
+    if not template_hint:
+        template_hint = str(fallback_template_hint or "").strip() or None
+
+    return ParsedMergedTemplatesCpd(
+        valid=True,
+        cpd=cpd_norm,
+        project_name=str(parsed.project_name),
+        template_hint=template_hint,
+        tail_parts=tuple(merged_tail),
+        is_off=False,
+    )
+
+
+def build_hint_cpd(
+    *,
+    project_name: str,
+    template_hint: str,
+    tail_parts: Sequence[str],
+) -> str:
+    safe_project = str(project_name or "").strip()
+    safe_hint = str(template_hint or "").strip()
+    parts = [str(part) for part in tail_parts if str(part)]
+    if safe_project == "" or safe_hint == "":
+        return "/Templates"
+    return _build_cpd([safe_hint], safe_project, parts)
 
 
 def prepare_create(

@@ -454,40 +454,47 @@ ApplicationWindow {
     }
 
     function cpdStackEntries() {
-        var parsed = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
-        if (!parsed.valid) {
-            return []
-        }
-        var templateRootName = currentTemplateRootName()
-        var normalizedTemplateParts = parsed.templateParts.slice(0)
-        var cpdTemplatePrefix = []
-        if (normalizedTemplateParts.length > 0 && String(normalizedTemplateParts[0] || "") === templateRootName) {
-            cpdTemplatePrefix = [templateRootName]
-            normalizedTemplateParts = normalizedTemplateParts.slice(1)
-        }
-        var displayParts = ["Templates", templateRootName].concat(normalizedTemplateParts).concat(parsed.tailParts)
-        var out = []
-        var templateLen = normalizedTemplateParts.length
-        for (var i = 0; i < displayParts.length; i++) {
-            var nextTemplate = []
-            var nextTail = []
-            if (i === 0) {
-                nextTemplate = []
-                nextTail = []
-            } else if (i === 1) {
-                nextTemplate = cpdTemplatePrefix.slice(0)
-                nextTail = []
-            } else if (i <= (templateLen + 1)) {
-                nextTemplate = cpdTemplatePrefix.concat(normalizedTemplateParts.slice(0, i - 1))
-                nextTail = []
-            } else {
-                nextTemplate = cpdTemplatePrefix.concat(normalizedTemplateParts.slice(0))
-                var tailCount = i - (templateLen + 1)
-                nextTail = parsed.tailParts.slice(0, tailCount)
+        var currentCpd = String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "")
+        if (currentCpd === "/Templates" || currentCpd === "/Templates/" || currentCpd.indexOf("/Templates/") === 0) {
+            var outTemplates = [
+                { label: "select Template", cpd: "/Templates" },
+                { label: "Perspective OFF", cpd: "/Templates" }
+            ]
+            var tailParts = currentCpd.split("/").filter(function(p) { return p.length > 0 }).slice(1)
+            for (var t = 0; t < tailParts.length; t++) {
+                var prefix = "/Templates/" + tailParts.slice(0, t + 1).join("/")
+                outTemplates.push({
+                    label: "/" + tailParts[t] + "/",
+                    cpd: prefix
+                })
             }
+            return outTemplates
+        }
+        var parsed = parsePerspectiveCpd(currentCpd)
+        if (!parsed.valid) {
+            return [
+                { label: "select Template", cpd: "/Templates" },
+                { label: "Perspective OFF", cpd: "/Templates" }
+            ]
+        }
+        var hint = parsed.templateParts.length > 0 ? String(parsed.templateParts[0] || "") : ""
+        var mergedTail = parsed.templateParts.slice(1).concat(parsed.tailParts)
+        var out = [
+            { label: "select Template", cpd: "/Templates" },
+            { label: "Perspective OFF", cpd: "/Templates" }
+        ]
+        var cwpName = projectNameFromCwd()
+        if (cwpName.length > 0) {
             out.push({
-                label: i === 0 ? "Perspective OFF" : ("/" + displayParts[i] + "/"),
-                cpd: buildPerspectiveCpd(nextTemplate, parsed.projectName, nextTail)
+                label: "/" + cwpName + " (CWP)/",
+                cpd: buildPerspectiveCpd(hint.length > 0 ? [hint] : [], parsed.projectName, [])
+            })
+        }
+        for (var i = 0; i < mergedTail.length; i++) {
+            var nextTail = mergedTail.slice(0, i + 1)
+            out.push({
+                label: "/" + String(mergedTail[i] || "") + "/",
+                cpd: buildPerspectiveCpd(hint.length > 0 ? [hint] : [], parsed.projectName, nextTail)
             })
         }
         return out
@@ -1009,9 +1016,9 @@ ApplicationWindow {
                                         onEntered: hoveredCpdIndex = index
                                         onExited: if (hoveredCpdIndex === index) hoveredCpdIndex = -1
                                         onClicked: {
-                                            if (index === 0) {
-                                                // "Perspective OFF" should disable perspective mode entirely.
-                                                sunTreeBackend.clearPerspective()
+                                            if (index <= 1) {
+                                                // Canonical OFF anchor keeps perspective context active.
+                                                sunTreeBackend.setPerspectiveCpd("/Templates")
                                                 sunTreeBackend.refreshAll()
                                                 return
                                             }

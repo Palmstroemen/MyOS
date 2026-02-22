@@ -8,7 +8,9 @@ import pytest
 
 from core.perspective_resolver import (
     PerspectiveContext,
+    build_hint_cpd,
     list_virtual_dir,
+    parse_merged_templates_cpd,
     perspective_open,
     prepare_create,
     prepare_rename,
@@ -267,3 +269,21 @@ def test_t16_prepare_rename_cross_branch_unsupported(ctx: PerspectiveContext):
     )
     assert dst.ok is False
     assert dst.error_code == "unsupported"
+
+
+def test_parse_merged_templates_cpd_extracts_hint_and_tail_from_templates_path():
+    parsed = parse_merged_templates_cpd(
+        cpd="/Templates/Person/finanz",
+        fallback_project_name="ProjektA",
+        fallback_template_hint="Standard",
+    )
+    assert parsed.valid is True
+    assert parsed.project_name == "ProjektA"
+    assert parsed.template_hint == "Person"
+    assert list(parsed.tail_parts) == ["finanz"]
+    assert parsed.is_off is False
+
+
+def test_build_hint_cpd_keeps_tail_after_project_anchor():
+    cpd = build_hint_cpd(project_name="ProjektA", template_hint="Person", tail_parts=["finanz", "steuern"])
+    assert cpd == "/Person/Projekte/ProjektA/finanz/steuern"

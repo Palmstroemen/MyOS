@@ -107,6 +107,8 @@ ApplicationWindow {
     property var subProjects: []
     property string templatesRootPath: ""
     property string standardPath: "/"
+    property string templatesPerspectivePath: "/Templates"
+    property var templatesPerspectiveCpdByDisplayPath: ({})
     property string templatesCtdPath: ""
     // Controls whether TemplatesBrowser acts as perspective selector (CPD semantics)
     // or as plain embryo browser (CTD semantics).
@@ -327,12 +329,12 @@ ApplicationWindow {
             lastSyncedPerspectiveActive = nextActive
             lastSyncedPerspectiveCpd = nextCpd
             if (nextActive) {
-                var mappedPath = templatePathFromPerspectiveCpd(nextCpd)
-                if (mappedPath.length > 0) {
-                    standardPath = mappedPath
-                }
+                templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(nextCpd)
+            } else {
+                templatesPerspectivePath = "/Templates"
             }
-            standardFolders = listTemplates(standardPath)
+            var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+            standardFolders = listTemplates(listingPath)
             updateStandardFolders()
         }
     }
@@ -441,10 +443,35 @@ ApplicationWindow {
     }
 
     function perspectiveCpdFromTemplatePath(path) {
-        var templateParts = templatePartsFromTemplatesPath(path)
+        var raw = String(path || "").trim()
+        if (raw === "/Templates" || raw === "/Templates/") {
+            return "/Templates"
+        }
+        if (templatesPerspectiveCpdByDisplayPath && templatesPerspectiveCpdByDisplayPath[raw]) {
+            return String(templatesPerspectiveCpdByDisplayPath[raw] || "")
+        }
+        var templateParts = raw.indexOf("/Templates/") === 0
+            ? raw.slice("/Templates/".length).split("/").filter(function(p) { return p.length > 0 })
+            : templatePartsFromTemplatesPath(path)
         var projectName = projectNameFromCwp()
         if (projectName.length === 0) return ""
-        return buildPerspectiveCpd(templateParts, projectName, [])
+        if (templateParts.length === 0) {
+            return "/Templates"
+        }
+        var parsedState = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
+        var hint = parsedState.valid && parsedState.templateParts.length > 0
+            ? String(parsedState.templateParts[0] || "")
+            : String((perspectiveState && perspectiveState.templateRoot) ? perspectiveState.templateRoot : "")
+        return buildPerspectiveCpd(hint.length > 0 ? [hint] : [], projectName, templateParts)
+    }
+
+    function templatesDisplayPathFromPerspectiveCpd(cpd) {
+        var parsed = parsePerspectiveCpd(cpd)
+        if (!parsed.valid) {
+            return "/Templates"
+        }
+        var tail = parsed.templateParts.slice(1).concat(parsed.tailParts)
+        return tail.length > 0 ? ("/Templates/" + tail.join("/")) : "/Templates"
     }
 
     function templatePathFromPerspectiveCpd(cpd) {
@@ -457,16 +484,15 @@ ApplicationWindow {
     }
 
     function disablePerspectiveMode() {
-        if (!hasBackend() || typeof backend.perspectiveClear !== "function") {
+        if (!hasBackend() || typeof backend.perspectiveSetCpd !== "function") {
             return false
         }
-        backend.perspectiveClear()
+        backend.perspectiveSetCpd("/Templates")
         refreshPerspectiveState()
-        var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
-        if (root.length > 0) {
-            standardPath = root
-        }
-        standardFolders = listTemplates(standardPath)
+        templatesPerspectivePath = "/Templates"
+        templatesPerspectiveCpdByDisplayPath = ({})
+        var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+        standardFolders = listTemplates(listingPath)
         updateStandardFolders()
         return true
     }
@@ -493,8 +519,9 @@ ApplicationWindow {
         if (!hasBackend() || typeof backend.perspectiveSetCpd !== "function") {
             return false
         }
+        var isTemplatesAnchor = (next === "/Templates" || next === "/Templates/")
         var parsed = parsePerspectiveCpd(next)
-        if (!parsed.valid) {
+        if (!isTemplatesAnchor && !parsed.valid) {
             return false
         }
         var result = backend.perspectiveSetCpd(next) || ({ ok: false })
@@ -502,16 +529,16 @@ ApplicationWindow {
         if (!result.ok) {
             return false
         }
-        var mappedPath = templatePathFromPerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : next))
-        if (mappedPath.length > 0) {
-            standardPath = mappedPath
-        }
-        standardFolders = listTemplates(standardPath)
+        templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(
+            String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : next)
+        )
+        var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+        standardFolders = listTemplates(listingPath)
         updateStandardFolders()
         return true
     }
 
-    function listPerspectiveTemplates(cpd) {
+    function listPerspectiveTemplates(cpd, displayPath) {
         if (!hasBackend()) {
             return []
         }
@@ -524,12 +551,34 @@ ApplicationWindow {
             return []
         }
         var out = []
+        var displayBase = String(displayPath || templatesPerspectivePath || "/Templates")
+        var nextMap = {}
+        if (templatesPerspectiveCpdByDisplayPath) {
+            for (var key in templatesPerspectiveCpdByDisplayPath) {
+                nextMap[key] = templatesPerspectiveCpdByDisplayPath[key]
+            }
+        }
         for (var i = 0; i < rows.length; i++) {
             var nodeType = String((rows[i] && rows[i].nodeType) ? rows[i].nodeType : "")
             if (nodeType === "dir") {
-                out.push(String((rows[i] && rows[i].name) ? rows[i].name : ""))
+                var name = String((rows[i] && rows[i].name) ? rows[i].name : "")
+                if (name.length === 0) {
+                    continue
+                }
+                var base = displayBase.length > 1 && displayBase.endsWith("/")
+                    ? displayBase.slice(0, -1)
+                    : displayBase
+                var displayPath = (base === "/" ? "" : base) + "/" + name
+                nextMap[displayPath] = String((rows[i] && rows[i].cpd) ? rows[i].cpd : "")
+                out.push({
+                    "name": name,
+                    "isEmbryo": true,
+                    "color": String((rows[i] && rows[i].color) ? rows[i].color : ""),
+                    "cpd": String((rows[i] && rows[i].cpd) ? rows[i].cpd : "")
+                })
             }
         }
+        templatesPerspectiveCpdByDisplayPath = nextMap
         return out
     }
 
@@ -551,6 +600,10 @@ ApplicationWindow {
     }
 
     function listTemplates(path) {
+        if (templatesUsePerspective && hasBackend()) {
+            var queryCpd = perspectiveCpdFromTemplatePath(path)
+            return listPerspectiveTemplates(queryCpd, path)
+        }
         if (hasBackend() && typeof backend.listTemplates === "function") {
             return backend.listTemplates(path, templatesShowEmbryos)
         }
@@ -711,7 +764,8 @@ ApplicationWindow {
                 updateSubProjects()
                 updateFiles()
                 updateTemplates()
-                standardFolders = listTemplates(standardPath)
+                var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+                standardFolders = listTemplates(listingPath)
                 updateStandardFolders()
             }
             if (errors.length > 0 || skipped.length > 0) {
@@ -773,7 +827,8 @@ ApplicationWindow {
             updateSubProjects()
             updateFiles()
             updateTemplates()
-            standardFolders = listTemplates(standardPath)
+            var listingPathSingle = templatesUsePerspective ? templatesPerspectivePath : standardPath
+            standardFolders = listTemplates(listingPathSingle)
             updateStandardFolders()
         }
     }
@@ -1548,17 +1603,18 @@ ApplicationWindow {
         }
         var root = trimTrailingSlash(resolveTemplatesRootPath())
         templatesRootPath = root
-        if (root.length === 0) {
-            standardPath = cwp
+        if (templatesUsePerspective) {
+            if (ensurePerspectiveOpenForTemplates()) {
+                templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(
+                    String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "/Templates")
+                )
+            } else {
+                templatesPerspectivePath = "/Templates"
+            }
             return
         }
-        if (ensurePerspectiveOpenForTemplates()) {
-            var mappedPath = templatePathFromPerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
-            if (mappedPath.length > 0) {
-                standardPath = mappedPath
-                return
-            }
-            standardPath = root
+        if (root.length === 0) {
+            standardPath = cwp
             return
         }
         if (standardPath.indexOf(root + "/") === 0 || standardPath === root) {
@@ -1623,6 +1679,9 @@ ApplicationWindow {
         updateTemplates()
     }
     onStandardPathChanged: {
+        if (templatesUsePerspective) {
+            return
+        }
         if (hasBackend() && typeof backend.invalidateEntries === "function") {
             backend.invalidateEntries(standardPath)
         }
@@ -1630,6 +1689,13 @@ ApplicationWindow {
         if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
             console.log("[scope] templates", standardPath, standardFolders)
         }
+        updateStandardFolders()
+    }
+    onTemplatesPerspectivePathChanged: {
+        if (!templatesUsePerspective) {
+            return
+        }
+        standardFolders = listTemplates(templatesPerspectivePath)
         updateStandardFolders()
     }
 
@@ -3165,7 +3231,7 @@ ApplicationWindow {
             parent: floatingPool
             visible: templatesBrowserVisible
             isPerspective: window.templatesUsePerspective
-            path: standardPath
+            path: templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
             pathDisplayPrefix: templatesRootPath.length > 0 ? templatesRootPath : cwp
             showEmbryos: window.templatesShowEmbryos
             projectTint: window.currentProjectTint
@@ -3230,32 +3296,41 @@ ApplicationWindow {
             onStyleChanged: function(style) { level2ButtonStyle = style }
         onToggleEmbryos: {
             window.templatesShowEmbryos = !window.templatesShowEmbryos
-            standardFolders = listTemplates(standardPath)
+            var listingPath = templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
+            standardFolders = listTemplates(listingPath)
             updateStandardFolders()
         }
             onPathSegmentActivated: function(index) {
-                var nextPath = standardPath
+                var currentPath = templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
+                var nextPath = currentPath
                 if (templatesBrowser.fullPathForDisplayIndex) {
                     nextPath = templatesBrowser.fullPathForDisplayIndex(index)
                 } else {
-                    var parts = standardPath.split("/").filter(function(p){ return p.length > 0 })
+                    var parts = currentPath.split("/").filter(function(p){ return p.length > 0 })
                     nextPath = "/" + parts.slice(0, index + 1).join("/")
                 }
-                standardPath = nextPath
-                if (!templatesBrowser.isPerspective) {
+                if (templatesBrowser.isPerspective) {
+                    window.templatesPerspectivePath = nextPath
+                } else {
+                    standardPath = nextPath
                     templatesCtdPath = String(nextPath || "")
                 }
             }
             onPathSelected: function(path) {
-                standardPath = path
-                if (!templatesBrowser.isPerspective) {
+                if (templatesBrowser.isPerspective) {
+                    window.templatesPerspectivePath = String(path || "")
+                } else {
+                    standardPath = path
                     templatesCtdPath = String(path || "")
                 }
             }
             onFolderActivated: function(name) {
-                var nextPath = String(name || standardPath)
-                standardPath = nextPath
-                if (!templatesBrowser.isPerspective) {
+                var currentPath = templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
+                var nextPath = String(name || currentPath)
+                if (templatesBrowser.isPerspective) {
+                    window.templatesPerspectivePath = nextPath
+                } else {
+                    standardPath = nextPath
                     templatesCtdPath = nextPath
                 }
             }
@@ -3507,7 +3582,8 @@ ApplicationWindow {
                         }
                         updateFiles()
                         updateTemplates()
-                        standardFolders = listTemplates(standardPath)
+                        var listingPathAfterCreate = templatesUsePerspective ? templatesPerspectivePath : standardPath
+                        standardFolders = listTemplates(listingPathAfterCreate)
                         updateStandardFolders()
                     }
                 }

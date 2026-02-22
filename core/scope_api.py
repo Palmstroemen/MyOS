@@ -25,7 +25,9 @@ from core.sort_runtime import SortRuntime
 from core.perspective_resolver import (
     PerspectiveContext,
     ResolveResult as PerspectiveResolveResult,
+    build_hint_cpd,
     list_virtual_dir,
+    parse_merged_templates_cpd,
     perspective_open as resolver_perspective_open,
     resolve_real_path,
     resolve_virtual_dir_for_read,
@@ -384,7 +386,42 @@ class ScopeApi:
         ctx = self._ensure_perspective_ctx()
         if ctx is None:
             return {"ok": False, "errorCode": "invalid_path", "message": "perspective context unavailable"}
-        result = resolve_virtual_dir_for_read(ctx=ctx, cpd=str(cpd or ""))
+        normalized = str(cpd or "").strip()
+        if normalized.startswith("/Templates"):
+            template_roots = self._perspective_template_roots(ctx)
+            project_name = self._perspective_project_name_from_ctx(ctx)
+            default_hint = str(template_roots[0]) if template_roots else ""
+            merged = parse_merged_templates_cpd(
+                cpd=normalized,
+                fallback_project_name=project_name,
+                fallback_template_hint=default_hint,
+            )
+            if not merged.valid:
+                return {"ok": False, "errorCode": "invalid_path", "message": "invalid merged CPD"}
+            if len(list(merged.tail_parts)) == 0:
+                self._perspective_ctx = replace(ctx, cpd="/Templates")
+                return {
+                    "ok": True,
+                    "cpd": "/Templates",
+                    "realPath": "",
+                    "effectiveReadPath": "",
+                    "fallbackApplied": False,
+                    "fallbackFrom": "",
+                    "fallbackTo": "",
+                    "nodeType": "virtual_anchor",
+                    "errorCode": "",
+                    "message": "",
+                }
+            next_cpd = build_hint_cpd(
+                project_name=str(merged.project_name or ""),
+                template_hint=str(merged.template_hint or ""),
+                tail_parts=list(merged.tail_parts),
+            )
+            result = resolve_virtual_dir_for_read(ctx=ctx, cpd=next_cpd)
+            if result.ok:
+                self._perspective_ctx = replace(ctx, cpd=str(result.cpd))
+            return self._serialize_perspective_result(result)
+        result = resolve_virtual_dir_for_read(ctx=ctx, cpd=normalized)
         if result.ok:
             # CPD changes must not implicitly move CWD. CWD remains controlled
             # by explicit navigation actions (e.g. left click/right navigation).
@@ -395,7 +432,39 @@ class ScopeApi:
         ctx = self._ensure_perspective_ctx()
         if ctx is None:
             return {"ok": False, "errorCode": "invalid_path", "message": "perspective context unavailable"}
-        result = resolve_virtual_dir_for_read(ctx=ctx, cpd=str(cpd or ""))
+        normalized = str(cpd or "").strip()
+        if normalized.startswith("/Templates"):
+            template_roots = self._perspective_template_roots(ctx)
+            project_name = self._perspective_project_name_from_ctx(ctx)
+            default_hint = str(template_roots[0]) if template_roots else ""
+            merged = parse_merged_templates_cpd(
+                cpd=normalized,
+                fallback_project_name=project_name,
+                fallback_template_hint=default_hint,
+            )
+            if not merged.valid:
+                return {"ok": False, "errorCode": "invalid_path", "message": "invalid merged CPD"}
+            if len(list(merged.tail_parts)) == 0:
+                return {
+                    "ok": True,
+                    "cpd": "/Templates",
+                    "realPath": "",
+                    "effectiveReadPath": "",
+                    "fallbackApplied": False,
+                    "fallbackFrom": "",
+                    "fallbackTo": "",
+                    "nodeType": "virtual_anchor",
+                    "errorCode": "",
+                    "message": "",
+                }
+            target_cpd = build_hint_cpd(
+                project_name=str(merged.project_name or ""),
+                template_hint=str(merged.template_hint or ""),
+                tail_parts=list(merged.tail_parts),
+            )
+            result = resolve_virtual_dir_for_read(ctx=ctx, cpd=target_cpd)
+            return self._serialize_perspective_result(result)
+        result = resolve_virtual_dir_for_read(ctx=ctx, cpd=normalized)
         return self._serialize_perspective_result(result)
 
     def perspective_resolve_real(self, path: str) -> Dict[str, Any]:
@@ -432,26 +501,78 @@ class ScopeApi:
         if ctx is None:
             return []
         listing_cpd = str(cpd or ctx.cpd)
-        parsed = self._parse_perspective_cpd(listing_cpd)
-        if not parsed["valid"]:
+        template_roots = self._perspective_template_roots(ctx)
+        project_name = self._perspective_project_name_from_ctx(ctx)
+        default_hint = str(template_roots[0]) if template_roots else ""
+        merged = parse_merged_templates_cpd(
+            cpd=listing_cpd,
+            fallback_project_name=project_name,
+            fallback_template_hint=default_hint,
+        )
+        if not merged.valid:
             return []
-        project_name = str(parsed["projectName"] or "")
-        if project_name == "":
+        merged_project = str(merged.project_name or "")
+        if merged_project == "":
             return []
-        template_parts = [str(part) for part in list(parsed["templateParts"]) + list(parsed["tailParts"])]
-        base = Path(ctx.project_root).expanduser().resolve() / project_name
-        target = base
-        for part in template_parts:
-            target = target / part
-        rows = self.list_templates(str(target), include_embryos=True)
-        out: List[Dict[str, Any]] = []
-        for item in rows:
-            name = str(item.get("name") or "")
-            if name == "":
+        template_roots = list(template_roots)
+        templates_base: Optional[Path] = None
+        if self.myos_root is not None:
+            candidate = Path(self.myos_root).expanduser().resolve() / "Templates"
+            if candidate.exists() and candidate.is_dir():
+                templates_base = candidate
+        if templates_base is None:
+            try:
+                cwd = Path(str(ctx.cwd_real)).expanduser().resolve()
+                _, blueprint = self._resolve_context_for_target(cwd)
+                templates_dir_raw = getattr(blueprint, "templates_dir", None) if blueprint is not None else None
+                if templates_dir_raw:
+                    candidate = Path(templates_dir_raw).expanduser().resolve()
+                    if candidate.exists() and candidate.is_dir():
+                        templates_base = candidate
+            except Exception:
+                templates_base = None
+
+        merged_children: Dict[str, Dict[str, Any]] = {}
+        safe_tail = [str(part) for part in list(merged.tail_parts) if str(part)]
+        for template_name in template_roots:
+            template_dir = templates_base / template_name if templates_base is not None else None
+            if template_dir is None:
                 continue
-            child_template_parts = template_parts + [name]
-            child_cpd = self._build_perspective_cpd(child_template_parts, project_name)
-            color = item.get("color")
+            current = template_dir
+            for segment in safe_tail:
+                current = current / segment
+            if not current.exists() or not current.is_dir():
+                continue
+            try:
+                children = sorted(current.iterdir(), key=lambda child: child.name.lower())
+            except Exception:
+                continue
+            for child in children:
+                if not child.is_dir():
+                    continue
+                name = str(child.name or "").strip()
+                if name == "":
+                    continue
+                node = merged_children.get(name)
+                if node is None:
+                    node = {"name": name, "origins": []}
+                    merged_children[name] = node
+                origins = node["origins"]
+                if template_name not in origins:
+                    origins.append(template_name)
+        out: List[Dict[str, Any]] = []
+        for name in sorted(merged_children.keys(), key=str.lower):
+            origins = list(merged_children.get(name, {}).get("origins") or [])
+            selected_hint = self._pick_template_hint(
+                preferred_hint=str(merged.template_hint or default_hint),
+                origins=origins,
+                template_roots=template_roots,
+            )
+            child_cpd = build_hint_cpd(
+                project_name=merged_project,
+                template_hint=selected_hint,
+                tail_parts=list(merged.tail_parts) + [name],
+            )
             out.append(
                 {
                     "name": name,
@@ -460,7 +581,8 @@ class ScopeApi:
                     "realPath": "",
                     "isVirtual": True,
                     "fallbackApplied": False,
-                    "color": str(color) if color is not None else "",
+                    "isEmbryo": True,
+                    "color": "",
                 }
             )
         return out
@@ -562,6 +684,61 @@ class ScopeApi:
         except Exception:
             return []
         return [name for name in names if name]
+
+    def _perspective_project_name_from_ctx(self, ctx: PerspectiveContext) -> str:
+        try:
+            root = Path(str(ctx.project_root)).expanduser().resolve()
+            cwd = Path(str(ctx.cwd_real)).expanduser().resolve()
+            rel = cwd.relative_to(root)
+            parts = list(rel.parts)
+        except Exception:
+            return ""
+        if not parts:
+            return ""
+        return str(parts[0] or "")
+
+    def _template_origins_for_child(
+        self,
+        *,
+        blueprint: Any,
+        template_roots: List[str],
+        tail_parts: List[str],
+        child_name: str,
+    ) -> List[str]:
+        templates_dir_raw = getattr(blueprint, "templates_dir", None)
+        if templates_dir_raw is None:
+            return []
+        templates_dir = Path(templates_dir_raw).expanduser().resolve()
+        safe_tail = [str(part) for part in (tail_parts or []) if str(part)]
+        child = str(child_name or "").strip()
+        if child == "":
+            return []
+        origins: List[str] = []
+        for template_name in [str(name) for name in (template_roots or []) if str(name)]:
+            candidate = templates_dir / template_name
+            for segment in safe_tail:
+                candidate = candidate / segment
+            candidate = candidate / child
+            if candidate.exists() and candidate.is_dir():
+                origins.append(template_name)
+        return origins
+
+    def _pick_template_hint(
+        self,
+        *,
+        preferred_hint: str,
+        origins: List[str],
+        template_roots: List[str],
+    ) -> str:
+        preferred = str(preferred_hint or "").strip()
+        if preferred and preferred in origins:
+            return preferred
+        for template_name in [str(name) for name in (template_roots or []) if str(name)]:
+            if template_name in origins:
+                return template_name
+        if origins:
+            return str(origins[0])
+        return preferred
 
     def _refresh_desk_context(self, target: Path) -> None:
         self._desk_service.refresh_context(target)
