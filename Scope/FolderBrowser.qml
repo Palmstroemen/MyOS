@@ -1937,10 +1937,6 @@ Item { // ROOT
         return "/" + target.join("/")
     }
 
-    function pathParts() {
-        return pathPartsFull()
-    }
-
     function parentPaths() {
         var parts = pathPartsFull()
         var prefix = prefixParts()

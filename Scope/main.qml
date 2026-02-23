@@ -526,15 +526,6 @@ ApplicationWindow {
         return root + raw.slice("/Templates".length)
     }
 
-    function templatePathFromPerspectiveCpd(cpd) {
-        var parsed = parsePerspectiveCpd(cpd)
-        if (!parsed.valid) return ""
-        var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
-        if (root.length === 0) return ""
-        var parts = parsed.templateParts.concat(parsed.tailParts)
-        return parts.length > 0 ? (root + "/" + parts.join("/")) : root
-    }
-
     function disablePerspectiveMode() {
         if (!hasBackend() || typeof backend.perspectiveSetCpd !== "function") {
             return false
@@ -1859,47 +1850,9 @@ ApplicationWindow {
         return ".../" + parts.slice(parts.length - keepCount).join("/")
     }
 
-    function displaySubprojectLabel(path) {
-        var query = searchText.trim()
-        if (query.length === 0) return path
-        if (query[0] === "+" || query[0] === "#") {
-            return shortenPathForDisplay(path)
-        }
-        return path
-    }
-
-    function verticalfolderItemStyle() {
-        return folderItemStyle === "largeIcon" ? "text" : folderItemStyle
-    }
-
     function lastPathSegment(path) {
         var parts = path.split("/").filter(function(p){ return p.length > 0 })
         return parts.length > 0 ? parts[parts.length - 1] : "/"
-    }
-
-    function rootPathOf(path) {
-        var parts = path.split("/").filter(function(p){ return p.length > 0 })
-        return parts.length > 0 ? ("/" + parts[0]) : "/"
-    }
-
-    function parentPathsFor(path) {
-        var parts = path.split("/").filter(function(p){ return p.length > 0 })
-        var paths = []
-        for (var i = 0; i < parts.length - 1; i++) {
-            paths.push("/" + parts.slice(0, i + 1).join("/"))
-        }
-        return paths
-    }
-
-    function visibleParentPathsFor(path, panelHeight) {
-        var parents = parentPathsFor(path)
-        if (parents.length <= maxVerticalParents) return parents
-        var approxNeeded = parents.length * (compactButtonHeight + verticalParentSpacing)
-        var reserve = (compactButtonHeight + verticalParentSpacing) * 4
-        if (panelHeight && (approxNeeded + reserve) > panelHeight) {
-            return parents.slice(Math.max(0, parents.length - maxVerticalParents))
-        }
-        return parents
     }
 
     function parentPaths() {
@@ -1915,16 +1868,6 @@ ApplicationWindow {
         var parents = parentPaths()
         if (parents.length <= maxVerticalParents) return parents
         return parents.slice(Math.max(0, parents.length - maxVerticalParents))
-    }
-
-    function createSubproject(name) {
-        var trimmed = name.trim().replace(/\s+/g, " ")
-        if (trimmed.length === 0) return false
-        if (demoData.addChild(cwp, trimmed)) {
-            setCwp(cwp)
-            return true
-        }
-        return false
     }
 
     function beginRename(path) {
