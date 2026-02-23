@@ -880,7 +880,17 @@ ApplicationWindow {
     }
 
     function moveEntry(sourcePath, targetDir) {
-        if (!sourcePath || !targetDir) {
+        if (!sourcePath) {
+            return
+        }
+        // Drop semantics: support both uncommitted and committed CTD targets.
+        // Prefer the explicit drop target (can be uncommitted), then fall back
+        // to committed CTD when no concrete drop target is available.
+        var resolvedTarget = String(targetDir || "").trim()
+        if (resolvedTarget.length === 0) {
+            resolvedTarget = String(committedCTDPath || "").trim()
+        }
+        if (resolvedTarget.length === 0) {
             return
         }
         var sources = _decodeDragPayload(sourcePath)
@@ -889,22 +899,22 @@ ApplicationWindow {
         }
         if (_containsDirectory(sources)) {
             pendingMoveSources = sources
-            pendingMoveTargetDir = targetDir
+            pendingMoveTargetDir = resolvedTarget
             var count = sources.length
             pendingMoveMessage = qsTr("Soll(en) %1 Ordner wirklich nach \"%2\" verschoben werden?")
                 .arg(count)
-                .arg(targetDir)
+                .arg(resolvedTarget)
             folderMoveConfirmDialog.open()
             return
         }
         if (sources.length === 1 && hasBackend() && typeof backend.previewSortTargetForMove === "function") {
-            var preview = backend.previewSortTargetForMove(String(sources[0] || ""), targetDir)
+            var preview = backend.previewSortTargetForMove(String(sources[0] || ""), resolvedTarget)
             if (preview && preview.ok && preview.target) {
                 moveReportMessage = qsTr("Nach dem Verschieben wird einsortiert nach:\n%1").arg(String(preview.target))
                 moveReportDialog.open()
             }
         }
-        _performMove(sources, targetDir)
+        _performMove(sources, resolvedTarget)
     }
 
     function createNewNote() {
