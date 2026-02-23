@@ -33,14 +33,6 @@ ApplicationWindow {
     property string uiLanguage: "de"
     property string userPath: "/Eigene"
     property string level2ButtonStyle: "smallIcon"
-    property real level2AvailableWidth: 0
-    property real level2PathPreferredWidth: 0
-    property real level2FlowPreferredWidth: 0
-    property bool level2LayoutUpdatePending: false
-    property real level2RightButtonsWidth: 0
-    property bool level2FlowOnSecondLine: false
-
-
     // Browser visibility
     property bool projectsBrowserVisible: true
     property bool templatesBrowserVisible: true
@@ -2108,50 +2100,7 @@ ApplicationWindow {
         }
         updateStandardFolders()
     }
-    onLevel2ButtonStyleChanged: {
-        scheduleLevel2LayoutUpdate()
-        scheduleBrowserLayoutRefresh()
-    }
-
-    function scheduleLevel2LayoutUpdate() {
-        if (level2LayoutUpdatePending) return
-        level2LayoutUpdatePending = true
-        Qt.callLater(function() {
-            level2LayoutUpdatePending = false
-            updateLevel2FlowPlacement()
-        })
-    }
-
-    function updateLevel2FlowPlacement() {
-        if (typeof standardTopRow === "undefined" ||
-            typeof standardPathRow === "undefined" ||
-            typeof level2TopFoldersRow === "undefined" ||
-            typeof level2RightButtons === "undefined" ||
-            typeof level2ToggleButton === "undefined") {
-            return
-        }
-        if (!standardTopRow || !standardPathRow || !level2TopFoldersRow || !level2RightButtons || !level2ToggleButton) return
-        var available = standardTopRow.width - level2RightButtonsWidth - level2ToggleButton.width - (standardTopRow.spacing * 3)
-        if (available < 0) available = 0
-        if (level2AvailableWidth !== available) level2AvailableWidth = available
-        if (available === 0) {
-            if (!level2FlowOnSecondLine) level2FlowOnSecondLine = true
-            if (level2PathPreferredWidth !== standardPathRow.implicitWidth) level2PathPreferredWidth = standardPathRow.implicitWidth
-            if (level2FlowPreferredWidth !== 0) level2FlowPreferredWidth = 0
-            return
-        }
-        var shouldWrap = (standardPathRow.implicitWidth + level2TopFoldersRow.implicitWidth) > available
-        if (level2FlowOnSecondLine !== shouldWrap) level2FlowOnSecondLine = shouldWrap
-        if (shouldWrap) {
-            if (level2PathPreferredWidth !== available) level2PathPreferredWidth = available
-            if (level2FlowPreferredWidth !== 0) level2FlowPreferredWidth = 0
-        } else {
-            var newPath = Math.min(standardPathRow.implicitWidth, available - level2TopFoldersRow.implicitWidth)
-            var newFlow = Math.max(0, available - newPath)
-            if (level2PathPreferredWidth !== newPath) level2PathPreferredWidth = newPath
-            if (level2FlowPreferredWidth !== newFlow) level2FlowPreferredWidth = newFlow
-        }
-    }
+    onLevel2ButtonStyleChanged: scheduleBrowserLayoutRefresh()
 
     function setBrowserParent(item, newParent) {
         if (!item || !newParent) return
@@ -2963,7 +2912,15 @@ ApplicationWindow {
 
             RowLayout { // Buttonbar
                 Layout.fillWidth: true
+                Layout.preferredHeight: topButtonFlow.implicitHeight
+                Layout.minimumHeight: topButtonFlow.implicitHeight
+                Layout.maximumHeight: topButtonFlow.implicitHeight
                 spacing: 8
+                Flow {
+                    id: topButtonFlow
+                    Layout.fillWidth: true
+                    width: parent.width
+                    spacing: 8
                 Rectangle { // Theme Switch
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
@@ -2976,6 +2933,7 @@ ApplicationWindow {
                         font.pixelSize: baseFont
                     }
                     implicitWidth: 62
+                    width: implicitWidth
                     MouseArea {
                         anchors.fill: parent
                         onClicked: darkTheme = !darkTheme
@@ -2988,6 +2946,7 @@ ApplicationWindow {
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
                     implicitWidth: 62
+                    width: implicitWidth
                     Text {
                         anchors.centerIn: parent
                         text: uiLanguage.toUpperCase()
@@ -3006,6 +2965,7 @@ ApplicationWindow {
                     color: activeFilter.active ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: activeFilter.active ? theme.smallButtonActiveBorder : theme.smallButtonBorder
                     implicitWidth: 210
+                    width: implicitWidth
                     Text {
                         anchors.centerIn: parent
                         text: {
@@ -3071,6 +3031,7 @@ ApplicationWindow {
                     color: projectsBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: projectsBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
                     implicitWidth: 146
+                    width: implicitWidth
                     
                     Text {
                         anchors.centerIn: parent
@@ -3091,6 +3052,7 @@ ApplicationWindow {
                     color: templatesBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: templatesBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
                     implicitWidth: 146
+                    width: implicitWidth
                     
                     Text {
                         anchors.centerIn: parent
@@ -3111,6 +3073,7 @@ ApplicationWindow {
                     color: filesPanelHalfTransparent ? theme.smallButtonActiveBg : theme.smallButtonBg
                     border.color: filesPanelHalfTransparent ? theme.smallButtonActiveBorder : theme.smallButtonBorder
                     implicitWidth: 118
+                    width: implicitWidth
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Dateien 50%")
@@ -3129,6 +3092,7 @@ ApplicationWindow {
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
                     implicitWidth: 196
+                    width: implicitWidth
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Projekt mit Thema versehen")
@@ -3158,6 +3122,7 @@ ApplicationWindow {
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
                     implicitWidth: 176
+                    width: implicitWidth
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Ordnung aktivieren")
@@ -3187,6 +3152,7 @@ ApplicationWindow {
                     color: theme.smallButtonBg
                     border.color: theme.smallButtonBorder
                     implicitWidth: 152
+                    width: implicitWidth
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("Jetzt einsortieren")
@@ -3211,7 +3177,7 @@ ApplicationWindow {
                     }
                 }
                 
-                Item { Layout.fillWidth: true }
+                }
             }
 
             Item {

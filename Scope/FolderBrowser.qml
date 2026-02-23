@@ -2165,6 +2165,17 @@ Item { // ROOT
         }
     }
 
+    function horizontalPathHostMaxWidth() {
+        if (!topRow || !rightButtonsRow) return 0
+        var toggleWidth = (showModeToggle && modeToggleButton) ? modeToggleButton.width : 0
+        var gapCount = showModeToggle ? 4 : 3
+        var foldersWidth = (!flowOnSecondLine && topFlowHost && topFlowHost.visible && topFoldersRow)
+            ? topFoldersRow.implicitWidth
+            : 0
+        var maxWidth = topRow.width - rightButtonsRow.implicitWidth - toggleWidth - (topRow.spacing * gapCount) - foldersWidth
+        return Math.max(0, maxWidth)
+    }
+
     function updateVerticalButtonsPlacement() {
         if (!verticalView) return
         if (!verticalMainColumn || !verticalContentRow) return
@@ -2438,7 +2449,8 @@ Item { // ROOT
                 Item {  // HORIZONTAL: path segment row (breadcrumbs)
                     id: pathHost
                     Layout.fillWidth: flowOnSecondLine
-                    Layout.preferredWidth: flowOnSecondLine ? 0 : pathRow.implicitWidth
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(pathRow.implicitWidth, horizontalPathHostMaxWidth())
+                    Layout.maximumWidth: flowOnSecondLine ? -1 : horizontalPathHostMaxWidth()
                     Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
                     clip: true
                     Row {
