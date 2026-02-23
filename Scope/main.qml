@@ -107,8 +107,8 @@ ApplicationWindow {
     // Controls whether TemplatesBrowser acts as perspective selector (CPD semantics)
     // or as plain embryo browser (CTD semantics).
     property bool templatesUsePerspective: true
-    property var standardFolders: ["01", "02", "03", "04", "05"]
-    property var standardFoldersFiltered: ["01", "02", "03", "04", "05"]
+    property var standardFolders: []
+    property var standardFoldersFiltered: []
     property var userFolders: ["myFolder", "myOtherFolder"]
     property var files: ["Rechnung_001.pdf", "Angebot_Alpha.docx", "Note.md"]
     property var fileItemsAll: []
@@ -342,21 +342,31 @@ ApplicationWindow {
         var next = backend.perspectiveState() || ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
         var nextActive = !!next.active
         var nextCpd = String(next.cpd || "")
-        var changed = (nextActive !== lastSyncedPerspectiveActive) || (nextCpd !== lastSyncedPerspectiveCpd)
+        var stateChanged = (nextActive !== lastSyncedPerspectiveActive) || (nextCpd !== lastSyncedPerspectiveCpd)
         perspectiveState = next
         perspectiveModeEnabled = nextActive
-        if (changed) {
+        var desiredTemplatesPath = nextActive
+            ? templatesDisplayPathFromPerspectiveCpd(nextCpd)
+            : templatesDisplayPathFromPerspectiveCpd("/Templates")
+        var displayChanged = desiredTemplatesPath !== String(templatesPerspectivePath || "")
+        if (displayChanged) {
+            templatesPerspectivePath = desiredTemplatesPath
+        }
+        if (stateChanged || (templatesUsePerspective && displayChanged)) {
             lastSyncedPerspectiveActive = nextActive
             lastSyncedPerspectiveCpd = nextCpd
-            if (nextActive) {
-                templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(nextCpd)
-            } else {
-                templatesPerspectivePath = "/Templates"
-            }
-            var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+            var listingPath = templatesPerspectiveActive() ? templatesPerspectivePath : standardPath
             standardFolders = listTemplates(listingPath)
             updateStandardFolders()
         }
+    }
+
+    function templatesPerspectiveActive() {
+        return !!templatesUsePerspective && !!perspectiveModeEnabled
+    }
+
+    function templatesListingPath() {
+        return templatesPerspectiveActive() ? templatesPerspectivePath : standardPath
     }
 
     function parsePerspectiveCpd(cpd) {
@@ -486,12 +496,16 @@ ApplicationWindow {
     }
 
     function templatesDisplayPathFromPerspectiveCpd(cpd) {
+        var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
         var parsed = parsePerspectiveCpd(cpd)
         if (!parsed.valid) {
-            return "/Templates"
+            return root.length > 0 ? root : "/Templates"
         }
         var tail = parsed.templateParts.slice(1).concat(parsed.tailParts)
-        return tail.length > 0 ? ("/Templates/" + tail.join("/")) : "/Templates"
+        if (root.length === 0) {
+            return tail.length > 0 ? ("/Templates/" + tail.join("/")) : "/Templates"
+        }
+        return tail.length > 0 ? (root + "/" + tail.join("/")) : root
     }
 
     function resolveTemplateDisplayPathToReal(path) {
@@ -527,9 +541,9 @@ ApplicationWindow {
         }
         backend.perspectiveSetCpd("/Templates")
         refreshPerspectiveState()
-        templatesPerspectivePath = "/Templates"
+        templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd("/Templates")
         templatesPerspectiveCpdByDisplayPath = ({})
-        var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+        var listingPath = templatesListingPath()
         standardFolders = listTemplates(listingPath)
         updateStandardFolders()
         return true
@@ -570,7 +584,7 @@ ApplicationWindow {
         templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(
             String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : next)
         )
-        var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+        var listingPath = templatesListingPath()
         standardFolders = listTemplates(listingPath)
         updateStandardFolders()
         return true
@@ -638,7 +652,7 @@ ApplicationWindow {
     }
 
     function listTemplates(path) {
-        if (templatesUsePerspective && hasBackend()) {
+        if (templatesUsePerspective && perspectiveModeEnabled && hasBackend()) {
             var queryCpd = perspectiveCpdFromTemplatePath(path)
             return listPerspectiveTemplates(queryCpd, path)
         }
@@ -802,7 +816,7 @@ ApplicationWindow {
                 updateSubProjects()
                 updateFiles()
                 updateTemplates()
-                var listingPath = templatesUsePerspective ? templatesPerspectivePath : standardPath
+                var listingPath = templatesListingPath()
                 standardFolders = listTemplates(listingPath)
                 updateStandardFolders()
             }
@@ -865,7 +879,7 @@ ApplicationWindow {
             updateSubProjects()
             updateFiles()
             updateTemplates()
-            var listingPathSingle = templatesUsePerspective ? templatesPerspectivePath : standardPath
+            var listingPathSingle = templatesListingPath()
             standardFolders = listTemplates(listingPathSingle)
             updateStandardFolders()
         }
@@ -1658,24 +1672,22 @@ ApplicationWindow {
         }
         var root = trimTrailingSlash(resolveTemplatesRootPath())
         templatesRootPath = root
-        if (templatesUsePerspective) {
-            if (ensurePerspectiveOpenForTemplates()) {
+        // APD follows CWD whenever perspective is inactive.
+        standardPath = cwp
+        if (templatesUsePerspective && perspectiveModeEnabled) {
+            if (perspectiveState.active) {
                 templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(
                     String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "/Templates")
                 )
             } else {
-                templatesPerspectivePath = "/Templates"
+                templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd("/Templates")
             }
-            return
+        } else {
+            templatesPerspectiveCpdByDisplayPath = ({})
         }
-        if (root.length === 0) {
-            standardPath = cwp
-            return
-        }
-        if (standardPath.indexOf(root + "/") === 0 || standardPath === root) {
-            return
-        }
-        standardPath = root
+        var listingPath = templatesListingPath()
+        standardFolders = listTemplates(listingPath)
+        updateStandardFolders()
     }
 
     function updateThumbnail(fullPath, thumbUrl) {
@@ -1753,7 +1765,7 @@ ApplicationWindow {
         updateStandardFolders()
     }
     onTemplatesPerspectivePathChanged: {
-        if (!templatesUsePerspective) {
+        if (!templatesPerspectiveActive()) {
             return
         }
         standardFolders = listTemplates(templatesPerspectivePath)
@@ -1982,7 +1994,29 @@ ApplicationWindow {
                 startPath = resolved.slice(7)
             }
         }
+        var cwpBeforeInit = String(cwp || "")
         setCwp(startPath)
+        // If startup path equals existing cwp, onCwpChanged will not fire.
+        // Run one explicit bootstrap so template/file models don't stay on placeholders.
+        if (String(cwp || "") === cwpBeforeInit) {
+            selectedEntryPaths = []
+            selectedTags = []
+            refreshPerspectiveState()
+            updateSubProjects()
+            if (hasBackend() && typeof backend.setContext === "function") {
+                backend.setContext(cwp)
+                _openConfigPromptIfPending()
+            }
+            updateDefaultProjectTint()
+            updateCurrentProjectTint()
+            if (String(committedCTDPath || "").trim().length === 0) {
+                commitCTD(cwp)
+            }
+            updateTemplates()
+            var listingPathInit = templatesListingPath()
+            standardFolders = listTemplates(listingPathInit)
+            updateStandardFolders()
+        }
         updateBrowserLayout()
         warnIfMissingAny(templatesBrowser, [
             "projectTint",
@@ -3266,8 +3300,12 @@ ApplicationWindow {
             parent: floatingPool
             visible: templatesBrowserVisible
             isPerspective: window.templatesUsePerspective
-            path: templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
-            pathDisplayPrefix: templatesRootPath.length > 0 ? templatesRootPath : cwp
+            path: (templatesBrowser.isPerspective && window.perspectiveModeEnabled)
+                ? window.templatesPerspectivePath
+                : standardPath
+            pathDisplayPrefix: cwp
+            showLeftAction: templatesBrowser.isPerspective && window.perspectiveModeEnabled
+            leftActionText: qsTr("Perspective OFF")
             showEmbryos: window.templatesShowEmbryos
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
@@ -3319,6 +3357,32 @@ ApplicationWindow {
             textSoft: theme.textSoft
             textMuted: theme.textMuted
             card: theme.card
+            pathColorFunction: function(path, isCurrent) {
+                if (!hasBackend()) return null;
+                var color = backend.projectColor(path);
+                if (color && color.length > 0) {
+                    var opacity = isCurrent ? templatesBrowser.cwdOpacity : templatesBrowser.pathProjectOpacity;
+                    return {
+                        fill: templatesBrowser.colorWithAlpha(color, opacity, templatesBrowser.projectTint),
+                        stroke: templatesBrowser.colorWithAlpha(color, opacity, templatesBrowser.projectTintBorder)
+                    };
+                }
+                var projectRoot = (typeof backend.getProjectRoot === "function")
+                    ? backend.getProjectRoot()
+                    : ""
+                var isRootPath = projectRoot && path === projectRoot
+                if (isRootPath) {
+                    var fallback = backend.defaultProjectColor ? backend.defaultProjectColor() : ""
+                    if (fallback && fallback.length > 0) {
+                        var rootOpacity = isCurrent ? templatesBrowser.cwdOpacity : templatesBrowser.pathProjectOpacity;
+                        return {
+                            fill: templatesBrowser.colorWithAlpha(fallback, rootOpacity, templatesBrowser.projectTint),
+                            stroke: templatesBrowser.colorWithAlpha(fallback, rootOpacity, templatesBrowser.projectTintBorder)
+                        };
+                    }
+                }
+                return null;
+            }
             searchActive: level2SearchActive
             searchText: level2SearchText
             onToggleMode: level2VerticalView = !level2VerticalView
@@ -3329,14 +3393,19 @@ ApplicationWindow {
                 updateStandardFolders()
             }
             onStyleChanged: function(style) { level2ButtonStyle = style }
+        onLeftActionTriggered: {
+            disablePerspectiveMode()
+        }
         onToggleEmbryos: {
             window.templatesShowEmbryos = !window.templatesShowEmbryos
-            var listingPath = templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
+                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
+                var listingPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
             standardFolders = listTemplates(listingPath)
             updateStandardFolders()
         }
             onPathSegmentActivated: function(index) {
-                var currentPath = templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
+                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
+                var currentPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
                 var nextPath = currentPath
                 if (templatesBrowser.fullPathForDisplayIndex) {
                     nextPath = templatesBrowser.fullPathForDisplayIndex(index)
@@ -3344,7 +3413,7 @@ ApplicationWindow {
                     var parts = currentPath.split("/").filter(function(p){ return p.length > 0 })
                     nextPath = "/" + parts.slice(0, index + 1).join("/")
                 }
-                if (templatesBrowser.isPerspective) {
+                if (perspectiveActive) {
                     window.templatesPerspectivePath = nextPath
                 } else {
                     standardPath = nextPath
@@ -3352,7 +3421,8 @@ ApplicationWindow {
                 commitCTD(resolveTemplateDisplayPathToReal(nextPath))
             }
             onPathSelected: function(path) {
-                if (templatesBrowser.isPerspective) {
+                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
+                if (perspectiveActive) {
                     window.templatesPerspectivePath = String(path || "")
                 } else {
                     standardPath = path
@@ -3360,9 +3430,10 @@ ApplicationWindow {
                 commitCTD(resolveTemplateDisplayPathToReal(path))
             }
             onFolderActivated: function(name) {
-                var currentPath = templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
+                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
+                var currentPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
                 var nextPath = String(name || currentPath)
-                if (templatesBrowser.isPerspective) {
+                if (perspectiveActive) {
                     window.templatesPerspectivePath = nextPath
                 } else {
                     standardPath = nextPath
@@ -3646,7 +3717,7 @@ ApplicationWindow {
                         }
                         updateFiles()
                         updateTemplates()
-                        var listingPathAfterCreate = templatesUsePerspective ? templatesPerspectivePath : standardPath
+                        var listingPathAfterCreate = templatesListingPath()
                         standardFolders = listTemplates(listingPathAfterCreate)
                         updateStandardFolders()
                     }

@@ -33,6 +33,8 @@ Item { // ROOT
     property bool allowRename: false
     property bool allowDrags: false
     property bool allowDrops: false
+    property bool showLeftAction: false
+    property string leftActionText: ""
     property string renameTargetPath: ""
     property string renameDraft: ""
     property int baseFont: 14
@@ -105,6 +107,7 @@ Item { // ROOT
     signal renameCanceled()
     signal searchTextEdited(string value)
     signal moveEntryRequested(string sourcePath, string targetDir)
+    signal leftActionTriggered()
 
     property bool flowOnSecondLine: false
     property bool layoutUpdatePending: false
@@ -158,6 +161,8 @@ Item { // ROOT
     property real cwdHoverGrandchildPanelY: 0
     property string cwdHoverGrandchildPanelPath: ""
     property var cwdHoverGrandchildEntries: []
+    property int cwdOverlayDiagSeq: 0
+    property var cwdOverlayLastHostRef: null
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
     property bool previewEnabled: true
@@ -279,6 +284,25 @@ Item { // ROOT
 
     function itemIsEmbryo(item) {
         return item && item.isEmbryo === true
+    }
+
+    function emitFolderActivatedIntent(path) {
+        var value = String(path || "").trim()
+        if (!value) return
+        folderActivated(value)
+    }
+
+    function emitFolderDoubleActivatedIntent(path) {
+        var value = String(path || "").trim()
+        if (!value) return
+        folderDoubleActivated(value)
+    }
+
+    function emitMoveEntryIntent(payload, path) {
+        var source = String(payload || "").trim()
+        var target = String(path || "").trim()
+        if (!source || !target) return
+        moveEntryRequested(source, target)
     }
 
     function normalizeColor(value) {
@@ -1289,6 +1313,18 @@ Item { // ROOT
     onS2CollapseProgressChanged: {
         syncSystemPointerCarry()
     }
+    onCwdHoverPanelOpenChanged: {
+        _logCwdOverlay("panel-open-changed", { value: cwdHoverPanelOpen })
+    }
+    onCwdHoverChildPanelOpenChanged: {
+        _logCwdOverlay("child-open-changed", { value: cwdHoverChildPanelOpen })
+    }
+    onCwdHoverGrandchildPanelOpenChanged: {
+        _logCwdOverlay("grandchild-open-changed", { value: cwdHoverGrandchildPanelOpen })
+    }
+    onCwdHoverCascadePanelsChanged: {
+        _logCwdOverlay("cascade-model-changed", { depth: cwdHoverCascadePanels.length })
+    }
     onPreviewFocusBackgroundChanged: _debugPreviewBgState("focusToggle")
 
     Timer {
@@ -1335,7 +1371,7 @@ Item { // ROOT
         repeat: false
         onTriggered: {
             if (!root.cwdHoverOverButton && !root.anyCwdPanelHovered()) {
-                root.closeCwdHoverPanels()
+                root.closeCwdHoverPanels("close-timer")
             }
         }
     }
@@ -1935,9 +1971,47 @@ Item { // ROOT
     }
 
     function cwdHoverOverlayHost() {
-        return (root.Window && root.Window.window && root.Window.window.contentItem)
+        var host = (root.Window && root.Window.window && root.Window.window.contentItem)
             ? root.Window.window.contentItem
             : (root.parent ? root.parent : root)
+        if (cwdOverlayLastHostRef !== host) {
+            _logCwdOverlay("host-changed", {
+                hostW: Number(host && host.width !== undefined ? host.width : -1),
+                hostH: Number(host && host.height !== undefined ? host.height : -1)
+            })
+            cwdOverlayLastHostRef = host
+        }
+        return host
+    }
+
+    function _overlayItemHasParent(item, expectedParent) {
+        if (!item) return false
+        return item.parent === expectedParent
+    }
+
+    function _logCwdOverlay(eventName, details) {
+        var seq = Number(cwdOverlayDiagSeq || 0) + 1
+        cwdOverlayDiagSeq = seq
+        var host = (root.Window && root.Window.window && root.Window.window.contentItem)
+            ? root.Window.window.contentItem
+            : (root.parent ? root.parent : root)
+        var fields = [
+            "[cwd-overlay]",
+            "name=", debugName,
+            "seq=", seq,
+            "event=", String(eventName || ""),
+            "panelOpen=", cwdHoverPanelOpen,
+            "cascade=", cwdHoverCascadePanels.length,
+            "hostW=", Math.round(Number(host && host.width !== undefined ? host.width : -1)),
+            "hostH=", Math.round(Number(host && host.height !== undefined ? host.height : -1))
+        ]
+        if (details) {
+            for (var key in details) {
+                fields.push(key + "=")
+                fields.push(String(details[key]))
+            }
+        }
+        console.log.apply(console, fields)
     }
 
     function cascadePanelY(anchorY, panelHeight) {
@@ -1957,10 +2031,32 @@ Item { // ROOT
 
     function openCwdCascadePanel(depth, fullPath, sourceItem) {
         var host = cwdHoverOverlayHost()
+        if (!sourceItem) {
+            _logCwdOverlay("cascade-open-missing-source", {
+                depth: Number(depth || 0),
+                path: String(fullPath || "")
+            })
+            return
+        }
+        var parentOk = _overlayItemHasParent(sourceItem, host)
         var p = sourceItem.mapToItem(host, sourceItem.width, 0)
         var entries = listPreviewChildren(fullPath)
         var next = cwdHoverCascadePanels.slice(0, Math.max(0, depth))
         var nextHover = cwdHoverCascadePanelHovered.slice(0, Math.max(0, depth))
+        _logCwdOverlay("cascade-open", {
+            depth: Number(depth || 0),
+            path: String(fullPath || ""),
+            parentOk: parentOk,
+            entries: entries ? entries.length : 0,
+            x: Math.round(Number(p.x || 0)),
+            y: Math.round(Number(p.y || 0))
+        })
+        if (!parentOk) {
+            _logCwdOverlay("cascade-parent-mismatch", {
+                depth: Number(depth || 0),
+                path: String(fullPath || "")
+            })
+        }
         if (!entries || entries.length === 0) {
             // No children => no panel on the right; also trim deeper panels.
             cwdHoverCascadePanels = next
@@ -1999,7 +2095,10 @@ Item { // ROOT
         return false
     }
 
-    function closeCwdHoverPanels() {
+    function closeCwdHoverPanels(reason) {
+        _logCwdOverlay("close", {
+            reason: String(reason || "unspecified")
+        })
         cwdHoverOverButton = false
         cwdHoverOverPanel = false
         cwdHoverOverChildPanel = false
@@ -2461,6 +2560,30 @@ Item { // ROOT
                         anchors.right: pathRow.implicitWidth <= pathHost.width ? undefined : parent.right
                         onImplicitWidthChanged: scheduleLayoutUpdate()
 
+                        FolderItem {
+                            visible: root.showLeftAction && String(root.leftActionText || "").length > 0
+                            y: root.cwdTabDrop
+                            label: String(root.leftActionText || "")
+                            style: root.effectiveStyle()
+                            compactHeight: root.compactButtonHeight
+                            largeHeight: root.largeButtonHeight
+                            largePadding: root.largeButtonPadding
+                            iconSmall: root.iconSizeSmall
+                            iconLarge: root.iconSizeLarge
+                            textYOffset: root.buttonTextYOffset
+                            iconSource: root.iconFolder
+                            fillColor: root.smallButtonActiveBg
+                            strokeColor: root.smallButtonActiveBorder
+                            textColor: root.accentPrimaryText
+                            textSize: root.baseFont
+                            dimmedStyle: false
+                            flatBottomCorners: true
+                            renaming: false
+                            renameEnabled: false
+                            onActivate: root.leftActionTriggered()
+                            onDoubleActivate: root.leftActionTriggered()
+                        }
+
                         Repeater {
                             model: pathPartsDisplay()
                             delegate: FolderItem {
@@ -2493,7 +2616,20 @@ Item { // ROOT
                                     hoverEnabled: true
                                     onEntered: {
                                         var host = root.cwdHoverOverlayHost()
+                                        var parentOk = root._overlayItemHasParent(parent, host)
                                         var p = parent.mapToItem(host, 0, parent.height)
+                                        root._logCwdOverlay("root-panel-open", {
+                                            path: String(fullPathForSegment || ""),
+                                            parentOk: parentOk,
+                                            x: Math.round(Number(p.x || 0)),
+                                            y: Math.round(Number(p.y || 0)),
+                                            panelW: Math.round(Number(parent.width || 0))
+                                        })
+                                        if (!parentOk) {
+                                            root._logCwdOverlay("root-parent-mismatch", {
+                                                path: String(fullPathForSegment || "")
+                                            })
+                                        }
                                         root.cwdHoverPanelX = p.x
                                         root.cwdHoverPanelY = p.y
                                         root.cwdHoverPanelWidth = Math.max(120, parent.width)
@@ -2522,7 +2658,7 @@ Item { // ROOT
                                         if (!drop || !drop.text) return
                                         var targetPath = fullPathForDisplayIndex(index)
                                         if (!targetPath) return
-                                        moveEntryRequested(drop.text, targetPath)
+                                        emitMoveEntryIntent(drop.text, targetPath)
                                         drop.acceptProposedAction()
                                     }
                                 }
@@ -2624,8 +2760,8 @@ Item { // ROOT
                                 onRenameTextEdited: renameTextEdited(text)
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(fullPath)
-                                onDoubleActivate: folderDoubleActivated(fullPath)
+                                onActivate: emitFolderActivatedIntent(fullPath)
+                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
@@ -2635,7 +2771,7 @@ Item { // ROOT
                                     enabled: allowDrops && !itemIsEmbryo(modelData)
                                     onDropped: {
                                         if (!drop || !drop.text) return
-                                        moveEntryRequested(drop.text, fullPath)
+                                        emitMoveEntryIntent(drop.text, fullPath)
                                         drop.acceptProposedAction()
                                     }
                                 }
@@ -3077,7 +3213,7 @@ Item { // ROOT
                             enabled: allowDrops
                             onDropped: {
                                 if (!drop || !drop.text) return
-                                moveEntryRequested(drop.text, path)
+                                emitMoveEntryIntent(drop.text, path)
                                 drop.acceptProposedAction()
                             }
                         }
@@ -3223,8 +3359,8 @@ Item { // ROOT
                                     onRenameTextEdited: renameTextEdited(text)
                                     onRenameAccepted: renameAccepted()
                                     onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(fullPath)
-                                onDoubleActivate: folderDoubleActivated(fullPath)
+                                onActivate: emitFolderActivatedIntent(fullPath)
+                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
                                 onHoverEntered: {
                                     if (!verticalView) {
                                         return
@@ -3237,7 +3373,7 @@ Item { // ROOT
                                             enabled: allowDrops && !itemIsEmbryo(modelData)
                                             onDropped: {
                                                 if (!drop || !drop.text) return
-                                                moveEntryRequested(drop.text, fullPath)
+                                                emitMoveEntryIntent(drop.text, fullPath)
                                                 drop.acceptProposedAction()
                                             }
                                         }
@@ -3650,8 +3786,8 @@ Item { // ROOT
                                                     onRenameTextEdited: renameTextEdited(text)
                                                     onRenameAccepted: renameAccepted()
                                                     onRenameCanceled: renameCanceled()
-                                                    onActivate: folderActivated(fullPath)
-                                                    onDoubleActivate: folderDoubleActivated(fullPath)
+                                                    onActivate: emitFolderActivatedIntent(fullPath)
+                                                    onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
                                                     onHoverEntered: {
                                                         if (!verticalView) {
                                                             return
@@ -3664,7 +3800,7 @@ Item { // ROOT
                                                         enabled: allowDrops && !itemIsEmbryo(modelData)
                                                         onDropped: {
                                                             if (!drop || !drop.text) return
-                                                            moveEntryRequested(drop.text, fullPath)
+                                                            emitMoveEntryIntent(drop.text, fullPath)
                                                             drop.acceptProposedAction()
                                                         }
                                                     }
@@ -3731,8 +3867,8 @@ Item { // ROOT
                                 onRenameTextEdited: renameTextEdited(text)
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
-                                onActivate: folderActivated(fullPath)
-                                onDoubleActivate: folderDoubleActivated(fullPath)
+                                onActivate: emitFolderActivatedIntent(fullPath)
+                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
@@ -3742,7 +3878,7 @@ Item { // ROOT
                                     enabled: allowDrops && !itemIsEmbryo(modelData)
                                     onDropped: {
                                         if (!drop || !drop.text) return
-                                        moveEntryRequested(drop.text, fullPath)
+                                        emitMoveEntryIntent(drop.text, fullPath)
                                         drop.acceptProposedAction()
                                     }
                                 }
@@ -3885,8 +4021,8 @@ Item { // ROOT
                                     textBold: root.isPreviewPathActive(previewLevel + 1, fullPath)
                                     dimmedStyle: root.isPreviewDimmed(previewLevel + 1, fullPath)
                                     opacity: root.previewOpacityForEntry(previewLevel + 1, fullPath)
-                                    onActivate: folderActivated(fullPath)
-                                    onDoubleActivate: folderDoubleActivated(fullPath)
+                                    onActivate: emitFolderActivatedIntent(fullPath)
+                                    onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
                                         updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
@@ -3901,6 +4037,16 @@ Item { // ROOT
                 id: cwdHoverPanel
                 parent: root.cwdHoverOverlayHost()
                 visible: root.cwdHoverPanelOpen && !root.verticalView
+                onParentChanged: {
+                    root._logCwdOverlay("main-panel-parent-changed", {
+                        parentOk: root._overlayItemHasParent(cwdHoverPanel, root.cwdHoverOverlayHost())
+                    })
+                }
+                onVisibleChanged: {
+                    root._logCwdOverlay("main-panel-visible-changed", {
+                        value: cwdHoverPanel.visible
+                    })
+                }
                 x: root.cwdHoverPanelX
                 y: root.cwdHoverPanelY
                 z: 9999
@@ -3958,8 +4104,21 @@ Item { // ROOT
                                 renaming: false
                                 renameEnabled: false
                                 onActivate: {
-                                    browserRoot.closeCwdHoverPanels()
-                                    browserRoot.folderActivated(fullPath)
+                                    browserRoot.closeCwdHoverPanels("main-panel-activate")
+                                    browserRoot.emitFolderActivatedIntent(fullPath)
+                                }
+                                onDoubleActivate: {
+                                    browserRoot.closeCwdHoverPanels("main-panel-double-activate")
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                }
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: root.allowDrops
+                                    onDropped: {
+                                        if (!drop || !drop.text) return
+                                        browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                        drop.acceptProposedAction()
+                                    }
                                 }
                                 HoverHandler {
                                     acceptedDevices: PointerDevice.Mouse
@@ -4011,6 +4170,20 @@ Item { // ROOT
                     property string cascadeBasePath: String(modelData && modelData.path ? modelData.path : "")
                     parent: root.cwdHoverOverlayHost()
                     visible: root.cwdHoverPanelOpen && !root.verticalView
+                    onParentChanged: {
+                        root._logCwdOverlay("cascade-panel-parent-changed", {
+                            depth: cascadeIndex,
+                            path: cascadeBasePath,
+                            parentOk: root._overlayItemHasParent(this, root.cwdHoverOverlayHost())
+                        })
+                    }
+                    onVisibleChanged: {
+                        root._logCwdOverlay("cascade-panel-visible-changed", {
+                            depth: cascadeIndex,
+                            path: cascadeBasePath,
+                            value: visible
+                        })
+                    }
                     x: root.cwdHoverPanelX + ((cascadeIndex + 1) * root.cwdHoverPanelWidth)
                     y: root.cascadePanelY(Number(modelData && modelData.y !== undefined ? modelData.y : 0), height)
                     z: 9999
@@ -4069,8 +4242,21 @@ Item { // ROOT
                                     renaming: false
                                     renameEnabled: false
                                     onActivate: {
-                                        browserRoot.closeCwdHoverPanels()
-                                        browserRoot.folderActivated(fullPath)
+                                        browserRoot.closeCwdHoverPanels("cascade-activate")
+                                        browserRoot.emitFolderActivatedIntent(fullPath)
+                                    }
+                                    onDoubleActivate: {
+                                        browserRoot.closeCwdHoverPanels("cascade-double-activate")
+                                        browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                    }
+                                    DropArea {
+                                        anchors.fill: parent
+                                        enabled: root.allowDrops && !root.itemIsEmbryo(modelData)
+                                        onDropped: {
+                                            if (!drop || !drop.text) return
+                                            browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                            drop.acceptProposedAction()
+                                        }
                                     }
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
@@ -4109,6 +4295,16 @@ Item { // ROOT
                 id: cwdHoverChildPanel
                 parent: root.cwdHoverOverlayHost()
                 visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && !root.verticalView && false
+                onParentChanged: {
+                    root._logCwdOverlay("child-panel-parent-changed", {
+                        parentOk: root._overlayItemHasParent(cwdHoverChildPanel, root.cwdHoverOverlayHost())
+                    })
+                }
+                onVisibleChanged: {
+                    root._logCwdOverlay("child-panel-visible-changed", {
+                        value: cwdHoverChildPanel.visible
+                    })
+                }
                 x: root.cwdHoverPanelX + root.cwdHoverPanelWidth
                 y: root.cascadePanelY(root.cwdHoverChildPanelY, height)
                 z: 9999
@@ -4166,8 +4362,21 @@ Item { // ROOT
                                 renaming: false
                                 renameEnabled: false
                                 onActivate: {
-                                    browserRoot.closeCwdHoverPanels()
-                                    browserRoot.folderActivated(fullPath)
+                                    browserRoot.closeCwdHoverPanels("child-panel-activate")
+                                    browserRoot.emitFolderActivatedIntent(fullPath)
+                                }
+                                onDoubleActivate: {
+                                    browserRoot.closeCwdHoverPanels("child-panel-double-activate")
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                }
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: root.allowDrops && !root.itemIsEmbryo(modelData)
+                                    onDropped: {
+                                        if (!drop || !drop.text) return
+                                        browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                        drop.acceptProposedAction()
+                                    }
                                 }
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
@@ -4220,6 +4429,16 @@ Item { // ROOT
                 id: cwdHoverGrandchildPanel
                 parent: root.cwdHoverOverlayHost()
                 visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && root.cwdHoverGrandchildPanelOpen && !root.verticalView && false
+                onParentChanged: {
+                    root._logCwdOverlay("grandchild-panel-parent-changed", {
+                        parentOk: root._overlayItemHasParent(cwdHoverGrandchildPanel, root.cwdHoverOverlayHost())
+                    })
+                }
+                onVisibleChanged: {
+                    root._logCwdOverlay("grandchild-panel-visible-changed", {
+                        value: cwdHoverGrandchildPanel.visible
+                    })
+                }
                 x: root.cwdHoverPanelX + (2 * root.cwdHoverPanelWidth)
                 y: root.cascadePanelY(root.cwdHoverGrandchildPanelY, height)
                 z: 9999
@@ -4277,8 +4496,21 @@ Item { // ROOT
                                 renaming: false
                                 renameEnabled: false
                                 onActivate: {
-                                    browserRoot.closeCwdHoverPanels()
-                                    browserRoot.folderActivated(fullPath)
+                                    browserRoot.closeCwdHoverPanels("grandchild-panel-activate")
+                                    browserRoot.emitFolderActivatedIntent(fullPath)
+                                }
+                                onDoubleActivate: {
+                                    browserRoot.closeCwdHoverPanels("grandchild-panel-double-activate")
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                }
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: root.allowDrops && !root.itemIsEmbryo(modelData)
+                                    onDropped: {
+                                        if (!drop || !drop.text) return
+                                        browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                        drop.acceptProposedAction()
+                                    }
                                 }
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
