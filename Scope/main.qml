@@ -110,6 +110,8 @@ ApplicationWindow {
     property string templatesPerspectivePath: "/Templates"
     property var templatesPerspectiveCpdByDisplayPath: ({})
     property string templatesCtdPath: ""
+    property string previewCTDPath: ""
+    property string committedCTDPath: ""
     // Controls whether TemplatesBrowser acts as perspective selector (CPD semantics)
     // or as plain embryo browser (CTD semantics).
     property bool templatesUsePerspective: true
@@ -298,6 +300,32 @@ ApplicationWindow {
         cwp = nextPath
     }
 
+    function currentFilesPath() {
+        var committed = String(committedCTDPath || "").trim()
+        if (committed.length > 0) {
+            return committed
+        }
+        return String(cwp || "")
+    }
+
+    function previewCTD(path) {
+        previewCTDPath = String(path || "").trim()
+    }
+
+    function commitCTD(path) {
+        var nextPath = String(path || "").trim()
+        if (nextPath.length === 0) {
+            return false
+        }
+        previewCTDPath = nextPath
+        templatesCtdPath = nextPath
+        if (nextPath === String(committedCTDPath || "")) {
+            return false
+        }
+        committedCTDPath = nextPath
+        return true
+    }
+
     function hasBackend() {
         return typeof backend !== "undefined" && backend !== null
     }
@@ -472,6 +500,24 @@ ApplicationWindow {
         }
         var tail = parsed.templateParts.slice(1).concat(parsed.tailParts)
         return tail.length > 0 ? ("/Templates/" + tail.join("/")) : "/Templates"
+    }
+
+    function resolveTemplateDisplayPathToReal(path) {
+        var raw = String(path || "").trim()
+        if (raw.length === 0) {
+            return ""
+        }
+        if (!(raw === "/Templates" || raw === "/Templates/" || raw.indexOf("/Templates/") === 0)) {
+            return raw
+        }
+        var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
+        if (root.length === 0) {
+            return raw
+        }
+        if (raw === "/Templates" || raw === "/Templates/") {
+            return root
+        }
+        return root + raw.slice("/Templates".length)
     }
 
     function templatePathFromPerspectiveCpd(cpd) {
@@ -865,7 +911,8 @@ ApplicationWindow {
         if (!hasBackend() || typeof backend.createNote !== "function") {
             return
         }
-        var createdPath = backend.createNote(cwp, "New Note")
+        var targetDir = currentFilesPath()
+        var createdPath = backend.createNote(targetDir, "New Note")
         if (!createdPath || createdPath.length === 0) {
             moveReportMessage = qsTr("Konnte in diesem Ordner keine Notiz erstellen.")
             moveReportDialog.open()
@@ -1266,6 +1313,7 @@ ApplicationWindow {
     }
 
     function recomputeTagBuckets() {
+        var targetPath = currentFilesPath()
         tagsIndexing = true
         var nextFolderTags = []
         var nextFileTags = []
@@ -1275,7 +1323,7 @@ ApplicationWindow {
         var nextFolderSize = currentFolderSizeBytes
         if (hasBackend() && typeof backend.listTagBuckets === "function") {
             try {
-                var buckets = backend.listTagBuckets(cwp) || {}
+                var buckets = backend.listTagBuckets(targetPath) || {}
                 nextFolderTags = buckets.folderTags || []
                 nextFileTags = buckets.fileTags || []
                 nextFolderTagColors = buckets.folderTagColors || ({})
@@ -1289,7 +1337,7 @@ ApplicationWindow {
         }
         if (hasBackend() && typeof backend.listProjectTags === "function") {
             try {
-                nextProjectTags = backend.listProjectTags(cwp) || []
+                nextProjectTags = backend.listProjectTags(targetPath) || []
             } catch (e2) {
                 nextProjectTags = []
             }
@@ -1359,7 +1407,7 @@ ApplicationWindow {
             return
         }
         if (hasBackend() && typeof backend.setFolderTagColor === "function") {
-            backend.setFolderTagColor(cwp, normalizedTag, normalizedColor)
+            backend.setFolderTagColor(currentFilesPath(), normalizedTag, normalizedColor)
             recomputeTagBuckets()
         }
     }
@@ -1396,7 +1444,7 @@ ApplicationWindow {
         }
         next.sort(function(a, b) { return a.localeCompare(b) })
         if (hasBackend() && typeof backend.setFolderTags === "function") {
-            backend.setFolderTags(cwp, next)
+            backend.setFolderTags(currentFilesPath(), next)
         }
         recomputeTagBuckets()
         filterEntries()
@@ -1420,7 +1468,7 @@ ApplicationWindow {
             next.splice(idx, 1)
         }
         if (hasBackend() && typeof backend.setFolderTags === "function") {
-            backend.setFolderTags(cwp, next)
+            backend.setFolderTags(currentFilesPath(), next)
         }
         recomputeTagBuckets()
         filterEntries()
@@ -1495,19 +1543,20 @@ ApplicationWindow {
         return ok
     }
 
-    function refreshFilters() {
+    function refreshFilters(path) {
+        var targetPath = String(path || currentFilesPath())
         var nextAvailable = []
         var nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
         if (hasBackend() && typeof backend.listFilters === "function") {
             try {
-                nextAvailable = backend.listFilters(cwp) || []
+                nextAvailable = backend.listFilters(targetPath) || []
             } catch (e0) {
                 nextAvailable = []
             }
         }
         if (hasBackend() && typeof backend.resolveActiveFilter === "function") {
             try {
-                nextActive = backend.resolveActiveFilter(cwp) || nextActive
+                nextActive = backend.resolveActiveFilter(targetPath) || nextActive
             } catch (e1) {
                 nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
             }
@@ -1581,10 +1630,14 @@ ApplicationWindow {
     }
 
     function updateFiles() {
-        if (hasBackend() && typeof backend.invalidateEntries === "function") {
-            backend.invalidateEntries(cwp)
+        var targetPath = currentFilesPath()
+        if (targetPath.length === 0) {
+            return
         }
-        var entries = listEntries(cwp)
+        if (hasBackend() && typeof backend.invalidateEntries === "function") {
+            backend.invalidateEntries(targetPath)
+        }
+        var entries = listEntries(targetPath)
         applyEntries(entries)
         if (hasBackend()) {
             hasMyosInCwp = backend.hasMyosDir(cwp)
@@ -1594,7 +1647,7 @@ ApplicationWindow {
                 hasProjectInCwp = false
             }
         }
-        refreshFilters()
+        refreshFilters(targetPath)
     }
 
     function updateTemplates() {
@@ -1675,8 +1728,14 @@ ApplicationWindow {
         }
         updateDefaultProjectTint()
         updateCurrentProjectTint()
-        updateFiles()
+        if (String(committedCTDPath || "").trim().length === 0) {
+            commitCTD(cwp)
+        }
         updateTemplates()
+    }
+    onCommittedCTDPathChanged: {
+        selectedEntryPaths = []
+        updateFiles()
     }
     onStandardPathChanged: {
         if (templatesUsePerspective) {
@@ -3313,16 +3372,16 @@ ApplicationWindow {
                     window.templatesPerspectivePath = nextPath
                 } else {
                     standardPath = nextPath
-                    templatesCtdPath = String(nextPath || "")
                 }
+                commitCTD(resolveTemplateDisplayPathToReal(nextPath))
             }
             onPathSelected: function(path) {
                 if (templatesBrowser.isPerspective) {
                     window.templatesPerspectivePath = String(path || "")
                 } else {
                     standardPath = path
-                    templatesCtdPath = String(path || "")
                 }
+                commitCTD(resolveTemplateDisplayPathToReal(path))
             }
             onFolderActivated: function(name) {
                 var currentPath = templatesBrowser.isPerspective ? window.templatesPerspectivePath : standardPath
@@ -3331,10 +3390,14 @@ ApplicationWindow {
                     window.templatesPerspectivePath = nextPath
                 } else {
                     standardPath = nextPath
-                    templatesCtdPath = nextPath
                 }
+                commitCTD(resolveTemplateDisplayPathToReal(nextPath))
             }
             onFolderDoubleActivated: function(path) {
+                var targetPath = String(path || "")
+                if (targetPath.length > 0) {
+                    commitCTD(resolveTemplateDisplayPathToReal(targetPath))
+                }
                 if (!templatesBrowser.isPerspective) {
                     return
                 }
@@ -3346,6 +3409,9 @@ ApplicationWindow {
                     return
                 }
                 applyPerspectiveCpd(targetCpd)
+            }
+            onFolderPreviewed: function(path) {
+                previewCTD(resolveTemplateDisplayPathToReal(path))
             }
             onMoveEntryRequested: moveEntry(sourcePath, targetDir)
         }
@@ -3465,16 +3531,33 @@ ApplicationWindow {
             }
             onPathSegmentActivated: function(index) {
                 var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
-                setCwp("/" + parts.slice(0, index + 1).join("/"))
+                var targetPath = "/" + parts.slice(0, index + 1).join("/")
+                commitCTD(targetPath)
             }
-            onPathSelected: function(path) { setCwp(path) }
+            onPathSelected: function(path) { commitCTD(path) }
             onFolderActivated: function(name) {
+                var targetPath = ""
                 if (name.indexOf("/") === 0) {
-                    setCwp(name)
+                    targetPath = name
                 } else {
-                    setCwp(cwp + "/" + name)
+                    targetPath = cwp + "/" + name
                 }
+                commitCTD(targetPath)
                 clearSearchAfterNavigate()
+            }
+            onFolderDoubleActivated: function(name) {
+                var targetPath = ""
+                if (name.indexOf("/") === 0) {
+                    targetPath = name
+                } else {
+                    targetPath = cwp + "/" + name
+                }
+                setCwp(targetPath)
+                commitCTD(targetPath)
+                clearSearchAfterNavigate()
+            }
+            onFolderPreviewed: function(path) {
+                previewCTD(path)
             }
             onRenameRequested: beginRename(fullPath)
             onRenameTextEdited: renameDraft = text
@@ -3552,11 +3635,14 @@ ApplicationWindow {
             onDeleteRequested: function(paths) { requestDeleteEntries(paths) }
             onSelectAllRequested: selectAllVisibleEntries()
             onFolderActivated: function(name) {
+                var targetPath = ""
                 if (name.indexOf("/") === 0) {
-                    setCwp(name)
+                    targetPath = name
                 } else {
-                    setCwp(cwp + "/" + name)
+                    targetPath = cwp + "/" + name
                 }
+                setCwp(targetPath)
+                commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }
             onFileActivated: function(name) {
@@ -3570,7 +3656,9 @@ ApplicationWindow {
             }
             onOpenMyosFolder: {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
-                setCwp(base + "/.MyOS")
+                var targetPath = base + "/.MyOS"
+                setCwp(targetPath)
+                commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }
             onCreateProject: {

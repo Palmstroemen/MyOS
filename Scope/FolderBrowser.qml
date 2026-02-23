@@ -93,6 +93,7 @@ Item { // ROOT
     signal folderActivated(string name)
     // Secondary click intent (double click)
     signal folderDoubleActivated(string name)
+    signal folderPreviewed(string path)
     signal toggleMode()
     signal toggleSearch()
     signal toggleTheme()
@@ -854,7 +855,7 @@ Item { // ROOT
             )
         }
         preparePreviewReopenAfterPathCommit(nextPath, sourcePaths, sourceAnchorX, sourceAnchorY, sourceRows)
-        folderActivated(String(nextPath))
+        folderPreviewed(String(nextPath))
     }
 
     function _normalizePathForCompare(rawPath) {
@@ -1852,6 +1853,7 @@ Item { // ROOT
         if (!basePath) {
             return
         }
+        folderPreviewed(basePath)
         if (verticalView && level < Math.max(0, previewActivePaths.length - 1)) {
             // Ignore stale re-hover on already-selected higher level.
             // This avoids collapsing deeper columns when pointer overlaps.
