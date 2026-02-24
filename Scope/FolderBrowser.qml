@@ -35,6 +35,10 @@ Item { // ROOT
     property bool allowDrops: false
     property bool showLeftAction: false
     property string leftActionText: ""
+    property bool showCreateFolderButton: false
+    property real createFolderButtonOpacity: 0.55
+    property bool clipboardHasItems: false
+    property real clipboardButtonOpacityEmpty: 0.45
     property string renameTargetPath: ""
     property string renameDraft: ""
     property int baseFont: 14
@@ -49,6 +53,7 @@ Item { // ROOT
     property int indent: 0
     property string iconFolder: ""
     property string iconSearch: ""
+    property var projectIconFunction: null
     property var debugLogger: null
     property color panelColor: "#1b1d26"
     property color panelBorderColor: "#3a4158"
@@ -94,13 +99,15 @@ Item { // ROOT
     // Primary click intent (single click)
     signal folderActivated(string name)
     // Secondary click intent (double click)
-    signal folderDoubleActivated(string name)
+    signal folderDoubleActivated(string name, var folderMeta)
     signal folderPreviewed(string path)
     signal toggleMode()
     signal toggleSearch()
     signal toggleTheme()
     signal styleChanged(string style)
     signal toggleEmbryos()
+    signal clipboardRequested()
+    signal clipboardDropRequested(string payload)
     signal renameRequested(string fullPath)
     signal renameTextEdited(string text)
     signal renameAccepted()
@@ -108,6 +115,7 @@ Item { // ROOT
     signal searchTextEdited(string value)
     signal moveEntryRequested(string sourcePath, string targetDir)
     signal leftActionTriggered()
+    signal createFolderRequested(string basePath)
 
     property bool flowOnSecondLine: false
     property bool layoutUpdatePending: false
@@ -161,6 +169,13 @@ Item { // ROOT
     property real cwdHoverGrandchildPanelY: 0
     property string cwdHoverGrandchildPanelPath: ""
     property var cwdHoverGrandchildEntries: []
+    property int cwdCascadeOpenRequests: 0
+    property int cwdCascadeOpenApplied: 0
+    property int cwdCascadeOpenNoop: 0
+    property int cwdCascadeOpenTrimmed: 0
+    property int cwdCascadeHoverOutzoneHits: 0
+    property string cwdCascadeLastRequestKey: ""
+    property int cwdCascadeLastRequestRepeat: 0
     property int cwdOverlayDiagSeq: 0
     property var cwdOverlayLastHostRef: null
     property int cwdTabDrop: 4
@@ -286,23 +301,86 @@ Item { // ROOT
         return item && item.isEmbryo === true
     }
 
+    function iconSourceForPath(fullPath, isCurrent, item) {
+        if (projectIconFunction) {
+            var custom = projectIconFunction(String(fullPath || ""), !!isCurrent, item)
+            var normalized = String(custom || "").trim()
+            if (normalized.length > 0) {
+                return normalized
+            }
+        }
+        return iconFolder
+    }
+
     function emitFolderActivatedIntent(path) {
         var value = String(path || "").trim()
         if (!value) return
         folderActivated(value)
     }
 
-    function emitFolderDoubleActivatedIntent(path) {
+    function emitFolderDoubleActivatedIntent(path, folderMeta) {
         var value = String(path || "").trim()
         if (!value) return
-        folderDoubleActivated(value)
+        // #region agent log
+        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:emitFolderDoubleActivatedIntent",message:"double-activate-intent",data:{path:value,isPerspective:!!isPerspective},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
+        folderDoubleActivated(value, folderMeta)
     }
 
     function emitMoveEntryIntent(payload, path) {
         var source = String(payload || "").trim()
         var target = String(path || "").trim()
         if (!source || !target) return
+        // #region agent log
+        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H2",location:"Scope/FolderBrowser.qml:emitMoveEntryIntent",message:"drop-intent-dispatch",data:{sourceLen:source.length,target:target},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
         moveEntryRequested(source, target)
+    }
+
+    function dropPayloadText(drop) {
+        if (!drop) return ""
+        var direct = String(drop.text || "").trim()
+        if (direct.length > 0) {
+            // #region agent log
+            if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H2",location:"Scope/FolderBrowser.qml:dropPayloadText",message:"drop-payload-from-text",data:{textLen:direct.length},timestamp:Date.now()})}).catch(function(){});
+            // #endregion
+            return direct
+        }
+        if (drop.source && drop.source.dragPayload !== undefined) {
+            var fromSource = String(drop.source.dragPayload || "").trim()
+            if (fromSource.length > 0) {
+                return fromSource
+            }
+        }
+        if (drop.getDataAsString) {
+            var plain = String(drop.getDataAsString("text/plain") || "").trim()
+            if (plain.length > 0) {
+                return plain
+            }
+            var uriList = String(drop.getDataAsString("text/uri-list") || "").trim()
+            if (uriList.length > 0) {
+                return uriList
+            }
+        }
+        if (drop.urls && drop.urls.length > 0) {
+            var urls = []
+            for (var i = 0; i < drop.urls.length; i++) {
+                var value = String(drop.urls[i] || "").trim()
+                if (value.length > 0) {
+                    urls.push(value)
+                }
+            }
+            if (urls.length === 1) {
+                return urls[0]
+            }
+            if (urls.length > 1) {
+                return "__MYOS_PATHS__" + JSON.stringify(urls)
+            }
+        }
+        // #region agent log
+        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H2",location:"Scope/FolderBrowser.qml:dropPayloadText",message:"drop-payload-empty",data:{hasSource:!!(drop&&drop.source),hasUrls:!!(drop&&drop.urls&&drop.urls.length>0)},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
+        return ""
     }
 
     function normalizeColor(value) {
@@ -1970,13 +2048,6 @@ Item { // ROOT
         var host = (root.Window && root.Window.window && root.Window.window.contentItem)
             ? root.Window.window.contentItem
             : (root.parent ? root.parent : root)
-        if (cwdOverlayLastHostRef !== host) {
-            _logCwdOverlay("host-changed", {
-                hostW: Number(host && host.width !== undefined ? host.width : -1),
-                hostH: Number(host && host.height !== undefined ? host.height : -1)
-            })
-            cwdOverlayLastHostRef = host
-        }
         return host
     }
 
@@ -1991,6 +2062,13 @@ Item { // ROOT
         var host = (root.Window && root.Window.window && root.Window.window.contentItem)
             ? root.Window.window.contentItem
             : (root.parent ? root.parent : root)
+        if (cwdOverlayLastHostRef !== host) {
+            cwdOverlayLastHostRef = host
+            console.log("[cwd-overlay]", "name=", debugName, "seq=", seq, "event=", "host-changed",
+                "panelOpen=", cwdHoverPanelOpen, "cascade=", cwdHoverCascadePanels.length,
+                "hostW=", Math.round(Number(host && host.width !== undefined ? host.width : -1)),
+                "hostH=", Math.round(Number(host && host.height !== undefined ? host.height : -1)))
+        }
         var fields = [
             "[cwd-overlay]",
             "name=", debugName,
@@ -2039,13 +2117,42 @@ Item { // ROOT
         var entries = listPreviewChildren(fullPath)
         var next = cwdHoverCascadePanels.slice(0, Math.max(0, depth))
         var nextHover = cwdHoverCascadePanelHovered.slice(0, Math.max(0, depth))
+        cwdCascadeOpenRequests += 1
+        var existing = cwdHoverCascadePanels.length > Number(depth || 0)
+            ? cwdHoverCascadePanels[Number(depth || 0)]
+            : null
+        var existingPath = String(existing && existing.path ? existing.path : "")
+        var existingY = Math.round(Number(existing && existing.y !== undefined ? existing.y : -1))
+        var existingEntries = (existing && existing.entries) ? existing.entries.length : 0
+        var requestKey = String(Number(depth || 0))
+            + "|" + String(fullPath || "")
+            + "|" + String(Math.round(Number(p.y || 0)))
+            + "|" + String(entries ? entries.length : 0)
+        if (requestKey === cwdCascadeLastRequestKey) {
+            cwdCascadeLastRequestRepeat += 1
+        } else {
+            cwdCascadeLastRequestKey = requestKey
+            cwdCascadeLastRequestRepeat = 0
+        }
+        var sameAsExisting = existingPath === String(fullPath || "")
+            && existingY === Math.round(Number(p.y || 0))
+            && Number(existingEntries) === Number(entries ? entries.length : 0)
         _logCwdOverlay("cascade-open", {
             depth: Number(depth || 0),
             path: String(fullPath || ""),
             parentOk: parentOk,
             entries: entries ? entries.length : 0,
             x: Math.round(Number(p.x || 0)),
-            y: Math.round(Number(p.y || 0))
+            y: Math.round(Number(p.y || 0)),
+            sourceRef: String(sourceItem),
+            sourceParentRef: String(sourceItem.parent),
+            hostRef: String(host),
+            existingPath: existingPath,
+            existingY: existingY,
+            existingEntries: existingEntries,
+            sameAsExisting: sameAsExisting,
+            reqRepeat: Number(cwdCascadeLastRequestRepeat || 0),
+            reqTotal: Number(cwdCascadeOpenRequests || 0)
         })
         if (!parentOk) {
             _logCwdOverlay("cascade-parent-mismatch", {
@@ -2055,8 +2162,38 @@ Item { // ROOT
         }
         if (!entries || entries.length === 0) {
             // No children => no panel on the right; also trim deeper panels.
-            cwdHoverCascadePanels = next
-            cwdHoverCascadePanelHovered = nextHover
+            var beforeTrim = cwdHoverCascadePanels.length
+            var shouldTrim = beforeTrim !== next.length
+            var repeatedEmptyNoop = (Number(cwdCascadeLastRequestRepeat || 0) > 0) && !shouldTrim
+            if (repeatedEmptyNoop) {
+                cwdCascadeOpenNoop += 1
+                _logCwdOverlay("cascade-empty-noop", {
+                    depth: Number(depth || 0),
+                    path: String(fullPath || ""),
+                    reqRepeat: Number(cwdCascadeLastRequestRepeat || 0),
+                    noopCount: Number(cwdCascadeOpenNoop || 0)
+                })
+                return
+            }
+            if (shouldTrim) {
+                cwdHoverCascadePanels = next
+                cwdHoverCascadePanelHovered = nextHover
+                cwdCascadeOpenTrimmed += 1
+                _logCwdOverlay("cascade-trimmed-empty", {
+                    depth: Number(depth || 0),
+                    before: beforeTrim,
+                    after: next.length,
+                    trimmedCount: Number(cwdCascadeOpenTrimmed || 0)
+                })
+            } else {
+                cwdCascadeOpenNoop += 1
+                _logCwdOverlay("cascade-empty-noop", {
+                    depth: Number(depth || 0),
+                    path: String(fullPath || ""),
+                    reqRepeat: Number(cwdCascadeLastRequestRepeat || 0),
+                    noopCount: Number(cwdCascadeOpenNoop || 0)
+                })
+            }
             return
         }
         next.push({
@@ -2065,6 +2202,21 @@ Item { // ROOT
             entries: entries
         })
         nextHover.push(false)
+        if (sameAsExisting && next.length === cwdHoverCascadePanels.length) {
+            cwdCascadeOpenNoop += 1
+            _logCwdOverlay("cascade-open-noop-like", {
+                depth: Number(depth || 0),
+                path: String(fullPath || ""),
+                noopCount: Number(cwdCascadeOpenNoop || 0)
+            })
+        } else {
+            cwdCascadeOpenApplied += 1
+            _logCwdOverlay("cascade-open-applied", {
+                depth: Number(depth || 0),
+                path: String(fullPath || ""),
+                appliedCount: Number(cwdCascadeOpenApplied || 0)
+            })
+        }
         cwdHoverCascadePanels = next
         cwdHoverCascadePanelHovered = nextHover
     }
@@ -2497,6 +2649,35 @@ Item { // ROOT
                         onClicked: verticalDisplayMenu.popup()
                     }
                 }
+                Rectangle { // VERTICAL: clipboard button
+                    width: compactButtonHeight
+                    height: compactButtonHeight
+                    radius: TagChips.CHIP_RADIUS_COMPACT
+                    color: pill
+                    border.color: pillBorder
+                    opacity: clipboardHasItems ? 1.0 : clipboardButtonOpacityEmpty
+                    Text {
+                        anchors.centerIn: parent
+                        text: "C"
+                        color: textSoft
+                        font.pixelSize: baseFont
+                        font.bold: true
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: clipboardRequested()
+                    }
+                    DropArea {
+                        anchors.fill: parent
+                        enabled: allowDrops
+                        onDropped: {
+                            var payload = dropPayloadText(drop)
+                            if (!payload) return
+                            clipboardDropRequested(payload)
+                            drop.acceptProposedAction()
+                        }
+                    }
+                }
             }
         }
 
@@ -2541,318 +2722,20 @@ Item { // ROOT
                     }
                 }
 
-                Item {  // HORIZONTAL: path segment row (breadcrumbs)
-                    id: pathHost
-                    Layout.fillWidth: flowOnSecondLine
-                    Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(pathRow.implicitWidth, horizontalPathHostMaxWidth())
-                    Layout.maximumWidth: flowOnSecondLine ? -1 : horizontalPathHostMaxWidth()
-                    Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
-                    clip: true
-                    Row {
-                        id: pathRow
-                        spacing: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: pathRow.implicitWidth <= pathHost.width ? parent.left : undefined
-                        anchors.right: pathRow.implicitWidth <= pathHost.width ? undefined : parent.right
-                        onImplicitWidthChanged: scheduleLayoutUpdate()
-
-                        FolderItem {
-                            visible: root.showLeftAction && String(root.leftActionText || "").length > 0
-                            y: root.cwdTabDrop
-                            label: String(root.leftActionText || "")
-                            style: root.effectiveStyle()
-                            compactHeight: root.compactButtonHeight
-                            largeHeight: root.largeButtonHeight
-                            largePadding: root.largeButtonPadding
-                            iconSmall: root.iconSizeSmall
-                            iconLarge: root.iconSizeLarge
-                            textYOffset: root.buttonTextYOffset
-                            iconSource: root.iconFolder
-                            fillColor: root.smallButtonActiveBg
-                            strokeColor: root.smallButtonActiveBorder
-                            textColor: root.accentPrimaryText
-                            textSize: root.baseFont
-                            dimmedStyle: false
-                            flatBottomCorners: true
-                            renaming: false
-                            renameEnabled: false
-                            onActivate: root.leftActionTriggered()
-                            onDoubleActivate: root.leftActionTriggered()
-                        }
-
-                        Repeater {
-                            model: pathPartsDisplay()
-                            delegate: FolderItem {
-                                property bool isCurrent: index === (pathPartsDisplay().length - 1)
-                                property string fullPathForSegment: fullPathForDisplayIndex(index)
-                                y: isCurrent ? root.cwdTabDrop : 0
-                                label: itemName(modelData)
-                                style: effectiveStyle()
-                                compactHeight: compactButtonHeight
-                                largeHeight: largeButtonHeight
-                                largePadding: largeButtonPadding
-                                iconSmall: iconSizeSmall
-                                iconLarge: iconSizeLarge
-                                textYOffset: buttonTextYOffset
-                                iconSource: iconFolder
-                                property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, isCurrent) : null
-                                fillColor: customColors ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
-                                strokeColor: customColors ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
-                                textColor: isCurrent ? accentPrimaryText : text
-                                textSize: baseFont
-                                dimmedStyle: isCurrent
-                                flatBottomCorners: isCurrent
-                                renaming: false
-                                renameEnabled: false
-                                onActivate: pathSegmentActivated(index)
-                                MouseArea {
-                                    visible: isCurrent && !root.verticalView
-                                    anchors.fill: parent
-                                    acceptedButtons: Qt.NoButton
-                                    hoverEnabled: true
-                                    onEntered: {
-                                        var host = root.cwdHoverOverlayHost()
-                                        var parentOk = root._overlayItemHasParent(parent, host)
-                                        var p = parent.mapToItem(host, 0, parent.height)
-                                        root._logCwdOverlay("root-panel-open", {
-                                            path: String(fullPathForSegment || ""),
-                                            parentOk: parentOk,
-                                            x: Math.round(Number(p.x || 0)),
-                                            y: Math.round(Number(p.y || 0)),
-                                            panelW: Math.round(Number(parent.width || 0))
-                                        })
-                                        if (!parentOk) {
-                                            root._logCwdOverlay("root-parent-mismatch", {
-                                                path: String(fullPathForSegment || "")
-                                            })
-                                        }
-                                        root.cwdHoverPanelX = p.x
-                                        root.cwdHoverPanelY = p.y
-                                        root.cwdHoverPanelWidth = Math.max(120, parent.width)
-                                        root.cwdHoverOverButton = true
-                                        root.cwdHoverPanelOpen = true
-                                        root.cwdHoverChildPanelOpen = false
-                                        root.cwdHoverGrandchildPanelOpen = false
-                                        root.cwdHoverPanelHoverCount = 0
-                                        root.cwdHoverMainPanelHovered = false
-                                        root.cwdHoverOverPanel = false
-                                        root.cwdHoverCascadePanels = []
-                                        root.cwdHoverCascadePanelHovered = []
-                                        root.cwdHoverChildPanelPath = ""
-                                        root.cwdHoverGrandchildPanelPath = ""
-                                        cwdHoverCloseTimer.stop()
-                                    }
-                                    onExited: {
-                                        root.cwdHoverOverButton = false
-                                        cwdHoverCloseTimer.restart()
-                                    }
-                                }
-                                DropArea {
-                                    anchors.fill: parent
-                                    enabled: allowDrops
-                                    onDropped: {
-                                        if (!drop || !drop.text) return
-                                        var targetPath = fullPathForDisplayIndex(index)
-                                        if (!targetPath) return
-                                        emitMoveEntryIntent(drop.text, targetPath)
-                                        drop.acceptProposedAction()
-                                    }
-                                }
-                            }
-                        }
-
-                        // Repeater {
-                        //     model: pathPartsDisplay()
-                        //     delegate: FolderItem {
-                        //         property bool isCurrent: index === (pathPartsDisplay().length - 1)
-                        //         label: itemName(modelData)
-                        //         style: effectiveStyle()
-                        //         compactHeight: compactButtonHeight
-                        //         largeHeight: largeButtonHeight
-                        //         largePadding: largeButtonPadding
-                        //         iconSmall: iconSizeSmall
-                        //         iconLarge: iconSizeLarge
-                        //         textYOffset: buttonTextYOffset
-                        //         iconSource: iconFolder
-                        //         fillColor: isCurrent
-                        //             ? (tintPathAsProject
-                        //                 ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
-                        //                 : accentPrimary)
-                        //             : (tintPathAsProject
-                        //                 ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
-                        //                 : pathButtonFill)
-                        //         strokeColor: isCurrent
-                        //             ? (tintPathAsProject
-                        //                 ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
-                        //                 : accentPrimary)
-                        //             : (tintPathAsProject
-                        //                 ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
-                        //                 : pathButtonBorder)
-                        //         textColor: isCurrent ? accentPrimaryText : text
-                        //         textSize: baseFont
-                        //         renaming: false
-                        //         renameEnabled: false
-                        //         onActivate: pathSegmentActivated(index)
-                        //         DropArea {
-                        //             anchors.fill: parent
-                        //             enabled: allowDrops
-                        //             onDropped: {
-                        //                 if (!drop || !drop.text) return
-                        //                 var targetPath = fullPathForDisplayIndex(index)
-                        //                 if (!targetPath) return
-                        //                 moveEntryRequested(drop.text, targetPath)
-                        //                 drop.acceptProposedAction()
-                        //             }
-                        //         }
-                        //     }
-                        // }
-                    }
-                }
-                Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
-                    id: topFlowHost
-                    Layout.fillWidth: false
-                    Layout.preferredWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
-                    Layout.minimumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
-                    Layout.maximumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
-                    Layout.preferredHeight: compactButtonHeight
-                    Layout.alignment: Qt.AlignTop
-                    visible: !flowOnSecondLine
-                    onWidthChanged: scheduleLayoutUpdate()
-                    Row {
-                        id: topFoldersRow
-                        spacing: 6
-                        onImplicitWidthChanged: scheduleLayoutUpdate()
-                        Repeater {
-                            model: folders
-                            delegate: FolderItem {
-                                property string fullPath: itemName(modelData).indexOf("/") === 0
-                                    ? itemName(modelData)
-                                    : (path + "/" + itemName(modelData))
-                                label: itemName(modelData)
-                                style: effectiveStyle()
-                                compactHeight: compactButtonHeight
-                                largeHeight: largeButtonHeight
-                                largePadding: largeButtonPadding
-                                iconSmall: iconSizeSmall
-                                iconLarge: iconSizeLarge
-                                textYOffset: buttonTextYOffset
-                                iconSource: iconFolder
-                                fillColor: folderFillColorForPath(modelData, 0, fullPath)
-                                strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
-                                textColor: textSoft
-                                textSize: baseFont
-                                dragEnabled: allowDrags && !itemIsEmbryo(modelData)
-                                dragPayload: fullPath
-                                tabHoverDropEnabled: true
-                                tabHoverDropPx: root.previewTabDropPx
-                                tabPinned: root.isPreviewPathActive(0, fullPath)
-                                textBold: root.isPreviewPathActive(0, fullPath)
-                                dimmedStyle: root.isPreviewDimmed(0, fullPath)
-                                opacity: root.previewOpacityForEntry(0, fullPath)
-                                renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
-                                renameEnabled: allowRename
-                                renameText: renameDraft
-                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
-                                onRenameTextEdited: renameTextEdited(text)
-                                onRenameAccepted: renameAccepted()
-                                onRenameCanceled: renameCanceled()
-                                onActivate: emitFolderActivatedIntent(fullPath)
-                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
-                                onHoverEntered: {
-                                    var centerPoint = mapToItem(root, width / 2, height / 2)
-                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
-                                }
-                                DropArea {
-                                    anchors.fill: parent
-                                    enabled: allowDrops && !itemIsEmbryo(modelData)
-                                    onDropped: {
-                                        if (!drop || !drop.text) return
-                                        emitMoveEntryIntent(drop.text, fullPath)
-                                        drop.acceptProposedAction()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Item {  // HORIZONTAL: spacer/feder between folders and right buttons
-                    Layout.fillWidth: !flowOnSecondLine
-                    Layout.preferredWidth: flowOnSecondLine ? 0 : -1
-                    Layout.minimumWidth: flowOnSecondLine ? 0 : 0
-                    Layout.maximumWidth: flowOnSecondLine ? 0 : -1
-                }
-
-                Item {  // HORIZONTAL: right button cluster (search + style + optional theme)
+                Item {  // HORIZONTAL: left button cluster (burger + search + clipboard)
                     id: rightButtonsHost
                     Layout.preferredWidth: rightButtonsRow.implicitWidth
                     Layout.minimumWidth: rightButtonsRow.implicitWidth
                     Layout.maximumWidth: rightButtonsRow.implicitWidth
                     Layout.preferredHeight: compactButtonHeight
-                    Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                    Layout.alignment: Qt.AlignTop
                     Row {
                         id: rightButtonsRow
                         anchors.fill: parent
                         spacing: 6
                         Component.onCompleted: scheduleLayoutUpdate()
                         onImplicitWidthChanged: scheduleLayoutUpdate()
-                        Rectangle {
-                            visible: showSearchToggle && searchActive && !verticalView
-                            width: 200
-                            height: compactButtonHeight
-                            radius: TagChips.CHIP_RADIUS_COMPACT
-                            color: card
-                            border.color: pillBorder
-                            TextField {
-                                anchors.fill: parent
-                                anchors.margins: 4
-                                text: searchText
-                                placeholderText: "Search      + deep    # all"
-                                font.pixelSize: baseFont
-                                selectByMouse: true
-                                color: root.text
-                                placeholderTextColor: root.textMuted
-                                verticalAlignment: Text.AlignVCenter
-                                leftPadding: 6
-                                rightPadding: 6
-                                topPadding: 1
-                                bottomPadding: 0
-                                background: Rectangle { color: "transparent" }
-                                onTextChanged: {
-                                    root.searchText = text
-                                    root.searchTextEdited(text)
-                                }
-                                onVisibleChanged: {
-                                    if (visible && searchActive) {
-                                        forceActiveFocus()
-                                        selectAll()
-                                    }
-                                }
-                                Keys.onEscapePressed: {
-                                    root.searchText = ""
-                                    root.searchActive = false
-                                }
-                            }
-                        }
-                        Rectangle { // HORIZONTAL: search toggle button (Lupe)
-                            visible: showSearchToggle
-                            width: compactButtonHeight
-                            height: compactButtonHeight
-                            radius: TagChips.CHIP_RADIUS_COMPACT
-                            color: pill
-                            border.color: pillBorder
-                            Image {
-                                anchors.centerIn: parent
-                                source: iconSearch
-                                width: baseFont
-                                height: baseFont
-                                fillMode: Image.PreserveAspectFit
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: toggleSearch()
-                            }
-                        }
-                        Rectangle { // HORIZONTAL: display options menu (style + embryos)
+                        Rectangle { // Burger / display options menu
                             visible: showStyleToggle || showEmbryoToggle
                             width: compactButtonHeight
                             height: compactButtonHeight
@@ -2981,7 +2864,360 @@ Item { // ROOT
                                 onClicked: horizontalDisplayMenu.popup()
                             }
                         }
+                        Rectangle { // Search toggle button
+                            visible: showSearchToggle
+                            width: compactButtonHeight
+                            height: compactButtonHeight
+                            radius: TagChips.CHIP_RADIUS_COMPACT
+                            color: pill
+                            border.color: pillBorder
+                            Image {
+                                anchors.centerIn: parent
+                                source: iconSearch
+                                width: baseFont
+                                height: baseFont
+                                fillMode: Image.PreserveAspectFit
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: toggleSearch()
+                            }
+                        }
+                        Rectangle { // Search field, directly right of search button
+                            visible: showSearchToggle && searchActive && !verticalView
+                            width: 200
+                            height: compactButtonHeight
+                            radius: TagChips.CHIP_RADIUS_COMPACT
+                            color: card
+                            border.color: pillBorder
+                            TextField {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                text: searchText
+                                placeholderText: "Search      + deep    # all"
+                                font.pixelSize: baseFont
+                                selectByMouse: true
+                                color: root.text
+                                placeholderTextColor: root.textMuted
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 6
+                                rightPadding: 6
+                                topPadding: 1
+                                bottomPadding: 0
+                                background: Rectangle { color: "transparent" }
+                                onTextChanged: {
+                                    root.searchText = text
+                                    root.searchTextEdited(text)
+                                }
+                                onVisibleChanged: {
+                                    if (visible && searchActive) {
+                                        forceActiveFocus()
+                                        selectAll()
+                                    }
+                                }
+                                Keys.onEscapePressed: {
+                                    root.searchText = ""
+                                    root.searchActive = false
+                                }
+                            }
+                        }
+                        Rectangle { // Clipboard button
+                            width: compactButtonHeight
+                            height: compactButtonHeight
+                            radius: TagChips.CHIP_RADIUS_COMPACT
+                            color: pill
+                            border.color: pillBorder
+                            opacity: clipboardHasItems ? 1.0 : clipboardButtonOpacityEmpty
+                            Text {
+                                anchors.centerIn: parent
+                                text: "C"
+                                color: textSoft
+                                font.pixelSize: baseFont
+                                font.bold: true
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: clipboardRequested()
+                            }
+                            DropArea {
+                                anchors.fill: parent
+                                enabled: allowDrops
+                                onDropped: {
+                                    var payload = dropPayloadText(drop)
+                                    if (!payload) return
+                                    clipboardDropRequested(payload)
+                                    drop.acceptProposedAction()
+                                }
+                            }
+                        }
                     }
+                }
+
+                Item {  // HORIZONTAL: path segment row (breadcrumbs)
+                    id: pathHost
+                    Layout.fillWidth: flowOnSecondLine
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(pathRow.implicitWidth, horizontalPathHostMaxWidth())
+                    Layout.maximumWidth: flowOnSecondLine ? -1 : horizontalPathHostMaxWidth()
+                    Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
+                    clip: true
+                    Row {
+                        id: pathRow
+                        spacing: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: pathRow.implicitWidth <= pathHost.width ? parent.left : undefined
+                        anchors.right: pathRow.implicitWidth <= pathHost.width ? undefined : parent.right
+                        onImplicitWidthChanged: scheduleLayoutUpdate()
+
+                        FolderItem {
+                            visible: root.showLeftAction && String(root.leftActionText || "").length > 0
+                            y: root.cwdTabDrop
+                            label: String(root.leftActionText || "")
+                            style: root.effectiveStyle()
+                            compactHeight: root.compactButtonHeight
+                            largeHeight: root.largeButtonHeight
+                            largePadding: root.largeButtonPadding
+                            iconSmall: root.iconSizeSmall
+                            iconLarge: root.iconSizeLarge
+                            textYOffset: root.buttonTextYOffset
+                            iconSource: root.iconFolder
+                            fillColor: root.smallButtonActiveBg
+                            strokeColor: root.smallButtonActiveBorder
+                            textColor: root.accentPrimaryText
+                            textSize: root.baseFont
+                            dimmedStyle: false
+                            flatBottomCorners: true
+                            renaming: false
+                            renameEnabled: false
+                            onActivate: root.leftActionTriggered()
+                            onDoubleActivate: root.leftActionTriggered()
+                        }
+
+                        Repeater {
+                            model: pathPartsDisplay()
+                            delegate: FolderItem {
+                                property bool isCurrent: index === (pathPartsDisplay().length - 1)
+                                property string fullPathForSegment: fullPathForDisplayIndex(index)
+                                y: isCurrent ? root.cwdTabDrop : 0
+                                label: itemName(modelData)
+                                style: effectiveStyle()
+                                compactHeight: compactButtonHeight
+                                largeHeight: largeButtonHeight
+                                largePadding: largeButtonPadding
+                                iconSmall: iconSizeSmall
+                                iconLarge: iconSizeLarge
+                                textYOffset: buttonTextYOffset
+                                iconSource: iconSourceForPath(fullPathForSegment, isCurrent, null)
+                                property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, isCurrent) : null
+                                fillColor: customColors ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
+                                strokeColor: customColors ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
+                                textColor: isCurrent ? accentPrimaryText : text
+                                textSize: baseFont
+                                dimmedStyle: isCurrent
+                                flatBottomCorners: isCurrent
+                                renaming: false
+                                renameEnabled: false
+                                onActivate: pathSegmentActivated(index)
+                                MouseArea {
+                                    visible: isCurrent && !root.verticalView
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.NoButton
+                                    hoverEnabled: true
+                                    onEntered: {
+                                        var host = root.cwdHoverOverlayHost()
+                                        var parentOk = root._overlayItemHasParent(parent, host)
+                                        var p = parent.mapToItem(host, 0, parent.height)
+                                        root._logCwdOverlay("root-panel-open", {
+                                            path: String(fullPathForSegment || ""),
+                                            parentOk: parentOk,
+                                            x: Math.round(Number(p.x || 0)),
+                                            y: Math.round(Number(p.y || 0)),
+                                            panelW: Math.round(Number(parent.width || 0))
+                                        })
+                                        if (!parentOk) {
+                                            root._logCwdOverlay("root-parent-mismatch", {
+                                                path: String(fullPathForSegment || "")
+                                            })
+                                        }
+                                        root.cwdHoverPanelX = p.x
+                                        root.cwdHoverPanelY = p.y
+                                        root.cwdHoverPanelWidth = Math.max(120, parent.width)
+                                        root.cwdHoverOverButton = true
+                                        root.cwdHoverPanelOpen = true
+                                        root.cwdHoverChildPanelOpen = false
+                                        root.cwdHoverGrandchildPanelOpen = false
+                                        root.cwdHoverPanelHoverCount = 0
+                                        root.cwdHoverMainPanelHovered = false
+                                        root.cwdHoverOverPanel = false
+                                        root.cwdHoverCascadePanels = []
+                                        root.cwdHoverCascadePanelHovered = []
+                                        root.cwdHoverChildPanelPath = ""
+                                        root.cwdHoverGrandchildPanelPath = ""
+                                        cwdHoverCloseTimer.stop()
+                                    }
+                                    onExited: {
+                                        root.cwdHoverOverButton = false
+                                        cwdHoverCloseTimer.restart()
+                                    }
+                                }
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: allowDrops
+                                    onDropped: {
+                                        var payload = dropPayloadText(drop)
+                                        if (!payload) return
+                                        var targetPath = fullPathForDisplayIndex(index)
+                                        if (!targetPath) return
+                                        emitMoveEntryIntent(payload, targetPath)
+                                        drop.acceptProposedAction()
+                                    }
+                                }
+                            }
+                        }
+
+                        // Repeater {
+                        //     model: pathPartsDisplay()
+                        //     delegate: FolderItem {
+                        //         property bool isCurrent: index === (pathPartsDisplay().length - 1)
+                        //         label: itemName(modelData)
+                        //         style: effectiveStyle()
+                        //         compactHeight: compactButtonHeight
+                        //         largeHeight: largeButtonHeight
+                        //         largePadding: largeButtonPadding
+                        //         iconSmall: iconSizeSmall
+                        //         iconLarge: iconSizeLarge
+                        //         textYOffset: buttonTextYOffset
+                        //         iconSource: iconFolder
+                        //         fillColor: isCurrent
+                        //             ? (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
+                        //                 : accentPrimary)
+                        //             : (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
+                        //                 : pathButtonFill)
+                        //         strokeColor: isCurrent
+                        //             ? (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, cwdOpacity, projectTintBorder)
+                        //                 : accentPrimary)
+                        //             : (tintPathAsProject
+                        //                 ? colorWithAlpha(projectTint, pathProjectOpacity, projectTintBorder)
+                        //                 : pathButtonBorder)
+                        //         textColor: isCurrent ? accentPrimaryText : text
+                        //         textSize: baseFont
+                        //         renaming: false
+                        //         renameEnabled: false
+                        //         onActivate: pathSegmentActivated(index)
+                        //         DropArea {
+                        //             anchors.fill: parent
+                        //             enabled: allowDrops
+                        //             onDropped: {
+                        //                 if (!drop || !drop.text) return
+                        //                 var targetPath = fullPathForDisplayIndex(index)
+                        //                 if (!targetPath) return
+                        //                 moveEntryRequested(drop.text, targetPath)
+                        //                 drop.acceptProposedAction()
+                        //             }
+                        //         }
+                        //     }
+                        // }
+                    }
+                }
+                Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
+                    id: topFlowHost
+                    Layout.fillWidth: false
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
+                    Layout.minimumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
+                    Layout.maximumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
+                    Layout.preferredHeight: compactButtonHeight
+                    Layout.alignment: Qt.AlignTop
+                    visible: !flowOnSecondLine
+                    onWidthChanged: scheduleLayoutUpdate()
+                    Row {
+                        id: topFoldersRow
+                        spacing: 6
+                        onImplicitWidthChanged: scheduleLayoutUpdate()
+                        Repeater {
+                            model: folders
+                            delegate: FolderItem {
+                                property string fullPath: itemName(modelData).indexOf("/") === 0
+                                    ? itemName(modelData)
+                                    : (path + "/" + itemName(modelData))
+                                label: itemName(modelData)
+                                style: effectiveStyle()
+                                compactHeight: compactButtonHeight
+                                largeHeight: largeButtonHeight
+                                largePadding: largeButtonPadding
+                                iconSmall: iconSizeSmall
+                                iconLarge: iconSizeLarge
+                                textYOffset: buttonTextYOffset
+                                iconSource: iconSourceForPath(fullPath, false, modelData)
+                                fillColor: folderFillColorForPath(modelData, 0, fullPath)
+                                strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
+                                textColor: textSoft
+                                textSize: baseFont
+                                dragEnabled: allowDrags && !itemIsEmbryo(modelData)
+                                dragPayload: fullPath
+                                tabHoverDropEnabled: true
+                                tabHoverDropPx: root.previewTabDropPx
+                                tabPinned: root.isPreviewPathActive(0, fullPath)
+                                textBold: root.isPreviewPathActive(0, fullPath)
+                                dimmedStyle: root.isPreviewDimmed(0, fullPath)
+                                opacity: root.previewOpacityForEntry(0, fullPath)
+                                renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
+                                renameEnabled: allowRename
+                                renameText: renameDraft
+                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
+                                onRenameTextEdited: renameTextEdited(text)
+                                onRenameAccepted: renameAccepted()
+                                onRenameCanceled: renameCanceled()
+                                onActivate: emitFolderActivatedIntent(fullPath)
+                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
+                                onHoverEntered: {
+                                    var centerPoint = mapToItem(root, width / 2, height / 2)
+                                    updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                }
+                                DropArea {
+                                    anchors.fill: parent
+                                    enabled: allowDrops
+                                    onDropped: {
+                                        var payload = dropPayloadText(drop)
+                                        if (!payload) return
+                                        emitMoveEntryIntent(payload, fullPath)
+                                        drop.acceptProposedAction()
+                                    }
+                                }
+                            }
+                        }
+                        FolderItem {
+                            visible: showCreateFolderButton
+                            width: compactButtonHeight
+                            height: compactButtonHeight
+                            label: "+"
+                            style: "text"
+                            compactHeight: compactButtonHeight
+                            largeHeight: largeButtonHeight
+                            largePadding: largeButtonPadding
+                            iconSmall: iconSizeSmall
+                            iconLarge: iconSizeLarge
+                            textYOffset: buttonTextYOffset
+                            iconSource: iconFolder
+                            fillColor: folderButtonFill
+                            strokeColor: folderButtonBorder
+                            textColor: textSoft
+                            textSize: baseFont + 2
+                            textBold: true
+                            opacity: createFolderButtonOpacity
+                            renaming: false
+                            renameEnabled: false
+                            onActivate: createFolderRequested(path)
+                            onDoubleActivate: createFolderRequested(path)
+                        }
+                    }
+                }
+                Item {  // HORIZONTAL: spacer/feder after folders
+                    Layout.fillWidth: !flowOnSecondLine
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : -1
+                    Layout.minimumWidth: flowOnSecondLine ? 0 : 0
+                    Layout.maximumWidth: flowOnSecondLine ? 0 : -1
                 }
 
             }
@@ -3123,7 +3359,7 @@ Item { // ROOT
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
-                                iconSource: iconFolder
+                                iconSource: iconSourceForPath(fullPathForSegment, false, null)
                                 textLeftInset: effectiveStyle() === "text" ? 8 : 0
                                 // fillColor: segmentColors.fill
                                 // strokeColor: segmentColors.stroke
@@ -3178,7 +3414,7 @@ Item { // ROOT
                         iconSmall: iconSizeSmall
                         iconLarge: iconSizeLarge
                         textYOffset: buttonTextYOffset
-                        iconSource: iconFolder
+                        iconSource: iconSourceForPath(currentFullPath, true, null)
                         textLeftInset: effectiveStyle() === "text" ? 8 : 0
                         // fillColor: currentPathColors.fill
                         // Eingesetzt
@@ -3208,8 +3444,9 @@ Item { // ROOT
                             anchors.fill: parent
                             enabled: allowDrops
                             onDropped: {
-                                if (!drop || !drop.text) return
-                                emitMoveEntryIntent(drop.text, path)
+                                var payload = dropPayloadText(drop)
+                                if (!payload) return
+                                emitMoveEntryIntent(payload, path)
                                 drop.acceptProposedAction()
                             }
                         }
@@ -3312,7 +3549,7 @@ Item { // ROOT
                                     iconSmall: iconSizeSmall
                                     iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
-                                    iconSource: iconFolder
+                                    iconSource: iconSourceForPath(fullPath, false, modelData)
                                     fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                     textColor: textSoft
@@ -3356,7 +3593,7 @@ Item { // ROOT
                                     onRenameAccepted: renameAccepted()
                                     onRenameCanceled: renameCanceled()
                                 onActivate: emitFolderActivatedIntent(fullPath)
-                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
+                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 onHoverEntered: {
                                     if (!verticalView) {
                                         return
@@ -3366,14 +3603,40 @@ Item { // ROOT
                                 }
                                         DropArea {
                                             anchors.fill: parent
-                                            enabled: allowDrops && !itemIsEmbryo(modelData)
+                                            enabled: allowDrops
                                             onDropped: {
-                                                if (!drop || !drop.text) return
-                                                emitMoveEntryIntent(drop.text, fullPath)
+                                                var payload = dropPayloadText(drop)
+                                                if (!payload) return
+                                                emitMoveEntryIntent(payload, fullPath)
                                                 drop.acceptProposedAction()
                                             }
                                         }
                                 }
+                            }
+                            FolderItem {
+                                visible: showCreateFolderButton
+                                x: indent
+                                width: compactButtonHeight
+                                height: compactButtonHeight
+                                label: "+"
+                                style: "text"
+                                compactHeight: compactButtonHeight
+                                largeHeight: largeButtonHeight
+                                largePadding: largeButtonPadding
+                                iconSmall: iconSizeSmall
+                                iconLarge: iconSizeLarge
+                                textYOffset: buttonTextYOffset
+                                iconSource: iconFolder
+                                fillColor: folderButtonFill
+                                strokeColor: folderButtonBorder
+                                textColor: textSoft
+                                textSize: baseFont + 2
+                                textBold: true
+                                opacity: createFolderButtonOpacity
+                                renaming: false
+                                renameEnabled: false
+                                onActivate: createFolderRequested(path)
+                                onDoubleActivate: createFolderRequested(path)
                             }
                         }
                     }
@@ -3761,7 +4024,7 @@ Item { // ROOT
                                                     iconSmall: iconSizeSmall
                                                     iconLarge: iconSizeLarge
                                                     textYOffset: buttonTextYOffset
-                                                    iconSource: iconFolder
+                                                    iconSource: iconSourceForPath(fullPath, false, modelData)
                                                     fillColor: folderFillColorForPath(modelData, previewLevel, fullPath)
                                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel, fullPath)
                                                     textColor: textSoft
@@ -3783,7 +4046,7 @@ Item { // ROOT
                                                     onRenameAccepted: renameAccepted()
                                                     onRenameCanceled: renameCanceled()
                                                     onActivate: emitFolderActivatedIntent(fullPath)
-                                                    onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
+                                                    onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                                     onHoverEntered: {
                                                         if (!verticalView) {
                                                             return
@@ -3793,10 +4056,11 @@ Item { // ROOT
                                                     }
                                                     DropArea {
                                                         anchors.fill: parent
-                                                        enabled: allowDrops && !itemIsEmbryo(modelData)
+                                                        enabled: allowDrops
                                                         onDropped: {
-                                                            if (!drop || !drop.text) return
-                                                            emitMoveEntryIntent(drop.text, fullPath)
+                                                            var payload = dropPayloadText(drop)
+                                                            if (!payload) return
+                                                            emitMoveEntryIntent(payload, fullPath)
                                                             drop.acceptProposedAction()
                                                         }
                                                     }
@@ -3843,7 +4107,7 @@ Item { // ROOT
                                 iconSmall: iconSizeSmall
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
-                                iconSource: iconFolder
+                                iconSource: iconSourceForPath(fullPath, false, modelData)
                                 fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: textSoft
@@ -3864,21 +4128,46 @@ Item { // ROOT
                                 onRenameAccepted: renameAccepted()
                                 onRenameCanceled: renameCanceled()
                                 onActivate: emitFolderActivatedIntent(fullPath)
-                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
+                                onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                 }
                                 DropArea {
                                     anchors.fill: parent
-                                    enabled: allowDrops && !itemIsEmbryo(modelData)
+                                    enabled: allowDrops
                                     onDropped: {
-                                        if (!drop || !drop.text) return
-                                        emitMoveEntryIntent(drop.text, fullPath)
+                                        var payload = dropPayloadText(drop)
+                                        if (!payload) return
+                                        emitMoveEntryIntent(payload, fullPath)
                                         drop.acceptProposedAction()
                                     }
                                 }
                             }
+                        }
+                        FolderItem {
+                            visible: showCreateFolderButton
+                            width: compactButtonHeight
+                            height: compactButtonHeight
+                            label: "+"
+                            style: "text"
+                            compactHeight: compactButtonHeight
+                            largeHeight: largeButtonHeight
+                            largePadding: largeButtonPadding
+                            iconSmall: iconSizeSmall
+                            iconLarge: iconSizeLarge
+                            textYOffset: buttonTextYOffset
+                            iconSource: iconFolder
+                            fillColor: folderButtonFill
+                            strokeColor: folderButtonBorder
+                            textColor: textSoft
+                            textSize: baseFont + 2
+                            textBold: true
+                            opacity: createFolderButtonOpacity
+                            renaming: false
+                            renameEnabled: false
+                            onActivate: createFolderRequested(path)
+                            onDoubleActivate: createFolderRequested(path)
                         }
                     }
                 }
@@ -4002,7 +4291,7 @@ Item { // ROOT
                                     iconSmall: iconSizeSmall
                                     iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
-                                    iconSource: iconFolder
+                                    iconSource: iconSourceForPath(fullPath, false, modelData)
                                     fillColor: folderFillColorForPath(modelData, previewLevel + 1, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel + 1, fullPath)
                                     textColor: textSoft
@@ -4018,7 +4307,7 @@ Item { // ROOT
                                     dimmedStyle: root.isPreviewDimmed(previewLevel + 1, fullPath)
                                     opacity: root.previewOpacityForEntry(previewLevel + 1, fullPath)
                                     onActivate: emitFolderActivatedIntent(fullPath)
-                                    onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath)
+                                    onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
                                         updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
@@ -4086,7 +4375,7 @@ Item { // ROOT
                                 iconSmall: root.iconSizeSmall
                                 iconLarge: root.iconSizeLarge
                                 textYOffset: root.buttonTextYOffset
-                                iconSource: root.iconFolder
+                                iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                 textLeftInset: root.effectiveStyle() === "text" ? 8 : 0
                                 fillColor: customColors ? customColors.fill : root.pathButtonFill
                                 strokeColor: customColors ? customColors.stroke : root.pathButtonBorder
@@ -4105,14 +4394,15 @@ Item { // ROOT
                                 }
                                 onDoubleActivate: {
                                     browserRoot.closeCwdHoverPanels("main-panel-double-activate")
-                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 }
                                 DropArea {
                                     anchors.fill: parent
                                     enabled: root.allowDrops
                                     onDropped: {
-                                        if (!drop || !drop.text) return
-                                        browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                        var payload = browserRoot.dropPayloadText(drop)
+                                        if (!payload) return
+                                        browserRoot.emitMoveEntryIntent(payload, fullPath)
                                         drop.acceptProposedAction()
                                     }
                                 }
@@ -4123,6 +4413,15 @@ Item { // ROOT
                                         var xPos = Number(point.position.x || 0)
                                         var inOutzone = xPos >= (width - Math.max(1, root.cwdHoverOutzonePx))
                                         if (inOutzone) {
+                                                root.cwdCascadeHoverOutzoneHits += 1
+                                                if (root.cwdCascadeHoverOutzoneHits <= 5 || (root.cwdCascadeHoverOutzoneHits % 25) === 0) {
+                                                    root._logCwdOverlay("cascade-outzone-hit-main", {
+                                                        path: fullPath,
+                                                        xPos: Math.round(xPos),
+                                                        width: Math.round(width),
+                                                        hits: Number(root.cwdCascadeHoverOutzoneHits || 0)
+                                                    })
+                                                }
                                             root.openCwdCascadePanel(0, fullPath, parent)
                                             root.cwdHoverChildPanelPath = fullPath
                                             root.cwdHoverChildEntries = root.listPreviewChildren(fullPath)
@@ -4157,20 +4456,27 @@ Item { // ROOT
                     }
                 }
             }
-            Repeater {
-                model: root.cwdHoverCascadePanels
-                delegate: Item {
+            Item {
+                id: cwdHoverCascadeOverlayLayer
+                parent: root.cwdHoverOverlayHost()
+                visible: root.cwdHoverPanelOpen && !root.verticalView
+                x: 0
+                y: 0
+                z: 9999
+                width: Number(parent && parent.width !== undefined ? parent.width : root.width)
+                height: Number(parent && parent.height !== undefined ? parent.height : root.height)
+                Repeater {
+                    model: root.cwdHoverCascadePanels
+                    delegate: Item {
                     required property int index
                     required property var modelData
                     property int cascadeIndex: index
                     property string cascadeBasePath: String(modelData && modelData.path ? modelData.path : "")
-                    parent: root.cwdHoverOverlayHost()
-                    visible: root.cwdHoverPanelOpen && !root.verticalView
                     onParentChanged: {
                         root._logCwdOverlay("cascade-panel-parent-changed", {
                             depth: cascadeIndex,
                             path: cascadeBasePath,
-                            parentOk: root._overlayItemHasParent(this, root.cwdHoverOverlayHost())
+                            parentOk: root._overlayItemHasParent(this, cwdHoverCascadeOverlayLayer)
                         })
                     }
                     onVisibleChanged: {
@@ -4222,7 +4528,7 @@ Item { // ROOT
                                     iconSmall: root.iconSizeSmall
                                     iconLarge: root.iconSizeLarge
                                     textYOffset: root.buttonTextYOffset
-                                    iconSource: root.iconFolder
+                                    iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                     fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                     textColor: root.textSoft
@@ -4243,14 +4549,15 @@ Item { // ROOT
                                     }
                                     onDoubleActivate: {
                                         browserRoot.closeCwdHoverPanels("cascade-double-activate")
-                                        browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                        browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
                                     }
                                     DropArea {
                                         anchors.fill: parent
-                                        enabled: root.allowDrops && !root.itemIsEmbryo(modelData)
+                                        enabled: root.allowDrops
                                         onDropped: {
-                                            if (!drop || !drop.text) return
-                                            browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                            var payload = browserRoot.dropPayloadText(drop)
+                                            if (!payload) return
+                                            browserRoot.emitMoveEntryIntent(payload, fullPath)
                                             drop.acceptProposedAction()
                                         }
                                     }
@@ -4265,6 +4572,16 @@ Item { // ROOT
                                             var xPos = Number(point.position.x || 0)
                                             var inOutzone = xPos >= (width - Math.max(1, root.cwdHoverOutzonePx))
                                             if (inOutzone) {
+                                                root.cwdCascadeHoverOutzoneHits += 1
+                                                if (root.cwdCascadeHoverOutzoneHits <= 5 || (root.cwdCascadeHoverOutzoneHits % 25) === 0) {
+                                                    root._logCwdOverlay("cascade-outzone-hit-child", {
+                                                        path: fullPath,
+                                                        depth: cascadeIndex + 1,
+                                                        xPos: Math.round(xPos),
+                                                        width: Math.round(width),
+                                                        hits: Number(root.cwdCascadeHoverOutzoneHits || 0)
+                                                    })
+                                                }
                                                 root.openCwdCascadePanel(cascadeIndex + 1, fullPath, parent)
                                             }
                                         }
@@ -4285,6 +4602,7 @@ Item { // ROOT
                             }
                         }
                     }
+                }
                 }
             }
             Item {
@@ -4342,7 +4660,7 @@ Item { // ROOT
                                 iconSmall: root.iconSizeSmall
                                 iconLarge: root.iconSizeLarge
                                 textYOffset: root.buttonTextYOffset
-                                iconSource: root.iconFolder
+                                iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: root.textSoft
@@ -4363,14 +4681,15 @@ Item { // ROOT
                                 }
                                 onDoubleActivate: {
                                     browserRoot.closeCwdHoverPanels("child-panel-double-activate")
-                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 }
                                 DropArea {
                                     anchors.fill: parent
-                                    enabled: root.allowDrops && !root.itemIsEmbryo(modelData)
+                                    enabled: root.allowDrops
                                     onDropped: {
-                                        if (!drop || !drop.text) return
-                                        browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                        var payload = browserRoot.dropPayloadText(drop)
+                                        if (!payload) return
+                                        browserRoot.emitMoveEntryIntent(payload, fullPath)
                                         drop.acceptProposedAction()
                                     }
                                 }
@@ -4476,7 +4795,7 @@ Item { // ROOT
                                 iconSmall: root.iconSizeSmall
                                 iconLarge: root.iconSizeLarge
                                 textYOffset: root.buttonTextYOffset
-                                iconSource: root.iconFolder
+                                iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: root.textSoft
@@ -4497,14 +4816,15 @@ Item { // ROOT
                                 }
                                 onDoubleActivate: {
                                     browserRoot.closeCwdHoverPanels("grandchild-panel-double-activate")
-                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath)
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 }
                                 DropArea {
                                     anchors.fill: parent
-                                    enabled: root.allowDrops && !root.itemIsEmbryo(modelData)
+                                    enabled: root.allowDrops
                                     onDropped: {
-                                        if (!drop || !drop.text) return
-                                        browserRoot.emitMoveEntryIntent(drop.text, fullPath)
+                                        var payload = browserRoot.dropPayloadText(drop)
+                                        if (!payload) return
+                                        browserRoot.emitMoveEntryIntent(payload, fullPath)
                                         drop.acceptProposedAction()
                                     }
                                 }

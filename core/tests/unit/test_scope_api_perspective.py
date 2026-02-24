@@ -227,3 +227,35 @@ def test_perspective_templates_collision_uses_deterministic_hint_template(tmp_pa
     deep_rows = api.perspective_list_templates(finanz_cpd)
     shared = [row for row in deep_rows if str(row.get("name") or "") == "shared"][0]
     assert str(shared.get("cpd") or "") == "/Standard/Projekte/Finanz/finanz/shared"
+
+
+def test_folder_type_enum_for_children_embryo_born_normal(tmp_path):
+    paths = _setup_merged_templates_tree(tmp_path)
+    project = paths["project"]
+    (project / "finanz").mkdir(parents=True, exist_ok=True)
+    (project / "manual").mkdir(parents=True, exist_ok=True)
+
+    api = ScopeApi(str(project))
+    rows = api.list_children(str(project), include_embryos=True)
+    by_name = {str(item.get("name") or ""): item for item in rows}
+
+    assert int(by_name["finanz"].get("folderType")) == 1
+    assert bool(by_name["finanz"].get("isEmbryo")) is False
+
+    assert int(by_name["admin"].get("folderType")) == 2
+    assert bool(by_name["admin"].get("isEmbryo")) is True
+
+    assert int(by_name["manual"].get("folderType")) == 0
+    assert bool(by_name["manual"].get("isEmbryo")) is False
+
+
+def test_folder_type_enum_for_templates_is_embryo_only(tmp_path):
+    paths = _setup_merged_templates_tree(tmp_path)
+    project = paths["project"]
+    api = ScopeApi(str(project))
+
+    rows = api.list_templates(str(project), include_embryos=True)
+    assert rows
+    for item in rows:
+        assert int(item.get("folderType")) == 2
+        assert bool(item.get("isEmbryo")) is True

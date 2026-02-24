@@ -15,6 +15,7 @@ ApplicationWindow {
     property bool darkTheme: true
     property string iconFolder: "image://theme/folder-open"
     property string iconFolderOff: "image://theme/folder"
+    property string iconProjectFallback: Qt.resolvedUrl("Theme/icons/project.svg")
     property string iconSearch: "image://theme/system-search"
     property string iconFile: "image://theme/text-x-generic"
     property string iconGear: "image://theme/preferences-system"
@@ -104,6 +105,8 @@ ApplicationWindow {
     property string templatesCtdPath: ""
     property string previewCTDPath: ""
     property string committedCTDPath: ""
+    property string clipboardPath: ""
+    property bool clipboardHasItems: false
     // Controls whether TemplatesBrowser acts as perspective selector (CPD semantics)
     // or as plain embryo browser (CTD semantics).
     property bool templatesUsePerspective: true
@@ -129,7 +132,7 @@ ApplicationWindow {
     property bool tagsIndexing: false
     property int currentFolderSizeBytes: 0
     property string tagMatchMode: "or" // or | and
-    property bool projectsShowEmbryos: true
+    property bool projectsShowEmbryos: false
     property bool templatesShowEmbryos: true
     property var pendingMoveSources: []
     property string pendingMoveTargetDir: ""
@@ -137,6 +140,8 @@ ApplicationWindow {
     property string moveReportMessage: ""
     property var pendingFolderBatchSources: []
     property string pendingFolderBatchName: qsTr("Neuer Ordner")
+    property string pendingCreateFolderTargetPath: ""
+    property string pendingCreateFolderName: qsTr("Neuer Ordner")
     property string pendingRenamePath: ""
     property string pendingRenameName: ""
     property var pendingDeletePaths: []
@@ -284,11 +289,16 @@ ApplicationWindow {
         }
     }
 
-    function setCwp(path) {
-        var nextPath = String(path || "")
-        if (nextPath.length === 0 || nextPath === String(cwp || "")) {
+    function setCwp(path, reason) {
+        var nextPath = normalizeFsPath(path)
+        var currentPath = normalizeFsPath(cwp)
+        // #region agent log
+        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H1",location:"Scope/main.qml:setCwp",message:"setCwp-eval",data:{incoming:("" + (path || "")),nextPath:nextPath,currentPath:currentPath,reason:("" + (reason || "unspecified")),willApply:!(nextPath.length===0||nextPath===currentPath)},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
+        if (nextPath.length === 0 || nextPath === currentPath) {
             return
         }
+        console.log("[scope] setCwp", "from=", currentPath, "to=", nextPath, "reason=", String(reason || "unspecified"))
         cwp = nextPath
     }
 
@@ -305,13 +315,13 @@ ApplicationWindow {
     }
 
     function commitCTD(path) {
-        var nextPath = String(path || "").trim()
+        var nextPath = normalizeFsPath(path)
         if (nextPath.length === 0) {
             return false
         }
         previewCTDPath = nextPath
         templatesCtdPath = nextPath
-        if (nextPath === String(committedCTDPath || "")) {
+        if (nextPath === normalizeFsPath(committedCTDPath)) {
             return false
         }
         committedCTDPath = nextPath
@@ -329,6 +339,28 @@ ApplicationWindow {
     function toFileUrl(path) {
         if (path.indexOf("file://") === 0) return path
         return "file://" + path
+    }
+
+    function normalizeProjectIconSource(rawIcon) {
+        var value = String(rawIcon || "").trim()
+        if (value.length === 0) {
+            return ""
+        }
+        if (value.indexOf("://") > 0) {
+            return value
+        }
+        if (value.indexOf("/") === 0) {
+            return toFileUrl(value)
+        }
+        return "image://theme/" + value
+    }
+
+    function projectIconForPath(path) {
+        if (!hasBackend() || typeof backend.projectIcon !== "function") {
+            return iconProjectFallback
+        }
+        var resolved = normalizeProjectIconSource(backend.projectIcon(path))
+        return resolved.length > 0 ? resolved : iconProjectFallback
     }
 
     function refreshPerspectiveState() {
@@ -409,6 +441,38 @@ ApplicationWindow {
             return value.slice(0, -1)
         }
         return value
+    }
+
+    function fromFileUrl(path) {
+        var value = String(path || "").trim()
+        if (value.indexOf("file://") !== 0) {
+            return value
+        }
+        var raw = value.slice(7)
+        if (raw.indexOf("/") === 0) {
+            return raw
+        }
+        var slash = raw.indexOf("/")
+        if (slash >= 0) {
+            return raw.slice(slash)
+        }
+        return raw
+    }
+
+    function normalizeFsPath(path) {
+        var value = String(path || "").trim()
+        if (value.length === 0) {
+            return ""
+        }
+        if (value.indexOf("file://") === 0) {
+            var raw = fromFileUrl(value)
+            try {
+                value = decodeURIComponent(raw)
+            } catch (e) {
+                value = raw
+            }
+        }
+        return trimTrailingSlash(value)
     }
 
     function resolveProjectRootPath() {
@@ -495,6 +559,23 @@ ApplicationWindow {
         return buildPerspectiveCpd(hint.length > 0 ? [hint] : [], projectName, templateParts)
     }
 
+    function folderTypeFromMeta(folderMeta) {
+        if (folderMeta && folderMeta.folderType !== undefined) {
+            var parsed = Number(folderMeta.folderType)
+            if (!isNaN(parsed)) {
+                return parsed
+            }
+        }
+        if (folderMeta && folderMeta.isEmbryo === true) {
+            return 2
+        }
+        return 0
+    }
+
+    function shouldApplyPerspectiveForFolderType(folderMeta) {
+        return folderTypeFromMeta(folderMeta) > 0
+    }
+
     function templatesDisplayPathFromPerspectiveCpd(cpd) {
         var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
         var parsed = parsePerspectiveCpd(cpd)
@@ -540,7 +621,7 @@ ApplicationWindow {
         return true
     }
 
-    function ensurePerspectiveOpenForTemplates() {
+    function ensurePerspectiveOpen() {
         // onCwpChanged already refreshes perspective state before updateTemplates().
         // Avoid a redundant second refresh on startup/path changes.
         if (!hasBackend() || typeof backend.perspectiveOpen !== "function") {
@@ -552,6 +633,29 @@ ApplicationWindow {
         var opened = backend.perspectiveOpen(cwp, "flipped") || ({ active: false })
         refreshPerspectiveState()
         return !!opened.active || !!perspectiveState.active
+    }
+
+    function ensurePerspectiveOpenForTemplates() {
+        return ensurePerspectiveOpen()
+    }
+
+    function applyPerspectiveForRealPath(realPath) {
+        var target = String(realPath || "").trim()
+        if (target.length === 0) {
+            return false
+        }
+        if (!ensurePerspectiveOpen()) {
+            return false
+        }
+        if (!hasBackend() || typeof backend.perspectiveResolveReal !== "function") {
+            return false
+        }
+        var resolved = backend.perspectiveResolveReal(target) || ({ ok: false })
+        var nextCpd = String(resolved.cpd || "").trim()
+        if (nextCpd.length === 0) {
+            return false
+        }
+        return applyPerspectiveCpd(nextCpd)
     }
 
     function applyPerspectiveCpd(targetCpd) {
@@ -613,9 +717,16 @@ ApplicationWindow {
                     : displayBase
                 var displayPath = (base === "/" ? "" : base) + "/" + name
                 nextMap[displayPath] = String((rows[i] && rows[i].cpd) ? rows[i].cpd : "")
+                var rowFolderType = (rows[i] && rows[i].folderType !== undefined)
+                    ? Number(rows[i].folderType)
+                    : 2
+                if (isNaN(rowFolderType)) {
+                    rowFolderType = 2
+                }
                 out.push({
                     "name": name,
                     "isEmbryo": true,
+                    "folderType": rowFolderType,
                     "color": String((rows[i] && rows[i].color) ? rows[i].color : ""),
                     "cpd": String((rows[i] && rows[i].cpd) ? rows[i].cpd : "")
                 })
@@ -694,16 +805,51 @@ ApplicationWindow {
         if (text.length === 0) {
             return []
         }
+        function normalizeDragPath(raw) {
+            return normalizeFsPath(raw)
+        }
+        function decodeUriList(textValue) {
+            var lines = String(textValue || "").split(/\r?\n/)
+            var out = []
+            for (var i = 0; i < lines.length; i++) {
+                var line = String(lines[i] || "").trim()
+                if (line.length === 0 || line.indexOf("#") === 0) {
+                    continue
+                }
+                var normalized = normalizeDragPath(line)
+                if (normalized.length > 0) {
+                    out.push(normalized)
+                }
+            }
+            return out
+        }
         if (text.indexOf("__MYOS_PATHS__") === 0) {
             var raw = text.slice("__MYOS_PATHS__".length)
             try {
                 var arr = JSON.parse(raw)
-                return (arr && arr.length) ? arr : []
+                if (!(arr && arr.length)) {
+                    return []
+                }
+                var normalizedBatch = []
+                for (var j = 0; j < arr.length; j++) {
+                    var normalizedPath = normalizeDragPath(arr[j])
+                    if (normalizedPath.length > 0) {
+                        normalizedBatch.push(normalizedPath)
+                    }
+                }
+                return normalizedBatch
             } catch (e) {
                 return []
             }
         }
-        return [text]
+        if (text.indexOf("file://") === 0 || text.indexOf("\n") !== -1) {
+            var listDecoded = decodeUriList(text)
+            if (listDecoded.length > 0) {
+                return listDecoded
+            }
+        }
+        var normalizedSingle = normalizeDragPath(text)
+        return normalizedSingle.length > 0 ? [normalizedSingle] : []
     }
 
     function _containsDirectory(paths) {
@@ -877,23 +1023,33 @@ ApplicationWindow {
     }
 
     function moveEntry(sourcePath, targetDir) {
+        // #region agent log
+        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H3",location:"Scope/main.qml:moveEntry",message:"move-entry-in",data:{sourceType:typeof sourcePath,sourcePreview:("" + (sourcePath || "")).slice(0,120),targetRaw:("" + (targetDir || "")),committedCTD:("" + (committedCTDPath || ""))},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
         if (!sourcePath) {
             return
         }
         // Drop semantics: support both uncommitted and committed CTD targets.
         // Prefer the explicit drop target (can be uncommitted), then fall back
         // to committed CTD when no concrete drop target is available.
-        var resolvedTarget = String(targetDir || "").trim()
+        var resolvedTarget = normalizeFsPath(targetDir)
         if (resolvedTarget.length === 0) {
-            resolvedTarget = String(committedCTDPath || "").trim()
+            resolvedTarget = normalizeFsPath(committedCTDPath)
         }
+        // #region agent log
+        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H3",location:"Scope/main.qml:moveEntry",message:"move-entry-target-resolved",data:{targetRaw:("" + (targetDir || "")),resolvedTarget:resolvedTarget},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
         if (resolvedTarget.length === 0) {
             return
         }
         var sources = _decodeDragPayload(sourcePath)
+        // #region agent log
+        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H3",location:"Scope/main.qml:moveEntry",message:"move-entry-decoded-sources",data:{count:(sources&&sources.length)||0,first:(sources&&sources.length>0)?("" + (sources[0] || "")):""},timestamp:Date.now()})}).catch(function(){});
+        // #endregion
         if (!sources || sources.length === 0) {
             return
         }
+        console.log("[scope] moveEntry", "sources=", JSON.stringify(sources), "target=", resolvedTarget)
         if (_containsDirectory(sources)) {
             pendingMoveSources = sources
             pendingMoveTargetDir = resolvedTarget
@@ -953,6 +1109,89 @@ ApplicationWindow {
         pendingFolderBatchSources = cleaned
         pendingFolderBatchName = qsTr("Neuer Ordner")
         moveSelectedFoldersDialog.open()
+    }
+
+    function requestCreateFolderAt(targetPath) {
+        var target = String(targetPath || "").trim()
+        if (target.length === 0) {
+            return
+        }
+        pendingCreateFolderTargetPath = target
+        pendingCreateFolderName = qsTr("Neuer Ordner")
+        createFolderDialog.open()
+    }
+
+    function resolveClipboardPath() {
+        var templatesRoot = trimTrailingSlash(resolveTemplatesRootPath())
+        if (templatesRoot.length > 0 && templatesRoot.indexOf("/Templates") === (templatesRoot.length - "/Templates".length)) {
+            return templatesRoot.slice(0, templatesRoot.length - "/Templates".length) + "/Clipboard"
+        }
+        var projectRoot = trimTrailingSlash(resolveProjectRootPath())
+        if (projectRoot.length > 0 && projectRoot.indexOf("/Projekte") === (projectRoot.length - "/Projekte".length)) {
+            return projectRoot.slice(0, projectRoot.length - "/Projekte".length) + "/Clipboard"
+        }
+        var cwdNorm = normalizeFsPath(cwp)
+        var marker = "/Projekte/"
+        var markerIndex = cwdNorm.indexOf(marker)
+        if (markerIndex >= 0) {
+            return cwdNorm.slice(0, markerIndex) + "/Clipboard"
+        }
+        return trimTrailingSlash(cwdNorm) + "/Clipboard"
+    }
+
+    function ensureClipboardDirectory(targetPath) {
+        var target = normalizeFsPath(targetPath)
+        if (target.length === 0 || !hasBackend()) {
+            return false
+        }
+        if (typeof backend.isDir === "function" && backend.isDir(target)) {
+            return true
+        }
+        if (typeof backend.createFolder !== "function") {
+            return false
+        }
+        var idx = target.lastIndexOf("/")
+        var parentPath = idx > 0 ? target.slice(0, idx) : "/"
+        var folderName = idx >= 0 ? target.slice(idx + 1) : target
+        if (!folderName || folderName.length === 0) {
+            return false
+        }
+        var createdPath = String(backend.createFolder(parentPath, folderName) || "")
+        return createdPath.length > 0
+    }
+
+    function updateClipboardState() {
+        var target = resolveClipboardPath()
+        clipboardPath = target
+        if (!hasBackend() || target.length === 0 || typeof backend.isDir !== "function" || !backend.isDir(target)) {
+            clipboardHasItems = false
+            return
+        }
+        var entries = listChildren(target)
+        clipboardHasItems = entries && entries.length > 0
+    }
+
+    function openClipboard() {
+        var target = resolveClipboardPath()
+        if (target.length === 0) {
+            return
+        }
+        ensureClipboardDirectory(target)
+        setCwp(target, "folderBrowser.clipboard")
+        commitCTD(target)
+    }
+
+    function dropToClipboard(payload) {
+        var sourcePayload = String(payload || "")
+        if (sourcePayload.length === 0) {
+            return
+        }
+        var target = resolveClipboardPath()
+        if (target.length === 0) {
+            return
+        }
+        ensureClipboardDirectory(target)
+        moveEntry(sourcePayload, target)
     }
 
     function requestRenameEntry(path) {
@@ -1029,6 +1268,38 @@ ApplicationWindow {
         }
         if (cleaned.length === 0 || !hasBackend() || typeof backend.deleteEntries !== "function") {
             return
+        }
+        var visibleEntries = listEntries(currentFilesPath())
+        var embryoBlocked = []
+        var deletable = []
+        for (var j = 0; j < cleaned.length; j++) {
+            var candidatePath = cleaned[j]
+            var blocked = false
+            for (var k = 0; k < (visibleEntries || []).length; k++) {
+                var entry = visibleEntries[k]
+                if (!entry) {
+                    continue
+                }
+                if (String(entry.path || "") === candidatePath && entry.isEmbryo) {
+                    blocked = true
+                    break
+                }
+            }
+            if (blocked) {
+                embryoBlocked.push(candidatePath)
+            } else {
+                deletable.push(candidatePath)
+            }
+        }
+        if (deletable.length === 0) {
+            moveReportMessage = qsTr("Virtuelle Embryo-Ordner koennen nicht geloescht werden.")
+            moveReportDialog.open()
+            return
+        }
+        cleaned = deletable
+        if (embryoBlocked.length > 0) {
+            moveReportMessage = qsTr("Embryo-Ordner wurden beim Loeschen uebersprungen: %1").arg(embryoBlocked.length)
+            moveReportDialog.open()
         }
         if (cleaned.length <= 3) {
             performDeleteEntries(cleaned)
@@ -1654,6 +1925,7 @@ ApplicationWindow {
                 hasProjectInCwp = false
             }
         }
+        updateClipboardState()
         refreshFilters(targetPath)
     }
 
@@ -1733,9 +2005,8 @@ ApplicationWindow {
         }
         updateDefaultProjectTint()
         updateCurrentProjectTint()
-        if (String(committedCTDPath || "").trim().length === 0) {
-            commitCTD(cwp)
-        }
+        // Keep FilesPanel in sync whenever CWD changes.
+        commitCTD(cwp)
         updateTemplates()
     }
     onCommittedCTDPathChanged: {
@@ -2577,6 +2848,92 @@ ApplicationWindow {
     }
 
     Dialog {
+        id: createFolderDialog
+        title: qsTr("Neuen Ordner erstellen")
+        modal: true
+        focus: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.max(420, Math.round(window.width * 0.32))
+        Overlay.modal: Rectangle {
+            color: "black"
+            opacity: 0.38
+        }
+        background: Rectangle {
+            radius: 16
+            color: dialogPanelBg
+            border.color: dialogPanelBorder
+            border.width: 2
+        }
+        onOpened: {
+            _setDialogButtonText(createFolderDialog, Dialog.Ok, qsTr("Erstellen"))
+            _setDialogButtonText(createFolderDialog, Dialog.Cancel, qsTr("Abbrechen"))
+            createFolderNameInput.forceActiveFocus()
+            createFolderNameInput.selectAll()
+        }
+        onAccepted: {
+            var folderName = String(createFolderNameInput.text || "").trim()
+            var targetPath = String(pendingCreateFolderTargetPath || "").trim()
+            if (!folderName || !targetPath) {
+                pendingCreateFolderName = qsTr("Neuer Ordner")
+                pendingCreateFolderTargetPath = ""
+                return
+            }
+            if (!hasBackend() || typeof backend.createFolder !== "function") {
+                pendingCreateFolderName = qsTr("Neuer Ordner")
+                pendingCreateFolderTargetPath = ""
+                return
+            }
+            var createdPath = backend.createFolder(targetPath, folderName)
+            if (!createdPath || createdPath.length === 0) {
+                moveReportMessage = qsTr("Konnte Ordner \"%1\" nicht erstellen.").arg(folderName)
+                moveReportDialog.open()
+                pendingCreateFolderName = qsTr("Neuer Ordner")
+                pendingCreateFolderTargetPath = ""
+                return
+            }
+            updateSubProjects()
+            updateTemplates()
+            standardFolders = listTemplates(templatesListingPath())
+            updateStandardFolders()
+            updateFiles()
+            pendingCreateFolderName = qsTr("Neuer Ordner")
+            pendingCreateFolderTargetPath = ""
+        }
+        onRejected: {
+            pendingCreateFolderName = qsTr("Neuer Ordner")
+            pendingCreateFolderTargetPath = ""
+        }
+        contentItem: Column {
+            spacing: 10
+            Text {
+                text: qsTr("Zielordner: %1").arg(String(pendingCreateFolderTargetPath || ""))
+                wrapMode: Text.WordWrap
+                color: dialogTextStrong
+                font.pixelSize: baseFont
+            }
+            TextField {
+                id: createFolderNameInput
+                text: pendingCreateFolderName
+                placeholderText: qsTr("Neuer Ordnername")
+                selectByMouse: true
+                color: dialogInputText
+                placeholderTextColor: dialogInputPlaceholder
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 12
+                rightPadding: 12
+                background: Rectangle {
+                    radius: 12
+                    color: dialogInputBg
+                    border.color: dialogInputBorder
+                    border.width: 2
+                }
+            }
+        }
+    }
+
+    Dialog {
         id: moveSelectedFoldersDialog
         title: qsTr("In neuen Ordner verschieben")
         modal: true
@@ -3269,6 +3626,8 @@ ApplicationWindow {
             showSearchToggle: true
             showStyleToggle: true
             showThemeToggle: false
+            showCreateFolderButton: true
+            clipboardHasItems: window.clipboardHasItems
             baseFont: window.baseFont
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
@@ -3300,6 +3659,17 @@ ApplicationWindow {
             textSoft: theme.textSoft
             textMuted: theme.textMuted
             card: theme.card
+            projectIconFunction: function(path, isCurrent, item) {
+                if (!hasBackend()) return ""
+                var isProjectItem = item && item.isProject === true
+                var projectColor = (typeof backend.projectColor === "function")
+                    ? String(backend.projectColor(path) || "")
+                    : ""
+                if (!isProjectItem && projectColor.length === 0) {
+                    return ""
+                }
+                return projectIconForPath(path)
+            }
             pathColorFunction: function(path, isCurrent) {
                 if (!hasBackend()) return null;
                 var color = backend.projectColor(path);
@@ -3383,12 +3753,12 @@ ApplicationWindow {
                 }
                 commitCTD(resolveTemplateDisplayPathToReal(nextPath))
             }
-            onFolderDoubleActivated: function(path) {
+            onFolderDoubleActivated: function(path, folderMeta) {
                 var targetPath = String(path || "")
                 if (targetPath.length > 0) {
                     commitCTD(resolveTemplateDisplayPathToReal(targetPath))
                 }
-                if (!templatesBrowser.isPerspective) {
+                if (!shouldApplyPerspectiveForFolderType(folderMeta)) {
                     return
                 }
                 if (!ensurePerspectiveOpenForTemplates()) {
@@ -3403,7 +3773,15 @@ ApplicationWindow {
             onFolderPreviewed: function(path) {
                 previewCTD(resolveTemplateDisplayPathToReal(path))
             }
-            onMoveEntryRequested: moveEntry(sourcePath, targetDir)
+            onMoveEntryRequested: moveEntry(sourcePath, resolveTemplateDisplayPathToReal(targetDir))
+            onClipboardRequested: openClipboard()
+            onClipboardDropRequested: function(payload) {
+                dropToClipboard(payload)
+            }
+            onCreateFolderRequested: function(basePath) {
+                var targetPath = resolveTemplateDisplayPathToReal(String(basePath || ""))
+                requestCreateFolderAt(targetPath)
+            }
         }
 
         FolderBrowser {  // ProjectsBrowser
@@ -3435,6 +3813,8 @@ ApplicationWindow {
             showSearchToggle: true
             showStyleToggle: true
             showThemeToggle: false
+            showCreateFolderButton: true
+            clipboardHasItems: window.clipboardHasItems
             baseFont: window.baseFont
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
@@ -3466,6 +3846,17 @@ ApplicationWindow {
             textSoft: theme.textSoft
             textMuted: theme.textMuted
             card: theme.card
+            projectIconFunction: function(path, isCurrent, item) {
+                if (!hasBackend()) return ""
+                var isProjectItem = item && item.isProject === true
+                var projectColor = (typeof backend.projectColor === "function")
+                    ? String(backend.projectColor(path) || "")
+                    : ""
+                if (!isProjectItem && projectColor.length === 0) {
+                    return ""
+                }
+                return projectIconForPath(path)
+            }
             allowRename: true
             renameTargetPath: renameTargetPath
             renameDraft: renameDraft
@@ -3535,16 +3926,23 @@ ApplicationWindow {
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }
-            onFolderDoubleActivated: function(name) {
+            onFolderDoubleActivated: function(name, folderMeta) {
                 var targetPath = ""
                 if (name.indexOf("/") === 0) {
                     targetPath = name
                 } else {
                     targetPath = cwp + "/" + name
                 }
-                setCwp(targetPath)
+                // #region agent log
+                if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H1",location:"Scope/main.qml:projectsBrowser.onFolderDoubleActivated",message:"projects-double-activated",data:{name:("" + (name || "")),cwp:("" + (cwp || "")),targetPath:targetPath},timestamp:Date.now()})}).catch(function(){});
+                // #endregion
+                setCwp(targetPath, "projectsBrowser.folderDouble")
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
+                if (!shouldApplyPerspectiveForFolderType(folderMeta)) {
+                    return
+                }
+                applyPerspectiveForRealPath(targetPath)
             }
             onFolderPreviewed: function(path) {
                 previewCTD(path)
@@ -3554,6 +3952,13 @@ ApplicationWindow {
             onRenameAccepted: commitRename()
             onRenameCanceled: cancelRename()
             onMoveEntryRequested: moveEntry(sourcePath, targetDir)
+            onClipboardRequested: openClipboard()
+            onClipboardDropRequested: function(payload) {
+                dropToClipboard(payload)
+            }
+            onCreateFolderRequested: function(basePath) {
+                requestCreateFolderAt(String(basePath || cwp))
+            }
         }
 
         FilesPanel {  // FilesPanel
@@ -3618,6 +4023,13 @@ ApplicationWindow {
             onFolderTagColorRequested: function(tag, color) { setFolderTagColor(tag, color) }
             onRequestTagSourceChange: function(source) { tagFilterSource = source }
             onCreateNoteRequested: createNewNote()
+            onCreateFolderRequested: function(basePath) {
+                var targetBase = String(basePath || "").trim()
+                if (targetBase.length === 0) {
+                    targetBase = currentFilesPath()
+                }
+                requestCreateFolderAt(targetBase)
+            }
             onMoveSelectedIntoNewFolderRequested: function(paths) {
                 promptMoveSelectedIntoNewFolder(paths)
             }
@@ -3631,7 +4043,7 @@ ApplicationWindow {
                 } else {
                     targetPath = cwp + "/" + name
                 }
-                setCwp(targetPath)
+                setCwp(targetPath, "filesPane.folderActivated")
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }
@@ -3647,7 +4059,7 @@ ApplicationWindow {
             onOpenMyosFolder: {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
                 var targetPath = base + "/.MyOS"
-                setCwp(targetPath)
+                setCwp(targetPath, "filesPane.openMyosFolder")
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }

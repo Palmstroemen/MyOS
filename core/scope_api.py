@@ -13,6 +13,7 @@ from typing import List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
+from core.desk import DeskConfig
 from core.desk_service import DeskService
 from core.perspective import (
     EffectiveFilter,
@@ -276,6 +277,7 @@ class FolderEntry(TypedDict):
     name: str
     isProject: bool
     isEmbryo: bool
+    folderType: int
     color: Optional[str]
 
 
@@ -292,6 +294,10 @@ class FileEntryWithOptionalEmbryo(FileEntry, total=False):
 
 
 class ScopeApi:
+    FOLDER_TYPE_NORMAL = 0
+    FOLDER_TYPE_BORN = 1
+    FOLDER_TYPE_EMBRYO = 2
+
     def __init__(self, start_path: str) -> None:
         self.start_path = Path(start_path).expanduser().resolve()
         self.project_root = None
@@ -582,6 +588,7 @@ class ScopeApi:
                     "isVirtual": True,
                     "fallbackApplied": False,
                     "isEmbryo": True,
+                    "folderType": self.FOLDER_TYPE_EMBRYO,
                     "color": "",
                 }
             )
@@ -1376,6 +1383,9 @@ class ScopeApi:
         entries: List[FolderEntry] = []
         parent_for_color = target if can_list_dirs else target.parent
         parent_color = self._resolve_project_color_with_root(parent_for_color, context_root)
+        rel = ""
+        if context_root and is_within(target, context_root):
+            rel = "" if target == context_root else str(target.relative_to(context_root))
         if can_list_dirs:
             try:
                 for child in sorted(target.iterdir()):
@@ -1387,11 +1397,18 @@ class ScopeApi:
                             continue
                         is_project = self.is_project(str(child))
                         project_color = self._resolve_effective_project_color(child) if is_project else None
+                        rel_child = child.name if rel == "" else f"{rel}/{child.name}"
+                        folder_type = self._classify_folder_type(
+                            context_blueprint=context_blueprint,
+                            rel_path=rel_child,
+                            is_embryo=False,
+                        )
                         entries.append(
                             self._build_folder_entry(
                                 name=child.name,
                                 is_project=is_project,
                                 is_embryo=False,
+                                folder_type=folder_type,
                                 color=project_color,
                             )
                         )
@@ -1399,7 +1416,6 @@ class ScopeApi:
                 return []
 
         if can_list_virtual_embryos:
-            rel = "" if target == context_root else str(target.relative_to(context_root))
             embryos = context_blueprint.get_embryos_at(rel)
             for name in embryos:
                 if not any(item["name"] == name for item in entries):
@@ -1413,6 +1429,7 @@ class ScopeApi:
                             name=name,
                             is_project=False,
                             is_embryo=True,
+                            folder_type=self.FOLDER_TYPE_EMBRYO,
                             color=(embryo_color or parent_color),
                         )
                     )
@@ -1460,6 +1477,7 @@ class ScopeApi:
                         name=name,
                         is_project=False,
                         is_embryo=True,
+                        folder_type=self.FOLDER_TYPE_EMBRYO,
                         color=(embryo_color or parent_color),
                     )
                 )
@@ -2109,6 +2127,7 @@ class ScopeApi:
         name: str,
         is_project: bool,
         is_embryo: bool,
+        folder_type: int,
         color: Optional[str],
     ) -> FolderEntry:
         """Build a folder-like API entry with stable role keys for QML."""
@@ -2116,8 +2135,37 @@ class ScopeApi:
             "name": str(name),
             "isProject": bool(is_project),
             "isEmbryo": bool(is_embryo),
+            "folderType": int(folder_type),
             "color": str(color) if color else None,
         }
+
+    def _classify_folder_type(
+        self,
+        *,
+        context_blueprint: Optional[Any],
+        rel_path: str,
+        is_embryo: bool,
+    ) -> int:
+        if is_embryo:
+            return self.FOLDER_TYPE_EMBRYO
+        if self._is_template_path(context_blueprint, rel_path):
+            return self.FOLDER_TYPE_BORN
+        return self.FOLDER_TYPE_NORMAL
+
+    def _is_template_path(self, context_blueprint: Optional[Any], rel_path: str) -> bool:
+        if context_blueprint is None:
+            return False
+        rel = str(rel_path or "").strip().strip("/")
+        if not rel:
+            return False
+        node = getattr(context_blueprint, "embryo_tree", None)
+        if not isinstance(node, dict):
+            return False
+        for part in rel.split("/"):
+            if not isinstance(node, dict) or part not in node:
+                return False
+            node = node.get(part)
+        return True
 
     def _build_file_entry(
         self,
@@ -2172,6 +2220,20 @@ class ScopeApi:
             project_only=True,
             stop_at_project_root=False,
         )
+
+    def get_project_icon(self, path: str) -> Optional[str]:
+        target = self._resolve_path(path)
+        if not target.is_dir():
+            return None
+        config_path = self._desk_service.find_config(target, config_name="Desk.md")
+        if config_path is None:
+            return None
+        try:
+            desk = DeskConfig.from_file(config_path)
+        except Exception:
+            return None
+        icon_value = str(desk.project_icon or "").strip()
+        return icon_value or None
 
     def _resolve_direct_project_color(self, path: Path) -> Optional[str]:
         return self._read_first_color(path, [".MyOS/Color.md", ".MyOS/Project.md"])
