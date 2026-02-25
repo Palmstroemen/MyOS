@@ -86,10 +86,15 @@ Item { // ROOT
     property real pathProjectOpacity: 0.7
     property real folderProjectOpacity: 0.55
     property real embryoOpacity: 0.4
+    function _toColorString(value) {
+        return (value !== null && value !== undefined && typeof value === "string" && value.length > 0) ? value : ""
+    }
+
     readonly property color currentPathFillColor: {
         var custom = pathColorFunction ? pathColorFunction(path, true) : null
         if (custom && custom.fill !== undefined) {
-            return custom.fill
+            var fill = _toColorString(custom.fill)
+            if (fill.length > 0) return fill
         }
         return accentPrimary
     }
@@ -120,8 +125,8 @@ Item { // ROOT
     property bool flowOnSecondLine: false
     property bool layoutUpdatePending: false
     property bool debugLayout: false
-    property int wrapSlackOn: 10
-    property int wrapSlackOff: 60
+    property int wrapSlackOn: 30
+    property int wrapSlackOff: 100
     property bool verticalButtonsOnSecondLine: false
     property bool verticalLayoutUpdatePending: false
     property bool debugVerticalWrap: false
@@ -148,6 +153,7 @@ Item { // ROOT
     property int contentHeight: 0
     property bool contentHeightUpdatePending: false
     property bool contentHeightSettlePending: false
+    property bool cwdHoverEnabled: true
     property bool cwdHoverPanelOpen: false
     property bool cwdHoverOverButton: false
     property bool cwdHoverOverPanel: false
@@ -217,9 +223,6 @@ Item { // ROOT
     property bool h2LiftEnabled: false
     property int h2LiftLeftPx: 30
     property int h2LiftDurationMs: 1500
-    property bool previewDebugBg: false
-    property bool previewHoverDebug: false
-    property bool previewReopenDebug: false
     property int previewRowSpacing: 1
     property real previewShadeSliderMix: 0.65
     readonly property real previewRowShadeMix: Math.max(0, Math.min(1, 1 - previewShadeSliderMix))
@@ -243,10 +246,8 @@ Item { // ROOT
     property int previewCascadeGuardMs: 140
     property real previewLastApplyAtMs: 0
     property int previewLastApplyLevel: -1
-    property bool previewAnchorDebug: false
     // Safety cap for anchor viewport calculations to avoid runaway host heights.
     property int previewAnchorViewportClampPx: 5000
-    property string previewAnchorDebugLastLine: ""
     property int previewPendingLevel: 0
     property string previewPendingPath: ""
     property var previewPendingItem: null
@@ -321,9 +322,6 @@ Item { // ROOT
     function emitFolderDoubleActivatedIntent(path, folderMeta) {
         var value = String(path || "").trim()
         if (!value) return
-        // #region agent log
-        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:emitFolderDoubleActivatedIntent",message:"double-activate-intent",data:{path:value,isPerspective:!!isPerspective},timestamp:Date.now()})}).catch(function(){});
-        // #endregion
         folderDoubleActivated(value, folderMeta)
     }
 
@@ -331,9 +329,6 @@ Item { // ROOT
         var source = String(payload || "").trim()
         var target = String(path || "").trim()
         if (!source || !target) return
-        // #region agent log
-        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H2",location:"Scope/FolderBrowser.qml:emitMoveEntryIntent",message:"drop-intent-dispatch",data:{sourceLen:source.length,target:target},timestamp:Date.now()})}).catch(function(){});
-        // #endregion
         moveEntryRequested(source, target)
     }
 
@@ -341,9 +336,6 @@ Item { // ROOT
         if (!drop) return ""
         var direct = String(drop.text || "").trim()
         if (direct.length > 0) {
-            // #region agent log
-            if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H2",location:"Scope/FolderBrowser.qml:dropPayloadText",message:"drop-payload-from-text",data:{textLen:direct.length},timestamp:Date.now()})}).catch(function(){});
-            // #endregion
             return direct
         }
         if (drop.source && drop.source.dragPayload !== undefined) {
@@ -377,9 +369,6 @@ Item { // ROOT
                 return "__MYOS_PATHS__" + JSON.stringify(urls)
             }
         }
-        // #region agent log
-        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H2",location:"Scope/FolderBrowser.qml:dropPayloadText",message:"drop-payload-empty",data:{hasSource:!!(drop&&drop.source),hasUrls:!!(drop&&drop.urls&&drop.urls.length>0)},timestamp:Date.now()})}).catch(function(){});
-        // #endregion
         return ""
     }
 
@@ -664,8 +653,6 @@ Item { // ROOT
     function calculateContentHeight() {
         if (!mainColumn) return 0
         if (verticalView) {
-            // Keep vertical implicit height stable to prevent feedback loops
-            // between contentHeight-driven relayout and fill-height spacers.
             var preferred = Number(verticalPreferredHeight || 0)
             if (preferred > 0) {
                 return Math.round(preferred)
@@ -677,7 +664,8 @@ Item { // ROOT
         var preview = (previewStack && previewStack.visible)
             ? (previewStack.height + mainColumn.spacing)
             : 0
-        return Math.round(top + bottom + preview + 0)
+        var result = Math.round(top + bottom + preview + 0)
+        return result
     }
 
     function scheduleContentHeightUpdate() {
@@ -796,14 +784,6 @@ Item { // ROOT
         s2PointerCarryStartX = previewPointerX
         s2PointerCarryUserOffsetX = 0
         s2SystemCarryAppliedX = 0
-        if (previewReopenDebug) {
-            console.log(
-                "[preview-reopen:snapshot]",
-                "key=", s2CollapseTransitionKey,
-                "active=", JSON.stringify(s2CollapseSnapshotActivePaths || []),
-                "rows=", s2CollapseSnapshotRows.length
-            )
-        }
         s2CollapsedInS4 = true
         s2CollapseTransitionRunning = true
         // Restart progress each time so the carry phase is always visible.
@@ -948,14 +928,6 @@ Item { // ROOT
         var sourceRows = (s2CollapseSnapshotRows && s2CollapseSnapshotRows.length > 0)
             ? s2CollapseSnapshotRows
             : previewRows
-        if (previewReopenDebug) {
-            console.log(
-                "[preview-reopen:commit]",
-                "nextPath=", String(nextPath),
-                "sourceActive=", JSON.stringify(sourcePaths || []),
-                "sourceRows=", sourceRows.length
-            )
-        }
         preparePreviewReopenAfterPathCommit(nextPath, sourcePaths, sourceAnchorX, sourceAnchorY, sourceRows)
         folderPreviewed(String(nextPath))
     }
@@ -1017,15 +989,6 @@ Item { // ROOT
         previewReopenRows = shiftedRows
         previewReopenAfterPathCommitPending = shiftedPaths.length > 0 || shiftedRows.length > 0
         previewReopenRetryCount = 0
-        if (previewReopenDebug) {
-            console.log(
-                "[preview-reopen:prepared]",
-                "commitPath=", previewReopenCommitPath,
-                "shiftedActive=", JSON.stringify(previewReopenActivePaths || []),
-                "shiftedRows=", previewReopenRows.length,
-                "pending=", previewReopenAfterPathCommitPending
-            )
-        }
     }
 
     function clearPendingPreviewReopen() {
@@ -1046,34 +1009,18 @@ Item { // ROOT
             return
         }
         if (previewReopenRetryCount >= previewReopenMaxRetries) {
-            if (previewReopenDebug) {
-                console.log("[preview-reopen:retry-stop]", "reason=max-retries", "count=", previewReopenRetryCount)
-            }
             clearPendingPreviewReopen()
             return
         }
         previewReopenRetryCount += 1
-        if (previewReopenDebug) {
-            console.log("[preview-reopen:retry]", "count=", previewReopenRetryCount, "max=", previewReopenMaxRetries)
-        }
         previewReopenRetryTimer.restart()
     }
 
     function tryRestorePreviewAfterPathCommit() {
         if (!previewReopenAfterPathCommitPending) {
-            if (previewReopenDebug) {
-                console.log("[preview-reopen:restore-skip]", "reason=not-pending")
-            }
             return false
         }
         if (_normalizePathForCompare(path) !== _normalizePathForCompare(previewReopenCommitPath)) {
-            if (previewReopenDebug) {
-                console.log(
-                    "[preview-reopen:restore-wait-path]",
-                    "path=", String(path || ""),
-                    "commitPath=", String(previewReopenCommitPath || "")
-                )
-            }
             return false
         }
 
@@ -1132,13 +1079,6 @@ Item { // ROOT
         }
 
         if (restoredRows.length === 0) {
-            if (previewReopenDebug) {
-                console.log(
-                    "[preview-reopen:restore-empty]",
-                    "active=", JSON.stringify(previewReopenActivePaths || []),
-                    "rowsFromSnapshot=", (previewReopenRows ? previewReopenRows.length : 0)
-                )
-            }
             return false
         }
 
@@ -1172,42 +1112,7 @@ Item { // ROOT
         previewReopenRows = []
         previewReopenRetryCount = 0
         previewReopenRetryTimer.stop()
-        if (previewReopenDebug) {
-            console.log(
-                "[preview-reopen:restore-ok]",
-                "restoredActive=", JSON.stringify(restoredActive || []),
-                "restoredRows=", restoredRows.length
-            )
-        }
         return true
-    }
-
-    function _debugPreviewBgState(label) {
-        if (!(previewDebugBg || debugLayout)) {
-            return
-        }
-        var colors = []
-        var formatted = []
-        for (var i = 0; i < previewRows.length; i++) {
-            var row = previewRows[i]
-            if (!row) {
-                colors.push("null")
-                formatted.push("L" + String(i + 1) + ": null")
-                continue
-            }
-            var colorText = colorToHex(row.color, panelColor)
-            colors.push(colorText)
-            formatted.push("L" + String(i + 1) + ": " + colorText)
-        }
-        console.log("Debug:", formatted.join(", "))
-        console.log(
-            "[preview-bg]",
-            String(label || ""),
-            "focus=", previewFocusBackground,
-            "active=", JSON.stringify(previewActivePaths || []),
-            "rows=", previewRows.length,
-            "colors=", JSON.stringify(colors)
-        )
     }
 
     function _samePathArray(a, b) {
@@ -1290,13 +1195,6 @@ Item { // ROOT
         }
         if (previewReopenSkipFoldersResetCount > 0) {
             previewReopenSkipFoldersResetCount -= 1
-            if (previewReopenDebug) {
-                console.log(
-                    "[preview-reopen:folders-guard]",
-                    "remaining=", previewReopenSkipFoldersResetCount,
-                    "rows=", previewRows.length
-                )
-            }
             scheduleVerticalWidthUpdate()
             return
         }
@@ -1366,7 +1264,6 @@ Item { // ROOT
         if (verticalRightColumnHost && verticalRightColumnHost.schedulePreviewLayoutLog) {
             verticalRightColumnHost.schedulePreviewLayoutLog("preview-rows")
         }
-        _debugPreviewBgState("rowsChanged")
     }
     onPreviewAnchorCentersChanged: {
         if (verticalRightColumnHost && verticalRightColumnHost.schedulePreviewLayoutLog) {
@@ -1391,29 +1288,28 @@ Item { // ROOT
     onS2CollapseProgressChanged: {
         syncSystemPointerCarry()
     }
-    onCwdHoverPanelOpenChanged: {
-        _logCwdOverlay("panel-open-changed", { value: cwdHoverPanelOpen })
-    }
-    onCwdHoverChildPanelOpenChanged: {
-        _logCwdOverlay("child-open-changed", { value: cwdHoverChildPanelOpen })
-    }
-    onCwdHoverGrandchildPanelOpenChanged: {
-        _logCwdOverlay("grandchild-open-changed", { value: cwdHoverGrandchildPanelOpen })
-    }
-    onCwdHoverCascadePanelsChanged: {
-        _logCwdOverlay("cascade-model-changed", { depth: cwdHoverCascadePanels.length })
-    }
-    onPreviewFocusBackgroundChanged: _debugPreviewBgState("focusToggle")
+    onCwdHoverPanelOpenChanged: { }
+    onCwdHoverChildPanelOpenChanged: { }
+    onCwdHoverGrandchildPanelOpenChanged: { }
+    onCwdHoverCascadePanelsChanged: { }
+    onPreviewFocusBackgroundChanged: { }
 
     Timer {
         id: initialLayoutSyncTimer
         interval: 40
         repeat: false
         onTriggered: {
+            root.scheduleLayoutUpdate()
             root.scheduleVerticalLayoutUpdate()
             root.scheduleVerticalWidthUpdate()
             root.scheduleContentHeightUpdate()
         }
+    }
+    Timer {
+        id: layoutDebounceTimer
+        interval: 20
+        repeat: false
+        onTriggered: root.updateFlowPlacement()
     }
 
     Timer {
@@ -1445,7 +1341,7 @@ Item { // ROOT
     }
     Timer {
         id: cwdHoverCloseTimer
-        interval: 60
+        interval: 320
         repeat: false
         onTriggered: {
             if (!root.cwdHoverOverButton && !root.anyCwdPanelHovered()) {
@@ -1495,9 +1391,6 @@ Item { // ROOT
         repeat: false
         onTriggered: {
             root.previewReopenStabilizing = false
-            if (root.previewReopenDebug) {
-                console.log("[preview-reopen:stabilize-end]")
-            }
         }
     }
     Timer {
@@ -1592,9 +1485,8 @@ Item { // ROOT
         var prefix = prefixParts()
         if (prefix.length === 0) return fullParts
         var remainder = fullParts.slice(prefix.length)
-        var root = prefix[prefix.length - 1]
-        if (remainder.length === 0) return [root]
-        return [root].concat(remainder)
+        var lastPrefix = prefix[prefix.length - 1]
+        return (remainder.length === 0) ? [lastPrefix] : [lastPrefix].concat(remainder)
     }
 
     function getPathSegmentColor(fullPath, isCurrent) {
@@ -1602,10 +1494,9 @@ Item { // ROOT
         if (pathColorFunction) {
             var direct = pathColorFunction(String(fullPath || ""), !!isCurrent)
             if (direct && direct.fill !== undefined) {
-                return {
-                    fill: direct.fill,
-                    stroke: (direct.stroke !== undefined) ? direct.stroke : direct.fill
-                };
+                var fill = _toColorString(direct.fill)
+                var stroke = _toColorString(direct.stroke) || fill
+                if (fill.length > 0) return { fill: fill, stroke: stroke }
             }
         }
         // Prüfe, ob dieser Pfad in der folders-Liste vorkommt
@@ -1668,7 +1559,8 @@ Item { // ROOT
         if (pathColorFunction) {
             var custom = pathColorFunction(String(sourcePath || ""), false)
             if (custom && custom.fill !== undefined) {
-                return custom.fill
+                var fill = _toColorString(custom.fill)
+                if (fill.length > 0) return fill
             }
         }
         return panelColor
@@ -1804,10 +1696,6 @@ Item { // ROOT
         }
         previewAnchorCenters = nextCenters
         previewAnchorCentersY = nextCentersY
-        if (previewAnchorDebug) {
-            var yLog = (hasY ? Math.round(y) : -1)
-            console.log("[v-anchor:set]", "level=", level, "x=", Math.round(x), "y=", yLog, "path=", String(previewPendingPath || ""))
-        }
     }
 
     function previewAnchorCenterForLevel(level) {
@@ -1829,16 +1717,10 @@ Item { // ROOT
     function _applyPreviewHover(level, basePath, sourceItem, sourceFillColor) {
         var hoverKey = String(level) + "|" + basePath + "|" + String(sourceFillColor)
         if (hoverKey === previewLastHoverKey) {
-            if (previewHoverDebug) {
-                console.log("[preview-hover] skip-same", "level=", level, "path=", basePath)
-            }
             return
         }
         previewLastHoverKey = hoverKey
         var children = listPreviewChildren(basePath)
-        if (previewHoverDebug) {
-            console.log("[preview-hover] apply", "level=", level, "path=", basePath, "children=", children.length)
-        }
         var nextRows = previewRows.slice(0, level)
         // Collapse deeper rows when the currently hovered item has no children.
         // Vertical rule: do not keep/open an empty next column.
@@ -1884,14 +1766,9 @@ Item { // ROOT
         if (!queuedPath) {
             return
         }
-        if (previewHoverDebug) {
-            console.log("[preview-hover] queued-apply", "level=", queuedLevel, "path=", queuedPath)
-        }
         _setPreviewActivePath(queuedLevel, queuedPath)
         _setPreviewAnchorCenter(queuedLevel, previewPendingCenterX, previewPendingCenterY)
-        _debugPreviewBgState("hoverBeforeApply")
         _applyPreviewHover(queuedLevel, queuedPath, previewPendingItem, previewPendingFillColor)
-        _debugPreviewBgState("hoverAfterApply")
         previewLastApplyAtMs = Date.now()
         previewLastApplyLevel = queuedLevel
     }
@@ -1921,9 +1798,6 @@ Item { // ROOT
             // keep the deeper level event to avoid collapse flicker.
             // Exception: when hovered target has no children, prefer immediate collapse.
             if (level < pendingLevel && hasChildrenNow) {
-                if (previewHoverDebug) {
-                    console.log("[preview-hover] queue-skip-shallower", "level=", level, "pending=", pendingLevel, "path=", basePath)
-                }
                 return
             }
         }
@@ -1933,9 +1807,6 @@ Item { // ROOT
         previewPendingFillColor = sourceFillColor
         previewPendingCenterX = sourceCenterX
         previewPendingCenterY = sourceCenterY
-        if (previewHoverDebug) {
-            console.log("[preview-hover] queue", "level=", level, "path=", basePath, "centerX=", sourceCenterX)
-        }
         if (previewHoverApplyScheduled) {
             return
         }
@@ -1957,9 +1828,6 @@ Item { // ROOT
             return
         }
         if (previewReopenStabilizing && verticalView) {
-            if (previewReopenDebug) {
-                console.log("[preview-reopen:hover-blocked]", "level=", sourceLevel, "path=", String(sourcePath || ""))
-            }
             return
         }
         var level = Math.max(0, Number(sourceLevel) || 0)
@@ -1972,22 +1840,13 @@ Item { // ROOT
             // Ignore stale re-hover on already-selected higher level.
             // This avoids collapsing deeper columns when pointer overlaps.
             if (basePath === previewPathForLevel(level)) {
-                if (previewHoverDebug) {
-                    console.log("[preview-hover] skip-stale-upper", "level=", level, "path=", basePath)
-                }
                 return
             }
-        }
-        if (previewHoverDebug) {
-            console.log("[preview-hover] enter", "vertical=", verticalView, "level=", level, "path=", basePath)
         }
         if (verticalView) {
             var nowMs = Date.now()
             var elapsed = nowMs - Number(previewLastApplyAtMs || 0)
             if (level >= 2 && level > previewLastApplyLevel && elapsed >= 0 && elapsed < previewCascadeGuardMs) {
-                if (previewHoverDebug) {
-                    console.log("[preview-hover] skip-cascade", "level=", level, "lastLevel=", previewLastApplyLevel, "elapsed=", Math.round(elapsed))
-                }
                 return
             }
             _queuePreviewHover(level, basePath, sourceItem, sourceFillColor, sourceCenterX, sourceCenterY)
@@ -1996,9 +1855,7 @@ Item { // ROOT
         // Keep tab feedback immediate even while row animations run.
         _setPreviewActivePath(level, basePath)
         _setPreviewAnchorCenter(level, sourceCenterX, sourceCenterY)
-        _debugPreviewBgState("hoverBeforeApply")
         _applyPreviewHover(level, basePath, sourceItem, sourceFillColor)
-        _debugPreviewBgState("hoverAfterApply")
     }
     
     function fullPathForDisplayIndex(index) {
@@ -2056,38 +1913,6 @@ Item { // ROOT
         return item.parent === expectedParent
     }
 
-    function _logCwdOverlay(eventName, details) {
-        var seq = Number(cwdOverlayDiagSeq || 0) + 1
-        cwdOverlayDiagSeq = seq
-        var host = (root.Window && root.Window.window && root.Window.window.contentItem)
-            ? root.Window.window.contentItem
-            : (root.parent ? root.parent : root)
-        if (cwdOverlayLastHostRef !== host) {
-            cwdOverlayLastHostRef = host
-            console.log("[cwd-overlay]", "name=", debugName, "seq=", seq, "event=", "host-changed",
-                "panelOpen=", cwdHoverPanelOpen, "cascade=", cwdHoverCascadePanels.length,
-                "hostW=", Math.round(Number(host && host.width !== undefined ? host.width : -1)),
-                "hostH=", Math.round(Number(host && host.height !== undefined ? host.height : -1)))
-        }
-        var fields = [
-            "[cwd-overlay]",
-            "name=", debugName,
-            "seq=", seq,
-            "event=", String(eventName || ""),
-            "panelOpen=", cwdHoverPanelOpen,
-            "cascade=", cwdHoverCascadePanels.length,
-            "hostW=", Math.round(Number(host && host.width !== undefined ? host.width : -1)),
-            "hostH=", Math.round(Number(host && host.height !== undefined ? host.height : -1))
-        ]
-        if (details) {
-            for (var key in details) {
-                fields.push(key + "=")
-                fields.push(String(details[key]))
-            }
-        }
-        console.log.apply(console, fields)
-    }
-
     function cascadePanelY(anchorY, panelHeight) {
         var host = cwdHoverOverlayHost()
         var hostHeight = Math.max(0, Number(host && host.height !== undefined ? host.height : root.height) || 0)
@@ -2104,17 +1929,17 @@ Item { // ROOT
     }
 
     function openCwdCascadePanel(depth, fullPath, sourceItem) {
+        if (!cwdHoverEnabled) return
         var host = cwdHoverOverlayHost()
         if (!sourceItem) {
-            _logCwdOverlay("cascade-open-missing-source", {
-                depth: Number(depth || 0),
-                path: String(fullPath || "")
-            })
             return
         }
         var parentOk = _overlayItemHasParent(sourceItem, host)
         var p = sourceItem.mapToItem(host, sourceItem.width, 0)
         var entries = listPreviewChildren(fullPath)
+        // #region agent log
+        var isMyOSPath = String(fullPath || "").indexOf("/MyOS_Test") >= 0 || String(fullPath || "").indexOf("/MyOS/") >= 0
+        // #endregion
         var next = cwdHoverCascadePanels.slice(0, Math.max(0, depth))
         var nextHover = cwdHoverCascadePanelHovered.slice(0, Math.max(0, depth))
         cwdCascadeOpenRequests += 1
@@ -2137,29 +1962,6 @@ Item { // ROOT
         var sameAsExisting = existingPath === String(fullPath || "")
             && existingY === Math.round(Number(p.y || 0))
             && Number(existingEntries) === Number(entries ? entries.length : 0)
-        _logCwdOverlay("cascade-open", {
-            depth: Number(depth || 0),
-            path: String(fullPath || ""),
-            parentOk: parentOk,
-            entries: entries ? entries.length : 0,
-            x: Math.round(Number(p.x || 0)),
-            y: Math.round(Number(p.y || 0)),
-            sourceRef: String(sourceItem),
-            sourceParentRef: String(sourceItem.parent),
-            hostRef: String(host),
-            existingPath: existingPath,
-            existingY: existingY,
-            existingEntries: existingEntries,
-            sameAsExisting: sameAsExisting,
-            reqRepeat: Number(cwdCascadeLastRequestRepeat || 0),
-            reqTotal: Number(cwdCascadeOpenRequests || 0)
-        })
-        if (!parentOk) {
-            _logCwdOverlay("cascade-parent-mismatch", {
-                depth: Number(depth || 0),
-                path: String(fullPath || "")
-            })
-        }
         if (!entries || entries.length === 0) {
             // No children => no panel on the right; also trim deeper panels.
             var beforeTrim = cwdHoverCascadePanels.length
@@ -2167,32 +1969,14 @@ Item { // ROOT
             var repeatedEmptyNoop = (Number(cwdCascadeLastRequestRepeat || 0) > 0) && !shouldTrim
             if (repeatedEmptyNoop) {
                 cwdCascadeOpenNoop += 1
-                _logCwdOverlay("cascade-empty-noop", {
-                    depth: Number(depth || 0),
-                    path: String(fullPath || ""),
-                    reqRepeat: Number(cwdCascadeLastRequestRepeat || 0),
-                    noopCount: Number(cwdCascadeOpenNoop || 0)
-                })
                 return
             }
             if (shouldTrim) {
                 cwdHoverCascadePanels = next
                 cwdHoverCascadePanelHovered = nextHover
                 cwdCascadeOpenTrimmed += 1
-                _logCwdOverlay("cascade-trimmed-empty", {
-                    depth: Number(depth || 0),
-                    before: beforeTrim,
-                    after: next.length,
-                    trimmedCount: Number(cwdCascadeOpenTrimmed || 0)
-                })
             } else {
                 cwdCascadeOpenNoop += 1
-                _logCwdOverlay("cascade-empty-noop", {
-                    depth: Number(depth || 0),
-                    path: String(fullPath || ""),
-                    reqRepeat: Number(cwdCascadeLastRequestRepeat || 0),
-                    noopCount: Number(cwdCascadeOpenNoop || 0)
-                })
             }
             return
         }
@@ -2204,18 +1988,8 @@ Item { // ROOT
         nextHover.push(false)
         if (sameAsExisting && next.length === cwdHoverCascadePanels.length) {
             cwdCascadeOpenNoop += 1
-            _logCwdOverlay("cascade-open-noop-like", {
-                depth: Number(depth || 0),
-                path: String(fullPath || ""),
-                noopCount: Number(cwdCascadeOpenNoop || 0)
-            })
         } else {
             cwdCascadeOpenApplied += 1
-            _logCwdOverlay("cascade-open-applied", {
-                depth: Number(depth || 0),
-                path: String(fullPath || ""),
-                appliedCount: Number(cwdCascadeOpenApplied || 0)
-            })
         }
         cwdHoverCascadePanels = next
         cwdHoverCascadePanelHovered = nextHover
@@ -2244,9 +2018,6 @@ Item { // ROOT
     }
 
     function closeCwdHoverPanels(reason) {
-        _logCwdOverlay("close", {
-            reason: String(reason || "unspecified")
-        })
         cwdHoverOverButton = false
         cwdHoverOverPanel = false
         cwdHoverOverChildPanel = false
@@ -2296,13 +2067,14 @@ Item { // ROOT
         return String(fullPath || "") === selectedPath ? 1.0 : 0.2
     }
 
+    property int _scheduleLayoutUpdateCount: 0
+    property int _scheduleLayoutUpdateLastTs: 0
     function scheduleLayoutUpdate() {
-        if (layoutUpdatePending) return
-        layoutUpdatePending = true
-        Qt.callLater(function() {
-            updateFlowPlacement()
-            layoutUpdatePending = false
-        })
+        var now = Date.now()
+        if (now - _scheduleLayoutUpdateLastTs > 200) _scheduleLayoutUpdateCount = 0
+        _scheduleLayoutUpdateLastTs = now
+        _scheduleLayoutUpdateCount += 1
+        layoutDebounceTimer.restart()
     }
 
     function scheduleVerticalWidthUpdate() {
@@ -2389,26 +2161,26 @@ Item { // ROOT
         })
     }
 
+    property int _flowPlacementLastMs: 0
     function updateFlowPlacement() {
         if (verticalView) return
         if (!topFoldersRow || !topRow || !rightButtonsRow || !pathRow) return
         if (topRow.width <= 0) return
+        var now = Date.now()
+        if (now - _flowPlacementLastMs < 100) return
         var toggleWidth = (showModeToggle && modeToggleButton) ? modeToggleButton.width : 0
         var gapCount = showModeToggle ? 4 : 3
         var rightWidth = rightButtonsRow.implicitWidth
         var visibleFoldersWidth = (!flowOnSecondLine && topFlowHost && topFlowHost.visible) ? topFoldersRow.implicitWidth : 0
         var usedVisible = pathRow.implicitWidth + visibleFoldersWidth + rightWidth + toggleWidth + (topRow.spacing * gapCount)
-        var slackVisible = topRow.width - usedVisible
         var used = pathRow.implicitWidth + topFoldersRow.implicitWidth + rightWidth + toggleWidth + (topRow.spacing * gapCount)
         var slack = topRow.width - used
-        // Decide wrapping using the hypothetical single-row layout (full used width)
-        // to avoid wrap/unwap oscillation caused by state-dependent width metrics.
         var shouldWrap = flowOnSecondLine ? (slack < wrapSlackOff) : (slack < wrapSlackOn)
+        var wouldFitUnwrapped = (topRow.width - pathRow.implicitWidth - rightWidth - toggleWidth - (topRow.spacing * gapCount) - topFoldersRow.implicitWidth) >= wrapSlackOff
+        if (flowOnSecondLine && !wouldFitUnwrapped) shouldWrap = true
         if (flowOnSecondLine !== shouldWrap) {
+            _flowPlacementLastMs = now
             flowOnSecondLine = shouldWrap
-            if (debugLayout) {
-                console.log("[folderbrowser] wrap", path, "->", shouldWrap, "row", topRow.width, "used", used, "slack", slack)
-            }
         }
     }
 
@@ -2419,7 +2191,9 @@ Item { // ROOT
         var foldersWidth = (!flowOnSecondLine && topFlowHost && topFlowHost.visible && topFoldersRow)
             ? topFoldersRow.implicitWidth
             : 0
-        var maxWidth = topRow.width - rightButtonsRow.implicitWidth - toggleWidth - (topRow.spacing * gapCount) - foldersWidth
+        var rowWidth = (mainColumn && mainColumn.width > 0) ? mainColumn.width : (topRow && topRow.width > 0 ? topRow.width : 0)
+        if (rowWidth <= 0) return 99999
+        var maxWidth = rowWidth - rightButtonsRow.implicitWidth - toggleWidth - (topRow.spacing * gapCount) - foldersWidth
         return Math.max(0, maxWidth)
     }
 
@@ -2697,7 +2471,6 @@ Item { // ROOT
                 Layout.preferredHeight: currentRowHeight()
                 Layout.minimumHeight: currentRowHeight()
                 Layout.maximumHeight: currentRowHeight()
-                height: currentRowHeight()
                 spacing: 6
                 onWidthChanged: scheduleLayoutUpdate()
 
@@ -3008,8 +2781,8 @@ Item { // ROOT
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconSourceForPath(fullPathForSegment, isCurrent, null)
                                 property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, isCurrent) : null
-                                fillColor: customColors ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
-                                strokeColor: customColors ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
+                                fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
+                                strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
                                 textColor: isCurrent ? accentPrimaryText : text
                                 textSize: baseFont
                                 dimmedStyle: isCurrent
@@ -3020,24 +2793,23 @@ Item { // ROOT
                                 MouseArea {
                                     visible: isCurrent && !root.verticalView
                                     anchors.fill: parent
-                                    acceptedButtons: Qt.NoButton
                                     hoverEnabled: true
+                                    onClicked: {
+                                        if (!root.cwdHoverEnabled) return
+                                        if (root.cwdHoverPanelOpen) {
+                                            root.closeCwdHoverPanels("button-toggle")
+                                        }
+                                    }
                                     onEntered: {
+                                        if (!root.cwdHoverEnabled) return
+                                        if (root.cwdHoverPanelOpen) {
+                                            root.cwdHoverOverButton = true
+                                            cwdHoverCloseTimer.stop()
+                                            return
+                                        }
                                         var host = root.cwdHoverOverlayHost()
                                         var parentOk = root._overlayItemHasParent(parent, host)
                                         var p = parent.mapToItem(host, 0, parent.height)
-                                        root._logCwdOverlay("root-panel-open", {
-                                            path: String(fullPathForSegment || ""),
-                                            parentOk: parentOk,
-                                            x: Math.round(Number(p.x || 0)),
-                                            y: Math.round(Number(p.y || 0)),
-                                            panelW: Math.round(Number(parent.width || 0))
-                                        })
-                                        if (!parentOk) {
-                                            root._logCwdOverlay("root-parent-mismatch", {
-                                                path: String(fullPathForSegment || "")
-                                            })
-                                        }
                                         root.cwdHoverPanelX = p.x
                                         root.cwdHoverPanelY = p.y
                                         root.cwdHoverPanelWidth = Math.max(120, parent.width)
@@ -3059,7 +2831,14 @@ Item { // ROOT
                                         cwdHoverCloseTimer.restart()
                                     }
                                 }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: pathSegmentDropArea.containsDrag
+                                    color: "#800000ff"
+                                    radius: TagChips.CHIP_RADIUS_COMPACT
+                                }
                                 DropArea {
+                                    id: pathSegmentDropArea
                                     anchors.fill: parent
                                     enabled: allowDrops
                                     onDropped: {
@@ -3341,8 +3120,8 @@ Item { // ROOT
                                 property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, false) : null
 
 
-                                fillColor: customColors ? customColors.fill : pathButtonFill
-                                strokeColor: customColors ? customColors.stroke : pathButtonBorder
+                                fillColor: customColors ? (root._toColorString(customColors.fill) || pathButtonFill) : pathButtonFill
+                                strokeColor: customColors ? (root._toColorString(customColors.stroke) || pathButtonBorder) : pathButtonBorder
                                 // fillColor: customColors ? customColors.fill : (tintPathAsProject
                                 //     ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
                                 //     : pathButtonFill)
@@ -3421,8 +3200,8 @@ Item { // ROOT
                         // property string currentFullPath: path
                         property var customColors: pathColorFunction ? pathColorFunction(currentFullPath, true) : null
 
-                        fillColor: customColors ? customColors.fill : accentPrimary
-                        strokeColor: customColors ? customColors.stroke : accentPrimary
+                        fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : accentPrimary
+                        strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : accentPrimary
                         // fillColor: customColors ? customColors.fill : (tintPathAsProject
                         //     ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
                         //     : accentPrimary)
@@ -3677,13 +3456,6 @@ Item { // ROOT
                         }
                         var anchorY = previewAnchorYForColumn(columnIndex)
                         if (anchorY < 0) {
-                            if (root.previewAnchorDebug) {
-                                var miss = "[v-anchor:calc] col=" + columnIndex + " anchorY=-1 contentH=" + Math.round(Number(contentHeight) || 0) + " hostH=" + Math.round(Number(hostHeight) || 0)
-                                if (miss !== root.previewAnchorDebugLastLine) {
-                                    root.previewAnchorDebugLastLine = miss
-                                    console.log(miss)
-                                }
-                            }
                             return 0
                         }
                         var localAnchor = root.mapToItem(verticalRightPreviewColumns, 0, anchorY).y
@@ -3715,25 +3487,6 @@ Item { // ROOT
                             targetY = -Math.round(clampedTop)
                         }
                         var clampedY = Math.round(targetY)
-                        if (root.previewAnchorDebug) {
-                            var line = "[v-anchor:calc] col=" + columnIndex
-                                + " anchorY=" + Math.round(anchorY)
-                                + " localY=" + Math.round(localAnchor)
-                                + " stackHalf=" + Math.round(stackHalf)
-                                + " shiftedAnchor=" + Math.round(shiftedAnchor)
-                                + " itemH=" + Math.round(itemHeight)
-                                + " proposedTop=" + Math.round(proposedTop)
-                                + " vh=" + Math.round(vh)
-                                + " maxTop=" + Math.round(maxTop)
-                                + " clampedTop=" + Math.round(clampedTop)
-                                + " clampedY=" + Math.round(clampedY)
-                                + " contentH=" + Math.round(ch)
-                                + " hostH=" + Math.round(hh)
-                            if (line !== root.previewAnchorDebugLastLine) {
-                                root.previewAnchorDebugLastLine = line
-                                console.log(line)
-                            }
-                        }
                         return clampedY
                     }
                     function schedulePreviewLayoutLog(reason) {
@@ -4318,20 +4071,22 @@ Item { // ROOT
                     }
                 }
             }
+            Rectangle {
+                id: cwdHoverBackdrop
+                parent: root.cwdHoverOverlayHost()
+                visible: root.cwdHoverPanelOpen && !root.verticalView
+                z: 9998
+                anchors.fill: parent
+                color: "#4d000000"
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.closeCwdHoverPanels("backdrop-click")
+                }
+            }
             Item {
                 id: cwdHoverPanel
                 parent: root.cwdHoverOverlayHost()
                 visible: root.cwdHoverPanelOpen && !root.verticalView
-                onParentChanged: {
-                    root._logCwdOverlay("main-panel-parent-changed", {
-                        parentOk: root._overlayItemHasParent(cwdHoverPanel, root.cwdHoverOverlayHost())
-                    })
-                }
-                onVisibleChanged: {
-                    root._logCwdOverlay("main-panel-visible-changed", {
-                        value: cwdHoverPanel.visible
-                    })
-                }
                 x: root.cwdHoverPanelX
                 y: root.cwdHoverPanelY
                 z: 9999
@@ -4364,7 +4119,10 @@ Item { // ROOT
                             model: root.parentPathsFullChain().slice().reverse()
                             delegate: FolderItem {
                                 property var browserRoot: root
+                                property var _entry: modelData
                                 property string fullPath: String(modelData || "")
+                                isCwdMainPanelItem: true
+                                hitAreaFullButton: true
                                 property var customColors: root.pathColorFunction ? root.pathColorFunction(fullPath, false) : null
                                 width: parent.width
                                 label: fullPath === "/" ? "/" : fullPath.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
@@ -4377,8 +4135,8 @@ Item { // ROOT
                                 textYOffset: root.buttonTextYOffset
                                 iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                 textLeftInset: root.effectiveStyle() === "text" ? 8 : 0
-                                fillColor: customColors ? customColors.fill : root.pathButtonFill
-                                strokeColor: customColors ? customColors.stroke : root.pathButtonBorder
+                                fillColor: customColors ? (root._toColorString(customColors.fill) || root.pathButtonFill) : root.pathButtonFill
+                                strokeColor: customColors ? (root._toColorString(customColors.stroke) || root.pathButtonBorder) : root.pathButtonBorder
                                 textColor: root.text
                                 textSize: root.baseFont
                                 dimmedStyle: false
@@ -4394,9 +4152,16 @@ Item { // ROOT
                                 }
                                 onDoubleActivate: {
                                     browserRoot.closeCwdHoverPanels("main-panel-double-activate")
-                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, _entry)
+                                }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: cwdMainDropArea.containsDrag
+                                    color: "#800000ff"
+                                    radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 DropArea {
+                                    id: cwdMainDropArea
                                     anchors.fill: parent
                                     enabled: root.allowDrops
                                     onDropped: {
@@ -4414,14 +4179,6 @@ Item { // ROOT
                                         var inOutzone = xPos >= (width - Math.max(1, root.cwdHoverOutzonePx))
                                         if (inOutzone) {
                                                 root.cwdCascadeHoverOutzoneHits += 1
-                                                if (root.cwdCascadeHoverOutzoneHits <= 5 || (root.cwdCascadeHoverOutzoneHits % 25) === 0) {
-                                                    root._logCwdOverlay("cascade-outzone-hit-main", {
-                                                        path: fullPath,
-                                                        xPos: Math.round(xPos),
-                                                        width: Math.round(width),
-                                                        hits: Number(root.cwdCascadeHoverOutzoneHits || 0)
-                                                    })
-                                                }
                                             root.openCwdCascadePanel(0, fullPath, parent)
                                             root.cwdHoverChildPanelPath = fullPath
                                             root.cwdHoverChildEntries = root.listPreviewChildren(fullPath)
@@ -4472,20 +4229,6 @@ Item { // ROOT
                     required property var modelData
                     property int cascadeIndex: index
                     property string cascadeBasePath: String(modelData && modelData.path ? modelData.path : "")
-                    onParentChanged: {
-                        root._logCwdOverlay("cascade-panel-parent-changed", {
-                            depth: cascadeIndex,
-                            path: cascadeBasePath,
-                            parentOk: root._overlayItemHasParent(this, cwdHoverCascadeOverlayLayer)
-                        })
-                    }
-                    onVisibleChanged: {
-                        root._logCwdOverlay("cascade-panel-visible-changed", {
-                            depth: cascadeIndex,
-                            path: cascadeBasePath,
-                            value: visible
-                        })
-                    }
                     x: root.cwdHoverPanelX + ((cascadeIndex + 1) * root.cwdHoverPanelWidth)
                     y: root.cascadePanelY(Number(modelData && modelData.y !== undefined ? modelData.y : 0), height)
                     z: 9999
@@ -4515,11 +4258,13 @@ Item { // ROOT
                                 model: (modelData && modelData.entries) ? modelData.entries : []
                                 delegate: FolderItem {
                                     property var browserRoot: root
+                                    property var _entry: modelData
                                     property string parentPath: cascadeBasePath
                                     property string fullPath: itemName(modelData).indexOf("/") === 0
                                         ? itemName(modelData)
                                         : root._resolveFullPath(parentPath, modelData)
                                     width: parent.width
+                                    hitAreaFullButton: true
                                     label: itemName(modelData)
                                     style: root.effectiveStyle()
                                     compactHeight: root.compactButtonHeight
@@ -4549,9 +4294,16 @@ Item { // ROOT
                                     }
                                     onDoubleActivate: {
                                         browserRoot.closeCwdHoverPanels("cascade-double-activate")
-                                        browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
+                                        browserRoot.emitFolderDoubleActivatedIntent(fullPath, _entry)
+                                    }
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        visible: cascadeDropArea.containsDrag
+                                        color: "#800000ff"
+                                        radius: TagChips.CHIP_RADIUS_COMPACT
                                     }
                                     DropArea {
+                                        id: cascadeDropArea
                                         anchors.fill: parent
                                         enabled: root.allowDrops
                                         onDropped: {
@@ -4573,15 +4325,6 @@ Item { // ROOT
                                             var inOutzone = xPos >= (width - Math.max(1, root.cwdHoverOutzonePx))
                                             if (inOutzone) {
                                                 root.cwdCascadeHoverOutzoneHits += 1
-                                                if (root.cwdCascadeHoverOutzoneHits <= 5 || (root.cwdCascadeHoverOutzoneHits % 25) === 0) {
-                                                    root._logCwdOverlay("cascade-outzone-hit-child", {
-                                                        path: fullPath,
-                                                        depth: cascadeIndex + 1,
-                                                        xPos: Math.round(xPos),
-                                                        width: Math.round(width),
-                                                        hits: Number(root.cwdCascadeHoverOutzoneHits || 0)
-                                                    })
-                                                }
                                                 root.openCwdCascadePanel(cascadeIndex + 1, fullPath, parent)
                                             }
                                         }
@@ -4609,16 +4352,6 @@ Item { // ROOT
                 id: cwdHoverChildPanel
                 parent: root.cwdHoverOverlayHost()
                 visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && !root.verticalView && false
-                onParentChanged: {
-                    root._logCwdOverlay("child-panel-parent-changed", {
-                        parentOk: root._overlayItemHasParent(cwdHoverChildPanel, root.cwdHoverOverlayHost())
-                    })
-                }
-                onVisibleChanged: {
-                    root._logCwdOverlay("child-panel-visible-changed", {
-                        value: cwdHoverChildPanel.visible
-                    })
-                }
                 x: root.cwdHoverPanelX + root.cwdHoverPanelWidth
                 y: root.cascadePanelY(root.cwdHoverChildPanelY, height)
                 z: 9999
@@ -4648,10 +4381,12 @@ Item { // ROOT
                             model: root.cwdHoverChildEntries
                             delegate: FolderItem {
                                 property var browserRoot: root
+                                property var _entry: modelData
                                 property string fullPath: itemName(modelData).indexOf("/") === 0
                                     ? itemName(modelData)
                                     : root._resolveFullPath(root.cwdHoverChildPanelPath, modelData)
                                 width: parent.width
+                                hitAreaFullButton: true
                                 label: itemName(modelData)
                                 style: root.effectiveStyle()
                                 compactHeight: root.compactButtonHeight
@@ -4681,9 +4416,16 @@ Item { // ROOT
                                 }
                                 onDoubleActivate: {
                                     browserRoot.closeCwdHoverPanels("child-panel-double-activate")
-                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, _entry)
+                                }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: childDropArea.containsDrag
+                                    color: "#800000ff"
+                                    radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 DropArea {
+                                    id: childDropArea
                                     anchors.fill: parent
                                     enabled: root.allowDrops
                                     onDropped: {
@@ -4744,16 +4486,6 @@ Item { // ROOT
                 id: cwdHoverGrandchildPanel
                 parent: root.cwdHoverOverlayHost()
                 visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && root.cwdHoverGrandchildPanelOpen && !root.verticalView && false
-                onParentChanged: {
-                    root._logCwdOverlay("grandchild-panel-parent-changed", {
-                        parentOk: root._overlayItemHasParent(cwdHoverGrandchildPanel, root.cwdHoverOverlayHost())
-                    })
-                }
-                onVisibleChanged: {
-                    root._logCwdOverlay("grandchild-panel-visible-changed", {
-                        value: cwdHoverGrandchildPanel.visible
-                    })
-                }
                 x: root.cwdHoverPanelX + (2 * root.cwdHoverPanelWidth)
                 y: root.cascadePanelY(root.cwdHoverGrandchildPanelY, height)
                 z: 9999
@@ -4783,10 +4515,12 @@ Item { // ROOT
                             model: root.cwdHoverGrandchildEntries
                             delegate: FolderItem {
                                 property var browserRoot: root
+                                property var _entry: modelData
                                 property string fullPath: itemName(modelData).indexOf("/") === 0
                                     ? itemName(modelData)
                                     : root._resolveFullPath(root.cwdHoverGrandchildPanelPath, modelData)
                                 width: parent.width
+                                hitAreaFullButton: true
                                 label: itemName(modelData)
                                 style: root.effectiveStyle()
                                 compactHeight: root.compactButtonHeight
@@ -4816,9 +4550,16 @@ Item { // ROOT
                                 }
                                 onDoubleActivate: {
                                     browserRoot.closeCwdHoverPanels("grandchild-panel-double-activate")
-                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, modelData)
+                                    browserRoot.emitFolderDoubleActivatedIntent(fullPath, _entry)
+                                }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: grandchildDropArea.containsDrag
+                                    color: "#800000ff"
+                                    radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 DropArea {
+                                    id: grandchildDropArea
                                     anchors.fill: parent
                                     enabled: root.allowDrops
                                     onDropped: {
