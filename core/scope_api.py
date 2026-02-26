@@ -41,6 +41,9 @@ except Exception:  # pragma: no cover - optional for non-MyOS paths
     Blueprint = None
     notify_project_config_changed = None
 
+# Debug-Ausgaben (z. B. list_templates): MYOS_MD_DEBUG=1 oder true/yes
+_DEBUG = (os.environ.get("MYOS_MD_DEBUG", "") or "").strip().lower() in ("1", "true", "yes")
+
 
 def find_project_root(start_path: Path) -> Optional[Path]:
     start_path = start_path.resolve()
@@ -1081,13 +1084,14 @@ class ScopeApi:
 
     def _resolve_effective_filter_for_target(self, target: Path) -> Optional[EffectiveFilter]:
         roots = self._resolve_filter_roots_for_target(target)
-        return resolve_effective_filter(
+        result = resolve_effective_filter(
             target,
             manual=self._manual_filter_path,
             template_root=roots.get("templateRoot"),
             project_root=roots.get("projectRoot"),
             global_root=roots.get("globalRoot"),
         )
+        return result
 
     def _list_entries_flattened(self, root_path: Path) -> List[FileEntryWithOptionalEmbryo]:
         entries: List[FileEntryWithOptionalEmbryo] = []
@@ -1438,6 +1442,7 @@ class ScopeApi:
         return entries
 
     def list_templates(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
+        debug = _DEBUG
         try:
             target = self._resolve_path(path)
         except Exception:
@@ -1453,10 +1458,7 @@ class ScopeApi:
             return []
         if target.is_dir():
             self._acl_probe("read_templates", target)
-        debug = os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}
         if not include_embryos:
-            if debug:
-                print(f"[scope_api] list_templates: include_embryos=False -> []")
             return []
         if not context_blueprint or not context_root or not is_within(target, context_root):
             if debug:
@@ -1492,12 +1494,41 @@ class ScopeApi:
                 print(f"[scope_api] list_templates: error for rel='{rel}'")
             return []
 
+    def list_entries_quick(self, path: str) -> List[FileEntryWithOptionalEmbryo]:
+        """Minimal list for immediate display. No tags, no ACL, no embryos."""
+        try:
+            target = Path(path).expanduser().resolve()
+        except Exception:
+            return []
+        if not target.exists() or not target.is_dir():
+            return []
+        entries: List[FileEntryWithOptionalEmbryo] = []
+        try:
+            for child in sorted(target.iterdir()):
+                if child.name.startswith("."):
+                    continue
+                is_dir = child.is_dir()
+                entries.append(
+                    self._build_file_entry(
+                        name=child.name,
+                        is_dir=is_dir,
+                        path=str(child),
+                        tags=[],
+                        folder_size_bytes=None,
+                    )
+                )
+        except Exception:
+            return []
+        entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
+        return entries
+
     def list_entries(self, path: str) -> List[FileEntryWithOptionalEmbryo]:
         target = self._resolve_dir(path)
         if target is None:
             return []
         self._acl_probe("read_dir", target)
         effective_filter = self._resolve_effective_filter_for_target(target)
+        project_root = find_project_root(target)
         entries: List[FileEntryWithOptionalEmbryo] = []
         md_tag_cache = self._load_markdown_tag_cache(target)
         seen_md_files: set[str] = set()
@@ -1514,8 +1545,6 @@ class ScopeApi:
                 if is_dir:
                     sidecar = self._read_folder_sidecar(child)
                     entry_tags = sidecar["tags"]
-                    folder_size_bytes = self._compute_folder_size_bytes(child)
-                    folder_size_updates[child] = folder_size_bytes
                 else:
                     entry_tags = self._read_entry_tags(child, md_tag_cache)
                 entry = self._build_file_entry(
@@ -1558,9 +1587,22 @@ class ScopeApi:
             entries,
             cwd=target,
             filter_state=effective_filter,
-            project_root=find_project_root(target),
+            project_root=project_root,
         )
         return entries
+
+    def get_folder_size_bytes(self, path: str) -> int:
+        """Compute folder size. Only for paths within a project root."""
+        try:
+            target = self._resolve_path(path)
+        except Exception:
+            return 0
+        if not target.exists() or not target.is_dir():
+            return 0
+        root = find_project_root(target)
+        if not root or not is_within(target, root):
+            return 0
+        return self._compute_folder_size_bytes(target)
 
     def list_entries_filtered(
         self, path: str, tags: List[str], match_all: bool = False
@@ -1635,8 +1677,10 @@ class ScopeApi:
                     file_bag[tag] = True
         file_tags = sorted([tag for tag in file_bag.keys() if tag not in folder_set], key=str.lower)
         file_tag_colors = {tag: all_tag_colors[tag] for tag in file_tags if tag in all_tag_colors}
-        folder_size = self._compute_folder_size_bytes(target)
-        self._update_project_folder_size_index({target: folder_size})
+        root = find_project_root(target)
+        folder_size = self._compute_folder_size_bytes(target) if (root and is_within(target, root)) else 0
+        if folder_size > 0:
+            self._update_project_folder_size_index({target: folder_size})
         return {
             "folderTags": folder_tags,
             "fileTags": file_tags,
@@ -1976,7 +2020,8 @@ class ScopeApi:
                             continue
             except OSError:
                 continue
-        return max(0, int(total))
+        result = max(0, int(total))
+        return result
 
     def _read_folder_tag_colors(self, folder_path: Path) -> Dict[str, str]:
         registry_path = self._resolve_tag_registry_path(folder_path)
@@ -2696,14 +2741,9 @@ class ScopeApi:
         opener = Path(__file__).resolve().parent / "bin" / "open_md.py"
         if not opener.exists():
             return False
-        if os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}:
-            print(f"[scope_api] open_markdown: {target}")
-            print(f"[scope_api] opener: {opener}")
         result = subprocess.run(
             [sys.executable, str(opener), str(target)], check=False
         )
-        if os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"}:
-            print(f"[scope_api] returncode: {result.returncode}")
         return result.returncode == 0
 
     def open_with(self, path: str, command: str) -> bool:

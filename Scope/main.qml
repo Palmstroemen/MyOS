@@ -40,6 +40,8 @@ ApplicationWindow {
     property bool filesPanelHalfTransparent: false
     // Positive value lets FilesPanel overlap a bit to the left.
     property int filesPanelOverlapPx: 8
+    // Testlayer im Projekte-Slot: z:0 damit FolderBrowser (z:8) Drops bekommt; z:20 fängt alles ab.
+    property int debugDropLayerZ: 0
     property color dialogPanelBg: darkTheme ? "#f4f7ff" : "#141823"
     property color dialogPanelBorder: darkTheme ? "#1b2438" : "#d5ddf2"
     property color dialogTextStrong: darkTheme ? "#1a2233" : "#edf2ff"
@@ -292,13 +294,9 @@ ApplicationWindow {
     function setCwp(path, reason) {
         var nextPath = normalizeFsPath(path)
         var currentPath = normalizeFsPath(cwp)
-        // #region agent log
-        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H1",location:"Scope/main.qml:setCwp",message:"setCwp-eval",data:{incoming:("" + (path || "")),nextPath:nextPath,currentPath:currentPath,reason:("" + (reason || "unspecified")),willApply:!(nextPath.length===0||nextPath===currentPath)},timestamp:Date.now()})}).catch(function(){});
-        // #endregion
         if (nextPath.length === 0 || nextPath === currentPath) {
             return
         }
-        console.log("[scope] setCwp", "from=", currentPath, "to=", nextPath, "reason=", String(reason || "unspecified"))
         cwp = nextPath
     }
 
@@ -736,9 +734,14 @@ ApplicationWindow {
         return out
     }
 
+    function _isMyOSFolderTrace(pathOrName) {
+        var s = String(pathOrName || "")
+        return s.indexOf("/MyOS_Test") >= 0 || s.indexOf("/MyOS/") >= 0 || s.endsWith("/MyOS") || s === "MyOS"
+    }
     function listChildren(path) {
         if (hasBackend()) {
-            return backend.listChildren(path, projectsShowEmbryos)
+            var result = backend.listChildren(path, projectsShowEmbryos)
+            return result
         }
         if (path === cwp) {
             var dirs = []
@@ -773,9 +776,6 @@ ApplicationWindow {
             currentProjectTint = (cwpIsProject && color && color.length > 0)
                 ? color
                 : theme.folderCwpTint
-            if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
-                console.log("[scope] effective project color", cwp, currentProjectTint)
-            }
             return
         }
         if (hasBackend() && typeof backend.projectColor === "function") {
@@ -783,9 +783,6 @@ ApplicationWindow {
             currentProjectTint = (cwpIsProject && legacyColor && legacyColor.length > 0)
                 ? legacyColor
                 : theme.folderCwpTint
-            if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
-                console.log("[scope] project color", cwp, currentProjectTint)
-            }
             return
         }
         currentProjectTint = theme.folderCwpTint
@@ -1023,9 +1020,6 @@ ApplicationWindow {
     }
 
     function moveEntry(sourcePath, targetDir) {
-        // #region agent log
-        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H3",location:"Scope/main.qml:moveEntry",message:"move-entry-in",data:{sourceType:typeof sourcePath,sourcePreview:("" + (sourcePath || "")).slice(0,120),targetRaw:("" + (targetDir || "")),committedCTD:("" + (committedCTDPath || ""))},timestamp:Date.now()})}).catch(function(){});
-        // #endregion
         if (!sourcePath) {
             return
         }
@@ -1036,16 +1030,10 @@ ApplicationWindow {
         if (resolvedTarget.length === 0) {
             resolvedTarget = normalizeFsPath(committedCTDPath)
         }
-        // #region agent log
-        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H3",location:"Scope/main.qml:moveEntry",message:"move-entry-target-resolved",data:{targetRaw:("" + (targetDir || "")),resolvedTarget:resolvedTarget},timestamp:Date.now()})}).catch(function(){});
-        // #endregion
         if (resolvedTarget.length === 0) {
             return
         }
         var sources = _decodeDragPayload(sourcePath)
-        // #region agent log
-        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H3",location:"Scope/main.qml:moveEntry",message:"move-entry-decoded-sources",data:{count:(sources&&sources.length)||0,first:(sources&&sources.length>0)?("" + (sources[0] || "")):""},timestamp:Date.now()})}).catch(function(){});
-        // #endregion
         if (!sources || sources.length === 0) {
             return
         }
@@ -1121,6 +1109,18 @@ ApplicationWindow {
         createFolderDialog.open()
     }
 
+    /** Clipboard-Pfad für einen beliebigen Pfad (z. B. Quellordner). Verhindert, dass Drop auf Panel in „falsches“ Projekt-Clipboard geht. */
+    function resolveClipboardPathForPath(anyPath) {
+        var norm = normalizeFsPath(anyPath)
+        if (norm.length === 0) return ""
+        var marker = "/Projekte/"
+        var idx = norm.indexOf(marker)
+        if (idx >= 0) {
+            return norm.slice(0, idx) + "/Clipboard"
+        }
+        return trimTrailingSlash(norm) + "/Clipboard"
+    }
+
     function resolveClipboardPath() {
         var templatesRoot = trimTrailingSlash(resolveTemplatesRootPath())
         if (templatesRoot.length > 0 && templatesRoot.indexOf("/Templates") === (templatesRoot.length - "/Templates".length)) {
@@ -1186,7 +1186,18 @@ ApplicationWindow {
         if (sourcePayload.length === 0) {
             return
         }
-        var target = resolveClipboardPath()
+        // Ziel-Clipboard aus Quellpfad ableiten, damit Drop (z. B. auf ProjectsBrowser-Panel) im richtigen Projekt landet
+        var sources = _decodeDragPayload(sourcePayload)
+        var target = ""
+        if (sources && sources.length > 0) {
+            var firstPath = String(sources[0] || "").trim()
+            var slash = firstPath.lastIndexOf("/")
+            var parentDir = slash > 0 ? firstPath.slice(0, slash) : firstPath
+            target = resolveClipboardPathForPath(parentDir)
+        }
+        if (target.length === 0) {
+            target = resolveClipboardPath()
+        }
         if (target.length === 0) {
             return
         }
@@ -1348,8 +1359,8 @@ ApplicationWindow {
 
     function applyEntries(entries) {
         fileItemsAll = entries || []
-        recomputeTagBuckets()
         filterEntries()
+        Qt.callLater(function() { recomputeTagBuckets() })
     }
 
     function entryPath(entry) {
@@ -1767,11 +1778,6 @@ ApplicationWindow {
             return
         }
         var lower = resolved.toLowerCase()
-        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
-            var backendAvailable = hasBackend()
-            var openMarkdownType = backendAvailable ? typeof backend.openMarkdown : "n/a"
-            console.log("[scope] openFilePath", resolved, "backend", backendAvailable, "openMarkdown", openMarkdownType)
-        }
         if (lower.endsWith(".md") && hasBackend() && typeof backend.openMarkdown === "function") {
             backend.openMarkdown(resolved)
             return
@@ -1930,9 +1936,6 @@ ApplicationWindow {
     }
 
     function updateTemplates() {
-        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
-            console.log("[scope] updateTemplates cwp", cwp)
-        }
         var root = trimTrailingSlash(resolveTemplatesRootPath())
         templatesRootPath = root
         // APD follows CWD whenever perspective is inactive.
@@ -2021,9 +2024,6 @@ ApplicationWindow {
             backend.invalidateEntries(standardPath)
         }
         standardFolders = listTemplates(standardPath)
-        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
-            console.log("[scope] templates", standardPath, standardFolders)
-        }
         updateStandardFolders()
     }
     onTemplatesPerspectivePathChanged: {
@@ -2195,11 +2195,6 @@ ApplicationWindow {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
         if (hasBackend() && typeof backend.currentLanguage === "function") {
             uiLanguage = backend.currentLanguage()
-        }
-        if (typeof scopeDebugOpen !== "undefined" && scopeDebugOpen) {
-            var backendAvailable = hasBackend()
-            var openMarkdownType = backendAvailable ? typeof backend.openMarkdown : "n/a"
-            console.log("[scope] backend available", backendAvailable, "openMarkdown", openMarkdownType)
         }
         var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
         if (!hasBackend() && (!startPath || startPath === cwp)) {
@@ -2396,6 +2391,9 @@ ApplicationWindow {
             slot.Layout.preferredWidth = -1
             slot.Layout.minimumWidth = 0
             slot.Layout.maximumWidth = -1
+        }
+        if (isFilesPane) {
+            slot.Layout.minimumWidth = Math.max(280, slot.Layout.minimumWidth || 0)
         }
         if (wantsFillHeight) {
             slot.Layout.fillHeight = true
@@ -3525,8 +3523,30 @@ ApplicationWindow {
                     spacing: 0
                     visible: false
                     Item { id: slotTemplates_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotProjects_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
-                    Item { id: slotFiles_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true }
+                    Item {
+                        id: slotProjects_PH_TH
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Item {
+                            id: dropTopLayer
+                            anchors.fill: parent
+                            z: window.debugDropLayerZ
+                            DropArea {
+                                anchors.fill: parent
+                                onDropped: function(drop) {
+                                    console.log("[drop] TOP-LAYER (z=" + window.debugDropLayerZ + ") hat Drop gefangen")
+                                    if (drop && typeof drop.text !== "undefined") {
+                                        var t = String(drop.text || "").trim()
+                                        if (t.length > 0) {
+                                            dropToClipboard(t)
+                                            drop.acceptProposedAction()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Item { id: slotFiles_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 280 }
                 }
 
                 ColumnLayout { // Layout PV_TH
@@ -3544,6 +3564,7 @@ ApplicationWindow {
                             id: slotFiles_PV_TH
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            Layout.minimumWidth: 280
                             Layout.leftMargin: -window.filesPanelOverlapPx
                         }
                     }
@@ -3565,6 +3586,7 @@ ApplicationWindow {
                             id: slotFiles_PH_TV
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            Layout.minimumWidth: 280
                             Layout.leftMargin: -window.filesPanelOverlapPx
                         }
                     }
@@ -3581,6 +3603,7 @@ ApplicationWindow {
                         id: slotFiles_PV_TV
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumWidth: 280
                         Layout.leftMargin: -window.filesPanelOverlapPx
                     }
                 }
@@ -3614,7 +3637,7 @@ ApplicationWindow {
             pathProjectOpacity: 0.7
             folderProjectOpacity: 0.55
             embryoOpacity: 0.4
-            debugLayout: typeof scopeDebugOpen !== "undefined" && scopeDebugOpen
+            debugLayout: false
             allowDrags: true
             allowDrops: true
             folders: standardFoldersFiltered
@@ -3773,7 +3796,7 @@ ApplicationWindow {
             onFolderPreviewed: function(path) {
                 previewCTD(resolveTemplateDisplayPathToReal(path))
             }
-            onMoveEntryRequested: moveEntry(sourcePath, resolveTemplateDisplayPathToReal(targetDir))
+            onMoveEntryRequested: function(sourcePath, targetDir) { moveEntry(sourcePath, resolveTemplateDisplayPathToReal(targetDir)) }
             onClipboardRequested: openClipboard()
             onClipboardDropRequested: function(payload) {
                 dropToClipboard(payload)
@@ -3803,7 +3826,7 @@ ApplicationWindow {
             pathProjectOpacity: 0.7
             folderProjectOpacity: 0.55
             embryoOpacity: 0.4
-            debugLayout: typeof scopeDebugOpen !== "undefined" && scopeDebugOpen
+            debugLayout: false
             allowDrags: true
             allowDrops: true
             verticalView: verticalProjectView
@@ -3915,7 +3938,9 @@ ApplicationWindow {
                 var targetPath = "/" + parts.slice(0, index + 1).join("/")
                 commitCTD(targetPath)
             }
-            onPathSelected: function(path) { commitCTD(path) }
+            onPathSelected: function(path) {
+                commitCTD(path)
+            }
             onFolderActivated: function(name) {
                 var targetPath = ""
                 if (name.indexOf("/") === 0) {
@@ -3933,11 +3958,12 @@ ApplicationWindow {
                 } else {
                     targetPath = cwp + "/" + name
                 }
-                // #region agent log
-                if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"runA",hypothesisId:"H1",location:"Scope/main.qml:projectsBrowser.onFolderDoubleActivated",message:"projects-double-activated",data:{name:("" + (name || "")),cwp:("" + (cwp || "")),targetPath:targetPath},timestamp:Date.now()})}).catch(function(){});
-                // #endregion
+                if (projectsBrowser && typeof projectsBrowser.resetPreview === "function") {
+                    projectsBrowser.resetPreview()
+                    projectsBrowser.scheduleContentHeightUpdate()
+                }
                 setCwp(targetPath, "projectsBrowser.folderDouble")
-                commitCTD(targetPath)
+                var committed = commitCTD(targetPath)
                 clearSearchAfterNavigate()
                 if (!shouldApplyPerspectiveForFolderType(folderMeta)) {
                     return
@@ -3951,7 +3977,7 @@ ApplicationWindow {
             onRenameTextEdited: renameDraft = text
             onRenameAccepted: commitRename()
             onRenameCanceled: cancelRename()
-            onMoveEntryRequested: moveEntry(sourcePath, targetDir)
+            onMoveEntryRequested: function(sourcePath, targetDir) { moveEntry(sourcePath, targetDir) }
             onClipboardRequested: openClipboard()
             onClipboardDropRequested: function(payload) {
                 dropToClipboard(payload)
@@ -4079,7 +4105,6 @@ ApplicationWindow {
                 }
             }
         }
-
     }
 }
 

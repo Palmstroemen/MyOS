@@ -2249,6 +2249,17 @@ Item { // ROOT
         color: panelColor
         border.width: 0
         radius: 0
+        DropArea {
+            anchors.fill: parent
+            enabled: allowDrops
+            onDropped: function(drop) {
+                console.log("[drop]", (debugName || "FB") + ".panel")
+                var payload = dropPayloadText(drop)
+                if (!payload) return
+                clipboardDropRequested(payload)
+                drop.acceptProposedAction()
+            }
+        }
         Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
@@ -2444,7 +2455,8 @@ Item { // ROOT
                     DropArea {
                         anchors.fill: parent
                         enabled: allowDrops
-                        onDropped: {
+                        onDropped: function(drop) {
+                            console.log("[drop]", (debugName || "FB") + ".clipboard.vertical")
                             var payload = dropPayloadText(drop)
                             if (!payload) return
                             clipboardDropRequested(payload)
@@ -2715,7 +2727,8 @@ Item { // ROOT
                             DropArea {
                                 anchors.fill: parent
                                 enabled: allowDrops
-                                onDropped: {
+                                onDropped: function(drop) {
+                                    console.log("[drop]", (debugName || "FB") + ".clipboard.horizontal")
                                     var payload = dropPayloadText(drop)
                                     if (!payload) return
                                     clipboardDropRequested(payload)
@@ -2770,6 +2783,7 @@ Item { // ROOT
                             delegate: FolderItem {
                                 property bool isCurrent: index === (pathPartsDisplay().length - 1)
                                 property string fullPathForSegment: fullPathForDisplayIndex(index)
+                                allowDrops: root.allowDrops
                                 y: isCurrent ? root.cwdTabDrop : 0
                                 label: itemName(modelData)
                                 style: effectiveStyle()
@@ -2833,22 +2847,15 @@ Item { // ROOT
                                 }
                                 Rectangle {
                                     anchors.fill: parent
-                                    visible: pathSegmentDropArea.containsDrag
+                                    visible: Boolean(parent && parent.containsDrag)
                                     color: "#800000ff"
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
-                                DropArea {
-                                    id: pathSegmentDropArea
-                                    anchors.fill: parent
-                                    enabled: allowDrops
-                                    onDropped: {
-                                        var payload = dropPayloadText(drop)
-                                        if (!payload) return
-                                        var targetPath = fullPathForDisplayIndex(index)
-                                        if (!targetPath) return
-                                        emitMoveEntryIntent(payload, targetPath)
-                                        drop.acceptProposedAction()
-                                    }
+                                onDrop: function(payload) {
+                                    console.log("[drop] FolderItem -> pathSegment")
+                                    var targetPath = fullPathForDisplayIndex(index)
+                                    if (!targetPath) return
+                                    emitMoveEntryIntent(payload, targetPath)
                                 }
                             }
                         }
@@ -2910,7 +2917,7 @@ Item { // ROOT
                     Layout.alignment: Qt.AlignTop
                     visible: !flowOnSecondLine
                     onWidthChanged: scheduleLayoutUpdate()
-                    Row {
+                        Row {
                         id: topFoldersRow
                         spacing: 6
                         onImplicitWidthChanged: scheduleLayoutUpdate()
@@ -2954,15 +2961,11 @@ Item { // ROOT
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                 }
-                                DropArea {
-                                    anchors.fill: parent
-                                    enabled: allowDrops
-                                    onDropped: {
-                                        var payload = dropPayloadText(drop)
-                                        if (!payload) return
-                                        emitMoveEntryIntent(payload, fullPath)
-                                        drop.acceptProposedAction()
-                                    }
+                                allowDrops: root.allowDrops
+                                onDrop: function(payload) {
+                                    console.log("[drop] FolderItem -> folderRow.h")
+                                    if (!payload) return
+                                    emitMoveEntryIntent(payload, fullPath)
                                 }
                             }
                         }
@@ -3180,6 +3183,7 @@ Item { // ROOT
             
                     FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
+                        allowDrops: root.allowDrops
                         width: parent.width + root.cwdVerticalRightOverflow
                         z: 8
                         property string currentFullPath: path
@@ -3219,15 +3223,10 @@ Item { // ROOT
                         renaming: false
                         renameEnabled: false
                         onActivate: {}
-                        DropArea {
-                            anchors.fill: parent
-                            enabled: allowDrops
-                            onDropped: {
-                                var payload = dropPayloadText(drop)
-                                if (!payload) return
-                                emitMoveEntryIntent(payload, path)
-                                drop.acceptProposedAction()
-                            }
+                        onDrop: function(payload) {
+                            console.log("[drop] FolderItem -> cwpButton (clipboard)")
+                            if (!payload) return
+                            clipboardDropRequested(payload)
                         }
                     }            
                     // Edit
@@ -3380,15 +3379,11 @@ Item { // ROOT
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                 }
-                                        DropArea {
-                                            anchors.fill: parent
-                                            enabled: allowDrops
-                                            onDropped: {
-                                                var payload = dropPayloadText(drop)
-                                                if (!payload) return
-                                                emitMoveEntryIntent(payload, fullPath)
-                                                drop.acceptProposedAction()
-                                            }
+                                        allowDrops: root.allowDrops
+                                        onDrop: function(payload) {
+                                            console.log("[drop] FolderItem -> folderRow.previewCol")
+                                            if (!payload) return
+                                            emitMoveEntryIntent(payload, fullPath)
                                         }
                                 }
                             }
@@ -3807,15 +3802,11 @@ Item { // ROOT
                                                         var centerPoint = mapToItem(root, width / 2, height / 2)
                                                         updatePreviewFromHover(previewLevel, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                                     }
-                                                    DropArea {
-                                                        anchors.fill: parent
-                                                        enabled: allowDrops
-                                                        onDropped: {
-                                                            var payload = dropPayloadText(drop)
-                                                            if (!payload) return
-                                                            emitMoveEntryIntent(payload, fullPath)
-                                                            drop.acceptProposedAction()
-                                                        }
+                                                    allowDrops: root.allowDrops
+                                                    onDrop: function(payload) {
+                                                        console.log("[drop] FolderItem -> folderRow.previewLvl")
+                                                        if (!payload) return
+                                                        emitMoveEntryIntent(payload, fullPath)
                                                     }
                                                 }
                                             }
@@ -3886,15 +3877,11 @@ Item { // ROOT
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
                                     updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
                                 }
-                                DropArea {
-                                    anchors.fill: parent
-                                    enabled: allowDrops
-                                    onDropped: {
-                                        var payload = dropPayloadText(drop)
-                                        if (!payload) return
-                                        emitMoveEntryIntent(payload, fullPath)
-                                        drop.acceptProposedAction()
-                                    }
+                                allowDrops: root.allowDrops
+                                onDrop: function(payload) {
+                                    console.log("[drop] FolderItem -> folderRow.vertical")
+                                    if (!payload) return
+                                    emitMoveEntryIntent(payload, fullPath)
                                 }
                             }
                         }
@@ -4078,6 +4065,17 @@ Item { // ROOT
                 z: 9998
                 anchors.fill: parent
                 color: "#4d000000"
+                DropArea {
+                    anchors.fill: parent
+                    enabled: root.allowDrops
+                    onDropped: function(drop) {
+                        console.log("[drop]", (root.debugName || "FB") + ".backdrop")
+                        var payload = root.dropPayloadText(drop)
+                        if (!payload) return
+                        root.clipboardDropRequested(payload)
+                        drop.acceptProposedAction()
+                    }
+                }
                 MouseArea {
                     anchors.fill: parent
                     onClicked: root.closeCwdHoverPanels("backdrop-click")
@@ -4156,20 +4154,15 @@ Item { // ROOT
                                 }
                                 Rectangle {
                                     anchors.fill: parent
-                                    visible: cwdMainDropArea.containsDrag
+                                    visible: Boolean(parent && parent.containsDrag)
                                     color: "#800000ff"
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
-                                DropArea {
-                                    id: cwdMainDropArea
-                                    anchors.fill: parent
-                                    enabled: root.allowDrops
-                                    onDropped: {
-                                        var payload = browserRoot.dropPayloadText(drop)
-                                        if (!payload) return
-                                        browserRoot.emitMoveEntryIntent(payload, fullPath)
-                                        drop.acceptProposedAction()
-                                    }
+                                allowDrops: browserRoot.allowDrops
+                                onDrop: function(payload) {
+                                    console.log("[drop] FolderItem -> cwdMain")
+                                    if (!payload) return
+                                    browserRoot.emitMoveEntryIntent(payload, fullPath)
                                 }
                                 HoverHandler {
                                     acceptedDevices: PointerDevice.Mouse
@@ -4298,20 +4291,15 @@ Item { // ROOT
                                     }
                                     Rectangle {
                                         anchors.fill: parent
-                                        visible: cascadeDropArea.containsDrag
+                                        visible: Boolean(parent && parent.containsDrag)
                                         color: "#800000ff"
                                         radius: TagChips.CHIP_RADIUS_COMPACT
                                     }
-                                    DropArea {
-                                        id: cascadeDropArea
-                                        anchors.fill: parent
-                                        enabled: root.allowDrops
-                                        onDropped: {
-                                            var payload = browserRoot.dropPayloadText(drop)
-                                            if (!payload) return
-                                            browserRoot.emitMoveEntryIntent(payload, fullPath)
-                                            drop.acceptProposedAction()
-                                        }
+                                    allowDrops: browserRoot.allowDrops
+                                    onDrop: function(payload) {
+                                        console.log("[drop] FolderItem -> cascade")
+                                        if (!payload) return
+                                        browserRoot.emitMoveEntryIntent(payload, fullPath)
                                     }
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
@@ -4420,20 +4408,15 @@ Item { // ROOT
                                 }
                                 Rectangle {
                                     anchors.fill: parent
-                                    visible: childDropArea.containsDrag
+                                    visible: Boolean(parent && parent.containsDrag)
                                     color: "#800000ff"
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
-                                DropArea {
-                                    id: childDropArea
-                                    anchors.fill: parent
-                                    enabled: root.allowDrops
-                                    onDropped: {
-                                        var payload = browserRoot.dropPayloadText(drop)
-                                        if (!payload) return
-                                        browserRoot.emitMoveEntryIntent(payload, fullPath)
-                                        drop.acceptProposedAction()
-                                    }
+                                allowDrops: browserRoot.allowDrops
+                                onDrop: function(payload) {
+                                    console.log("[drop] FolderItem -> child")
+                                    if (!payload) return
+                                    browserRoot.emitMoveEntryIntent(payload, fullPath)
                                 }
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
@@ -4554,20 +4537,15 @@ Item { // ROOT
                                 }
                                 Rectangle {
                                     anchors.fill: parent
-                                    visible: grandchildDropArea.containsDrag
+                                    visible: Boolean(parent && parent.containsDrag)
                                     color: "#800000ff"
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
-                                DropArea {
-                                    id: grandchildDropArea
-                                    anchors.fill: parent
-                                    enabled: root.allowDrops
-                                    onDropped: {
-                                        var payload = browserRoot.dropPayloadText(drop)
-                                        if (!payload) return
-                                        browserRoot.emitMoveEntryIntent(payload, fullPath)
-                                        drop.acceptProposedAction()
-                                    }
+                                allowDrops: browserRoot.allowDrops
+                                onDrop: function(payload) {
+                                    console.log("[drop] FolderItem -> grandchild")
+                                    if (!payload) return
+                                    browserRoot.emitMoveEntryIntent(payload, fullPath)
                                 }
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)

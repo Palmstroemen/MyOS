@@ -28,6 +28,7 @@ Rectangle {
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
     property bool dragEnabled: false
+    property bool allowDrops: false
     property string dragPayload: ""
     property bool flatBottomCorners: false
     property bool tabHoverDropEnabled: false
@@ -35,6 +36,8 @@ Rectangle {
     readonly property bool hoverActive: hitArea.containsMouse
     property bool tabPinned: false
     property real tabDropOffset: (tabHoverDropEnabled && (hoverActive || tabPinned)) ? tabHoverDropPx : 0
+    property bool isCwdMainPanelItem: false
+    property bool hitAreaFullButton: false
     property bool pendingSingleClick: false
     property bool pendingSingleClickCtrl: false
     property bool pendingSingleClickShift: false
@@ -46,6 +49,25 @@ Rectangle {
     signal renameTextEdited(string text)
     signal renameAccepted()
     signal renameCanceled()
+    signal dropReceived(string payload)
+
+    property var onDrop: null
+    readonly property bool containsDrag: (typeof dropArea !== "undefined" && dropArea) ? Boolean(dropArea.containsDrag) : false
+
+    function _dropPayload(drop) {
+        if (!drop) return ""
+        var t = String(drop.text || "").trim()
+        if (t.length > 0) return t
+        if (drop.source && drop.source.dragPayload !== undefined) {
+            var s = String(drop.source.dragPayload || "").trim()
+            if (s.length > 0) return s
+        }
+        if (typeof drop.getDataAsString === "function") {
+            var plain = String(drop.getDataAsString("text/plain") || "").trim()
+            if (plain.length > 0) return plain
+        }
+        return ""
+    }
 
     function dispatchPendingSingleClick() {
         if (!pendingSingleClick) {
@@ -70,7 +92,7 @@ Rectangle {
         var local = root.mapToItem(textItem, px, py)
         var glyphW = Math.max(1, Math.min(textItem.width, textItem.paintedWidth || textItem.width))
         var glyphH = Math.max(1, Math.min(textItem.height, textItem.paintedHeight || textItem.height))
-        var glyphX = Math.max(0, (textItem.width - glyphW) / 2)
+        var glyphX = (textItem.horizontalAlignment === Text.AlignLeft) ? 0 : Math.max(0, (textItem.width - glyphW) / 2)
         var glyphY = Math.max(0, (textItem.height - glyphH) / 2)
         return local.x >= glyphX && local.x <= (glyphX + glyphW)
             && local.y >= glyphY && local.y <= (glyphY + glyphH)
@@ -79,6 +101,9 @@ Rectangle {
     function hitAcceptsPoint(px, py) {
         if (renaming) {
             return true
+        }
+        if (hitAreaFullButton) {
+            return px >= 0 && px <= width && py >= 0 && py <= height
         }
         if (style === "text") {
             return _containsTextGlyph(textLabel, px, py)
@@ -162,7 +187,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         height: 1
         color: root.strokeColor
-        z: 2
+        z: 0
     }
     Rectangle {
         visible: root.flatBottomCorners
@@ -171,7 +196,7 @@ Rectangle {
         width: 1
         height: Math.max(1, root.radius)
         color: root.strokeColor
-        z: 2
+        z: 1
     }
     Rectangle {
         visible: root.flatBottomCorners
@@ -186,6 +211,11 @@ Rectangle {
     DragHandler {
         id: dragHandler
         enabled: dragEnabled
+        onActiveChanged: {
+            if (!active && dragEnabled) {
+                root.Drag.drop()
+            }
+        }
     }
 
     Drag.active: dragEnabled && dragHandler.active
@@ -401,7 +431,8 @@ Rectangle {
         }
         onDoubleClicked: function(mouse) {
             if (renaming) return
-            if (!root.hitAcceptsPoint(mouse.x, mouse.y)) {
+            var hitOk = root.hitAcceptsPoint(mouse.x, mouse.y)
+            if (!hitOk) {
                 mouse.accepted = false
                 return
             }
@@ -425,5 +456,21 @@ Rectangle {
         interval: 220
         repeat: false
         onTriggered: dispatchPendingSingleClick()
+    }
+
+    DropArea {
+        id: dropArea
+        z: 50
+        anchors.fill: parent
+        enabled: root.allowDrops
+        onDropped: function(drop) {
+            var payload = root._dropPayload(drop)
+            console.log("[drop] FolderItem.dropReceived payload=", payload ? "ok" : "empty", "onDrop=", !!root.onDrop)
+            root.dropReceived(payload)
+            if (root.onDrop) {
+                root.onDrop(payload)
+            }
+            drop.acceptProposedAction()
+        }
     }
 }
