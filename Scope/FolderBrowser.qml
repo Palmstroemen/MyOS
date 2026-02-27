@@ -16,6 +16,7 @@ Item { // ROOT
     implicitHeight: visible ? contentHeight : 0
     property string path: "/"
     property string pathDisplayPrefix: ""
+    property var resolvePath: function(p) { return String(p || "") }
     property var folders: []
     property var childrenProvider: null
     property var pathColorFunction: null    
@@ -54,6 +55,9 @@ Item { // ROOT
     property string iconFolder: ""
     property string iconSearch: ""
     property var projectIconFunction: null
+    property var hostBackend: null
+    property var hostProjectIconForPath: null
+    property var hostHasBackend: function() { return false }
     property var debugLogger: null
     property color panelColor: "#1b1d26"
     property color panelBorderColor: "#3a4158"
@@ -91,7 +95,7 @@ Item { // ROOT
     }
 
     readonly property color currentPathFillColor: {
-        var custom = pathColorFunction ? pathColorFunction(path, true) : null
+        var custom = _effectivePathColor(path, true)
         if (custom && custom.fill !== undefined) {
             var fill = _toColorString(custom.fill)
             if (fill.length > 0) return fill
@@ -304,13 +308,52 @@ Item { // ROOT
         return item && item.isEmbryo === true
     }
 
-    function iconSourceForPath(fullPath, isCurrent, item) {
-        if (projectIconFunction) {
-            var custom = projectIconFunction(String(fullPath || ""), !!isCurrent, item)
-            var normalized = String(custom || "").trim()
-            if (normalized.length > 0) {
-                return normalized
+    function _defaultProjectIcon(path, isCurrent, item) {
+        if (!hostBackend || !hostHasBackend || typeof hostHasBackend !== "function" || !hostHasBackend()) return ""
+        var isProjectItem = item && item.isProject === true
+        var projectColor = (typeof hostBackend.projectColor === "function")
+            ? String(hostBackend.projectColor(path) || "")
+            : ""
+        if (!isProjectItem && projectColor.length === 0) return ""
+        return (typeof hostProjectIconForPath === "function") ? hostProjectIconForPath(path) : ""
+    }
+
+    function _defaultPathColor(path, isCurrent) {
+        if (!hostBackend) return null
+        var color = (typeof hostBackend.projectColor === "function") ? hostBackend.projectColor(path) : null
+        if (color && color.length > 0) {
+            var opacity = isCurrent ? root.cwdOpacity : root.pathProjectOpacity
+            return {
+                fill: root.colorWithAlpha(color, opacity, root.projectTint),
+                stroke: root.colorWithAlpha(color, opacity, root.projectTintBorder)
             }
+        }
+        var projectRoot = (typeof hostBackend.getProjectRoot === "function") ? hostBackend.getProjectRoot() : ""
+        var isRootPath = projectRoot && path === projectRoot
+        if (isRootPath) {
+            var fallback = (typeof hostBackend.defaultProjectColor === "function") ? hostBackend.defaultProjectColor() : ""
+            if (fallback && fallback.length > 0) {
+                var rootOpacity = isCurrent ? root.cwdOpacity : root.pathProjectOpacity
+                return {
+                    fill: root.colorWithAlpha(fallback, rootOpacity, root.projectTint),
+                    stroke: root.colorWithAlpha(fallback, rootOpacity, root.projectTintBorder)
+                }
+            }
+        }
+        return null
+    }
+
+    function _effectivePathColor(path, isCurrent) {
+        var fn = pathColorFunction || (hostBackend ? _defaultPathColor : null)
+        return fn ? fn(String(path || ""), !!isCurrent) : null
+    }
+
+    function iconSourceForPath(fullPath, isCurrent, item) {
+        var fn = projectIconFunction || (hostBackend && hostHasBackend ? _defaultProjectIcon : null)
+        if (fn) {
+            var custom = fn(String(fullPath || ""), !!isCurrent, item)
+            var normalized = String(custom || "").trim()
+            if (normalized.length > 0) return normalized
         }
         return iconFolder
     }
@@ -1464,13 +1507,11 @@ Item { // ROOT
 
     function getPathSegmentColor(fullPath, isCurrent) {
         // Resolve effective path color directly; do not depend on current folder list.
-        if (pathColorFunction) {
-            var direct = pathColorFunction(String(fullPath || ""), !!isCurrent)
-            if (direct && direct.fill !== undefined) {
+        var direct = _effectivePathColor(fullPath, isCurrent)
+        if (direct && direct.fill !== undefined) {
                 var fill = _toColorString(direct.fill)
                 var stroke = _toColorString(direct.stroke) || fill
                 if (fill.length > 0) return { fill: fill, stroke: stroke }
-            }
         }
         // Prüfe, ob dieser Pfad in der folders-Liste vorkommt
         for (var i = 0; i < folders.length; i++) {
@@ -1529,12 +1570,10 @@ Item { // ROOT
         if (fill !== undefined && fill !== null) {
             return fill
         }
-        if (pathColorFunction) {
-            var custom = pathColorFunction(String(sourcePath || ""), false)
-            if (custom && custom.fill !== undefined) {
-                var fill = _toColorString(custom.fill)
-                if (fill.length > 0) return fill
-            }
+        var custom = _effectivePathColor(sourcePath, false)
+        if (custom && custom.fill !== undefined) {
+            var fill = _toColorString(custom.fill)
+            if (fill.length > 0) return fill
         }
         return panelColor
     }
@@ -2724,7 +2763,7 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconSourceForPath(fullPathForSegment, isCurrent, null)
-                                property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, isCurrent) : null
+                                property var customColors: root._effectivePathColor(fullPathForSegment, isCurrent)
                                 fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
                                 strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
                                 textColor: isCurrent ? accentPrimaryText : text
@@ -3051,7 +3090,7 @@ Item { // ROOT
                                 width: parent.width
                                 property string fullPathForSegment: modelData
                                 // property var segmentColors: getPathSegmentColor(fullPathForSegment, false)
-                                property var customColors: pathColorFunction ? pathColorFunction(fullPathForSegment, false) : null
+                                property var customColors: root._effectivePathColor(fullPathForSegment, false)
 
 
                                 fillColor: customColors ? (root._toColorString(customColors.fill) || pathButtonFill) : pathButtonFill
@@ -3136,7 +3175,7 @@ Item { // ROOT
                         // fillColor: currentPathColors.fill
                         // Eingesetzt
                         // property string currentFullPath: path
-                        property var customColors: pathColorFunction ? pathColorFunction(currentFullPath, true) : null
+                        property var customColors: root._effectivePathColor(currentFullPath, true)
 
                         fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : accentPrimary
                         strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : accentPrimary
@@ -4028,7 +4067,7 @@ Item { // ROOT
                                 property string fullPath: String(modelData || "")
                                 isCwdMainPanelItem: true
                                 hitAreaFullButton: true
-                                property var customColors: root.pathColorFunction ? root.pathColorFunction(fullPath, false) : null
+                                property var customColors: root._effectivePathColor(fullPath, false)
                                 width: parent.width
                                 label: fullPath === "/" ? "/" : fullPath.split("/").filter(function(p){ return p.length > 0 }).slice(-1)[0]
                                 style: (root.effectiveStyle() === "largeIcon") ? "smallIcon" : root.effectiveStyle()

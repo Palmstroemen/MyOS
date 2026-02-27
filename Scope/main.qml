@@ -331,6 +331,20 @@ ApplicationWindow {
         }
     }
 
+    function handlePreviewPath(browser, path) {
+        var p = (browser.resolvePath ? browser.resolvePath(path) : path)
+        previewCTD(p)
+    }
+    function handleMoveEntry(browser, sourcePath, targetDir) {
+        var dir = (browser.resolvePath ? browser.resolvePath(targetDir) : targetDir)
+        moveEntry(sourcePath, dir)
+    }
+    function handleCreateFolder(browser, basePath) {
+        var p = (browser.resolvePath ? browser.resolvePath(basePath || "") : (basePath || ""))
+        if (p.length === 0 && browser === projectsBrowser) p = cwp
+        requestCreateFolderAt(p)
+    }
+
     function hasBackend() {
         return typeof backend !== "undefined" && backend !== null
     }
@@ -3673,43 +3687,10 @@ ApplicationWindow {
             textSoft: theme.textSoft
             textMuted: theme.textMuted
             card: theme.card
-            projectIconFunction: function(path, isCurrent, item) {
-                if (!hasBackend()) return ""
-                var isProjectItem = item && item.isProject === true
-                var projectColor = (typeof backend.projectColor === "function")
-                    ? String(backend.projectColor(path) || "")
-                    : ""
-                if (!isProjectItem && projectColor.length === 0) {
-                    return ""
-                }
-                return projectIconForPath(path)
-            }
-            pathColorFunction: function(path, isCurrent) {
-                if (!hasBackend()) return null;
-                var color = backend.projectColor(path);
-                if (color && color.length > 0) {
-                    var opacity = isCurrent ? templatesBrowser.cwdOpacity : templatesBrowser.pathProjectOpacity;
-                    return {
-                        fill: templatesBrowser.colorWithAlpha(color, opacity, templatesBrowser.projectTint),
-                        stroke: templatesBrowser.colorWithAlpha(color, opacity, templatesBrowser.projectTintBorder)
-                    };
-                }
-                var projectRoot = (typeof backend.getProjectRoot === "function")
-                    ? backend.getProjectRoot()
-                    : ""
-                var isRootPath = projectRoot && path === projectRoot
-                if (isRootPath) {
-                    var fallback = backend.defaultProjectColor ? backend.defaultProjectColor() : ""
-                    if (fallback && fallback.length > 0) {
-                        var rootOpacity = isCurrent ? templatesBrowser.cwdOpacity : templatesBrowser.pathProjectOpacity;
-                        return {
-                            fill: templatesBrowser.colorWithAlpha(fallback, rootOpacity, templatesBrowser.projectTint),
-                            stroke: templatesBrowser.colorWithAlpha(fallback, rootOpacity, templatesBrowser.projectTintBorder)
-                        };
-                    }
-                }
-                return null;
-            }
+            hostBackend: backend
+            hostProjectIconForPath: projectIconForPath
+            hostHasBackend: hasBackend
+            resolvePath: resolveTemplateDisplayPathToReal
             searchActive: level2SearchActive
             searchText: level2SearchText
             onToggleMode: level2VerticalView = !level2VerticalView
@@ -3784,18 +3765,9 @@ ApplicationWindow {
                 }
                 applyPerspectiveCpd(targetCpd)
             }
-            onFolderPreviewed: function(path) {
-                previewCTD(resolveTemplateDisplayPathToReal(path))
-            }
-            onMoveEntryRequested: function(sourcePath, targetDir) { moveEntry(sourcePath, resolveTemplateDisplayPathToReal(targetDir)) }
-            onClipboardRequested: openClipboard()
-            onClipboardDropRequested: function(payload) {
-                dropToClipboard(payload)
-            }
-            onCreateFolderRequested: function(basePath) {
-                var targetPath = resolveTemplateDisplayPathToReal(String(basePath || ""))
-                requestCreateFolderAt(targetPath)
-            }
+            onFolderPreviewed: function(path) { handlePreviewPath(templatesBrowser, path) }
+            onMoveEntryRequested: function(sourcePath, targetDir) { handleMoveEntry(templatesBrowser, sourcePath, targetDir) }
+            onCreateFolderRequested: function(basePath) { handleCreateFolder(templatesBrowser, basePath) }
         }
 
         FolderBrowser {  // ProjectsBrowser
@@ -3860,56 +3832,15 @@ ApplicationWindow {
             textSoft: theme.textSoft
             textMuted: theme.textMuted
             card: theme.card
-            projectIconFunction: function(path, isCurrent, item) {
-                if (!hasBackend()) return ""
-                var isProjectItem = item && item.isProject === true
-                var projectColor = (typeof backend.projectColor === "function")
-                    ? String(backend.projectColor(path) || "")
-                    : ""
-                if (!isProjectItem && projectColor.length === 0) {
-                    return ""
-                }
-                return projectIconForPath(path)
-            }
+            hostBackend: backend
+            hostProjectIconForPath: projectIconForPath
+            hostHasBackend: hasBackend
             allowRename: true
             renameTargetPath: renameTargetPath
             renameDraft: renameDraft
             searchActive: window.searchActive
             searchText: window.searchText
             onToggleMode: verticalProjectView = !verticalProjectView
-            // Eingesetzt
-            pathColorFunction: function(path, isCurrent) {
-                if (!hasBackend()) return null;
-                var projectRoot = (typeof backend.getProjectRoot === "function")
-                    ? backend.getProjectRoot()
-                    : ""
-                var isRootPath = projectRoot && path === projectRoot
-
-                // Use project-scoped API color only.
-                // projectColor already resolves inheritance for real projects,
-                // and returns empty for normal folders.
-                var color = backend.projectColor(path);
-                if (color && color.length > 0) {
-                    var opacity = isCurrent ? projectsBrowser.cwdOpacity : projectsBrowser.pathProjectOpacity;
-                    return {
-                        fill:   projectsBrowser.colorWithAlpha(color, opacity, projectsBrowser.projectTint),
-                        stroke: projectsBrowser.colorWithAlpha(color, opacity, projectsBrowser.projectTintBorder)
-                    };
-                }
-                if (isRootPath) {
-                    var fallback = backend.defaultProjectColor ? backend.defaultProjectColor() : ""
-                    if (fallback && fallback.length > 0) {
-                        var rootOpacity = isCurrent ? projectsBrowser.cwdOpacity : projectsBrowser.pathProjectOpacity;
-                        return {
-                            fill:   projectsBrowser.colorWithAlpha(fallback, rootOpacity, projectsBrowser.projectTint),
-                            stroke: projectsBrowser.colorWithAlpha(fallback, rootOpacity, projectsBrowser.projectTintBorder)
-                        };
-                    }
-                }
-                return null;
-            }
-            // Ende Eingesetzt
-
             onStyleChanged: function(style) { folderItemStyle = style }
         onToggleEmbryos: {
             window.projectsShowEmbryos = !window.projectsShowEmbryos
@@ -3947,21 +3878,24 @@ ApplicationWindow {
                 }
                 applyPerspectiveForRealPath(targetPath)
             }
-            onFolderPreviewed: function(path) {
-                previewCTD(path)
-            }
+            onFolderPreviewed: function(path) { handlePreviewPath(projectsBrowser, path) }
             onRenameRequested: beginRename(fullPath)
             onRenameTextEdited: renameDraft = text
             onRenameAccepted: commitRename()
             onRenameCanceled: cancelRename()
-            onMoveEntryRequested: function(sourcePath, targetDir) { moveEntry(sourcePath, targetDir) }
+            onMoveEntryRequested: function(sourcePath, targetDir) { handleMoveEntry(projectsBrowser, sourcePath, targetDir) }
+            onCreateFolderRequested: function(basePath) { handleCreateFolder(projectsBrowser, basePath) }
+        }
+
+        Connections {
+            target: templatesBrowser
             onClipboardRequested: openClipboard()
-            onClipboardDropRequested: function(payload) {
-                dropToClipboard(payload)
-            }
-            onCreateFolderRequested: function(basePath) {
-                requestCreateFolderAt(String(basePath || cwp))
-            }
+            onClipboardDropRequested: function(payload) { dropToClipboard(payload) }
+        }
+        Connections {
+            target: projectsBrowser
+            onClipboardRequested: openClipboard()
+            onClipboardDropRequested: function(payload) { dropToClipboard(payload) }
         }
 
         FilesPanel {  // FilesPanel
