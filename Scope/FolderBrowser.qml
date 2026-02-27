@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "Theme/tag_chips.js" as TagChips
+import "js/FolderBrowserUtils.js" as FBUtils
 
 Item { // ROOT
     id: root
@@ -195,7 +196,8 @@ Item { // ROOT
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
     property bool previewEnabled: true
-    property bool previewFocusBackground: true
+    // true = Vorschau-Hintergrund anzeigen (angehakt), false = kein Hintergrund
+    property bool previewShowBackground: false
     // anchor: current behavior, hybrid: keep anchor but shift left to reduce early wrapping
     property string previewLayoutMode: "hybrid"
     // normal: equal preview column widths, eng: tighter per-column widths
@@ -1179,6 +1181,9 @@ Item { // ROOT
         scheduleVerticalWidthUpdate()
         scheduleContentHeightUpdate()
     }
+    onParentChanged: {
+        scheduleContentHeightUpdate()
+    }
 
     onVerticalViewChanged: {
         if (!verticalView) {
@@ -1310,7 +1315,7 @@ Item { // ROOT
     onCwdHoverChildPanelOpenChanged: { }
     onCwdHoverGrandchildPanelOpenChanged: { }
     onCwdHoverCascadePanelsChanged: { }
-    onPreviewFocusBackgroundChanged: { }
+    onPreviewShowBackgroundChanged: { }
 
     Timer {
         id: initialLayoutSyncTimer
@@ -1480,31 +1485,15 @@ Item { // ROOT
 
 
     function pathPartsFull() {
-        return path.split("/").filter(function(p){ return p.length > 0 })
+        return FBUtils.pathPartsFull(path)
     }
 
     function prefixParts() {
-        if (!pathDisplayPrefix || pathDisplayPrefix.length === 0) return []
-        var prefix = pathDisplayPrefix
-        if (prefix.endsWith("/") && prefix.length > 1) {
-            prefix = prefix.slice(0, -1)
-        }
-        if (prefix === path) {
-            return prefix.split("/").filter(function(p){ return p.length > 0 })
-        }
-        if (path.indexOf(prefix + "/") === 0) {
-            return prefix.split("/").filter(function(p){ return p.length > 0 })
-        }
-        return []
+        return FBUtils.prefixParts(path, pathDisplayPrefix)
     }
 
     function pathPartsDisplay() {
-        var fullParts = pathPartsFull()
-        var prefix = prefixParts()
-        if (prefix.length === 0) return fullParts
-        var remainder = fullParts.slice(prefix.length)
-        var lastPrefix = prefix[prefix.length - 1]
-        return (remainder.length === 0) ? [lastPrefix] : [lastPrefix].concat(remainder)
+        return FBUtils.pathPartsDisplay(path, pathDisplayPrefix)
     }
 
     function getPathSegmentColor(fullPath, isCurrent) {
@@ -2266,23 +2255,6 @@ Item { // ROOT
                     scheduleVerticalLayoutUpdate()
                     scheduleVerticalWidthUpdate()
                 }
-                Rectangle { // VERTICAL: search toggle button (Lupe)
-                    visible: showSearchToggle
-                    width: compactButtonHeight
-                    height: compactButtonHeight
-                    radius: TagChips.CHIP_RADIUS_COMPACT
-                    color: pill
-                    border.color: pillBorder
-                    Image {
-                        anchors.fill: parent
-                        source: iconSearch
-                        fillMode: Image.PreserveAspectFit
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: toggleSearch()
-                    }
-                }
                 Rectangle { // VERTICAL: display options menu (style + embryos)
                     visible: showStyleToggle || showEmbryoToggle
                     width: compactButtonHeight
@@ -2338,36 +2310,10 @@ Item { // ROOT
                             onTriggered: previewEnabled = !previewEnabled
                         }
                         MenuItem {
-                            text: qsTr("Vorschau Fokus-Hintergrund")
+                            text: qsTr("Vorschau Hintergrund")
                             checkable: true
-                            checked: previewFocusBackground
-                            onTriggered: previewFocusBackground = !previewFocusBackground
-                        }
-                        MenuSeparator {}
-                        MenuItem {
-                            text: qsTr("Vorschau Layout: Anchor")
-                            checkable: true
-                            checked: previewLayoutMode === "anchor"
-                            onTriggered: previewLayoutMode = "anchor"
-                        }
-                        MenuItem {
-                            text: qsTr("Vorschau Layout: Hybrid")
-                            checkable: true
-                            checked: previewLayoutMode === "hybrid"
-                            onTriggered: previewLayoutMode = "hybrid"
-                        }
-                        MenuSeparator {}
-                        MenuItem {
-                            text: qsTr("V-Vorschau: Normal")
-                            checkable: true
-                            checked: verticalPreviewMode === "normal"
-                            onTriggered: verticalPreviewMode = "normal"
-                        }
-                        MenuItem {
-                            text: qsTr("V-Vorschau: Eng")
-                            checkable: true
-                            checked: verticalPreviewMode === "eng"
-                            onTriggered: verticalPreviewMode = "eng"
+                            checked: previewShowBackground
+                            onTriggered: previewShowBackground = !previewShowBackground
                         }
                         MenuSeparator {}
                         MenuItem {
@@ -2407,6 +2353,23 @@ Item { // ROOT
                     MouseArea {
                         anchors.fill: parent
                         onClicked: verticalDisplayMenu.popup()
+                    }
+                }
+                Rectangle { // VERTICAL: search toggle button (Lupe)
+                    visible: showSearchToggle
+                    width: compactButtonHeight
+                    height: compactButtonHeight
+                    radius: TagChips.CHIP_RADIUS_COMPACT
+                    color: pill
+                    border.color: pillBorder
+                    Image {
+                        anchors.fill: parent
+                        source: iconSearch
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: toggleSearch()
                     }
                 }
                 Rectangle { // VERTICAL: clipboard button
@@ -2549,36 +2512,10 @@ Item { // ROOT
                                     onTriggered: previewEnabled = !previewEnabled
                                 }
                                 MenuItem {
-                                    text: qsTr("Vorschau Fokus-Hintergrund")
+                                    text: qsTr("Vorschau Hintergrund")
                                     checkable: true
-                                    checked: previewFocusBackground
-                                    onTriggered: previewFocusBackground = !previewFocusBackground
-                                }
-                                MenuSeparator {}
-                                MenuItem {
-                                    text: qsTr("Vorschau Layout: Anchor")
-                                    checkable: true
-                                    checked: previewLayoutMode === "anchor"
-                                    onTriggered: previewLayoutMode = "anchor"
-                                }
-                                MenuItem {
-                                    text: qsTr("Vorschau Layout: Hybrid")
-                                    checkable: true
-                                    checked: previewLayoutMode === "hybrid"
-                                    onTriggered: previewLayoutMode = "hybrid"
-                                }
-                                MenuSeparator {}
-                                MenuItem {
-                                    text: qsTr("V-Vorschau: Normal")
-                                    checkable: true
-                                    checked: verticalPreviewMode === "normal"
-                                    onTriggered: verticalPreviewMode = "normal"
-                                }
-                                MenuItem {
-                                    text: qsTr("V-Vorschau: Eng")
-                                    checkable: true
-                                    checked: verticalPreviewMode === "eng"
-                                    onTriggered: verticalPreviewMode = "eng"
+                                    checked: previewShowBackground
+                                    onTriggered: previewShowBackground = !previewShowBackground
                                 }
                                 MenuSeparator {}
                                 MenuItem {
@@ -3029,7 +2966,6 @@ Item { // ROOT
                                 onClicked: toggleMode()
                             }
                         }
-                        Item { Layout.fillWidth: true } // VERTICAL: spacer/feder between H/V toggle and right buttons
                         Item {
                             id: verticalButtonsSlotTop
                             visible: true
@@ -3037,7 +2973,7 @@ Item { // ROOT
                             Layout.minimumWidth: verticalButtonsPanel.implicitWidth
                             Layout.maximumWidth: verticalButtonsPanel.implicitWidth
                             Layout.preferredHeight: compactButtonHeight
-                            Layout.alignment: Qt.AlignRight | Qt.AlignTop
+                            Layout.alignment: Qt.AlignLeft | Qt.AlignTop
                         }
                     }
                     Item { // SEARCH FIELD (vertical view)
@@ -3897,7 +3833,7 @@ Item { // ROOT
                         property int rowIndex: Number(modelData && modelData.level !== undefined ? modelData.level : 0)
                         property string rowParentPath: String(modelData && modelData.parentPath ? modelData.parentPath : "")
                         readonly property bool ancestorRow: rowIndex < Math.max(0, root.previewActivePaths.length - 1)
-                        readonly property real rowBgAlpha: (root.previewFocusBackground && ancestorRow) ? 0.0 : 1.0
+                        readonly property real rowBgAlpha: (ancestorRow && !root.previewShowBackground) ? 0.0 : 1.0
                         width: parent.width
                         z: 1000 - rowIndex
                         radius: 0
