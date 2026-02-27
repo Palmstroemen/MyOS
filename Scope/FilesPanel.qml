@@ -91,6 +91,20 @@ Rectangle { // Files panel
     property int sidePanelButtonSpacing: 6
     readonly property int sidePanelDesiredInnerWidth: (2 * topRightButtonSize) + sidePanelButtonSpacing
     readonly property int sidePanelDesiredWidth: sidePanelDesiredInnerWidth + (2 * sidePanelInnerMargin)
+    readonly property string longestTagForMeasure: {
+        var folder = root.folderTags || []
+        var file = root.fileTags || []
+        var best = ""
+        for (var i = 0; i < folder.length; i++) {
+            var t = String(folder[i])
+            if (t.length > best.length) best = t
+        }
+        for (var j = 0; j < file.length; j++) {
+            var u = String(file[j])
+            if (u.length > best.length) best = u
+        }
+        return best
+    }
     property real filesPanelOverlayAlpha: 0.20
     readonly property real uPanelLuma: (0.2126 * backgroundColor.r) + (0.7152 * backgroundColor.g) + (0.0722 * backgroundColor.b)
     readonly property color uPanelColor: PanelColors.uPanelColor(showMyosButton, backgroundColor, uPanelTintColor, uPanelTintMix)
@@ -239,11 +253,19 @@ Rectangle { // Files panel
         anchors.topMargin: 10
         anchors.bottomMargin: 10
         anchors.rightMargin: 10
-        width: Math.max(74, Math.min(Math.round(parent.width * 0.30), root.sidePanelDesiredWidth))
+        width: Math.max(74, Math.max(root.sidePanelDesiredWidth, sidePanelTagContentWidth))
         radius: 0
         border.width: 0
         color: "transparent"
         z: 2
+
+        Text {
+            id: measureTag
+            visible: false
+            font.pixelSize: root.tagChipFontPx
+            text: "  #" + root.longestTagForMeasure
+        }
+        readonly property int sidePanelTagContentWidth: measureTag.implicitWidth + root.tagChipPadH * 2 + 6 + 15 + (2 * root.sidePanelInnerMargin)
 
         Column {
             anchors.fill: parent
@@ -428,7 +450,7 @@ Rectangle { // Files panel
                                         text: (selected ? "✓ " : "  ") + "#" + tagValue
                                         color: TagChipStyle.textColorForBg(parent.color)
                                         font.pixelSize: root.tagChipFontPx
-                                        elide: Text.ElideRight
+                                        elide: Text.ElideNone
                                         horizontalAlignment: Text.AlignRight
                                     }
                                     Text {
@@ -694,7 +716,7 @@ Rectangle { // Files panel
                                                         text: (selected ? "✓  " : "    ") + "#" + tagValue
                                                         color: TagChipStyle.textColorForBg(parent.color)
                                                         font.pixelSize: root.tagChipFontPx
-                                                        elide: Text.ElideRight
+                                                        elide: Text.ElideNone
                                                         horizontalAlignment: Text.AlignRight
                                                     }
                                                     MouseArea {

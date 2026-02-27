@@ -15,6 +15,7 @@ Rectangle {
     property string thumbnailSource: ""
     property color fillColor: "#3b476b"
     property color strokeColor: "#58648a"
+    readonly property real iconOpacity: (typeof fillColor.a === "number" && fillColor.a < 1) ? fillColor.a : 1
     property color textColor: "#cfd3df"
     property int textSize: 14
     property int largeTextSize: textSize
@@ -265,6 +266,7 @@ Rectangle {
             source: thumbnailSource !== "" ? thumbnailSource : iconSource
             width: iconSmall
             height: iconSmall
+            opacity: root.iconOpacity
             fillMode: Image.PreserveAspectFit
             sourceSize.width: width
             sourceSize.height: height
@@ -294,6 +296,7 @@ Rectangle {
             source: thumbnailSource !== "" ? thumbnailSource : iconSource
             width: iconLarge
             height: iconLarge
+            opacity: root.iconOpacity
             fillMode: Image.PreserveAspectFit
             anchors.left: largeIconAlignLeft ? parent.left : undefined
             anchors.leftMargin: largeIconAlignLeft ? 6 : 0
@@ -465,7 +468,6 @@ Rectangle {
         enabled: root.allowDrops
         onDropped: function(drop) {
             var payload = root._dropPayload(drop)
-            console.log("[drop] FolderItem.dropReceived payload=", payload ? "ok" : "empty", "onDrop=", !!root.onDrop)
             root.dropReceived(payload)
             if (root.onDrop) {
                 root.onDrop(payload)
