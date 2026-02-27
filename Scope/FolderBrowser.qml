@@ -101,6 +101,8 @@ Item { // ROOT
 
     signal pathSegmentActivated(int index)
     signal pathSelected(string path)
+    /// Emitted whenever a path/folder/segment is activated; carries the resolved target path for navigation + refresh.
+    signal navigateToPathRequested(string path)
     // Primary click intent (single click)
     signal folderActivated(string name)
     // Secondary click intent (double click)
@@ -313,10 +315,16 @@ Item { // ROOT
         return iconFolder
     }
 
+    function pathForSegmentIndex(idx) {
+        var parts = String(root.path || "").split("/").filter(function(p) { return p.length > 0 })
+        return "/" + parts.slice(0, idx + 1).join("/")
+    }
+
     function emitFolderActivatedIntent(path) {
         var value = String(path || "").trim()
         if (!value) return
         folderActivated(value)
+        navigateToPathRequested(value)
     }
 
     function emitFolderDoubleActivatedIntent(path, folderMeta) {
@@ -2208,10 +2216,10 @@ Item { // ROOT
             implicitHeight: verticalButtonsContent.implicitHeight
             width: implicitWidth
             height: compactButtonHeight
-            Row {           // VERTICAL: ButtonsContent
+                    Row {           // VERTICAL: ButtonsContent
                 id: verticalButtonsContent
                 anchors.fill: parent
-                spacing: 6
+                spacing: 2
                 Component.onCompleted: scheduleVerticalLayoutUpdate()
                 onImplicitWidthChanged: {
                     scheduleVerticalLayoutUpdate()
@@ -2225,10 +2233,8 @@ Item { // ROOT
                     color: pill
                     border.color: pillBorder
                     Image {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         source: iconSearch
-                        width: baseFont
-                        height: baseFont
                         fillMode: Image.PreserveAspectFit
                     }
                     MouseArea {
@@ -2397,11 +2403,11 @@ Item { // ROOT
         ColumnLayout {  // Which VIEW???:
             id: mainColumn
             anchors.fill: parent
-            anchors.leftMargin: 6
-            anchors.rightMargin: verticalView ? 0 : 6
-            anchors.topMargin: 3
-            anchors.bottomMargin: verticalView ? 3 : 0
-            spacing: 4
+            anchors.leftMargin: 2
+            anchors.rightMargin: verticalView ? 0 : 2
+            anchors.topMargin: 2
+            anchors.bottomMargin: verticalView ? 2 : 0
+            spacing: 2
 
             RowLayout { // HORIZONTAL: row 1 (path + folders + right buttons)
                 id: topRow
@@ -2410,7 +2416,7 @@ Item { // ROOT
                 Layout.preferredHeight: currentRowHeight()
                 Layout.minimumHeight: currentRowHeight()
                 Layout.maximumHeight: currentRowHeight()
-                spacing: 6
+                spacing: 2
                 onWidthChanged: scheduleLayoutUpdate()
 
                 Rectangle {
@@ -2444,7 +2450,7 @@ Item { // ROOT
                     Row {
                         id: rightButtonsRow
                         anchors.fill: parent
-                        spacing: 6
+                        spacing: 2
                         Component.onCompleted: scheduleLayoutUpdate()
                         onImplicitWidthChanged: scheduleLayoutUpdate()
                         Rectangle { // Burger / display options menu
@@ -2584,10 +2590,8 @@ Item { // ROOT
                             color: pill
                             border.color: pillBorder
                             Image {
-                                anchors.centerIn: parent
+                                anchors.fill: parent
                                 source: iconSearch
-                                width: baseFont
-                                height: baseFont
                                 fillMode: Image.PreserveAspectFit
                             }
                             MouseArea {
@@ -2674,7 +2678,7 @@ Item { // ROOT
                     clip: true
                     Row {
                         id: pathRow
-                        spacing: 6
+                        spacing: 2
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: pathRow.implicitWidth <= pathHost.width ? parent.left : undefined
                         anchors.right: pathRow.implicitWidth <= pathHost.width ? undefined : parent.right
@@ -2729,7 +2733,10 @@ Item { // ROOT
                                 flatBottomCorners: isCurrent
                                 renaming: false
                                 renameEnabled: false
-                                onActivate: pathSegmentActivated(index)
+                                onActivate: {
+                                    pathSegmentActivated(index)
+                                    navigateToPathRequested(pathForSegmentIndex(index))
+                                }
                                 MouseArea {
                                     visible: isCurrent && !root.verticalView
                                     anchors.fill: parent
@@ -3073,7 +3080,10 @@ Item { // ROOT
                                 textSize: baseFont
                                 renaming: false
                                 renameEnabled: false
-                                onActivate: pathSelected(modelData)
+                                onActivate: {
+                                    pathSelected(modelData)
+                                    navigateToPathRequested(modelData)
+                                }
                             }
                         }
 

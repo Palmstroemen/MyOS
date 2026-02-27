@@ -324,6 +324,13 @@ ApplicationWindow {
         return true
     }
 
+    /// Apply CTD for path and refresh file list if path unchanged (e.g. re-click on current folder).
+    function applyFolderActivation(path) {
+        if (!commitCTD(path)) {
+            updateFiles()
+        }
+    }
+
     function hasBackend() {
         return typeof backend !== "undefined" && backend !== null
     }
@@ -3236,7 +3243,7 @@ ApplicationWindow {
         ColumnLayout { // MainRows
             anchors.fill: parent
             spacing: 6
-            anchors.margins: 16
+            anchors.margins: Math.max(4, Math.round(16 / 3))
 
             RowLayout { // Buttonbar
                 Layout.fillWidth: true
@@ -3252,16 +3259,17 @@ ApplicationWindow {
                 Rectangle { // Theme Switch
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: theme.accentPrimary
-                    border.color: theme.accentPrimary
+                    color: "transparent"
+                    border.width: 0
+                    implicitWidth: themeSwitchLabel.implicitWidth + 16
+                    width: implicitWidth
                     Text {
+                        id: themeSwitchLabel
                         anchors.centerIn: parent
                         text: darkTheme ? qsTr("Hell") : qsTr("Dunkel")
-                        color: theme.accentPrimaryText
+                        color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
-                    implicitWidth: 62
-                    width: implicitWidth
                     MouseArea {
                         anchors.fill: parent
                         onClicked: darkTheme = !darkTheme
@@ -3271,11 +3279,12 @@ ApplicationWindow {
                 Rectangle { // Language toggle
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: theme.smallButtonBg
-                    border.color: theme.smallButtonBorder
-                    implicitWidth: 62
+                    color: "transparent"
+                    border.width: 0
+                    implicitWidth: languageToggleLabel.implicitWidth + 16
                     width: implicitWidth
                     Text {
+                        id: languageToggleLabel
                         anchors.centerIn: parent
                         text: uiLanguage.toUpperCase()
                         color: theme.smallButtonText
@@ -3290,11 +3299,12 @@ ApplicationWindow {
                 Rectangle { // Filter toggle
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: activeFilter.active ? theme.smallButtonActiveBg : theme.smallButtonBg
-                    border.color: activeFilter.active ? theme.smallButtonActiveBorder : theme.smallButtonBorder
-                    implicitWidth: 210
+                    color: activeFilter.active ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
+                    border.width: 0
+                    implicitWidth: filterToggleLabel.implicitWidth + 16
                     width: implicitWidth
                     Text {
+                        id: filterToggleLabel
                         anchors.centerIn: parent
                         text: {
                             if (!activeFilter || !activeFilter.active) {
@@ -3356,39 +3366,37 @@ ApplicationWindow {
                 Rectangle { // Projects browser visibility toggle
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: projectsBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
-                    border.color: projectsBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
-                    implicitWidth: 146
+                    color: projectsBrowserVisible ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
+                    border.width: 0
+                    implicitWidth: projectsToggleLabel.implicitWidth + 16
                     width: implicitWidth
-                    
                     Text {
+                        id: projectsToggleLabel
                         anchors.centerIn: parent
                         text: qsTr("Projekte") + " " + (projectsBrowserVisible ? qsTr("AN") : qsTr("AUS"))
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
-                    
                     MouseArea {
                         anchors.fill: parent
                         onClicked: projectsBrowserVisible = !projectsBrowserVisible
                     }
                 }
-                
+
                 Rectangle { // Templates browser visibility toggle
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: templatesBrowserVisible ? theme.smallButtonActiveBg : theme.smallButtonBg
-                    border.color: templatesBrowserVisible ? theme.smallButtonActiveBorder : theme.smallButtonBorder
-                    implicitWidth: 146
+                    color: templatesBrowserVisible ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
+                    border.width: 0
+                    implicitWidth: templatesToggleLabel.implicitWidth + 16
                     width: implicitWidth
-                    
                     Text {
+                        id: templatesToggleLabel
                         anchors.centerIn: parent
                         text: qsTr("Vorlagen") + " " + (templatesBrowserVisible ? qsTr("AN") : qsTr("AUS"))
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
-                    
                     MouseArea {
                         anchors.fill: parent
                         onClicked: templatesBrowserVisible = !templatesBrowserVisible
@@ -3398,11 +3406,12 @@ ApplicationWindow {
                 Rectangle { // Files panel opacity toggle
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: filesPanelHalfTransparent ? theme.smallButtonActiveBg : theme.smallButtonBg
-                    border.color: filesPanelHalfTransparent ? theme.smallButtonActiveBorder : theme.smallButtonBorder
-                    implicitWidth: 118
+                    color: filesPanelHalfTransparent ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
+                    border.width: 0
+                    implicitWidth: filesOpacityToggleLabel.implicitWidth + 16
                     width: implicitWidth
                     Text {
+                        id: filesOpacityToggleLabel
                         anchors.centerIn: parent
                         text: qsTr("Dateien 50%")
                         color: theme.smallButtonText
@@ -3417,11 +3426,12 @@ ApplicationWindow {
                 Rectangle { // Ensure Desk.md in current project
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: theme.smallButtonBg
-                    border.color: theme.smallButtonBorder
-                    implicitWidth: 196
+                    color: "transparent"
+                    border.width: 0
+                    implicitWidth: deskThemeLabel.implicitWidth + 16
                     width: implicitWidth
                     Text {
+                        id: deskThemeLabel
                         anchors.centerIn: parent
                         text: qsTr("Projekt mit Thema versehen")
                         color: theme.smallButtonText
@@ -3447,11 +3457,12 @@ ApplicationWindow {
                 Rectangle { // Ensure Sort.md in current project
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: theme.smallButtonBg
-                    border.color: theme.smallButtonBorder
-                    implicitWidth: 176
+                    color: "transparent"
+                    border.width: 0
+                    implicitWidth: sortActivateLabel.implicitWidth + 16
                     width: implicitWidth
                     Text {
+                        id: sortActivateLabel
                         anchors.centerIn: parent
                         text: qsTr("Ordnung aktivieren")
                         color: theme.smallButtonText
@@ -3477,11 +3488,12 @@ ApplicationWindow {
                 Rectangle { // Manual apply sort
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
-                    color: theme.smallButtonBg
-                    border.color: theme.smallButtonBorder
-                    implicitWidth: 152
+                    color: "transparent"
+                    border.width: 0
+                    implicitWidth: sortNowLabel.implicitWidth + 16
                     width: implicitWidth
                     Text {
+                        id: sortNowLabel
                         anchors.centerIn: parent
                         text: qsTr("Jetzt einsortieren")
                         color: theme.smallButtonText
@@ -3600,6 +3612,7 @@ ApplicationWindow {
             debugName: "TemplatesBrowser"
             parent: floatingPool
             visible: templatesBrowserVisible
+            verticalPreferredHeight: 390
             isPerspective: window.templatesUsePerspective
             path: (templatesBrowser.isPerspective && window.perspectiveModeEnabled)
                 ? window.templatesPerspectivePath
@@ -3732,7 +3745,6 @@ ApplicationWindow {
                 } else {
                     standardPath = nextPath
                 }
-                commitCTD(resolveTemplateDisplayPathToReal(nextPath))
             }
             onPathSelected: function(path) {
                 var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
@@ -3741,7 +3753,6 @@ ApplicationWindow {
                 } else {
                     standardPath = path
                 }
-                commitCTD(resolveTemplateDisplayPathToReal(path))
             }
             onFolderActivated: function(name) {
                 var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
@@ -3752,7 +3763,9 @@ ApplicationWindow {
                 } else {
                     standardPath = nextPath
                 }
-                commitCTD(resolveTemplateDisplayPathToReal(nextPath))
+            }
+            onNavigateToPathRequested: function(path) {
+                applyFolderActivation(resolveTemplateDisplayPathToReal(path))
             }
             onFolderDoubleActivated: function(path, folderMeta) {
                 var targetPath = String(path || "")
@@ -3911,22 +3924,8 @@ ApplicationWindow {
                 window.searchText = value
                 window.updateSubProjects()
             }
-            onPathSegmentActivated: function(index) {
-                var parts = cwp.split("/").filter(function(p){ return p.length > 0 })
-                var targetPath = "/" + parts.slice(0, index + 1).join("/")
-                commitCTD(targetPath)
-            }
-            onPathSelected: function(path) {
-                commitCTD(path)
-            }
-            onFolderActivated: function(name) {
-                var targetPath = ""
-                if (name.indexOf("/") === 0) {
-                    targetPath = name
-                } else {
-                    targetPath = cwp + "/" + name
-                }
-                commitCTD(targetPath)
+            onNavigateToPathRequested: function(path) {
+                applyFolderActivation(path)
                 clearSearchAfterNavigate()
             }
             onFolderDoubleActivated: function(name, folderMeta) {
@@ -4012,6 +4011,7 @@ ApplicationWindow {
             selectedPaths: window.selectedEntryPaths
             selectedTags: window.selectedTags
             tagSource: window.tagFilterSource
+            uiLanguage: window.uiLanguage
             isTagIndexing: window.tagsIndexing
             folderSizeBytes: window.currentFolderSizeBytes
             onRequestMore: appendNextChunk()
@@ -4074,7 +4074,6 @@ ApplicationWindow {
             onOpenMyosFolder: {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
                 var targetPath = base + "/.MyOS"
-                setCwp(targetPath, "filesPane.openMyosFolder")
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }
