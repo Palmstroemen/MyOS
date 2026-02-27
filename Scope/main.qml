@@ -40,8 +40,6 @@ ApplicationWindow {
     property bool filesPanelHalfTransparent: false
     // Positive value lets FilesPanel overlap a bit to the left.
     property int filesPanelOverlapPx: 8
-    // Testlayer im Projekte-Slot: z:0 damit FolderBrowser (z:8) Drops bekommt; z:20 fängt alles ab.
-    property int debugDropLayerZ: 0
     property color dialogPanelBg: darkTheme ? "#f4f7ff" : "#141823"
     property color dialogPanelBorder: darkTheme ? "#1b2438" : "#d5ddf2"
     property color dialogTextStrong: darkTheme ? "#1a2233" : "#edf2ff"
@@ -1037,7 +1035,6 @@ ApplicationWindow {
         if (!sources || sources.length === 0) {
             return
         }
-        console.log("[scope] moveEntry", "sources=", JSON.stringify(sources), "target=", resolvedTarget)
         if (_containsDirectory(sources)) {
             pendingMoveSources = sources
             pendingMoveTargetDir = resolvedTarget
@@ -2181,7 +2178,6 @@ ApplicationWindow {
 
     function warnIfMissing(target, propName, label) {
         if (!target || !(propName in target)) {
-            console.warn("[scope] missing property", propName, "on", label)
         }
     }
 
@@ -3527,24 +3523,6 @@ ApplicationWindow {
                         id: slotProjects_PH_TH
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        Item {
-                            id: dropTopLayer
-                            anchors.fill: parent
-                            z: window.debugDropLayerZ
-                            DropArea {
-                                anchors.fill: parent
-                                onDropped: function(drop) {
-                                    console.log("[drop] TOP-LAYER (z=" + window.debugDropLayerZ + ") hat Drop gefangen")
-                                    if (drop && typeof drop.text !== "undefined") {
-                                        var t = String(drop.text || "").trim()
-                                        if (t.length > 0) {
-                                            dropToClipboard(t)
-                                            drop.acceptProposedAction()
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                     Item { id: slotFiles_PH_TH; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 280 }
                 }
@@ -4042,6 +4020,17 @@ ApplicationWindow {
                 toggleEntrySelection(path, ctrlPressed, shiftPressed)
             }
             onSelectionBoxApplied: function(paths, additive) { applySelectionBox(paths, additive) }
+            onEmptyAreaClicked: {
+                commitCTD(cwp)
+                if (projectsBrowser && typeof projectsBrowser.resetPreview === "function") {
+                    projectsBrowser.resetPreview()
+                    projectsBrowser.scheduleContentHeightUpdate()
+                }
+                if (templatesBrowser && typeof templatesBrowser.resetPreview === "function") {
+                    templatesBrowser.resetPreview()
+                    templatesBrowser.scheduleContentHeightUpdate()
+                }
+            }
             onMoveEntriesRequested: function(payload, targetDir) { moveEntry(payload, targetDir) }
             onTagToggled: function(tag) { toggleTagSelection(tag) }
             onAddFolderTagRequested: function(tag) { addFolderTag(tag) }

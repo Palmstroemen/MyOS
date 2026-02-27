@@ -95,8 +95,8 @@ Rectangle { // Files panel
     radius: 0
     color: root.uPanelColor
     border.width: 0
-    implicitWidth: 0
-    implicitHeight: 0
+    implicitWidth: 280
+    implicitHeight: 200
     opacity: halfTransparent ? 0.5 : 1
 
     signal requestMore()
@@ -108,8 +108,10 @@ Rectangle { // Files panel
     signal folderTagColorRequested(string tag, string color)
     signal itemActivated(string path, bool ctrlPressed, bool shiftPressed)
     signal selectionBoxApplied(var paths, bool additive)
+    signal emptyAreaClicked()
     signal moveEntriesRequested(string payload, string targetDir)
     signal createNoteRequested()
+    signal createFolderRequested(string basePath)
     signal moveSelectedIntoNewFolderRequested(var sourcePaths)
     signal renameRequested(var paths)
     signal deleteRequested(var paths)
@@ -783,6 +785,7 @@ Rectangle { // Files panel
                 : (root.compactButtonHeight + 4)
             delegate: FolderItem {
                 readonly property string itemPath: (model.path && model.path.length > 0) ? model.path : ""
+                readonly property bool isFolder: !!(model.isDir)
                 readonly property bool selected: root.selectedPaths && itemPath.length > 0 && root.selectedPaths.indexOf(itemPath) !== -1
                 width: filesGrid.cellWidth - root.gridSpacing
                 height: filesGrid.cellHeight - (root.itemStyle === "largeIcon" ? root.gridSpacing : 4)
@@ -839,7 +842,7 @@ Rectangle { // Files panel
                 DropArea {
                     anchors.fill: parent
                     enabled: model.isDir && !model.isEmbryo
-                    onDropped: {
+                    onDropped: function(drop) {
                         if (!drop || !drop.text || itemPath.length === 0) return
                         root.moveEntriesRequested(drop.text, itemPath)
                         drop.acceptProposedAction()
@@ -903,6 +906,23 @@ Rectangle { // Files panel
                 return selected
             }
 
+            DropArea {
+                anchors.fill: parent
+                onDropped: function(drop) {
+                    if (!drop || !drop.text) return
+                    var contentX = filesGrid.contentX || 0
+                    var contentY = filesGrid.contentY || 0
+                    var idx = filesGrid.indexAt(drop.x + contentX, drop.y + contentY)
+                    if (idx >= 0) {
+                        var item = filesGrid.itemAtIndex(idx)
+                        if (item && item.isFolder && item.itemPath && item.itemPath.length > 0) {
+                            root.moveEntriesRequested(drop.text, item.itemPath)
+                        }
+                    }
+                    drop.acceptProposedAction()
+                }
+            }
+
             MouseArea {
                 id: selectionArea
                 anchors.fill: parent
@@ -962,8 +982,9 @@ Rectangle { // Files panel
                         var paths = selectionOverlay.collectSelectionPaths()
                         root.selectionBoxApplied(paths, selectionOverlay.additiveSelection)
                     } else if (!selectionOverlay.additiveSelection) {
-                        // Plain click on empty area clears selection.
+                        // Plain click on empty area clears selection and resets CTD to CWD.
                         root.selectionBoxApplied([], false)
+                        root.emptyAreaClicked()
                     }
                     selectionOverlay.marqueeActive = false
                 }

@@ -530,21 +530,6 @@ Item { // ROOT
         var gap = showRightColumn ? (verticalContentRow ? verticalContentRow.spacing : 12) : 0
         // A (test toggle): hard width reduction disabled.
         var total = columnWidth + (showRightColumn ? rightWidth : 0) + gap
-        if (debugVerticalWrap) {
-            console.log(
-                "[vwidth:auto]",
-                "name=", debugName,
-                "path=", path,
-                "previewRows=", previewRows.length,
-                "showRight=", showRightColumn,
-                "foldersInSecondColumn=", foldersInSecondColumn,
-                "maxWidth=", Math.round(maxWidth),
-                "column=", Math.round(columnWidth),
-                "right=", Math.round(rightWidth),
-                "gap=", Math.round(gap),
-                "total=", Math.round(total)
-            )
-        }
         return total
     }
 
@@ -574,18 +559,6 @@ Item { // ROOT
             var previewTotal = verticalPreviewMode === "eng"
                 ? Math.max(verticalMinWidth, sumPreviewWidths + spacing)
                 : Math.max(verticalMinWidth, (maxPreviewWidth * previewCount) + spacing)
-            if (debugVerticalWrap) {
-                console.log(
-                    "[vwidth:right-preview]",
-                    "name=", debugName,
-                    "mode=", verticalPreviewMode,
-                    "rows=", previewCount,
-                    "perRow=", "[" + perRow.join(",") + "]",
-                    "maxRow=", Math.round(maxPreviewWidth),
-                    "spacing=", Math.round(spacing),
-                    "total=", Math.round(previewTotal)
-                )
-            }
             if (verticalView && previewEnabled) {
                 _setVerticalRightHoldTarget(previewTotal)
                 var hold = Math.max(verticalMinWidth, Number(verticalRightColumnWidthHold) || 0)
@@ -594,14 +567,6 @@ Item { // ROOT
             return previewTotal
         }
         var fallback = calculateFoldersColumnWidthForEntries(folders || [])
-        if (debugVerticalWrap) {
-            console.log(
-                "[vwidth:right-fallback]",
-                "name=", debugName,
-                "folders=", (folders ? folders.length : 0),
-                "total=", Math.round(fallback)
-            )
-        }
         if (verticalView && previewEnabled) {
             _setVerticalRightHoldTarget(fallback)
             var fallbackHold = Math.max(verticalMinWidth, Number(verticalRightColumnWidthHold) || 0)
@@ -1823,11 +1788,14 @@ Item { // ROOT
         Qt.callLater(function() { _applyQueuedPreviewHover(generation) })
     }
 
-    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor, sourceCenterX, sourceCenterY) {
+    function updatePreviewFromHover(sourceLevel, sourcePath, sourceItem, sourceFillColor, sourceCenterX, sourceCenterY, fromCascadePanel) {
         if (!previewEnabled) {
             return
         }
         if (previewReopenStabilizing && verticalView) {
+            return
+        }
+        if (verticalView && fromCascadePanel) {
             return
         }
         var level = Math.max(0, Number(sourceLevel) || 0)
@@ -2087,30 +2055,6 @@ Item { // ROOT
             if (delta >= verticalWidthApplyThresholdPx) {
                 verticalAutoWidth = nextWidth
                 _applyVerticalPreferredWidth(nextWidth)
-            } else if (debugVerticalWrap) {
-                console.log(
-                    "[vwidth:skip-small]",
-                    "name=", debugName,
-                    "prev=", Math.round(previous),
-                    "next=", Math.round(nextWidth),
-                    "delta=", Math.round(delta),
-                    "threshold=", verticalWidthApplyThresholdPx
-                )
-            }
-            if (delta >= verticalGlitchLogThresholdPx) {
-                console.log(
-                    "[vwidth:glitch-candidate]",
-                    "name=", debugName,
-                    "prev=", Math.round(previous),
-                    "next=", Math.round(nextWidth),
-                    "delta=", Math.round(delta),
-                    "rows=", previewRows.length,
-                    "mode=", verticalPreviewMode,
-                    "showRight=", shouldShowVerticalRightColumn()
-                )
-            }
-            if (debugVerticalWrap) {
-                console.log("[vwidth:apply]", "name=", debugName, "prev=", Math.round(previous), "next=", Math.round(verticalAutoWidth))
             }
             verticalWidthUpdatePending = false
         })
@@ -2213,24 +2157,9 @@ Item { // ROOT
                 ? (freeHeight * 2 <= uListHeight + 10)
                 : (freeHeight < 1)
         }
-        if (debugVerticalWrap) {
-            console.log(
-                "[vwidth:wrap-check]",
-                "name=", debugName,
-                "path=", path,
-                "showRight=", showRightColumn,
-                "freeHeight=", Math.round(freeHeight),
-                "uListHeight=", Math.round(uListHeight),
-                "currentWrap=", foldersInSecondColumn,
-                "nextWrap=", shouldWrap
-            )
-        }
         if (verticalButtonsOnSecondLine !== shouldWrap) {
             verticalButtonsOnSecondLine = shouldWrap
             foldersInSecondColumn = shouldWrap
-            if (debugVerticalWrap) {
-                console.log("[vwidth:wrap-apply]", "set=", shouldWrap)
-            }
         }
     }
 
@@ -2253,7 +2182,6 @@ Item { // ROOT
             anchors.fill: parent
             enabled: allowDrops
             onDropped: function(drop) {
-                console.log("[drop]", (debugName || "FB") + ".panel")
                 var payload = dropPayloadText(drop)
                 if (!payload) return
                 clipboardDropRequested(payload)
@@ -2456,7 +2384,6 @@ Item { // ROOT
                         anchors.fill: parent
                         enabled: allowDrops
                         onDropped: function(drop) {
-                            console.log("[drop]", (debugName || "FB") + ".clipboard.vertical")
                             var payload = dropPayloadText(drop)
                             if (!payload) return
                             clipboardDropRequested(payload)
@@ -2728,7 +2655,6 @@ Item { // ROOT
                                 anchors.fill: parent
                                 enabled: allowDrops
                                 onDropped: function(drop) {
-                                    console.log("[drop]", (debugName || "FB") + ".clipboard.horizontal")
                                     var payload = dropPayloadText(drop)
                                     if (!payload) return
                                     clipboardDropRequested(payload)
@@ -2852,7 +2778,6 @@ Item { // ROOT
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 onDrop: function(payload) {
-                                    console.log("[drop] FolderItem -> pathSegment")
                                     var targetPath = fullPathForDisplayIndex(index)
                                     if (!targetPath) return
                                     emitMoveEntryIntent(payload, targetPath)
@@ -2963,7 +2888,6 @@ Item { // ROOT
                                 }
                                 allowDrops: root.allowDrops
                                 onDrop: function(payload) {
-                                    console.log("[drop] FolderItem -> folderRow.h")
                                     if (!payload) return
                                     emitMoveEntryIntent(payload, fullPath)
                                 }
@@ -3224,7 +3148,6 @@ Item { // ROOT
                         renameEnabled: false
                         onActivate: {}
                         onDrop: function(payload) {
-                            console.log("[drop] FolderItem -> cwpButton (clipboard)")
                             if (!payload) return
                             clipboardDropRequested(payload)
                         }
@@ -3381,7 +3304,6 @@ Item { // ROOT
                                 }
                                         allowDrops: root.allowDrops
                                         onDrop: function(payload) {
-                                            console.log("[drop] FolderItem -> folderRow.previewCol")
                                             if (!payload) return
                                             emitMoveEntryIntent(payload, fullPath)
                                         }
@@ -3494,28 +3416,6 @@ Item { // ROOT
                             if (!debugColumnLayout || !visible) {
                                 return
                             }
-                            var startX = previewColumnsStartX()
-                            var hostRight = width
-                            var parts = []
-                            for (var i = 0; i < previewColumnCount; i++) {
-                                var w = Math.round(previewColumnTargetWidth(i))
-                                var px = Math.round(previewColumnX(i))
-                                parts.push("c" + i + "=[" + px + ".." + Math.round(px + w) + "]")
-                            }
-                            console.log(
-                                "[vcols:layout]",
-                                "reason=", String(reason || ""),
-                                "hostX=", Math.round(x),
-                                "hostW=", Math.round(width),
-                                "startX=", Math.round(startX),
-                                "contentW=", Math.round(previewColumnsContentWidth),
-                                "right=", Math.round(hostRight),
-                                "anchorX0=", Math.round(root.previewAnchorCenterForLevel(0)),
-                                "anchorY0=", Math.round(root.previewAnchorCenterYForLevel(0)),
-                                "rows=", previewRows.length,
-                                "cols=", previewColumnCount,
-                                parts.join(" ")
-                            )
                         })
                     }
                     onXChanged: schedulePreviewLayoutLog("host-x")
@@ -3804,7 +3704,6 @@ Item { // ROOT
                                                     }
                                                     allowDrops: root.allowDrops
                                                     onDrop: function(payload) {
-                                                        console.log("[drop] FolderItem -> folderRow.previewLvl")
                                                         if (!payload) return
                                                         emitMoveEntryIntent(payload, fullPath)
                                                     }
@@ -3879,7 +3778,6 @@ Item { // ROOT
                                 }
                                 allowDrops: root.allowDrops
                                 onDrop: function(payload) {
-                                    console.log("[drop] FolderItem -> folderRow.vertical")
                                     if (!payload) return
                                     emitMoveEntryIntent(payload, fullPath)
                                 }
@@ -4050,7 +3948,7 @@ Item { // ROOT
                                     onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
-                                        updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                        updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y, true)
                                     }
                                 }
                             }
@@ -4069,7 +3967,6 @@ Item { // ROOT
                     anchors.fill: parent
                     enabled: root.allowDrops
                     onDropped: function(drop) {
-                        console.log("[drop]", (root.debugName || "FB") + ".backdrop")
                         var payload = root.dropPayloadText(drop)
                         if (!payload) return
                         root.clipboardDropRequested(payload)
@@ -4160,7 +4057,6 @@ Item { // ROOT
                                 }
                                 allowDrops: browserRoot.allowDrops
                                 onDrop: function(payload) {
-                                    console.log("[drop] FolderItem -> cwdMain")
                                     if (!payload) return
                                     browserRoot.emitMoveEntryIntent(payload, fullPath)
                                 }
@@ -4297,13 +4193,12 @@ Item { // ROOT
                                     }
                                     allowDrops: browserRoot.allowDrops
                                     onDrop: function(payload) {
-                                        console.log("[drop] FolderItem -> cascade")
                                         if (!payload) return
                                         browserRoot.emitMoveEntryIntent(payload, fullPath)
                                     }
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
-                                        root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                        root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y, true)
                                     }
                                     HoverHandler {
                                         acceptedDevices: PointerDevice.Mouse
@@ -4414,13 +4309,12 @@ Item { // ROOT
                                 }
                                 allowDrops: browserRoot.allowDrops
                                 onDrop: function(payload) {
-                                    console.log("[drop] FolderItem -> child")
                                     if (!payload) return
                                     browserRoot.emitMoveEntryIntent(payload, fullPath)
                                 }
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
-                                    root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                    root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y, true)
                                 }
                                 MouseArea {
                                     anchors.fill: parent
@@ -4543,13 +4437,12 @@ Item { // ROOT
                                 }
                                 allowDrops: browserRoot.allowDrops
                                 onDrop: function(payload) {
-                                    console.log("[drop] FolderItem -> grandchild")
                                     if (!payload) return
                                     browserRoot.emitMoveEntryIntent(payload, fullPath)
                                 }
                                 onHoverEntered: {
                                     var centerPoint = mapToItem(root, width / 2, height / 2)
-                                    root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y)
+                                    root.updatePreviewFromHover(0, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y, true)
                                 }
                             }
                         }
