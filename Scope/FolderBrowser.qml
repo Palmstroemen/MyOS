@@ -56,6 +56,7 @@ Item { // ROOT
     property int verticalParentSpacing: 6
     property int indent: 0
     property string iconFolder: ""
+    property string iconFolderOff: ""
     property string iconSearch: ""
     property var projectIconFunction: null
     property var hostBackend: null
@@ -359,7 +360,15 @@ Item { // ROOT
             var normalized = String(custom || "").trim()
             if (normalized.length > 0) return normalized
         }
-        return iconFolder
+        return isCurrent ? iconFolder : (iconFolderOff || "image://theme/folder")
+    }
+    function iconSourceHoverForPath(fullPath, item) {
+        var fn = projectIconFunction || (hostBackend && hostHasBackend ? _defaultProjectIcon : null)
+        if (fn) {
+            var custom = fn(String(fullPath || ""), false, item)
+            if (String(custom || "").trim().length > 0) return ""
+        }
+        return iconFolder || "image://theme/folder-open"
     }
 
     function pathForSegmentIndex(idx) {
@@ -2674,6 +2683,7 @@ Item { // ROOT
                             iconLarge: root.iconSizeLarge
                             textYOffset: root.buttonTextYOffset
                             iconSource: root.iconFolder
+                            iconSourceHover: root.iconFolder
                             fillColor: root.smallButtonActiveBg
                             strokeColor: root.smallButtonActiveBorder
                             textColor: root.accentPrimaryText
@@ -2702,6 +2712,7 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconSourceForPath(fullPathForSegment, isCurrent, null)
+                                iconSourceHover: iconSourceHoverForPath(fullPathForSegment, null)
                                 property var customColors: root._effectivePathColor(fullPathForSegment, isCurrent)
                                 fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
                                 strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
@@ -2846,6 +2857,9 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconSourceForPath(fullPath, false, modelData)
+                                iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
+                                batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: textSoft
@@ -2890,7 +2904,8 @@ Item { // ROOT
                             iconSmall: iconSizeSmall
                             iconLarge: iconSizeLarge
                             textYOffset: buttonTextYOffset
-                            iconSource: iconFolder
+                            iconSource: iconFolderOff || "image://theme/folder"
+                            iconSourceHover: iconFolder || "image://theme/folder-open"
                             fillColor: folderButtonFill
                             strokeColor: folderButtonBorder
                             textColor: textSoft
@@ -3050,6 +3065,7 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconSourceForPath(fullPathForSegment, false, null)
+                                iconSourceHover: iconSourceHoverForPath(fullPathForSegment, null)
                                 textLeftInset: effectiveStyle() === "text" ? 8 : 0
                                 // fillColor: segmentColors.fill
                                 // strokeColor: segmentColors.stroke
@@ -3109,6 +3125,7 @@ Item { // ROOT
                         iconLarge: iconSizeLarge
                         textYOffset: buttonTextYOffset
                         iconSource: iconSourceForPath(currentFullPath, true, null)
+                        iconSourceHover: iconSourceHoverForPath(currentFullPath, null)
                         textLeftInset: effectiveStyle() === "text" ? 8 : 0
                         // fillColor: currentPathColors.fill
                         // Eingesetzt
@@ -3238,6 +3255,9 @@ Item { // ROOT
                                     iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
                                     iconSource: iconSourceForPath(fullPath, false, modelData)
+                                    iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
+                                    batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                    batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                     fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                     textColor: textSoft
@@ -3660,6 +3680,9 @@ Item { // ROOT
                                                     iconLarge: iconSizeLarge
                                                     textYOffset: buttonTextYOffset
                                                     iconSource: iconSourceForPath(fullPath, false, modelData)
+                                                    iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
+                                                    batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                                    batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                                     fillColor: folderFillColorForPath(modelData, previewLevel, fullPath)
                                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel, fullPath)
                                                     textColor: textSoft
@@ -3738,6 +3761,9 @@ Item { // ROOT
                                 iconLarge: iconSizeLarge
                                 textYOffset: buttonTextYOffset
                                 iconSource: iconSourceForPath(fullPath, false, modelData)
+                                iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
+                                batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: textSoft
@@ -3782,7 +3808,8 @@ Item { // ROOT
                             iconSmall: iconSizeSmall
                             iconLarge: iconSizeLarge
                             textYOffset: buttonTextYOffset
-                            iconSource: iconFolder
+                            iconSource: iconFolderOff || "image://theme/folder"
+                            iconSourceHover: iconFolder || "image://theme/folder-open"
                             fillColor: folderButtonFill
                             strokeColor: folderButtonBorder
                             textColor: textSoft
@@ -3917,6 +3944,9 @@ Item { // ROOT
                                     iconLarge: iconSizeLarge
                                     textYOffset: buttonTextYOffset
                                     iconSource: iconSourceForPath(fullPath, false, modelData)
+                                    iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
+                                    batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                    batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                     fillColor: folderFillColorForPath(modelData, previewLevel + 1, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel + 1, fullPath)
                                     textColor: textSoft
@@ -4016,6 +4046,9 @@ Item { // ROOT
                                 iconLarge: root.iconSizeLarge
                                 textYOffset: root.buttonTextYOffset
                                 iconSource: root.iconSourceForPath(fullPath, false, modelData)
+                                iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
+                                batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 textLeftInset: root.effectiveStyle() === "text" ? 8 : 0
                                 fillColor: customColors ? (root._toColorString(customColors.fill) || root.pathButtonFill) : root.pathButtonFill
                                 strokeColor: customColors ? (root._toColorString(customColors.stroke) || root.pathButtonBorder) : root.pathButtonBorder
@@ -4150,6 +4183,9 @@ Item { // ROOT
                                     iconLarge: root.iconSizeLarge
                                     textYOffset: root.buttonTextYOffset
                                     iconSource: root.iconSourceForPath(fullPath, false, modelData)
+                                    iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
+                                    batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                    batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                     fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                     textColor: root.textSoft
@@ -4266,6 +4302,9 @@ Item { // ROOT
                                 iconLarge: root.iconSizeLarge
                                 textYOffset: root.buttonTextYOffset
                                 iconSource: root.iconSourceForPath(fullPath, false, modelData)
+                                iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
+                                batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: root.textSoft
@@ -4394,6 +4433,9 @@ Item { // ROOT
                                 iconLarge: root.iconSizeLarge
                                 textYOffset: root.buttonTextYOffset
                                 iconSource: root.iconSourceForPath(fullPath, false, modelData)
+                                iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
+                                batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: root.textSoft

@@ -15,3 +15,8 @@ var TAG_CHIP_IDLE_BORDER_ALPHA = 0.70
 
 var TAG_FILTER_IDLE_BG_ALPHA = 0.65
 
+// Batch overlay on folder icons (relative to icon height)
+var BATCH_HEIGHT_FRAC = 4 / 11
+var BATCH_BOTTOM_MARGIN_DEFAULT = 2 / 11
+var BATCH_BOTTOM_MARGIN_HOVER = 1.7 / 11
+

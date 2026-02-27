@@ -41,9 +41,6 @@ except Exception:  # pragma: no cover - optional for non-MyOS paths
     Blueprint = None
     notify_project_config_changed = None
 
-# Debug-Ausgaben (z. B. list_templates): MYOS_MD_DEBUG=1 oder true/yes
-_DEBUG = (os.environ.get("MYOS_MD_DEBUG", "") or "").strip().lower() in ("1", "true", "yes")
-
 
 def find_project_root(start_path: Path) -> Optional[Path]:
     start_path = start_path.resolve()
@@ -493,16 +490,23 @@ class ScopeApi:
         entries = list_virtual_dir(ctx=ctx, cpd=listing_cpd)
         out: List[Dict[str, Any]] = []
         for item in entries:
-            out.append(
-                {
-                    "name": str(item.get("name") or ""),
-                    "cpd": str(item.get("cpd") or ""),
-                    "nodeType": str(item.get("nodeType") or ""),
-                    "realPath": str(item.get("realPath") or ""),
-                    "isVirtual": bool(item.get("isVirtual")),
-                    "fallbackApplied": bool(item.get("fallbackApplied")),
-                }
-            )
+            row: Dict[str, Any] = {
+                "name": str(item.get("name") or ""),
+                "cpd": str(item.get("cpd") or ""),
+                "nodeType": str(item.get("nodeType") or ""),
+                "realPath": str(item.get("realPath") or ""),
+                "isVirtual": bool(item.get("isVirtual")),
+                "fallbackApplied": bool(item.get("fallbackApplied")),
+            }
+            if str(item.get("nodeType") or "") == "dir":
+                real_path = str(item.get("realPath") or "")
+                if real_path:
+                    batch_info = self._get_folder_batch(Path(real_path))
+                    if batch_info["batch"]:
+                        row["batch"] = batch_info["batch"]
+                    if batch_info["batchText"]:
+                        row["batchText"] = batch_info["batchText"]
+            out.append(row)
         return out
 
     def perspective_list_templates(self, cpd: str = "") -> List[Dict[str, Any]]:
@@ -1111,15 +1115,19 @@ class ScopeApi:
                 if child.is_dir():
                     stack.append(child)
                     sidecar = self._read_folder_sidecar(child)
-                    entries.append(
-                        self._build_file_entry(
-                            name=child.name,
-                            is_dir=True,
-                            path=str(child),
-                            tags=sidecar["tags"],
-                            folder_size_bytes=None,
-                        )
+                    entry = self._build_file_entry(
+                        name=child.name,
+                        is_dir=True,
+                        path=str(child),
+                        tags=sidecar["tags"],
+                        folder_size_bytes=None,
                     )
+                    batch_info = self._get_folder_batch(child)
+                    if batch_info["batch"]:
+                        entry["batch"] = batch_info["batch"]
+                    if batch_info["batchText"]:
+                        entry["batchText"] = batch_info["batchText"]
+                    entries.append(entry)
                 else:
                     entries.append(
                         self._build_file_entry(
@@ -1399,9 +1407,11 @@ class ScopeApi:
                         acl_child = self._acl_probe("read_dir", child)
                         if acl_child and acl_child.enforced and not acl_child.allowed:
                             continue
+                        rel_child = child.name if rel == "" else f"{rel}/{child.name}"
+                        if self._is_template_path(context_blueprint, rel_child):
+                            continue
                         is_project = self.is_project(str(child))
                         project_color = self._resolve_effective_project_color(child) if is_project else None
-                        rel_child = child.name if rel == "" else f"{rel}/{child.name}"
                         folder_type = self._classify_folder_type(
                             context_blueprint=context_blueprint,
                             rel_path=rel_child,
@@ -1414,6 +1424,7 @@ class ScopeApi:
                                 is_embryo=False,
                                 folder_type=folder_type,
                                 color=project_color,
+                                folder_path=child,
                             )
                         )
             except Exception:
@@ -1428,6 +1439,7 @@ class ScopeApi:
                     if acl_embryo and acl_embryo.enforced and not acl_embryo.allowed:
                         continue
                     embryo_color = self._resolve_template_color_for_context(context_blueprint, rel, name)
+                    embryo_rel = f"{rel}/{name}" if rel else name
                     entries.append(
                         self._build_folder_entry(
                             name=name,
@@ -1435,6 +1447,9 @@ class ScopeApi:
                             is_embryo=True,
                             folder_type=self.FOLDER_TYPE_EMBRYO,
                             color=(embryo_color or parent_color),
+                            folder_path=embryo_path,
+                            context_blueprint=context_blueprint,
+                            embryo_rel_path=embryo_rel,
                         )
                     )
             entries.sort(key=lambda item: item["name"])
@@ -1442,7 +1457,6 @@ class ScopeApi:
         return entries
 
     def list_templates(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
-        debug = _DEBUG
         try:
             target = self._resolve_path(path)
         except Exception:
@@ -1461,37 +1475,45 @@ class ScopeApi:
         if not include_embryos:
             return []
         if not context_blueprint or not context_root or not is_within(target, context_root):
-            if debug:
-                print(
-                    f"[scope_api] list_templates: blueprint={bool(context_blueprint)} "
-                    f"project_root={context_root} target={target} -> []"
-                )
             return []
         rel = "" if target == context_root else str(target.relative_to(context_root))
         try:
             parent_color = self._resolve_project_color_with_root(target, context_root)
-            embryos = sorted(context_blueprint.get_embryos_at(rel))
+            get_template_folders = getattr(
+                context_blueprint, "get_template_folders_at", None
+            )
+            if callable(get_template_folders):
+                template_folders = sorted(
+                    get_template_folders(rel), key=lambda x: x[0]
+                )
+            else:
+                embryos = sorted(context_blueprint.get_embryos_at(rel))
+                template_folders = [(name, True) for name in embryos]
             result = []
-            for name in embryos:
-                embryo_color = self._resolve_template_color_for_context(context_blueprint, rel, name)
+            for name, is_embryo in template_folders:
+                embryo_color = self._resolve_template_color_for_context(
+                    context_blueprint, rel, name
+                )
+                folder_path = target / name
+                template_rel = f"{rel}/{name}" if rel else name
                 result.append(
                     self._build_folder_entry(
                         name=name,
                         is_project=False,
-                        is_embryo=True,
-                        folder_type=self.FOLDER_TYPE_EMBRYO,
+                        is_embryo=is_embryo,
+                        folder_type=(
+                            self.FOLDER_TYPE_EMBRYO
+                            if is_embryo
+                            else self.FOLDER_TYPE_BORN
+                        ),
                         color=(embryo_color or parent_color),
+                        folder_path=folder_path,
+                        context_blueprint=context_blueprint,
+                        embryo_rel_path=template_rel if is_embryo else None,
                     )
-                )
-            if debug:
-                print(
-                    f"[scope_api] list_templates: rel='{rel}' templates={context_blueprint.template_names} "
-                    f"result={[item['name'] for item in result]}"
                 )
             return result
         except Exception:
-            if debug:
-                print(f"[scope_api] list_templates: error for rel='{rel}'")
             return []
 
     def list_entries_quick(self, path: str) -> List[FileEntryWithOptionalEmbryo]:
@@ -1508,15 +1530,20 @@ class ScopeApi:
                 if child.name.startswith("."):
                     continue
                 is_dir = child.is_dir()
-                entries.append(
-                    self._build_file_entry(
-                        name=child.name,
-                        is_dir=is_dir,
-                        path=str(child),
-                        tags=[],
-                        folder_size_bytes=None,
-                    )
+                entry = self._build_file_entry(
+                    name=child.name,
+                    is_dir=is_dir,
+                    path=str(child),
+                    tags=[],
+                    folder_size_bytes=None,
                 )
+                if is_dir:
+                    batch_info = self._get_folder_batch(child)
+                    if batch_info["batch"]:
+                        entry["batch"] = batch_info["batch"]
+                    if batch_info["batchText"]:
+                        entry["batchText"] = batch_info["batchText"]
+                entries.append(entry)
         except Exception:
             return []
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
@@ -1554,6 +1581,12 @@ class ScopeApi:
                     tags=entry_tags,
                     folder_size_bytes=folder_size_bytes,
                 )
+                if is_dir:
+                    batch_info = self._get_folder_batch(child)
+                    if batch_info["batch"]:
+                        entry["batch"] = batch_info["batch"]
+                    if batch_info["batchText"]:
+                        entry["batchText"] = batch_info["batchText"]
                 entries.append(entry)
         except Exception:
             return []
@@ -1567,15 +1600,23 @@ class ScopeApi:
                     acl_embryo = self._acl_probe("read_dir", embryo_path)
                     if acl_embryo and acl_embryo.enforced and not acl_embryo.allowed:
                         continue
-                    entries.append(
-                        self._build_file_entry(
-                            name=name,
-                            is_dir=True,
-                            path=str(target / name),
-                            tags=[],
-                            is_embryo=True,
-                        )
+                    embryo_path = target / name
+                    entry = self._build_file_entry(
+                        name=name,
+                        is_dir=True,
+                        path=str(embryo_path),
+                        tags=[],
+                        is_embryo=True,
                     )
+                    batch_info = self._get_folder_batch(embryo_path)
+                    if (not batch_info["batch"] and not batch_info["batchText"]) and self.blueprint:
+                        embryo_rel = f"{rel}/{name}" if rel else name
+                        batch_info = self._get_folder_batch_for_embryo(self.blueprint, embryo_rel)
+                    if batch_info["batch"]:
+                        entry["batch"] = batch_info["batch"]
+                    if batch_info["batchText"]:
+                        entry["batchText"] = batch_info["batchText"]
+                    entries.append(entry)
         # File-browser style order: folders first, then files, both alphabetic.
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
         self._update_project_folder_size_index(folder_size_updates)
@@ -2166,6 +2207,50 @@ class ScopeApi:
         except OSError:
             pass
 
+    def _get_folder_batch(self, folder_path: Path) -> Dict[str, Optional[str]]:
+        """Return batch image URL or batchText from .MyOS/batch.* (batch1.svg etc. ignored)."""
+        myos = folder_path / ".MyOS"
+        if not myos.is_dir():
+            return {"batch": None, "batchText": None}
+        for ext in (".svg", ".png", ".webp"):
+            batch_file = myos / f"batch{ext}"
+            if batch_file.is_file():
+                return {"batch": batch_file.as_uri(), "batchText": None}
+        batch_md = myos / "batch.md"
+        if batch_md.is_file():
+            try:
+                text = batch_md.read_text(encoding="utf-8", errors="replace")
+                _, body = _split_frontmatter(text)
+                stem, ext = batch_md.stem, batch_md.suffix
+                filename_heading = (stem + ext).lower()
+                stem_lower = stem.lower()
+                for line in body.splitlines():
+                    cleaned = line.strip().lstrip("#").strip()
+                    if not cleaned:
+                        continue
+                    if cleaned.lower() in (stem_lower, filename_heading):
+                        continue
+                    return {"batch": None, "batchText": cleaned[:3]}
+            except Exception:
+                pass
+        return {"batch": None, "batchText": None}
+
+    def _get_folder_batch_for_embryo(
+        self, blueprint: Any, rel_path: str
+    ) -> Dict[str, Optional[str]]:
+        """Return batch from template source for virtual embryos."""
+        birth_clinic = getattr(blueprint, "birth_clinic", None)
+        if birth_clinic is None:
+            return {"batch": None, "batchText": None}
+        find_source = getattr(birth_clinic, "find_template_source", None)
+        if not callable(find_source):
+            return {"batch": None, "batchText": None}
+        try:
+            template_source = find_source(rel_path)
+            return self._get_folder_batch(template_source)
+        except (ValueError, Exception):
+            return {"batch": None, "batchText": None}
+
     def _build_folder_entry(
         self,
         *,
@@ -2174,15 +2259,30 @@ class ScopeApi:
         is_embryo: bool,
         folder_type: int,
         color: Optional[str],
+        folder_path: Optional[Path] = None,
+        context_blueprint: Optional[Any] = None,
+        embryo_rel_path: Optional[str] = None,
     ) -> FolderEntry:
         """Build a folder-like API entry with stable role keys for QML."""
-        return {
+        entry: Dict[str, Any] = {
             "name": str(name),
             "isProject": bool(is_project),
             "isEmbryo": bool(is_embryo),
             "folderType": int(folder_type),
             "color": str(color) if color else None,
         }
+        batch_info: Dict[str, Optional[str]] = {"batch": None, "batchText": None}
+        if folder_path:
+            batch_info = self._get_folder_batch(folder_path)
+        if (not batch_info["batch"] and not batch_info["batchText"]) and is_embryo and context_blueprint and embryo_rel_path:
+            embryo_batch = self._get_folder_batch_for_embryo(context_blueprint, embryo_rel_path)
+            if embryo_batch["batch"] or embryo_batch["batchText"]:
+                batch_info = embryo_batch
+        if batch_info["batch"]:
+            entry["batch"] = batch_info["batch"]
+        if batch_info["batchText"]:
+            entry["batchText"] = batch_info["batchText"]
+        return entry
 
     def _classify_folder_type(
         self,

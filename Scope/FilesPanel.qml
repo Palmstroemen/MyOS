@@ -854,6 +854,11 @@ Rectangle { // Files panel
                 iconSmall: root.iconSizeSmall
                 iconLarge: root.iconSizeLarge
                 iconSource: "image://theme/" + (model.iconName ? model.iconName : (model.isDir ? "folder" : "text-x-generic"))
+                iconSourceHover: model.isDir
+                    ? (root.iconFolder || "image://theme/folder-open")
+                    : ("image://theme/" + (model.iconName ? model.iconName : "text-x-generic") + "#active")
+                batchSource: model.isDir && model.batch ? model.batch : ""
+                batchText: model.isDir && model.batchText ? model.batchText : ""
                 thumbnailSource: model.thumb ? model.thumb : ""
                 fillColor: selected ? Qt.rgba(0.58, 0.60, 0.64, 0.34) : root.itemFillColor
                 strokeColor: selected ? Qt.rgba(0.74, 0.76, 0.80, 0.92) : root.itemBorderColor

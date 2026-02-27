@@ -12,7 +12,10 @@ Rectangle {
     property int iconLarge: 64
     property int largePadding: 3
     property string iconSource: ""
+    property string iconSourceHover: ""
     property string thumbnailSource: ""
+    property string batchSource: ""
+    property string batchText: ""
     property color fillColor: "#3b476b"
     property color strokeColor: "#58648a"
     // Nur bei bewusst halbtransparentem Fill (0 < a < 1) Icons mitschattieren; bei transparent (a=0) oder opak (a=1) Icons voll sichtbar
@@ -36,6 +39,7 @@ Rectangle {
     property bool tabHoverDropEnabled: false
     property int tabHoverDropPx: 7
     readonly property bool hoverActive: hitArea.containsMouse
+    property real batchBottomMargin: hoverActive ? TagChips.BATCH_BOTTOM_MARGIN_HOVER : TagChips.BATCH_BOTTOM_MARGIN_DEFAULT
     property bool tabPinned: false
     property real tabDropOffset: (tabHoverDropEnabled && (hoverActive || tabPinned)) ? tabHoverDropPx : 0
     property bool isCwdMainPanelItem: false
@@ -154,6 +158,12 @@ Rectangle {
             easing.type: Easing.OutCubic
         }
     }
+    Behavior on batchBottomMargin {
+        NumberAnimation {
+            duration: 120
+            easing.type: Easing.OutCubic
+        }
+    }
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
     border.color: strokeColor
@@ -262,15 +272,45 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 6
         visible: style === "smallIcon"
-        Image {
-            id: smallIconImage
-            source: thumbnailSource !== "" ? thumbnailSource : iconSource
+        Item {
             width: iconSmall
             height: iconSmall
-            opacity: root.iconOpacity
-            fillMode: Image.PreserveAspectFit
-            sourceSize.width: width
-            sourceSize.height: height
+            Image {
+                id: smallIconImage
+                anchors.fill: parent
+                source: thumbnailSource !== "" ? thumbnailSource : (hoverActive && iconSourceHover ? iconSourceHover : iconSource)
+                opacity: root.iconOpacity
+                fillMode: Image.PreserveAspectFit
+                sourceSize.width: width
+                sourceSize.height: height
+            }
+            Item {
+                visible: batchSource || batchText
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width
+                height: parent.height * TagChips.BATCH_HEIGHT_FRAC
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: parent.height * root.batchBottomMargin
+                Image {
+                    visible: batchSource
+                    anchors.centerIn: parent
+                    width: parent.height
+                    height: parent.height
+                    source: batchSource
+                    fillMode: Image.PreserveAspectFit
+                }
+                Text {
+                    visible: batchText && !batchSource
+                    anchors.centerIn: parent
+                    text: batchText
+                    color: "#000000"
+                    font.bold: true
+                    font.italic: true
+                    font.pixelSize: Math.max(8, parent.height * 0.85)
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
         }
         Text {
             id: smallIconLabel
@@ -292,18 +332,48 @@ Rectangle {
         width: parent.width
         spacing: 2
         visible: style === "largeIcon"
-        Image {
-            id: largeIconImage
-            source: thumbnailSource !== "" ? thumbnailSource : iconSource
+        Item {
             width: iconLarge
             height: iconLarge
-            opacity: root.iconOpacity
-            fillMode: Image.PreserveAspectFit
-            anchors.left: largeIconAlignLeft ? parent.left : undefined
-            anchors.leftMargin: largeIconAlignLeft ? 6 : 0
-            anchors.horizontalCenter: largeIconAlignLeft ? undefined : parent.horizontalCenter
-            sourceSize.width: width
-            sourceSize.height: height
+            Image {
+                id: largeIconImage
+                anchors.fill: parent
+                source: thumbnailSource !== "" ? thumbnailSource : (hoverActive && iconSourceHover ? iconSourceHover : iconSource)
+                opacity: root.iconOpacity
+                fillMode: Image.PreserveAspectFit
+                anchors.left: largeIconAlignLeft ? parent.left : undefined
+                anchors.leftMargin: largeIconAlignLeft ? 6 : 0
+                anchors.horizontalCenter: largeIconAlignLeft ? undefined : parent.horizontalCenter
+                sourceSize.width: width
+                sourceSize.height: height
+            }
+            Item {
+                visible: batchSource || batchText
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width
+                height: parent.height * TagChips.BATCH_HEIGHT_FRAC
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: parent.height * root.batchBottomMargin
+                Image {
+                    visible: batchSource
+                    anchors.centerIn: parent
+                    width: parent.height
+                    height: parent.height
+                    source: batchSource
+                    fillMode: Image.PreserveAspectFit
+                }
+                Text {
+                    visible: batchText && !batchSource
+                    anchors.centerIn: parent
+                    text: batchText
+                    color: "#000000"
+                    font.bold: true
+                    font.italic: true
+                    font.pixelSize: Math.max(8, parent.height * 0.85)
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
         }
         Text {
             id: largeIconLabel
