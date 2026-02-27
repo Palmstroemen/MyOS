@@ -3,6 +3,8 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import Qt.labs.folderlistmodel 2.15
 import "Theme/tag_chips.js" as TagChips
+import "js/PathUtils.js" as PathUtils
+import "./Dialogs" 1.0
 
 ApplicationWindow {
     id: window
@@ -102,6 +104,15 @@ ApplicationWindow {
 
     property color currentProjectTint: theme.folderCwpTint
     property string defaultProjectTint: ""
+
+    // --- Pfadkonzepte CWD / CWP / CTD (Begriffe: siehe Vision/GUI Filebrowser.md, Abschnitt Begriffe) ---
+    // CWD (Current Working Directory): Im Scope durch die Property cwp repräsentiert; der „Arbeitspfad“
+    //     ist hier das aktuelle Projektverzeichnis.
+    // CWP (Current Working Project): Im Code die Property cwp (Pfad zum aktuellen Projektordner, z. B. /Projekte/Haus/Dach).
+    // CTD (Current Target Directory): Zielordner für Datei-Operationen (z. B. Verschieben, Vorschau).
+    //     Properties: previewCTDPath (Vorschau beim Navigieren), committedCTDPath (bestätigter Zielpfad).
+    //     Funktionen: previewCTD(path), commitCTD(path). Welcher Pfad für die Dateiliste gilt: currentFilesPath()
+    //     (Fallback auf cwp, wenn kein CTD gesetzt).
 
     property string cwp: "/Projekte/Haus/Dach"
     property var subProjects: []
@@ -269,7 +280,7 @@ ApplicationWindow {
         showHidden: false
         showDotAndDotDot: false
         nameFilters: ["*"]
-        folder: toFileUrl(cwp)
+        folder: PathUtils.toFileUrl(cwp)
         onCountChanged: {
             if (hasBackend()) {
                 // Backend-driven mode already updates via onCwpChanged and explicit actions.
@@ -288,7 +299,7 @@ ApplicationWindow {
         showHidden: true
         showDotAndDotDot: false
         nameFilters: [myosDirName]
-        folder: toFileUrl(cwp)
+        folder: PathUtils.toFileUrl(cwp)
         onCountChanged: {
             if (!hasBackend()) {
                 hasMyosInCwp = fsHiddenModel.count > 0
@@ -297,8 +308,8 @@ ApplicationWindow {
     }
 
     function setCwp(path, reason) {
-        var nextPath = normalizeFsPath(path)
-        var currentPath = normalizeFsPath(cwp)
+        var nextPath = PathUtils.normalizeFsPath(path)
+        var currentPath = PathUtils.normalizeFsPath(cwp)
         if (nextPath.length === 0 || nextPath === currentPath) {
             return
         }
@@ -318,13 +329,13 @@ ApplicationWindow {
     }
 
     function commitCTD(path) {
-        var nextPath = normalizeFsPath(path)
+        var nextPath = PathUtils.normalizeFsPath(path)
         if (nextPath.length === 0) {
             return false
         }
         previewCTDPath = nextPath
         templatesCtdPath = nextPath
-        if (nextPath === normalizeFsPath(committedCTDPath)) {
+        if (nextPath === PathUtils.normalizeFsPath(committedCTDPath)) {
             return false
         }
         committedCTDPath = nextPath
@@ -336,6 +347,24 @@ ApplicationWindow {
         if (!commitCTD(path)) {
             updateFiles()
         }
+    }
+
+    /// Parent directory of path (for "cd .."). Returns "/" if path is root or single segment.
+    function parentOfPath(path) {
+        var p = String(path || "").trim()
+        if (p.length === 0) return "/"
+        var norm = p.endsWith("/") ? p.slice(0, -1) : p
+        var idx = norm.lastIndexOf("/")
+        if (idx <= 0) return "/"
+        return norm.slice(0, idx) || "/"
+    }
+
+    readonly property bool isInsideMyosFolder: {
+        var p = String(currentFilesPath() || "").trim()
+        if (p.length === 0) return false
+        var norm = p.endsWith("/") ? p.slice(0, -1) : p
+        var segment = "/" + myosDirName
+        return norm.endsWith(segment) || norm.indexOf(segment + "/") >= 0
     }
 
     function handlePreviewPath(browser, path) {
@@ -360,11 +389,6 @@ ApplicationWindow {
         return (item && item.name) ? item.name : item
     }
 
-    function toFileUrl(path) {
-        if (path.indexOf("file://") === 0) return path
-        return "file://" + path
-    }
-
     function normalizeProjectIconSource(rawIcon) {
         var value = String(rawIcon || "").trim()
         if (value.length === 0) {
@@ -374,7 +398,7 @@ ApplicationWindow {
             return value
         }
         if (value.indexOf("/") === 0) {
-            return toFileUrl(value)
+            return PathUtils.toFileUrl(value)
         }
         return "image://theme/" + value
     }
@@ -459,59 +483,19 @@ ApplicationWindow {
         return "/" + out.filter(function(p) { return p.length > 0 }).join("/")
     }
 
-    function trimTrailingSlash(path) {
-        var value = String(path || "")
-        if (value.length > 1 && value.endsWith("/")) {
-            return value.slice(0, -1)
-        }
-        return value
-    }
-
-    function fromFileUrl(path) {
-        var value = String(path || "").trim()
-        if (value.indexOf("file://") !== 0) {
-            return value
-        }
-        var raw = value.slice(7)
-        if (raw.indexOf("/") === 0) {
-            return raw
-        }
-        var slash = raw.indexOf("/")
-        if (slash >= 0) {
-            return raw.slice(slash)
-        }
-        return raw
-    }
-
-    function normalizeFsPath(path) {
-        var value = String(path || "").trim()
-        if (value.length === 0) {
-            return ""
-        }
-        if (value.indexOf("file://") === 0) {
-            var raw = fromFileUrl(value)
-            try {
-                value = decodeURIComponent(raw)
-            } catch (e) {
-                value = raw
-            }
-        }
-        return trimTrailingSlash(value)
-    }
-
     function resolveProjectRootPath() {
         if (hasBackend() && typeof backend.getProjectRoot === "function") {
             var root = String(backend.getProjectRoot() || "")
             if (root.length > 0) {
-                return trimTrailingSlash(root)
+                return PathUtils.trimTrailingSlash(root)
             }
         }
         var perspectiveRoot = String((perspectiveState && perspectiveState.projectRoot) ? perspectiveState.projectRoot : "")
-        return trimTrailingSlash(perspectiveRoot)
+        return PathUtils.trimTrailingSlash(perspectiveRoot)
     }
 
     function resolveTemplatesRootPathFromProjectRoot(projectRoot) {
-        var root = trimTrailingSlash(projectRoot)
+        var root = PathUtils.trimTrailingSlash(projectRoot)
         if (root.length === 0) return ""
         if (root.endsWith("/Projekte")) {
             return root.slice(0, root.length - "/Projekte".length) + "/Templates"
@@ -539,7 +523,7 @@ ApplicationWindow {
 
     function projectNameFromCwp() {
         var root = resolveProjectRootPath()
-        var prefix = root.length > 0 ? (trimTrailingSlash(root) + "/") : ""
+        var prefix = root.length > 0 ? (PathUtils.trimTrailingSlash(root) + "/") : ""
         if (prefix.length > 0 && String(cwp || "").indexOf(prefix) === 0) {
             var rel = String(cwp || "").slice(prefix.length)
             var first = rel.split("/").filter(function(p) { return p.length > 0 })[0]
@@ -552,8 +536,8 @@ ApplicationWindow {
     }
 
     function templatePartsFromTemplatesPath(path) {
-        var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
-        var target = trimTrailingSlash(path)
+        var root = PathUtils.trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
+        var target = PathUtils.trimTrailingSlash(path)
         if (root.length === 0 || target.length === 0) return []
         if (target === root) return []
         if (target.indexOf(root + "/") !== 0) return []
@@ -601,7 +585,7 @@ ApplicationWindow {
     }
 
     function templatesDisplayPathFromPerspectiveCpd(cpd) {
-        var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
+        var root = PathUtils.trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
         var parsed = parsePerspectiveCpd(cpd)
         if (!parsed.valid) {
             return root.length > 0 ? root : "/Templates"
@@ -621,7 +605,7 @@ ApplicationWindow {
         if (!(raw === "/Templates" || raw === "/Templates/" || raw.indexOf("/Templates/") === 0)) {
             return raw
         }
-        var root = trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
+        var root = PathUtils.trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
         if (root.length === 0) {
             return raw
         }
@@ -829,7 +813,7 @@ ApplicationWindow {
             return []
         }
         function normalizeDragPath(raw) {
-            return normalizeFsPath(raw)
+            return PathUtils.normalizeFsPath(raw)
         }
         function decodeUriList(textValue) {
             var lines = String(textValue || "").split(/\r?\n/)
@@ -892,15 +876,6 @@ ApplicationWindow {
             }
         }
         return false
-    }
-
-    function _basename(path) {
-        var text = String(path || "")
-        if (text.length === 0) {
-            return "(unknown)"
-        }
-        var parts = text.split("/")
-        return parts.length > 0 ? (parts[parts.length - 1] || text) : text
     }
 
     function _setDialogButtonText(dialogRef, which, text) {
@@ -993,7 +968,7 @@ ApplicationWindow {
                     lines.push(qsTr("Konnte nicht verschieben:"))
                     for (var e = 0; e < errors.length; e++) {
                         var err = errors[e]
-                        var errSource = _basename(err && err.source ? err.source : "")
+                        var errSource = PathUtils.basename(err && err.source ? err.source : "")
                         var errReason = err && err.reason ? err.reason : "error"
                         lines.push("- " + errSource + ": " + _moveReasonText(errReason))
                     }
@@ -1005,7 +980,7 @@ ApplicationWindow {
                     lines.push(qsTr("Uebersprungen:"))
                     for (var s = 0; s < skipped.length; s++) {
                         var skip = skipped[s]
-                        var skipSource = _basename(skip && skip.source ? skip.source : "")
+                        var skipSource = PathUtils.basename(skip && skip.source ? skip.source : "")
                         var skipReason = skip && skip.reason ? skip.reason : "skipped"
                         lines.push("- " + skipSource + ": " + _moveReasonText(skipReason))
                     }
@@ -1052,9 +1027,9 @@ ApplicationWindow {
         // Drop semantics: support both uncommitted and committed CTD targets.
         // Prefer the explicit drop target (can be uncommitted), then fall back
         // to committed CTD when no concrete drop target is available.
-        var resolvedTarget = normalizeFsPath(targetDir)
+        var resolvedTarget = PathUtils.normalizeFsPath(targetDir)
         if (resolvedTarget.length === 0) {
-            resolvedTarget = normalizeFsPath(committedCTDPath)
+            resolvedTarget = PathUtils.normalizeFsPath(committedCTDPath)
         }
         if (resolvedTarget.length === 0) {
             return
@@ -1136,38 +1111,38 @@ ApplicationWindow {
 
     /** Clipboard-Pfad für einen beliebigen Pfad (z. B. Quellordner). Verhindert, dass Drop auf Panel in „falsches“ Projekt-Clipboard geht. */
     function resolveClipboardPathForPath(anyPath) {
-        var norm = normalizeFsPath(anyPath)
+        var norm = PathUtils.normalizeFsPath(anyPath)
         if (norm.length === 0) return ""
         var marker = "/" + pathSegmentProjekte + "/"
         var idx = norm.indexOf(marker)
         if (idx >= 0) {
             return norm.slice(0, idx) + "/" + pathSegmentClipboard
         }
-        return trimTrailingSlash(norm) + "/" + pathSegmentClipboard
+        return PathUtils.trimTrailingSlash(norm) + "/" + pathSegmentClipboard
     }
 
     function resolveClipboardPath() {
-        var templatesRoot = trimTrailingSlash(resolveTemplatesRootPath())
+        var templatesRoot = PathUtils.trimTrailingSlash(resolveTemplatesRootPath())
         var templatesSuffix = "/" + pathSegmentTemplates
         if (templatesRoot.length > 0 && templatesRoot.indexOf(templatesSuffix) === (templatesRoot.length - templatesSuffix.length)) {
             return templatesRoot.slice(0, templatesRoot.length - templatesSuffix.length) + "/" + pathSegmentClipboard
         }
         var projectSuffix = "/" + pathSegmentProjekte
-        var projectRoot = trimTrailingSlash(resolveProjectRootPath())
+        var projectRoot = PathUtils.trimTrailingSlash(resolveProjectRootPath())
         if (projectRoot.length > 0 && projectRoot.indexOf(projectSuffix) === (projectRoot.length - projectSuffix.length)) {
             return projectRoot.slice(0, projectRoot.length - projectSuffix.length) + "/" + pathSegmentClipboard
         }
-        var cwdNorm = normalizeFsPath(cwp)
+        var cwdNorm = PathUtils.normalizeFsPath(cwp)
         var marker = "/" + pathSegmentProjekte + "/"
         var markerIndex = cwdNorm.indexOf(marker)
         if (markerIndex >= 0) {
             return cwdNorm.slice(0, markerIndex) + "/" + pathSegmentClipboard
         }
-        return trimTrailingSlash(cwdNorm) + "/" + pathSegmentClipboard
+        return PathUtils.trimTrailingSlash(cwdNorm) + "/" + pathSegmentClipboard
     }
 
     function ensureClipboardDirectory(targetPath) {
-        var target = normalizeFsPath(targetPath)
+        var target = PathUtils.normalizeFsPath(targetPath)
         if (target.length === 0 || !hasBackend()) {
             return false
         }
@@ -1809,7 +1784,7 @@ ApplicationWindow {
             backend.openMarkdown(resolved)
             return
         }
-        Qt.openUrlExternally(toFileUrl(resolved))
+        Qt.openUrlExternally(PathUtils.toFileUrl(resolved))
     }
 
     function openFileEntry(name) {
@@ -1963,7 +1938,7 @@ ApplicationWindow {
     }
 
     function updateTemplates() {
-        var root = trimTrailingSlash(resolveTemplatesRootPath())
+        var root = PathUtils.trimTrailingSlash(resolveTemplatesRootPath())
         templatesRootPath = root
         // APD follows CWD whenever perspective is inactive.
         standardPath = cwp
@@ -2535,730 +2510,27 @@ ApplicationWindow {
         }
     }
 
-    Dialog {
-        id: configPromptDialog
-        title: qsTr("Desktop-Aenderungen speichern")
-        modal: true
-        focus: true
-        standardButtons: Dialog.NoButton
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(520, Math.round(window.width * 0.36))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onClosed: {
-            pendingConfigPrompt = ({ pending: false, options: [] })
-            pendingConfigPromptContext = ""
-        }
-        contentItem: Column {
-            spacing: 12
-            padding: 14
-            Text {
-                text: qsTr("Desktop-Aenderungen fuer Kontext: ") + pendingConfigPromptContext
-                color: dialogTextStrong
-                wrapMode: Text.Wrap
-                font.pixelSize: baseFont
-            }
-            Text {
-                text: qsTr("Wohin soll die Konfiguration gespeichert werden?")
-                color: dialogTextMuted
-                wrapMode: Text.Wrap
-                font.pixelSize: baseFont
-            }
-            Repeater {
-                model: (pendingConfigPrompt && pendingConfigPrompt.options) ? pendingConfigPrompt.options : []
-                delegate: Button {
-                    width: 460
-                    text: String(modelData.label || modelData.id || "")
-                    onClicked: {
-                        if (hasBackend() && typeof backend.resolveConfigPrompt === "function") {
-                            backend.resolveConfigPrompt(String(modelData.id || "discard"))
-                        }
-                        configPromptDialog.close()
-                    }
-                }
-            }
-        }
-    }
+    ConfigPromptDialog { id: configPromptDialog; window: window }
 
-    Dialog {
-        id: folderMoveConfirmDialog
-        title: qsTr("Ordner-Verschieben bestaetigen")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(440, Math.round(window.width * 0.34))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(folderMoveConfirmDialog, Dialog.Ok, qsTr("Uebernehmen"))
-            _setDialogButtonText(folderMoveConfirmDialog, Dialog.Cancel, qsTr("Abbrechen"))
-        }
-        onAccepted: {
-            _performMove(pendingMoveSources, pendingMoveTargetDir)
-            pendingMoveSources = []
-            pendingMoveTargetDir = ""
-            pendingMoveMessage = ""
-        }
-        onRejected: {
-            pendingMoveSources = []
-            pendingMoveTargetDir = ""
-            pendingMoveMessage = ""
-        }
-        contentItem: Text {
-            text: pendingMoveMessage
-            wrapMode: Text.WordWrap
-            color: dialogTextStrong
-            font.pixelSize: baseFont
-        }
-    }
+    FolderMoveConfirmDialog { id: folderMoveConfirmDialog; window: window }
 
-    Dialog {
-        id: moveReportDialog
-        title: qsTr("Verschiebebericht")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(520, Math.round(window.width * 0.42))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: _setDialogButtonText(moveReportDialog, Dialog.Ok, qsTr("Schliessen"))
-        onAccepted: moveReportMessage = ""
-        onRejected: moveReportMessage = ""
-        contentItem: Text {
-            text: moveReportMessage
-            wrapMode: Text.WordWrap
-            color: dialogTextStrong
-            font.pixelSize: baseFont
-        }
-    }
+    MoveReportDialog { id: moveReportDialog; window: window }
 
-    Dialog {
-        id: pendingOpenWithDialog
-        title: qsTr("Oeffnen mit ...")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(460, Math.round(window.width * 0.34))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(pendingOpenWithDialog, Dialog.Ok, qsTr("Oeffnen"))
-            _setDialogButtonText(pendingOpenWithDialog, Dialog.Cancel, qsTr("Abbrechen"))
-            openWithCommandInput.forceActiveFocus()
-            openWithCommandInput.selectAll()
-        }
-        onAccepted: {
-            var ok = performOpenWith(pendingOpenWithPath, openWithCommandInput.text)
-            if (!ok) {
-                moveReportMessage = qsTr("Konnte Datei nicht mit dem gewaehlten Programm oeffnen.")
-                moveReportDialog.open()
-            }
-            pendingOpenWithPath = ""
-        }
-        onRejected: pendingOpenWithPath = ""
-        contentItem: Column {
-            spacing: 8
-            Text {
-                text: qsTr("Programmkommando fuer \"%1\":").arg(_basename(pendingOpenWithPath))
-                wrapMode: Text.WordWrap
-                color: dialogTextStrong
-                font.pixelSize: baseFont
-            }
-            TextField {
-                id: openWithCommandInput
-                text: pendingOpenWithCommand
-                placeholderText: qsTr("z.B. code, kate, libreoffice")
-                selectByMouse: true
-                color: dialogInputText
-                placeholderTextColor: dialogInputPlaceholder
-                topPadding: 10
-                bottomPadding: 10
-                leftPadding: 12
-                rightPadding: 12
-                background: Rectangle {
-                    radius: 12
-                    color: dialogInputBg
-                    border.color: dialogInputBorder
-                    border.width: 2
-                }
-                onTextChanged: pendingOpenWithCommand = text
-                Keys.onReturnPressed: pendingOpenWithDialog.accept()
-                Keys.onEnterPressed: pendingOpenWithDialog.accept()
-                Keys.onEscapePressed: pendingOpenWithDialog.reject()
-            }
-            Text {
-                text: qsTr("Schnellwahl:")
-                color: dialogTextMuted
-                font.pixelSize: Math.max(baseFont - 1, 11)
-                visible: openWithQuickCommands && openWithQuickCommands.length > 0
-            }
-            Flow {
-                width: parent.width
-                spacing: 6
-                visible: openWithQuickCommands && openWithQuickCommands.length > 0
-                Repeater {
-                    model: openWithQuickCommands
-                    delegate: Rectangle {
-                        required property var modelData
-                        radius: 8
-                        height: Math.max(28, Math.round(baseFont * 1.8))
-                        width: quickText.implicitWidth + 20
-                        color: dialogInputBg
-                        border.color: dialogInputBorder
-                        border.width: 1
-                        Text {
-                            id: quickText
-                            anchors.centerIn: parent
-                            text: String(modelData || "")
-                            color: dialogInputText
-                            font.pixelSize: Math.max(baseFont - 1, 11)
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                var value = String(modelData || "").trim()
-                                if (!value) {
-                                    return
-                                }
-                                openWithCommandInput.text = value
-                                openWithCommandInput.forceActiveFocus()
-                                openWithCommandInput.selectAll()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    OpenWithDialog { id: pendingOpenWithDialog; window: window }
 
-    Dialog {
-        id: filterSaveDialog
-        title: qsTr("Filter speichern")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(560, Math.round(window.width * 0.44))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: _setDialogButtonText(filterSaveDialog, Dialog.Cancel, qsTr("Abbrechen"))
-        contentItem: Column {
-            spacing: 10
-            Text {
-                text: qsTr("Sie haben eine Anpassung des Filters vorgenommen. Wo soll diese Anpassung gelten?")
-                wrapMode: Text.WordWrap
-                color: dialogTextStrong
-                font.pixelSize: baseFont
-            }
-            Repeater {
-                model: filterSaveTargets || []
-                delegate: Button {
-                    width: Math.max(420, filterSaveDialog.width - 60)
-                    text: String(modelData.label || modelData.id || "")
-                    onClicked: {
-                        var targetId = String(modelData.id || "")
-                        if (targetId === "new_named") {
-                            filterNameDialog.open()
-                            return
-                        }
-                        applyFilterSave(targetId)
-                        filterSaveDialog.close()
-                    }
-                }
-            }
-        }
-    }
+    FilterSaveDialog { id: filterSaveDialog; window: window }
 
-    Dialog {
-        id: filterNameDialog
-        title: qsTr("Neuer Filter")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(460, Math.round(window.width * 0.34))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(filterNameDialog, Dialog.Ok, qsTr("Uebernehmen"))
-            _setDialogButtonText(filterNameDialog, Dialog.Cancel, qsTr("Abbrechen"))
-            filterNameInput.forceActiveFocus()
-            filterNameInput.selectAll()
-        }
-        onAccepted: {
-            pendingFilterNewName = String(filterNameInput.text || "").trim()
-            applyFilterSave("new_named")
-            filterNameDialog.close()
-            filterSaveDialog.close()
-        }
-        contentItem: Column {
-            spacing: 8
-            Text {
-                text: qsTr("Name fuer den neuen Filter")
-                wrapMode: Text.WordWrap
-                color: dialogTextStrong
-                font.pixelSize: baseFont
-            }
-            TextField {
-                id: filterNameInput
-                text: pendingFilterNewName
-                placeholderText: qsTr("z.B. Eingangsrechnungen")
-                selectByMouse: true
-                color: dialogInputText
-                placeholderTextColor: dialogInputPlaceholder
-                topPadding: 10
-                bottomPadding: 10
-                leftPadding: 12
-                rightPadding: 12
-                background: Rectangle {
-                    radius: 10
-                    color: dialogInputBg
-                    border.color: dialogInputBorder
-                    border.width: 1
-                }
-            }
-        }
-    }
+    FilterNameDialog { id: filterNameDialog; window: window }
 
-    Dialog {
-        id: createFolderDialog
-        title: qsTr("Neuen Ordner erstellen")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(420, Math.round(window.width * 0.32))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(createFolderDialog, Dialog.Ok, qsTr("Erstellen"))
-            _setDialogButtonText(createFolderDialog, Dialog.Cancel, qsTr("Abbrechen"))
-            createFolderNameInput.forceActiveFocus()
-            createFolderNameInput.selectAll()
-        }
-        onAccepted: {
-            var folderName = String(createFolderNameInput.text || "").trim()
-            var targetPath = String(pendingCreateFolderTargetPath || "").trim()
-            if (!folderName || !targetPath) {
-                pendingCreateFolderName = qsTr("Neuer Ordner")
-                pendingCreateFolderTargetPath = ""
-                return
-            }
-            if (!hasBackend() || typeof backend.createFolder !== "function") {
-                pendingCreateFolderName = qsTr("Neuer Ordner")
-                pendingCreateFolderTargetPath = ""
-                return
-            }
-            var createdPath = backend.createFolder(targetPath, folderName)
-            if (!createdPath || createdPath.length === 0) {
-                moveReportMessage = qsTr("Konnte Ordner \"%1\" nicht erstellen.").arg(folderName)
-                moveReportDialog.open()
-                pendingCreateFolderName = qsTr("Neuer Ordner")
-                pendingCreateFolderTargetPath = ""
-                return
-            }
-            updateSubProjects()
-            updateTemplates()
-            standardFolders = listTemplates(templatesListingPath())
-            updateStandardFolders()
-            updateFiles()
-            pendingCreateFolderName = qsTr("Neuer Ordner")
-            pendingCreateFolderTargetPath = ""
-        }
-        onRejected: {
-            pendingCreateFolderName = qsTr("Neuer Ordner")
-            pendingCreateFolderTargetPath = ""
-        }
-        contentItem: Column {
-            spacing: 10
-            Text {
-                text: qsTr("Zielordner: %1").arg(String(pendingCreateFolderTargetPath || ""))
-                wrapMode: Text.WordWrap
-                color: dialogTextStrong
-                font.pixelSize: baseFont
-            }
-            TextField {
-                id: createFolderNameInput
-                text: pendingCreateFolderName
-                placeholderText: qsTr("Neuer Ordnername")
-                selectByMouse: true
-                color: dialogInputText
-                placeholderTextColor: dialogInputPlaceholder
-                topPadding: 10
-                bottomPadding: 10
-                leftPadding: 12
-                rightPadding: 12
-                background: Rectangle {
-                    radius: 12
-                    color: dialogInputBg
-                    border.color: dialogInputBorder
-                    border.width: 2
-                }
-            }
-        }
-    }
+    CreateFolderDialog { id: createFolderDialog; window: window }
 
-    Dialog {
-        id: moveSelectedFoldersDialog
-        title: qsTr("In neuen Ordner verschieben")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(460, Math.round(window.width * 0.35))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(moveSelectedFoldersDialog, Dialog.Ok, qsTr("Uebernehmen"))
-            _setDialogButtonText(moveSelectedFoldersDialog, Dialog.Cancel, qsTr("Abbrechen"))
-            folderBatchNameInput.forceActiveFocus()
-            folderBatchNameInput.selectAll()
-        }
-        onAccepted: {
-            var folderName = String(folderBatchNameInput.text || "").trim()
-            if (!folderName) {
-                pendingFolderBatchSources = []
-                pendingFolderBatchName = qsTr("Neuer Ordner")
-                return
-            }
-            if (!hasBackend() || typeof backend.createFolder !== "function") {
-                pendingFolderBatchSources = []
-                pendingFolderBatchName = qsTr("Neuer Ordner")
-                return
-            }
-            var targetPath = backend.createFolder(cwp, folderName)
-            if (!targetPath || targetPath.length === 0) {
-                moveReportMessage = qsTr("Konnte Zielordner \"%1\" nicht erstellen.").arg(folderName)
-                moveReportDialog.open()
-                pendingFolderBatchSources = []
-                pendingFolderBatchName = qsTr("Neuer Ordner")
-                return
-            }
-            _performMove(pendingFolderBatchSources, targetPath)
-            pendingFolderBatchSources = []
-            pendingFolderBatchName = qsTr("Neuer Ordner")
-        }
-        onRejected: {
-            pendingFolderBatchSources = []
-            pendingFolderBatchName = qsTr("Neuer Ordner")
-        }
-        contentItem: Column {
-            spacing: 10
-            Text {
-                text: qsTr("Erstellt einen Ordner und verschiebt die ausgewaehlten Eintraege hinein.")
-                wrapMode: Text.WordWrap
-                color: dialogTextStrong
-                font.pixelSize: baseFont
-            }
-            TextField {
-                id: folderBatchNameInput
-                text: pendingFolderBatchName
-                placeholderText: qsTr("Neuer Ordnername")
-                selectByMouse: true
-                color: dialogInputText
-                placeholderTextColor: dialogInputPlaceholder
-                topPadding: 10
-                bottomPadding: 10
-                leftPadding: 12
-                rightPadding: 12
-                background: Rectangle {
-                    radius: 12
-                    color: dialogInputBg
-                    border.color: dialogInputBorder
-                    border.width: 2
-                }
-            }
-        }
-    }
+    MoveSelectedFoldersDialog { id: moveSelectedFoldersDialog; window: window }
 
-    Dialog {
-        id: renameEntryDialog
-        title: qsTr("Datei umbenennen")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(420, Math.round(window.width * 0.30))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(renameEntryDialog, Dialog.Cancel, qsTr("Abbrechen"))
-            renameEntryInput.forceActiveFocus()
-            renameEntryInput.selectAll()
-        }
-        onAccepted: {
-            var nextName = String(renameEntryInput.text || "").trim()
-            if (!nextName) {
-                pendingRenamePath = ""
-                pendingRenameName = ""
-                return
-            }
-            var renamed = backend.renameEntry(pendingRenamePath, nextName)
-            if (!renamed || renamed.length === 0) {
-                moveReportMessage = qsTr("Konnte \"%1\" nicht umbenennen.").arg(_basename(pendingRenamePath))
-                moveReportDialog.open()
-                pendingRenamePath = ""
-                pendingRenameName = ""
-                return
-            }
-            selectedEntryPaths = [renamed]
-            updateFiles()
-            pendingRenamePath = ""
-            pendingRenameName = ""
-        }
-        onRejected: {
-            pendingRenamePath = ""
-            pendingRenameName = ""
-        }
-        contentItem: Column {
-            spacing: 8
-            Text {
-                text: qsTr("Neuen Dateinamen eingeben und mit Return uebernehmen.")
-                wrapMode: Text.WordWrap
-                color: dialogTextStrong
-                font.pixelSize: baseFont
-            }
-            TextField {
-                id: renameEntryInput
-                text: pendingRenameName
-                placeholderText: qsTr("Neuer Name")
-                selectByMouse: true
-                color: dialogInputText
-                placeholderTextColor: dialogInputPlaceholder
-                topPadding: 10
-                bottomPadding: 10
-                leftPadding: 12
-                rightPadding: 12
-                background: Rectangle {
-                    radius: 12
-                    color: dialogInputBg
-                    border.color: dialogInputBorder
-                    border.width: 2
-                }
-                Keys.onReturnPressed: renameEntryDialog.accept()
-                Keys.onEnterPressed: renameEntryDialog.accept()
-                Keys.onEscapePressed: renameEntryDialog.reject()
-            }
-        }
-    }
+    RenameEntryDialog { id: renameEntryDialog; window: window }
 
-    Dialog {
-        id: batchRenameDialog
-        title: qsTr("Dateien gesammelt umbenennen")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(480, Math.round(window.width * 0.36))
-        contentWidth: Math.max(160, width - 36)
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(batchRenameDialog, Dialog.Ok, qsTr("Uebernehmen"))
-            _setDialogButtonText(batchRenameDialog, Dialog.Cancel, qsTr("Abbrechen"))
-            batchRenameToInput.forceActiveFocus()
-            batchRenameToInput.selectAll()
-        }
-        onAccepted: {
-            var fromText = String(pendingBatchReplaceFrom || "")
-            var toText = String(batchRenameToInput.text || "")
-            if (fromText.length === 0) {
-                moveReportMessage = qsTr("Kein gemeinsamer Suchtext gefunden.")
-                moveReportDialog.open()
-                pendingBatchRenamePaths = []
-                pendingBatchReplaceFrom = ""
-                pendingBatchReplaceTo = ""
-                return
-            }
-            if (!hasBackend() || typeof backend.renameEntriesBatch !== "function") {
-                moveReportMessage = qsTr("Sammelumbenennung ist in diesem Modus nicht verfuegbar.")
-                moveReportDialog.open()
-                pendingBatchRenamePaths = []
-                pendingBatchReplaceFrom = ""
-                pendingBatchReplaceTo = ""
-                return
-            }
-            var report = backend.renameEntriesBatch(pendingBatchRenamePaths, fromText, toText) || {}
-            var renamedPaths = (report.renamed && report.renamed.length) ? report.renamed : []
-            var unchangedCount = Number(report.unchanged || 0)
-            var failedCount = Number(report.failed || 0)
-            pendingBatchRenamePaths = []
-            pendingBatchReplaceFrom = ""
-            pendingBatchReplaceTo = ""
-            selectedEntryPaths = renamedPaths
-            updateFiles()
-            moveReportMessage = qsTr("Umbenannt: %1\nUnveraendert: %2\nFehlgeschlagen: %3")
-                .arg(renamedPaths.length)
-                .arg(unchangedCount)
-                .arg(failedCount)
-            moveReportDialog.open()
-        }
-        onRejected: {
-            pendingBatchRenamePaths = []
-            pendingBatchReplaceFrom = ""
-            pendingBatchReplaceTo = ""
-        }
-        contentItem: Column {
-            width: batchRenameDialog.contentWidth
-            spacing: 12
-            Text {
-                width: parent.width
-                text: qsTr("\"%1\" umbenennen auf").arg(pendingBatchReplaceFrom)
-                wrapMode: Text.WordWrap
-                color: dialogTextStrong
-                font.pixelSize: Math.max(baseFont + 1, 14)
-                font.bold: true
-            }
-            TextField {
-                id: batchRenameToInput
-                width: parent.width
-                text: pendingBatchReplaceTo
-                placeholderText: pendingBatchReplaceFrom.length > 0
-                    ? pendingBatchReplaceFrom
-                    : qsTr("Neuer Text")
-                selectByMouse: true
-                color: dialogInputText
-                placeholderTextColor: dialogInputPlaceholder
-                topPadding: 10
-                bottomPadding: 10
-                leftPadding: 12
-                rightPadding: 12
-                background: Rectangle {
-                    radius: 12
-                    color: dialogInputBg
-                    border.color: dialogInputBorder
-                    border.width: 2
-                }
-            }
-            Text {
-                width: parent.width
-                text: qsTr("Bei Namenskonflikten wird automatisch (1), (2), ... angehaengt.")
-                wrapMode: Text.WordWrap
-                color: dialogTextMuted
-                font.pixelSize: Math.max(baseFont - 1, 11)
-            }
-        }
-    }
+    BatchRenameDialog { id: batchRenameDialog; window: window }
 
-    Dialog {
-        id: deleteEntriesDialog
-        title: qsTr("Dateien loeschen")
-        modal: true
-        focus: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        anchors.centerIn: Overlay.overlay
-        width: Math.max(440, Math.round(window.width * 0.32))
-        Overlay.modal: Rectangle {
-            color: "black"
-            opacity: 0.38
-        }
-        background: Rectangle {
-            radius: 16
-            color: dialogPanelBg
-            border.color: dialogPanelBorder
-            border.width: 2
-        }
-        onOpened: {
-            _setDialogButtonText(deleteEntriesDialog, Dialog.Ok, qsTr("Uebernehmen"))
-            _setDialogButtonText(deleteEntriesDialog, Dialog.Cancel, qsTr("Abbrechen"))
-        }
-        onAccepted: {
-            performDeleteEntries(pendingDeletePaths)
-            pendingDeletePaths = []
-        }
-        onRejected: pendingDeletePaths = []
-        contentItem: Text {
-            width: Math.max(120, deleteEntriesDialog.width - 32)
-            text: qsTr("Wirklich %1 Dateien loeschen? Das kann nicht rueckgaengig gemacht werden.")
-                .arg(pendingDeletePaths.length)
-            wrapMode: Text.WordWrap
-            color: dialogTextStrong
-            font.pixelSize: baseFont
-        }
-    }
+    DeleteEntriesDialog { id: deleteEntriesDialog; window: window }
 
     Rectangle {
         anchors.fill: parent
@@ -3948,6 +3220,7 @@ ApplicationWindow {
             uPanelTintColor: projectsBrowser.currentPathFillColor
             projectTintOpacity: 0.75
             showMyosButton: window.hasProjectInCwp
+            showLeaveMyosButton: window.isInsideMyosFolder
             showCreateProject: !window.hasProjectInCwp
             availableTags: window.availableTags
             folderTags: window.folderTags
@@ -4022,6 +3295,11 @@ ApplicationWindow {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
                 var targetPath = base + "/" + myosDirName
                 commitCTD(targetPath)
+                clearSearchAfterNavigate()
+            }
+            onLeaveMyosFolder: {
+                var parent = parentOfPath(currentFilesPath())
+                commitCTD(parent)
                 clearSearchAfterNavigate()
             }
             onCreateProject: {

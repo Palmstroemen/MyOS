@@ -38,6 +38,8 @@ Rectangle { // Files panel
     property var selectedTags: []
     property var selectedPaths: []
     property string tagSource: "visible"
+    /** Bindung an Fenster-Sprache, damit Tag-Beschriftungen bei Sprachumschaltung neu übersetzt werden. */
+    property string uiLanguage: ""
     property bool isTagIndexing: false
     property int folderSizeBytes: 0
     property real templatesBrowserWidth: 0
@@ -50,8 +52,10 @@ Rectangle { // Files panel
     signal folderActivated(string name)
     signal fileActivated(string name)
     signal openMyosFolder()
+    signal leaveMyosFolder()
     signal createProject()
     property bool showMyosButton: false
+    property bool showLeaveMyosButton: false
     property bool showCreateProject: false
 
     property int compactButtonHeight: 32
@@ -276,7 +280,7 @@ Rectangle { // Files panel
                     height: root.topRightButtonSize
                     color: root.smallButtonBg
                     border.color: root.smallButtonBorder
-                    visible: root.showMyosButton
+                    visible: root.showMyosButton && !root.showLeaveMyosButton
                     Image {
                         anchors.centerIn: parent
                         source: root.iconGear
@@ -289,6 +293,26 @@ Rectangle { // Files panel
                     MouseArea {
                         anchors.fill: parent
                         onClicked: root.openMyosFolder()
+                    }
+                }
+
+                Rectangle {
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: root.smallButtonBg
+                    border.color: root.smallButtonBorder
+                    visible: root.showLeaveMyosButton
+                    Text {
+                        anchors.centerIn: parent
+                        text: "↑"
+                        color: root.smallButtonText
+                        font.pixelSize: Math.round(root.topRightButtonSize * 0.75)
+                        font.bold: true
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.leaveMyosFolder()
                     }
                 }
 
@@ -349,7 +373,7 @@ Rectangle { // Files panel
 
                             Text {
                                 width: parent.width
-                                text: qsTr("Ordnertags")
+                                text: (root.uiLanguage ? "" : "") + qsTr("Ordnertags")
                                 color: root.smallButtonText
                                 font.pixelSize: root.tagSectionLabelPx
                                 elide: Text.ElideRight
@@ -477,7 +501,7 @@ Rectangle { // Files panel
                                     font.pixelSize: root.tagChipFontPx
                                     clip: true
                                     selectByMouse: true
-                                    placeholderText: qsTr("Neuer Ordnertag ...")
+                                    placeholderText: (root.uiLanguage ? "" : "") + qsTr("Neuer Ordnertag ...")
                                     color: root.text
                                     background: Item {}
                                     onTextEdited: suppressCompletion = false
@@ -610,7 +634,7 @@ Rectangle { // Files panel
 
                                     Text {
                                         width: parent.width
-                                        text: qsTr("Filetags")
+                                        text: (root.uiLanguage ? "" : "") + qsTr("Filetags")
                                         color: root.smallButtonText
                                         font.pixelSize: root.tagSectionLabelPx
                                         elide: Text.ElideRight
@@ -711,7 +735,7 @@ Rectangle { // Files panel
                                                     anchors.leftMargin: root.tagChipPadH
                                                     anchors.right: parent.right
                                                     anchors.rightMargin: root.tagChipPadH
-                                                    text: qsTr("… parse tags")
+                                                    text: (root.uiLanguage ? "" : "") + qsTr("… parse tags")
                                                     color: root.textMuted
                                                     font.pixelSize: root.tagChipFontPx
                                                     elide: Text.ElideRight
