@@ -16,6 +16,8 @@ Item { // ROOT
     implicitHeight: visible ? contentHeight : 0
     property string path: "/"
     property string pathDisplayPrefix: ""
+    property string pathSegmentMyosTest: "MyOS_Test"
+    property string pathSegmentMyOS: "MyOS"
     property var resolvePath: function(p) { return String(p || "") }
     property var folders: []
     property var childrenProvider: null
@@ -1953,7 +1955,7 @@ Item { // ROOT
         var p = sourceItem.mapToItem(host, sourceItem.width, 0)
         var entries = listPreviewChildren(fullPath)
         // #region agent log
-        var isMyOSPath = String(fullPath || "").indexOf("/MyOS_Test") >= 0 || String(fullPath || "").indexOf("/MyOS/") >= 0
+        var isMyOSPath = String(fullPath || "").indexOf("/" + root.pathSegmentMyosTest) >= 0 || String(fullPath || "").indexOf("/" + root.pathSegmentMyOS + "/") >= 0
         // #endregion
         var next = cwdHoverCascadePanels.slice(0, Math.max(0, depth))
         var nextHover = cwdHoverCascadePanelHovered.slice(0, Math.max(0, depth))

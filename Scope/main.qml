@@ -40,6 +40,13 @@ ApplicationWindow {
     property bool filesPanelHalfTransparent: false
     // Positive value lets FilesPanel overlap a bit to the left.
     property int filesPanelOverlapPx: 8
+    // Zentrale Pfad-/Ordnernamen (Magic Values vermeiden)
+    readonly property string myosDirName: ".MyOS"
+    readonly property string pathSegmentClipboard: "Clipboard"
+    readonly property string pathSegmentProjekte: "Projekte"
+    readonly property string pathSegmentTemplates: "Templates"
+    readonly property string pathSegmentMyosTest: "MyOS_Test"
+    readonly property string pathSegmentMyOS: "MyOS"
     property color dialogPanelBg: darkTheme ? "#f4f7ff" : "#141823"
     property color dialogPanelBorder: darkTheme ? "#1b2438" : "#d5ddf2"
     property color dialogTextStrong: darkTheme ? "#1a2233" : "#edf2ff"
@@ -280,7 +287,7 @@ ApplicationWindow {
         showFiles: false
         showHidden: true
         showDotAndDotDot: false
-        nameFilters: [".MyOS"]
+        nameFilters: [myosDirName]
         folder: toFileUrl(cwp)
         onCountChanged: {
             if (!hasBackend()) {
@@ -755,7 +762,7 @@ ApplicationWindow {
 
     function _isMyOSFolderTrace(pathOrName) {
         var s = String(pathOrName || "")
-        return s.indexOf("/MyOS_Test") >= 0 || s.indexOf("/MyOS/") >= 0 || s.endsWith("/MyOS") || s === "MyOS"
+        return s.indexOf("/" + pathSegmentMyosTest) >= 0 || s.indexOf("/" + pathSegmentMyOS + "/") >= 0 || s.endsWith("/" + pathSegmentMyOS) || s === pathSegmentMyOS
     }
     function listChildren(path) {
         if (hasBackend()) {
@@ -1131,30 +1138,32 @@ ApplicationWindow {
     function resolveClipboardPathForPath(anyPath) {
         var norm = normalizeFsPath(anyPath)
         if (norm.length === 0) return ""
-        var marker = "/Projekte/"
+        var marker = "/" + pathSegmentProjekte + "/"
         var idx = norm.indexOf(marker)
         if (idx >= 0) {
-            return norm.slice(0, idx) + "/Clipboard"
+            return norm.slice(0, idx) + "/" + pathSegmentClipboard
         }
-        return trimTrailingSlash(norm) + "/Clipboard"
+        return trimTrailingSlash(norm) + "/" + pathSegmentClipboard
     }
 
     function resolveClipboardPath() {
         var templatesRoot = trimTrailingSlash(resolveTemplatesRootPath())
-        if (templatesRoot.length > 0 && templatesRoot.indexOf("/Templates") === (templatesRoot.length - "/Templates".length)) {
-            return templatesRoot.slice(0, templatesRoot.length - "/Templates".length) + "/Clipboard"
+        var templatesSuffix = "/" + pathSegmentTemplates
+        if (templatesRoot.length > 0 && templatesRoot.indexOf(templatesSuffix) === (templatesRoot.length - templatesSuffix.length)) {
+            return templatesRoot.slice(0, templatesRoot.length - templatesSuffix.length) + "/" + pathSegmentClipboard
         }
+        var projectSuffix = "/" + pathSegmentProjekte
         var projectRoot = trimTrailingSlash(resolveProjectRootPath())
-        if (projectRoot.length > 0 && projectRoot.indexOf("/Projekte") === (projectRoot.length - "/Projekte".length)) {
-            return projectRoot.slice(0, projectRoot.length - "/Projekte".length) + "/Clipboard"
+        if (projectRoot.length > 0 && projectRoot.indexOf(projectSuffix) === (projectRoot.length - projectSuffix.length)) {
+            return projectRoot.slice(0, projectRoot.length - projectSuffix.length) + "/" + pathSegmentClipboard
         }
         var cwdNorm = normalizeFsPath(cwp)
-        var marker = "/Projekte/"
+        var marker = "/" + pathSegmentProjekte + "/"
         var markerIndex = cwdNorm.indexOf(marker)
         if (markerIndex >= 0) {
-            return cwdNorm.slice(0, markerIndex) + "/Clipboard"
+            return cwdNorm.slice(0, markerIndex) + "/" + pathSegmentClipboard
         }
-        return trimTrailingSlash(cwdNorm) + "/Clipboard"
+        return trimTrailingSlash(cwdNorm) + "/" + pathSegmentClipboard
     }
 
     function ensureClipboardDirectory(targetPath) {
@@ -1548,7 +1557,7 @@ ApplicationWindow {
         var source = fileItemsAll || []
         for (var i = 0; i < source.length; i++) {
             var entry = source[i]
-            if (entry.isDir && entry.name === ".MyOS") {
+            if (entry.isDir && entry.name === myosDirName) {
                 found = true
             }
             if (entry.name && entry.name.indexOf(".") === 0) {
@@ -3691,6 +3700,8 @@ ApplicationWindow {
             hostProjectIconForPath: projectIconForPath
             hostHasBackend: hasBackend
             resolvePath: resolveTemplateDisplayPathToReal
+            pathSegmentMyosTest: pathSegmentMyosTest
+            pathSegmentMyOS: pathSegmentMyOS
             searchActive: level2SearchActive
             searchText: level2SearchText
             onToggleMode: level2VerticalView = !level2VerticalView
@@ -3779,6 +3790,8 @@ ApplicationWindow {
             maxParents: 0
             path: cwp
             pathDisplayPrefix: cwp
+            pathSegmentMyosTest: pathSegmentMyosTest
+            pathSegmentMyOS: pathSegmentMyOS
             folders: subProjects
             childrenProvider: function(targetPath) { return listChildren(targetPath) }
             showEmbryos: window.projectsShowEmbryos
@@ -4007,7 +4020,7 @@ ApplicationWindow {
             }
             onOpenMyosFolder: {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
-                var targetPath = base + "/.MyOS"
+                var targetPath = base + "/" + myosDirName
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }
