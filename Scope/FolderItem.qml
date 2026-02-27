@@ -15,7 +15,8 @@ Rectangle {
     property string thumbnailSource: ""
     property color fillColor: "#3b476b"
     property color strokeColor: "#58648a"
-    readonly property real iconOpacity: (typeof fillColor.a === "number" && fillColor.a < 1) ? fillColor.a : 1
+    // Nur bei bewusst halbtransparentem Fill (0 < a < 1) Icons mitschattieren; bei transparent (a=0) oder opak (a=1) Icons voll sichtbar
+    readonly property real iconOpacity: (typeof fillColor.a === "number" && fillColor.a > 0 && fillColor.a < 1) ? fillColor.a : 1
     property color textColor: "#cfd3df"
     property int textSize: 14
     property int largeTextSize: textSize
