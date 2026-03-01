@@ -1952,9 +1952,6 @@ Item { // ROOT
         var parentOk = _overlayItemHasParent(sourceItem, host)
         var p = sourceItem.mapToItem(host, sourceItem.width, 0)
         var entries = listPreviewChildren(fullPath)
-        // #region agent log
-        var isMyOSPath = String(fullPath || "").indexOf("/" + root.pathSegmentMyosTest) >= 0 || String(fullPath || "").indexOf("/" + root.pathSegmentMyOS + "/") >= 0
-        // #endregion
         var next = cwdHoverCascadePanels.slice(0, Math.max(0, depth))
         var nextHover = cwdHoverCascadePanelHovered.slice(0, Math.max(0, depth))
         cwdCascadeOpenRequests += 1

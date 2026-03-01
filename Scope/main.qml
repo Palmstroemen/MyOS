@@ -40,6 +40,7 @@ ApplicationWindow {
     property bool projectsBrowserVisible: true
     property bool templatesBrowserVisible: true
     property bool filesPanelHalfTransparent: false
+    property bool schmalMode: false
     // Positive value lets FilesPanel overlap a bit to the left.
     property int filesPanelOverlapPx: 8
     // Zentrale Pfad-/Ordnernamen (Magic Values vermeiden)
@@ -379,6 +380,13 @@ ApplicationWindow {
         var p = (browser.resolvePath ? browser.resolvePath(basePath || "") : (basePath || ""))
         if (p.length === 0 && browser === projectsBrowser) p = cwp
         requestCreateFolderAt(p)
+    }
+
+    function show_FilesPanel() {
+        filesPanelHalfTransparent = false
+    }
+    function hide_FilesPanel() {
+        filesPanelHalfTransparent = true
     }
 
     function hasBackend() {
@@ -2547,6 +2555,11 @@ ApplicationWindow {
 
     DeleteEntriesDialog { id: deleteEntriesDialog; window: window }
 
+    onSchmalModeChanged: {
+        if (schmalMode) hide_FilesPanel()
+        else show_FilesPanel()
+    }
+
     Rectangle {
         anchors.fill: parent
         color: theme.bg
@@ -2730,6 +2743,26 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: filesPanelHalfTransparent = !filesPanelHalfTransparent
+                    }
+                }
+
+                Rectangle { // Schmal-Modus: 50% bei Aktivierung und wenn Maus Fenster verlässt
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: schmalMode ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
+                    border.width: 0
+                    implicitWidth: schmalModeLabel.implicitWidth + 16
+                    width: implicitWidth
+                    Text {
+                        id: schmalModeLabel
+                        anchors.centerIn: parent
+                        text: qsTr("Schmal")
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: schmalMode = !schmalMode
                     }
                 }
 
@@ -3011,6 +3044,7 @@ ApplicationWindow {
             updateStandardFolders()
         }
             onPathSegmentActivated: function(index) {
+                show_FilesPanel()
                 var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
                 var currentPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
                 var nextPath = currentPath
@@ -3027,6 +3061,7 @@ ApplicationWindow {
                 }
             }
             onPathSelected: function(path) {
+                show_FilesPanel()
                 var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
                 if (perspectiveActive) {
                     window.templatesPerspectivePath = String(path || "")
@@ -3035,6 +3070,7 @@ ApplicationWindow {
                 }
             }
             onFolderActivated: function(name) {
+                show_FilesPanel()
                 var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
                 var currentPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
                 var nextPath = String(name || currentPath)
@@ -3158,8 +3194,12 @@ ApplicationWindow {
                 window.updateSubProjects()
             }
             onNavigateToPathRequested: function(path) {
+                show_FilesPanel()
                 applyFolderActivation(path)
                 clearSearchAfterNavigate()
+            }
+            onFolderActivated: function(name) {
+                show_FilesPanel()
             }
             onFolderDoubleActivated: function(name, folderMeta) {
                 var targetPath = ""
@@ -3239,6 +3279,7 @@ ApplicationWindow {
                 ? window.defaultProjectTint
                 : "#7b5bd6"
             uPanelTintColor: projectsBrowser.currentPathFillColor
+            uPanelTintMix: 0.65
             projectTintOpacity: 0.75
             hasProjectInCwp: window.hasProjectInCwp
             hasMyosDirInCwp: window.hasMyosInCwp
@@ -3293,6 +3334,7 @@ ApplicationWindow {
             onDeleteRequested: function(paths) { requestDeleteEntries(paths) }
             onSelectAllRequested: selectAllVisibleEntries()
             onFolderActivated: function(name) {
+                show_FilesPanel()
                 var targetPath = ""
                 if (name.indexOf("/") === 0) {
                     targetPath = name

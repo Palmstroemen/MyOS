@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import sys
 import os
+import sys
 import hashlib
 import mimetypes
 import shutil
@@ -25,13 +25,42 @@ from PySide6.QtCore import (
     QTranslator,
     QFileSystemWatcher,
     QTimer,
+    QEvent,
 )
-from PySide6.QtGui import QGuiApplication, QIcon, QImageReader, QImage, QCursor
+from PySide6.QtGui import (
+    QGuiApplication,
+    QIcon,
+    QImageReader,
+    QImage,
+    QCursor,
+    QDropEvent,
+)
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
 from core.scope_api import ScopeApi
+
+
+class DropDebugFilter(QObject):
+    """Log drop events at window level to see if the drop reaches the window at all."""
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Drop and isinstance(event, QDropEvent):
+            pos = event.position() if hasattr(event, "position") else event.pos()
+            md = event.mimeData()
+            text = (md.text() or "").strip() if md else ""
+            urls = list(md.urls()) if md else []
+            print(
+                "[drop.window] Drop am Fenster empfangen",
+                "pos=",
+                (round(pos.x()), round(pos.y())),
+                "text=",
+                "ok" if text else "-",
+                "urls=",
+                len(urls),
+            )
+        return False
 
 
 class ThumbnailTask(QRunnable):
@@ -44,8 +73,10 @@ class ThumbnailTask(QRunnable):
 
     def run(self) -> None:
         try:
+            if self._owner._shutting_down:
+                return
             result = self._owner._generate_thumbnail(self._file_path, self._cache_path, self._mime)
-            if result:
+            if result and not self._owner._shutting_down:
                 self._owner.thumbnailReady.emit(str(self._file_path), result)
         finally:
             self._owner._mark_done(self._file_path, self._mime)
@@ -56,7 +87,8 @@ class Thumbnailer(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._pool = QThreadPool.globalInstance()
+        self._pool = QThreadPool()
+        self._shutting_down = False
         self._lock = Lock()
         self._pending: set[str] = set()
         self._cache_root = Path("~/.cache/myos-scope/thumbnails").expanduser()
@@ -66,6 +98,8 @@ class Thumbnailer(QObject):
         self._size_px = 256
 
     def request_thumbnail(self, file_path: Path) -> str:
+        if self._shutting_down:
+            return ""
         if not file_path.exists() or not file_path.is_file():
             return ""
         mime = self._guess_mime(file_path)
@@ -214,6 +248,12 @@ class Thumbnailer(QObject):
             return ""
         return ""
 
+    def shutdown(self) -> None:
+        """Stop accepting new requests and wait briefly for running tasks."""
+        self._shutting_down = True
+        self._pool.clear()
+        self._pool.waitForDone(2000)
+
 
 class Backend(QObject):
     thumbnailReady = Signal(str, str)
@@ -230,6 +270,8 @@ class Backend(QObject):
         self._engine = engine
         self._thumbnailer = Thumbnailer()
         self._thumbnailer.thumbnailReady.connect(self._on_thumbnail_ready)
+        self._shutting_down = False
+        app.aboutToQuit.connect(self._on_about_to_quit)
         self._entries_lock = Lock()
         self._entries_cache: dict[str, list] = {}
         self._entries_pending: set[str] = set()
@@ -271,6 +313,10 @@ class Backend(QObject):
     def projectColor(self, path: str) -> str:
         return self._api.get_project_color(path) or ""
 
+    @Slot(str, result="QString")
+    def projectIcon(self, path: str) -> str:
+        return self._api.get_project_icon(path) or ""
+
     @Slot(result="QString")
     def defaultProjectColor(self) -> str:
         return self._api.get_default_project_color() or ""
@@ -297,17 +343,15 @@ class Backend(QObject):
             cached = self._entries_cache.get(resolved)
             if cached is not None:
                 cached_entries = cached
-            elif resolved in self._entries_pending:
-                return []
-            else:
+            elif resolved not in self._entries_pending:
                 self._entries_pending.add(resolved)
         if cached_entries is not None:
-            # Re-prime thumbnails even for cached directory lists so icon updates
-            # are picked up after external file changes or delayed writes.
             self._prime_thumbnails(cached_entries)
             return cached_entries
         self._start_entries_task(resolved)
-        return []
+        quick = self._api.list_entries_quick(resolved)
+        self._enrich_entries(quick, resolved)
+        return quick
 
     @Slot(str, "QVariantList", bool, result="QVariantList")
     def listEntriesFiltered(self, path: str, tags, matchAll: bool):
@@ -481,7 +525,20 @@ class Backend(QObject):
         return self._thumbnailer.request_thumbnail(Path(path))
 
     def _start_entries_task(self, path: str) -> None:
+        if self._shutting_down:
+            return
         task = EntriesTask(self, path)
+        self._thumbnailer._pool.start(task)
+
+    def _start_folder_sizes_task(self, path: str, entries: list) -> None:
+        if self._shutting_down:
+            return
+        if not self._api.get_project_root():
+            return
+        dir_entries = [e for e in (entries or []) if e.get("isDir")]
+        if not dir_entries:
+            return
+        task = FolderSizesTask(self, path, list(entries))
         self._thumbnailer._pool.start(task)
 
     def _store_entries(self, path: str, entries: list) -> None:
@@ -490,7 +547,7 @@ class Backend(QObject):
             self._entries_pending.discard(path)
 
     def _on_thumbnail_ready(self, full_path: str, thumb_url: str) -> None:
-        if not full_path or not thumb_url:
+        if self._shutting_down or not full_path or not thumb_url:
             return
         normalized = str(Path(full_path).expanduser().resolve())
         with self._entries_lock:
@@ -791,6 +848,14 @@ class Backend(QObject):
         QCursor.setPos(int(round(pos.x() + dx)), int(pos.y()))
         return True
 
+    def _on_about_to_quit(self) -> None:
+        """Stop thumbnail tasks and timers so the app can exit promptly."""
+        self._shutting_down = True
+        for timer in self._thumb_refresh_timers.values():
+            timer.stop()
+        self._thumb_refresh_timers.clear()
+        self._thumbnailer.shutdown()
+
 
 class EntriesTask(QRunnable):
     def __init__(self, owner: Backend, path: str) -> None:
@@ -804,9 +869,39 @@ class EntriesTask(QRunnable):
             self._owner._enrich_entries(entries, self._path)
             self._owner._store_entries(self._path, entries)
             self._owner.entriesReady.emit(self._path, entries)
+            self._owner._start_folder_sizes_task(self._path, entries)
         except Exception:
             self._owner._store_entries(self._path, [])
             self._owner.entriesReady.emit(self._path, [])
+
+
+class FolderSizesTask(QRunnable):
+    def __init__(self, owner: Backend, path: str, entries: list) -> None:
+        super().__init__()
+        self._owner = owner
+        self._path = path
+        self._entries = entries
+
+    def run(self) -> None:
+        if self._owner._shutting_down:
+            return
+        updated = False
+        for entry in self._entries:
+            if not entry.get("isDir"):
+                continue
+            path_str = str(entry.get("path") or "").strip()
+            if not path_str:
+                continue
+            try:
+                size = self._owner._api.get_folder_size_bytes(path_str)
+                if size is not None and size >= 0:
+                    entry["folderSizeBytes"] = size
+                    updated = True
+            except Exception:
+                continue
+        if updated:
+            self._owner._store_entries(self._path, self._entries)
+            self._owner.entriesReady.emit(self._path, self._entries)
 
 
 class ThemeIconProvider(QQuickImageProvider):
@@ -815,11 +910,18 @@ class ThemeIconProvider(QQuickImageProvider):
 
     def requestImage(self, icon_id: str, size: QSize, requested_size: QSize):
         target_size = requested_size if requested_size.isValid() else QSize(64, 64)
-        icon = QIcon.fromTheme(icon_id)
+        use_active = icon_id.endswith("#active")
+        base_id = icon_id[:-7] if use_active else icon_id  # strip "#active"
+        # Für Ordner: Hover = folder-open (freedesktop-Standard), sonst QIcon.Mode.Active
+        if use_active and base_id == "folder":
+            base_id = "folder-open"
+            use_active = False
+        icon = QIcon.fromTheme(base_id)
         if icon.isNull():
-            fallback = "folder" if icon_id == "folder" else "text-x-generic"
+            fallback = "folder" if base_id == "folder" else "text-x-generic"
             icon = QIcon.fromTheme(fallback)
-        pixmap = icon.pixmap(target_size) if not icon.isNull() else None
+        mode = QIcon.Mode.Active if use_active else QIcon.Mode.Normal
+        pixmap = icon.pixmap(target_size, mode, QIcon.State.Off) if not icon.isNull() else None
         if pixmap is None or pixmap.isNull():
             image = QImage(1, 1, QImage.Format_ARGB32_Premultiplied)
             image.fill(Qt.transparent)
@@ -845,7 +947,6 @@ def main() -> int:
     ctx = engine.rootContext()
     backend = Backend(api, app, engine)
     ctx.setContextProperty("backend", backend)
-    ctx.setContextProperty("scopeDebugOpen", os.environ.get("MYOS_MD_DEBUG") in {"1", "true", "yes"})
     ctx.setContextProperty("scopeStartPath", api.get_start_path())
     ctx.setContextProperty("scopeProjectRoot", api.get_project_root() or "")
     engine._backend = backend
@@ -857,6 +958,9 @@ def main() -> int:
     engine.load(QUrl.fromLocalFile(str(qml_path)))
     if not engine.rootObjects():
         return 1
+    root = engine.rootObjects()[0]
+    drop_filter = DropDebugFilter()
+    root.installEventFilter(drop_filter)
     return app.exec()
 
 

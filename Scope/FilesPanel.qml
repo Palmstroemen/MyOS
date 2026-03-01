@@ -72,6 +72,11 @@ Rectangle { // Files panel
     property int topRightButtonSize: Math.max(24, Math.round(Math.max(compactButtonHeight, 32) * 0.85))
     property int topRightIconSize: Math.round(topRightButtonSize * 0.84)
     property int gridSpacing: 8
+    /** Rahmen um das runde Panel (Hintergrund sichtbar). Halbiert für schlankeren Rahmen. */
+    property int filesPanelFrameMargin: 8
+    property int filesPanelFrameMarginRight: 5
+    /** Zusätzlicher Innenabstand des Grids zum Panel. */
+    property int filesPanelContentPadding: 4
     property int prefetchThreshold: 200
     property int chipRadiusMedium: TagChips.CHIP_RADIUS_MEDIUM
     property int tagChipRadius: TagChips.TAG_CHIP_RADIUS
@@ -837,10 +842,10 @@ Rectangle { // Files panel
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.right: sidePanel.left
-        anchors.leftMargin: 16
-        anchors.topMargin: 16
-        anchors.bottomMargin: 16
-        anchors.rightMargin: 10
+        anchors.leftMargin: root.filesPanelFrameMargin
+        anchors.topMargin: root.filesPanelFrameMargin
+        anchors.bottomMargin: root.filesPanelFrameMargin
+        anchors.rightMargin: root.filesPanelFrameMarginRight
         radius: 12
         color: root.filesPanelOverlayColor
         border.width: 0
@@ -849,10 +854,10 @@ Rectangle { // Files panel
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.topMargin: 16
-        anchors.bottomMargin: 16
-        anchors.rightMargin: sidePanel.width + 20
+        anchors.leftMargin: root.filesPanelFrameMargin + root.filesPanelContentPadding
+        anchors.topMargin: root.filesPanelFrameMargin + root.filesPanelContentPadding
+        anchors.bottomMargin: root.filesPanelFrameMargin + root.filesPanelContentPadding
+        anchors.rightMargin: sidePanel.width + root.filesPanelFrameMarginRight + root.filesPanelContentPadding
         spacing: 8
 
         GridView {
