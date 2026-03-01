@@ -1604,7 +1604,11 @@ Item { // ROOT
             return []
         }
         try {
-            var rows = childrenProvider(parentPath)
+            // Pass showHidden so preview (cwdHover cascade, vertical preview columns) respects showHiddenFolders.
+            var options = { showHidden: root.showHiddenFolders }
+            var rows = (childrenProvider.length > 1)
+                ? childrenProvider(parentPath, options)
+                : childrenProvider(parentPath)
             return rows || []
         } catch (e) {
             return []

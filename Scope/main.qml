@@ -710,9 +710,9 @@ ApplicationWindow {
         }
         var rows = []
         if (typeof backend.perspectiveListTemplates === "function") {
-            rows = backend.perspectiveListTemplates(cpd || "")
+            rows = backend.perspectiveListTemplates(cpd || "", projectsShowHiddenFolders)
         } else if (typeof backend.perspectiveListDir === "function") {
-            rows = backend.perspectiveListDir(cpd || "")
+            rows = backend.perspectiveListDir(cpd || "", projectsShowHiddenFolders)
         } else {
             return []
         }
@@ -759,9 +759,10 @@ ApplicationWindow {
         var s = String(pathOrName || "")
         return s.indexOf("/" + pathSegmentMyosTest) >= 0 || s.indexOf("/" + pathSegmentMyOS + "/") >= 0 || s.endsWith("/" + pathSegmentMyOS) || s === pathSegmentMyOS
     }
-    function listChildren(path) {
+    function listChildren(path, options) {
+        var showHidden = (options && options.showHidden !== undefined) ? options.showHidden : projectsShowHiddenFolders
         if (hasBackend()) {
-            var result = backend.listChildren(path, projectsShowEmbryos, projectsShowHiddenFolders)
+            var result = backend.listChildren(path, projectsShowEmbryos, showHidden)
             return result
         }
         if (path === cwp) {
@@ -769,7 +770,9 @@ ApplicationWindow {
             for (var i = 0; i < fsModel.count; i++) {
                 var isDir = fsModel.get(i, "fileIsDir")
                 if (isDir) {
-                    dirs.push(fsModel.get(i, "fileName"))
+                    var name = fsModel.get(i, "fileName")
+                    if (!showHidden && (name || "").indexOf(".") === 0) continue
+                    dirs.push(name)
                 }
             }
             return dirs
@@ -783,7 +786,7 @@ ApplicationWindow {
             return listPerspectiveTemplates(queryCpd, path)
         }
         if (hasBackend() && typeof backend.listTemplates === "function") {
-            return backend.listTemplates(path, templatesShowEmbryos)
+            return backend.listTemplates(path, templatesShowEmbryos, projectsShowHiddenFolders)
         }
         return []
     }
@@ -3125,7 +3128,7 @@ ApplicationWindow {
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
             folders: subProjects
-            childrenProvider: function(targetPath) { return listChildren(targetPath) }
+            childrenProvider: function(targetPath, options) { return listChildren(targetPath, options) }
             showEmbryos: window.projectsShowEmbryos
             showHiddenFolders: window.projectsShowHiddenFolders
             projectTint: window.currentProjectTint

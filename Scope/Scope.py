@@ -305,9 +305,9 @@ class Backend(QObject):
     def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
         return self._api.list_children(path, includeEmbryos, showHidden)
 
-    @Slot(str, bool, result="QVariantList")
-    def listTemplates(self, path: str, includeEmbryos: bool):
-        return self._api.list_templates(path, includeEmbryos)
+    @Slot(str, bool, bool, result="QVariantList")
+    def listTemplates(self, path: str, includeEmbryos: bool, showHidden: bool = False):
+        return self._api.list_templates(path, includeEmbryos, showHidden)
 
     @Slot(str, result="QString")
     def projectColor(self, path: str) -> str:
@@ -469,13 +469,13 @@ class Backend(QObject):
     def perspectiveResolveReal(self, path: str):
         return self._api.perspective_resolve_real(path)
 
-    @Slot(str, result="QVariantList")
-    def perspectiveListDir(self, cpd: str):
-        return self._api.perspective_list_dir(cpd)
+    @Slot(str, bool, result="QVariantList")
+    def perspectiveListDir(self, cpd: str, showHidden: bool = False):
+        return self._api.perspective_list_dir(cpd, showHidden)
 
-    @Slot(str, result="QVariantList")
-    def perspectiveListTemplates(self, cpd: str):
-        return self._api.perspective_list_templates(cpd)
+    @Slot(str, bool, result="QVariantList")
+    def perspectiveListTemplates(self, cpd: str, showHidden: bool = False):
+        return self._api.perspective_list_templates(cpd, showHidden)
 
     @Slot(result=bool)
     def perspectiveClear(self) -> bool:

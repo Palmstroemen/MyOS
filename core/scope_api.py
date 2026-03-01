@@ -482,7 +482,9 @@ class ScopeApi:
             self._perspective_ctx = replace(ctx, cpd=str(result.cpd), cwd_real=str(result.real_path or ctx.cwd_real))
         return self._serialize_perspective_result(result)
 
-    def perspective_list_dir(self, cpd: str = "") -> List[Dict[str, Any]]:
+    def perspective_list_dir(
+        self, cpd: str = "", show_hidden: bool = False
+    ) -> List[Dict[str, Any]]:
         ctx = self._ensure_perspective_ctx()
         if ctx is None:
             return []
@@ -490,6 +492,9 @@ class ScopeApi:
         entries = list_virtual_dir(ctx=ctx, cpd=listing_cpd)
         out: List[Dict[str, Any]] = []
         for item in entries:
+            name = str(item.get("name") or "").strip()
+            if not show_hidden and name.startswith("."):
+                continue
             row: Dict[str, Any] = {
                 "name": str(item.get("name") or ""),
                 "cpd": str(item.get("cpd") or ""),
@@ -509,7 +514,9 @@ class ScopeApi:
             out.append(row)
         return out
 
-    def perspective_list_templates(self, cpd: str = "") -> List[Dict[str, Any]]:
+    def perspective_list_templates(
+        self, cpd: str = "", show_hidden: bool = False
+    ) -> List[Dict[str, Any]]:
         ctx = self._ensure_perspective_ctx()
         if ctx is None:
             return []
@@ -565,6 +572,8 @@ class ScopeApi:
                     continue
                 name = str(child.name or "").strip()
                 if name == "":
+                    continue
+                if not show_hidden and name.startswith("."):
                     continue
                 node = merged_children.get(name)
                 if node is None:
@@ -1435,6 +1444,8 @@ class ScopeApi:
         if can_list_virtual_embryos:
             embryos = context_blueprint.get_embryos_at(rel)
             for name in embryos:
+                if not show_hidden and name.startswith("."):
+                    continue
                 if not any(item["name"] == name for item in entries):
                     embryo_path = target / name
                     acl_embryo = self._acl_probe("read_dir", embryo_path)
@@ -1458,7 +1469,9 @@ class ScopeApi:
 
         return entries
 
-    def list_templates(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
+    def list_templates(
+        self, path: str, include_embryos: bool = True, show_hidden: bool = False
+    ) -> List[FolderEntry]:
         try:
             target = self._resolve_path(path)
         except Exception:
@@ -1493,6 +1506,8 @@ class ScopeApi:
                 template_folders = [(name, True) for name in embryos]
             result = []
             for name, is_embryo in template_folders:
+                if not show_hidden and name.startswith("."):
+                    continue
                 embryo_color = self._resolve_template_color_for_context(
                     context_blueprint, rel, name
                 )
