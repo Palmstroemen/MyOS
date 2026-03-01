@@ -3039,6 +3039,11 @@ ApplicationWindow {
         onLeftActionTriggered: {
             disablePerspectiveMode()
         }
+        onCurrentPathDoubleActivated: {
+            if (templatesBrowser.isPerspective && window.perspectiveModeEnabled) {
+                disablePerspectiveMode()
+            }
+        }
         onToggleEmbryos: {
             window.templatesShowEmbryos = !window.templatesShowEmbryos
                 var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled

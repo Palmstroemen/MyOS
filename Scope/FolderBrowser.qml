@@ -140,6 +140,7 @@ Item { // ROOT
     signal searchTextEdited(string value)
     signal moveEntryRequested(string sourcePath, string targetDir)
     signal leftActionTriggered()
+    signal currentPathDoubleActivated()
     signal createFolderRequested(string basePath)
 
     property bool flowOnSecondLine: false
@@ -2761,7 +2762,10 @@ Item { // ROOT
                                 renameEnabled: false
                                 onActivate: {
                                     pathSegmentActivated(index)
-                                    navigateToPathRequested(pathForSegmentIndex(index))
+                                    navigateToPathRequested(fullPathForDisplayIndex(index))
+                                }
+                                onDoubleActivate: {
+                                    if (isCurrent) root.currentPathDoubleActivated()
                                 }
                                 MouseArea {
                                     visible: isCurrent && !root.verticalView
@@ -2770,7 +2774,7 @@ Item { // ROOT
                                     onClicked: {
                                         if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
                                         pathSegmentActivated(index)
-                                        navigateToPathRequested(pathForSegmentIndex(index))
+                                        navigateToPathRequested(fullPathForDisplayIndex(index))
                                     }
                                     onEntered: {
                                         if (!root.cwdHoverEnabled) return
@@ -3149,7 +3153,32 @@ Item { // ROOT
                         //     }
                         // }
                     }
-            
+
+                    FolderItem { // VERTICAL VIEW: Perspective OFF (like H-View left action before CWD)
+                        visible: root.showLeftAction && String(root.leftActionText || "").length > 0
+                        width: parent.width
+                        label: String(root.leftActionText || "")
+                        style: (root.effectiveStyle() === "largeIcon") ? "smallIcon" : root.effectiveStyle()
+                        compactHeight: root.compactButtonHeight
+                        largeHeight: root.largeButtonHeight
+                        largePadding: root.largeButtonPadding
+                        iconSmall: root.iconSizeSmall
+                        iconLarge: root.iconSizeLarge
+                        textYOffset: root.buttonTextYOffset
+                        iconSource: root.iconFolder
+                        iconSourceHover: root.iconFolder
+                        fillColor: root.smallButtonActiveBg
+                        strokeColor: root.smallButtonActiveBorder
+                        textColor: root.accentPrimaryText
+                        textSize: root.baseFont
+                        dimmedStyle: false
+                        flatBottomCorners: true
+                        renaming: false
+                        renameEnabled: false
+                        onActivate: root.leftActionTriggered()
+                        onDoubleActivate: root.leftActionTriggered()
+                    }
+
                     FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
                         allowDrops: root.allowDrops
@@ -3193,6 +3222,7 @@ Item { // ROOT
                         renaming: false
                         renameEnabled: false
                         onActivate: {}
+                        onDoubleActivate: root.currentPathDoubleActivated()
                         onDrop: function(payload) {
                             if (!payload) return
                             clipboardDropRequested(payload)
@@ -4058,6 +4088,10 @@ Item { // ROOT
                         var idx = root.pathPartsDisplay().length - 1
                         if (idx >= 0) root.pathSegmentActivated(idx)
                         if (root.cwdHoverCurrentPath.length > 0) root.navigateToPathRequested(root.cwdHoverCurrentPath)
+                    }
+                    onDoubleClicked: {
+                        root.closeCwdHoverPanels("ghost-button")
+                        root.currentPathDoubleActivated()
                     }
                 }
             }
