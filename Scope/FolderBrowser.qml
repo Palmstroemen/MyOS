@@ -204,6 +204,13 @@ Item { // ROOT
     property var cwdOverlayLastHostRef: null
     property int cwdTabDrop: 4
     property int cwdVerticalRightOverflow: 10
+    /// Unterkante der Path-Leiste in Overlay-Host-Koordinaten; Backdrop deckt nur darunter ab.
+    property real cwdHoverPathBarBottomY: 0
+    /// Oberkante und Höhe des aktuellen Pfad-Segments (für Ghost-Button im Overlay).
+    property real cwdHoverSegmentY: 0
+    property real cwdHoverSegmentHeight: 0
+    /// Pfad bei Öffnen des Hover-Panels (für Ghost-Button-Navigation).
+    property string cwdHoverCurrentPath: ""
     property bool previewEnabled: true
     // true = Vorschau-Hintergrund anzeigen (angehakt), false = kein Hintergrund
     property bool previewShowBackground: false
@@ -2737,10 +2744,9 @@ Item { // ROOT
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     onClicked: {
-                                        if (!root.cwdHoverEnabled) return
-                                        if (root.cwdHoverPanelOpen) {
-                                            root.closeCwdHoverPanels("button-toggle")
-                                        }
+                                        if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
+                                        pathSegmentActivated(index)
+                                        navigateToPathRequested(pathForSegmentIndex(index))
                                     }
                                     onEntered: {
                                         if (!root.cwdHoverEnabled) return
@@ -2751,10 +2757,16 @@ Item { // ROOT
                                         }
                                         var host = root.cwdHoverOverlayHost()
                                         var parentOk = root._overlayItemHasParent(parent, host)
+                                        var pathHost = parent.parent.parent.parent
+                                        var ptBar = pathHost.mapToItem(host, 0, pathHost.height)
+                                        root.cwdHoverPathBarBottomY = ptBar.y
                                         var p = parent.mapToItem(host, 0, parent.height)
                                         root.cwdHoverPanelX = p.x
                                         root.cwdHoverPanelY = p.y
                                         root.cwdHoverPanelWidth = Math.max(120, parent.width)
+                                        root.cwdHoverSegmentY = p.y - parent.height
+                                        root.cwdHoverSegmentHeight = parent.height
+                                        root.cwdHoverCurrentPath = String(root.path || "")
                                         root.cwdHoverOverButton = true
                                         root.cwdHoverPanelOpen = true
                                         root.cwdHoverChildPanelOpen = false
@@ -3984,7 +3996,10 @@ Item { // ROOT
                 parent: root.cwdHoverOverlayHost()
                 visible: root.cwdHoverPanelOpen && !root.verticalView
                 z: 9998
-                anchors.fill: parent
+                x: 0
+                y: root.cwdHoverPathBarBottomY
+                width: Number(parent && parent.width !== undefined ? parent.width : root.width)
+                height: Math.max(0, Number(parent && parent.height !== undefined ? parent.height : root.height) - root.cwdHoverPathBarBottomY)
                 color: "#4d000000"
                 DropArea {
                     anchors.fill: parent
@@ -3999,6 +4014,27 @@ Item { // ROOT
                 MouseArea {
                     anchors.fill: parent
                     onClicked: root.closeCwdHoverPanels("backdrop-click")
+                }
+            }
+            // Ghost-CWD-Button über dem Cascade-Panel, damit Klick auf CWD auch bei geöffnetem Menü Navigation auslöst
+            Item {
+                id: cwdHoverGhostButton
+                parent: root.cwdHoverOverlayHost()
+                visible: root.cwdHoverPanelOpen && !root.verticalView && root.cwdHoverSegmentHeight > 0
+                z: 10000
+                x: root.cwdHoverPanelX
+                y: root.cwdHoverSegmentY
+                width: root.cwdHoverPanelWidth
+                height: root.cwdHoverSegmentHeight
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: {
+                        root.closeCwdHoverPanels("ghost-button")
+                        var idx = root.pathPartsDisplay().length - 1
+                        if (idx >= 0) root.pathSegmentActivated(idx)
+                        if (root.cwdHoverCurrentPath.length > 0) root.navigateToPathRequested(root.cwdHoverCurrentPath)
+                    }
                 }
             }
             Item {
