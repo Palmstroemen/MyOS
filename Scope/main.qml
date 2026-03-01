@@ -105,6 +105,8 @@ ApplicationWindow {
 
     property color currentProjectTint: theme.folderCwpTint
     property string defaultProjectTint: ""
+    /// Eine gebundene Farbe für den FilesPanel-Rahmen: Projekt → Projektfarbe, sonst Default-Folder (wie CWD-Dropdowns).
+    readonly property color filesPanelTintColor: hasProjectInCwp && projectsBrowser ? projectsBrowser.currentPathFillColor : theme.folderPathTint
 
     // --- Pfadkonzepte CWD / CWP / CTD (Begriffe: siehe Vision/GUI Filebrowser.md, Abschnitt Begriffe) ---
     // CWD (Current Working Directory): Im Scope durch die Property cwp repräsentiert; der „Arbeitspfad“
@@ -3278,7 +3280,7 @@ ApplicationWindow {
             pButtonActiveColor: (window.defaultProjectTint && String(window.defaultProjectTint).length > 0)
                 ? window.defaultProjectTint
                 : "#7b5bd6"
-            uPanelTintColor: projectsBrowser.currentPathFillColor
+            uPanelTintColor: window.filesPanelTintColor
             uPanelTintMix: 0.65
             projectTintOpacity: 0.75
             hasProjectInCwp: window.hasProjectInCwp

@@ -24,7 +24,8 @@ Rectangle { // Files panel
     property color projectTint: "#7b5bd6"
     property color projectTintBorder: "#7b5bd6"
     property color uPanelTintColor: projectTint
-    property real uPanelTintMix: 0.50
+    /// Mix für Panel-Hintergrund mit CWP-/Projektfarbe (0…1). Wird von main mit 0.65 gesetzt.
+    property real uPanelTintMix: 0.65
     property real projectTintOpacity: 1.0
     property bool allowDrags: true
     property bool halfTransparent: false
@@ -117,7 +118,8 @@ Rectangle { // Files panel
     }
     property real filesPanelOverlayAlpha: 0.20
     readonly property real uPanelLuma: (0.2126 * backgroundColor.r) + (0.7152 * backgroundColor.g) + (0.0722 * backgroundColor.b)
-    readonly property color uPanelColor: PanelColors.uPanelColor(hasProjectInCwp, backgroundColor, uPanelTintColor, uPanelTintMix)
+    // uPanelTintColor kommt gebunden aus main (filesPanelTintColor).
+    readonly property color uPanelColor: PanelColors.uPanelColor(true, backgroundColor, uPanelTintColor, uPanelTintMix)
     readonly property color filesPanelOverlayColor: PanelColors.filesOverlayColor(uPanelLuma, filesPanelOverlayAlpha)
 
     radius: 0

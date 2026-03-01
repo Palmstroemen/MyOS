@@ -2348,23 +2348,25 @@ class ScopeApi:
 
     def get_project_color(self, path: str) -> Optional[str]:
         target = self._resolve_path(path)
-        if not target.is_dir():
-            return None
-        if not self.is_project(str(target)):
-            return None
-        return self._resolve_effective_project_color(target)
+        is_dir = target.is_dir()
+        is_proj = self.is_project(str(target)) if is_dir else False
+        out = None
+        if is_dir and is_proj:
+            out = self._resolve_effective_project_color(target)
+        return out
 
     def get_default_project_color(self) -> Optional[str]:
         return self._root_default_project_color
 
     def get_effective_project_color(self, path: str) -> Optional[str]:
         target = self._resolve_path(path)
-        return self._resolve_project_color(
+        out = self._resolve_project_color(
             target,
             require_project=False,
             project_only=True,
             stop_at_project_root=False,
         )
+        return out
 
     def get_project_icon(self, path: str) -> Optional[str]:
         target = self._resolve_path(path)

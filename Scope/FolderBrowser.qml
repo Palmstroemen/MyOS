@@ -62,7 +62,6 @@ Item { // ROOT
     property var hostBackend: null
     property var hostProjectIconForPath: null
     property var hostHasBackend: function() { return false }
-    property var debugLogger: null
     property color panelColor: "#1b1d26"
     property color panelBorderColor: "#3a4158"
     property color panelAltColor: "#151821"
@@ -95,7 +94,16 @@ Item { // ROOT
     property real folderProjectOpacity: 0.55
     property real embryoOpacity: 0.4
     function _toColorString(value) {
-        return (value !== null && value !== undefined && typeof value === "string" && value.length > 0) ? value : ""
+        if (value === null || value === undefined) return ""
+        if (typeof value === "string" && value.length > 0) return value
+        // QML color (von colorWithAlpha) ist kein String – in #rrggbb umwandeln
+        if (typeof value.r === "number" && typeof value.g === "number" && typeof value.b === "number") {
+            var r = Math.round(Math.max(0, Math.min(1, value.r)) * 255)
+            var g = Math.round(Math.max(0, Math.min(1, value.g)) * 255)
+            var b = Math.round(Math.max(0, Math.min(1, value.b)) * 255)
+            return "#" + r.toString(16).padStart(2, "0") + g.toString(16).padStart(2, "0") + b.toString(16).padStart(2, "0")
+        }
+        return ""
     }
 
     readonly property color currentPathFillColor: {
@@ -350,7 +358,8 @@ Item { // ROOT
 
     function _effectivePathColor(path, isCurrent) {
         var fn = pathColorFunction || (hostBackend ? _defaultPathColor : null)
-        return fn ? fn(String(path || ""), !!isCurrent) : null
+        var p = String(path || "")
+        return fn ? fn(p, !!isCurrent) : null
     }
 
     function iconSourceForPath(fullPath, isCurrent, item) {
