@@ -263,6 +263,8 @@ Item { // ROOT
     property bool previewHoverApplyScheduled: false
     property int previewHoverDelayMs: 90
     property int previewHoverDelayMinLevel: 1
+    /// H-Ansicht: Jeder Hover (auch Wechsel zwischen Ordnern) erst nach dieser Verzögerung anwenden.
+    property int previewHoverDelayHorizontalMs: 200
     property int previewHoverPendingGeneration: 0
     property bool previewCloseOnHoverExitEnabled: false
     property int previewCloseDelayMs: 120
@@ -1883,10 +1885,18 @@ Item { // ROOT
             _queuePreviewHover(level, basePath, sourceItem, sourceFillColor, sourceCenterX, sourceCenterY)
             return
         }
-        // Keep tab feedback immediate even while row animations run.
-        _setPreviewActivePath(level, basePath)
-        _setPreviewAnchorCenter(level, sourceCenterX, sourceCenterY)
-        _applyPreviewHover(level, basePath, sourceItem, sourceFillColor)
+        // H-Ansicht: Jeden Hover verzögert anwenden (erst nach previewHoverDelayHorizontalMs), damit man schnell
+        // über mehrere Ordner/Zeilen fahren kann, ohne jeden zu triggern.
+        previewPendingLevel = level
+        previewPendingPath = basePath
+        previewPendingItem = sourceItem
+        previewPendingFillColor = sourceFillColor
+        previewPendingCenterX = sourceCenterX
+        previewPendingCenterY = sourceCenterY
+        previewHoverApplyScheduled = true
+        previewHoverPendingGeneration = previewHoverGen
+        previewHoverDelayTimer.interval = previewHoverDelayHorizontalMs
+        previewHoverDelayTimer.restart()
     }
     
     function fullPathForDisplayIndex(index) {
