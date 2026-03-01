@@ -46,6 +46,7 @@ Rectangle { // Files panel
     property real projectsBrowserWidth: 0
     property string iconFolder: ""
     property string iconFolderOff: ""
+    property string iconFolderXray: ""
     property string iconFile: ""
     property string iconGear: ""
     property string itemStyle: "largeIcon"
@@ -54,9 +55,13 @@ Rectangle { // Files panel
     signal openMyosFolder()
     signal leaveMyosFolder()
     signal createProject()
-    property bool showMyosButton: false
+    signal createMyosAndEnter()
+    signal xrayClicked()
     property bool showLeaveMyosButton: false
-    property bool showCreateProject: false
+    property bool hasProjectInCwp: false
+    property bool hasMyosDirInCwp: false
+    /** Farbe für den P-Button wenn CWD nicht in einem Projekt liegt (Wurzelprojekt-Farbe). */
+    property color pButtonActiveColor: "#7b5bd6"
 
     property int compactButtonHeight: 32
     property int largeButtonHeight: 88
@@ -107,7 +112,7 @@ Rectangle { // Files panel
     }
     property real filesPanelOverlayAlpha: 0.20
     readonly property real uPanelLuma: (0.2126 * backgroundColor.r) + (0.7152 * backgroundColor.g) + (0.0722 * backgroundColor.b)
-    readonly property color uPanelColor: PanelColors.uPanelColor(showMyosButton, backgroundColor, uPanelTintColor, uPanelTintMix)
+    readonly property color uPanelColor: PanelColors.uPanelColor(hasProjectInCwp, backgroundColor, uPanelTintColor, uPanelTintMix)
     readonly property color filesPanelOverlayColor: PanelColors.filesOverlayColor(uPanelLuma, filesPanelOverlayAlpha)
 
     radius: 0
@@ -272,37 +277,42 @@ Rectangle { // Files panel
             anchors.margins: root.sidePanelInnerMargin
             spacing: root.sidePanelInnerMargin
 
+            // Zeile 1: P-Button + Edit/Exit-Button
             Row {
                 width: parent.width
                 spacing: root.sidePanelButtonSpacing
 
+                // P-Button: immer sichtbar, ausgegraut wenn bereits Projektordner; sonst stark in Projektfarbe
                 Rectangle {
                     radius: root.chipRadiusMedium
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: Qt.rgba(root.projectTint.r, root.projectTint.g, root.projectTint.b, root.projectTintOpacity)
-                    border.color: Qt.rgba(root.projectTintBorder.r, root.projectTintBorder.g, root.projectTintBorder.b, root.projectTintOpacity)
-                    visible: root.showCreateProject
+                    color: root.hasProjectInCwp ? root.smallButtonBg : root.pButtonActiveColor
+                    border.color: root.hasProjectInCwp ? root.smallButtonBorder : root.pButtonActiveColor
+                    opacity: root.hasProjectInCwp ? 0.5 : 1
                     Text {
                         anchors.centerIn: parent
                         text: "P"
-                        color: "#ffffff"
+                        color: root.hasProjectInCwp ? root.smallButtonText : "#ffffff"
                         font.pixelSize: Math.round(root.baseFont * 0.9)
                         font.bold: true
                     }
                     MouseArea {
                         anchors.fill: parent
+                        enabled: !root.hasProjectInCwp
                         onClicked: root.createProject()
                     }
                 }
 
+                // Edit-Button / Exit-Button: immer sichtbar, halbtransparent wenn kein .MyOS
                 Rectangle {
                     radius: root.chipRadiusMedium
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
                     color: root.smallButtonBg
                     border.color: root.smallButtonBorder
-                    visible: root.showMyosButton && !root.showLeaveMyosButton
+                    visible: !root.showLeaveMyosButton
+                    opacity: root.hasMyosDirInCwp ? 1 : 0.5
                     Image {
                         anchors.centerIn: parent
                         source: root.iconGear
@@ -314,7 +324,7 @@ Rectangle { // Files panel
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: root.openMyosFolder()
+                        onClicked: root.hasMyosDirInCwp ? root.openMyosFolder() : root.createMyosAndEnter()
                     }
                 }
 
@@ -337,6 +347,12 @@ Rectangle { // Files panel
                         onClicked: root.leaveMyosFolder()
                     }
                 }
+            }
+
+            // Zeile 2: Ordner ein-/ausblenden + X-Ray
+            Row {
+                width: parent.width
+                spacing: root.sidePanelButtonSpacing
 
                 Rectangle {
                     radius: root.chipRadiusMedium
@@ -366,11 +382,32 @@ Rectangle { // Files panel
                         onClicked: root.showFolders = !root.showFolders
                     }
                 }
+
+                Rectangle {
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: root.smallButtonBg
+                    border.color: root.smallButtonBorder
+                    Image {
+                        anchors.centerIn: parent
+                        source: root.iconFolderXray || root.iconFolderOff
+                        width: root.topRightIconSize
+                        height: root.topRightIconSize
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize.width: width
+                        sourceSize.height: height
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.xrayClicked()
+                    }
+                }
             }
 
             Rectangle {
                 width: parent.width
-                height: Math.max(80, parent.height - root.topRightButtonSize - 20)
+                height: Math.max(80, parent.height - (2 * root.topRightButtonSize) - root.sidePanelButtonSpacing - root.sidePanelInnerMargin - 20)
                 radius: 0
                 border.width: 0
                 color: "transparent"
@@ -660,6 +697,7 @@ Rectangle { // Files panel
                                         color: root.smallButtonText
                                         font.pixelSize: root.tagSectionLabelPx
                                         elide: Text.ElideRight
+                                        visible: root.fileTags && root.fileTags.length > 0
                                     }
 
                                     Item {
