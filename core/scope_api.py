@@ -1375,7 +1375,9 @@ class ScopeApi:
         except Exception:
             return None
 
-    def list_children(self, path: str, include_embryos: bool = True) -> List[FolderEntry]:
+    def list_children(
+        self, path: str, include_embryos: bool = True, show_hidden: bool = False
+    ) -> List[FolderEntry]:
         try:
             target = self._resolve_path(path)
         except Exception:
@@ -1401,7 +1403,7 @@ class ScopeApi:
         if can_list_dirs:
             try:
                 for child in sorted(target.iterdir()):
-                    if child.name.startswith("."):
+                    if not show_hidden and child.name.startswith("."):
                         continue
                     if child.is_dir():
                         acl_child = self._acl_probe("read_dir", child)
@@ -1516,7 +1518,9 @@ class ScopeApi:
         except Exception:
             return []
 
-    def list_entries_quick(self, path: str) -> List[FileEntryWithOptionalEmbryo]:
+    def list_entries_quick(
+        self, path: str, show_hidden: bool = False
+    ) -> List[FileEntryWithOptionalEmbryo]:
         """Minimal list for immediate display. No tags, no ACL, no embryos."""
         try:
             target = Path(path).expanduser().resolve()
@@ -1527,7 +1531,7 @@ class ScopeApi:
         entries: List[FileEntryWithOptionalEmbryo] = []
         try:
             for child in sorted(target.iterdir()):
-                if child.name.startswith("."):
+                if not show_hidden and child.name.startswith("."):
                     continue
                 is_dir = child.is_dir()
                 entry = self._build_file_entry(

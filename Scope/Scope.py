@@ -301,9 +301,9 @@ class Backend(QObject):
             self._project_desktop_hash[initial_root] = self._desktop_state_hash
         self._refresh_sort_watchers(self._api.get_start_path())
 
-    @Slot(str, bool, result="QVariantList")
-    def listChildren(self, path: str, includeEmbryos: bool):
-        return self._api.list_children(path, includeEmbryos)
+    @Slot(str, bool, bool, result="QVariantList")
+    def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
+        return self._api.list_children(path, includeEmbryos, showHidden)
 
     @Slot(str, bool, result="QVariantList")
     def listTemplates(self, path: str, includeEmbryos: bool):
@@ -335,8 +335,8 @@ class Backend(QObject):
         cleaned = [item for item in cleaned if item]
         return self._api.move_entries(cleaned, targetDir)
 
-    @Slot(str, result="QVariantList")
-    def listEntries(self, path: str):
+    @Slot(str, bool, result="QVariantList")
+    def listEntries(self, path: str, showHidden: bool = False):
         resolved = str(Path(path).expanduser().resolve())
         cached_entries = None
         with self._entries_lock:
@@ -347,9 +347,14 @@ class Backend(QObject):
                 self._entries_pending.add(resolved)
         if cached_entries is not None:
             self._prime_thumbnails(cached_entries)
+            if not showHidden:
+                cached_entries = [
+                    e for e in cached_entries
+                    if not (e.get("name") or "").startswith(".")
+                ]
             return cached_entries
         self._start_entries_task(resolved)
-        quick = self._api.list_entries_quick(resolved)
+        quick = self._api.list_entries_quick(resolved, showHidden)
         self._enrich_entries(quick, resolved)
         return quick
 

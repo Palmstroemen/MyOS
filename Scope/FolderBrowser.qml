@@ -32,6 +32,7 @@ Item { // ROOT
     property bool showThemeToggle: false
     property bool showEmbryos: true
     property bool showEmbryoToggle: true
+    property bool showHiddenFolders: false
     property bool searchActive: false
     property string searchText: ""
     property bool allowRename: false
@@ -129,6 +130,7 @@ Item { // ROOT
     signal toggleTheme()
     signal styleChanged(string style)
     signal toggleEmbryos()
+    signal toggleShowHiddenFolders()
     signal clipboardRequested()
     signal clipboardDropRequested(string payload)
     signal renameRequested(string fullPath)
@@ -2336,6 +2338,12 @@ Item { // ROOT
                             onTriggered: toggleEmbryos()
                         }
                         MenuItem {
+                            text: qsTr("Versteckte Ordner anzeigen")
+                            checkable: true
+                            checked: showHiddenFolders
+                            onTriggered: toggleShowHiddenFolders()
+                        }
+                        MenuItem {
                             text: qsTr("Vorschau")
                             checkable: true
                             checked: previewEnabled
@@ -2536,6 +2544,12 @@ Item { // ROOT
                                     checkable: true
                                     checked: showEmbryos
                                     onTriggered: toggleEmbryos()
+                                }
+                                MenuItem {
+                                    text: qsTr("Versteckte Ordner anzeigen")
+                                    checkable: true
+                                    checked: showHiddenFolders
+                                    onTriggered: toggleShowHiddenFolders()
                                 }
                                 MenuItem {
                                     text: qsTr("Vorschau")

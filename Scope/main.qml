@@ -154,6 +154,7 @@ ApplicationWindow {
     property int currentFolderSizeBytes: 0
     property string tagMatchMode: "or" // or | and
     property bool projectsShowEmbryos: false
+    property bool projectsShowHiddenFolders: false
     property bool templatesShowEmbryos: true
     property var pendingMoveSources: []
     property string pendingMoveTargetDir: ""
@@ -760,7 +761,7 @@ ApplicationWindow {
     }
     function listChildren(path) {
         if (hasBackend()) {
-            var result = backend.listChildren(path, projectsShowEmbryos)
+            var result = backend.listChildren(path, projectsShowEmbryos, projectsShowHiddenFolders)
             return result
         }
         if (path === cwp) {
@@ -1348,7 +1349,7 @@ ApplicationWindow {
 
     function listEntries(path) {
         if (hasBackend()) {
-            return backend.listEntries(path)
+            return backend.listEntries(path, projectsShowHiddenFolders)
         }
         if (path === cwp) {
             var items = []
@@ -1545,7 +1546,7 @@ ApplicationWindow {
             if (entry.isDir && entry.name === myosDirName) {
                 found = true
             }
-            if (entry.name && entry.name.indexOf(".") === 0) {
+            if (!projectsShowHiddenFolders && entry.name && entry.name.indexOf(".") === 0) {
                 continue
             }
             if (!filesPane.showFolders && entry.isDir) {
@@ -1563,7 +1564,7 @@ ApplicationWindow {
                 filtered = []
                 for (var j = 0; j < coreFiltered.length; j++) {
                     var coreEntry = coreFiltered[j]
-                    if (coreEntry.name && coreEntry.name.indexOf(".") === 0) {
+                    if (!projectsShowHiddenFolders && coreEntry.name && coreEntry.name.indexOf(".") === 0) {
                         continue
                     }
                     if (!filesPane.showFolders && coreEntry.isDir) {
@@ -3121,6 +3122,7 @@ ApplicationWindow {
             folders: subProjects
             childrenProvider: function(targetPath) { return listChildren(targetPath) }
             showEmbryos: window.projectsShowEmbryos
+            showHiddenFolders: window.projectsShowHiddenFolders
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
             tintPathAsProject: false
@@ -3186,6 +3188,11 @@ ApplicationWindow {
             window.projectsShowEmbryos = !window.projectsShowEmbryos
             updateSubProjects()
         }
+            onToggleShowHiddenFolders: {
+                window.projectsShowHiddenFolders = !window.projectsShowHiddenFolders
+                updateSubProjects()
+                updateFiles()
+            }
             onToggleSearch: window.searchActive = !window.searchActive
             onSearchTextChanged: {
                 window.searchText = projectsBrowser.searchText
