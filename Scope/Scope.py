@@ -41,6 +41,11 @@ from PySide6.QtCore import QMimeDatabase
 
 from core.scope_api import ScopeApi
 
+try:
+    from Scope.daemon_client import connect as connect_daemon
+except Exception:
+    connect_daemon = None
+
 
 class DropDebugFilter(QObject):
     """Log drop events at window level to see if the drop reaches the window at all."""
@@ -300,6 +305,12 @@ class Backend(QObject):
         if initial_root and self._desktop_state_hash:
             self._project_desktop_hash[initial_root] = self._desktop_state_hash
         self._refresh_sort_watchers(self._api.get_start_path())
+        self._daemon_client = None
+        if connect_daemon is not None:
+            try:
+                self._daemon_client = connect_daemon()
+            except Exception:
+                self._daemon_client = None
 
     @Slot(str, bool, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
@@ -451,14 +462,20 @@ class Backend(QObject):
 
     @Slot(str, str, result="QVariantMap")
     def perspectiveOpen(self, path: str, perspectiveId: str):
+        if self._daemon_client is not None:
+            return self._daemon_client.perspective_open(path, perspectiveId or "flipped")
         return self._api.perspective_open(path, perspectiveId)
 
     @Slot(result="QVariantMap")
     def perspectiveState(self):
+        if self._daemon_client is not None:
+            return self._daemon_client.perspective_state()
         return self._api.perspective_state()
 
     @Slot(str, result="QVariantMap")
     def perspectiveSetCpd(self, cpd: str):
+        if self._daemon_client is not None:
+            return self._daemon_client.perspective_set_cpd(cpd)
         return self._api.perspective_set_cpd(cpd)
 
     @Slot(str, result="QVariantMap")
@@ -471,14 +488,21 @@ class Backend(QObject):
 
     @Slot(str, bool, result="QVariantList")
     def perspectiveListDir(self, cpd: str, showHidden: bool = False):
+        if self._daemon_client is not None:
+            return self._daemon_client.perspective_list_dir(cpd, showHidden)
         return self._api.perspective_list_dir(cpd, showHidden)
 
     @Slot(str, bool, result="QVariantList")
     def perspectiveListTemplates(self, cpd: str, showHidden: bool = False):
+        if self._daemon_client is not None:
+            return self._daemon_client.perspective_list_templates(cpd, showHidden)
         return self._api.perspective_list_templates(cpd, showHidden)
 
     @Slot(result=bool)
     def perspectiveClear(self) -> bool:
+        if self._daemon_client is not None:
+            r = self._daemon_client.perspective_set_cpd("/Projekte")
+            return bool(r.get("ok"))
         return self._api.perspective_clear()
 
     @Slot(str, result="QVariantMap")

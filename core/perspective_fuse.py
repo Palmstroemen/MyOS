@@ -11,7 +11,7 @@ import os
 import stat
 import time
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Callable, Dict, Iterable, Optional
 
 try:
     from fuse import FUSE, FuseOSError, Operations
@@ -61,20 +61,32 @@ class PerspectiveFuseAdapter(Operations):
     def __init__(
         self,
         *,
-        project_root: str,
-        start_real_path: str,
+        project_root: Optional[str] = None,
+        start_real_path: Optional[str] = None,
         perspective_id: str = "flipped",
         role: Optional[str] = None,
+        context_provider: Optional[Callable[[], PerspectiveContext]] = None,
     ) -> None:
-        self.ctx: PerspectiveContext = perspective_open(
-            perspective_id=perspective_id,
-            project_root=project_root,
-            start_real_path=start_real_path,
-            role=role,
-        )
+        self._context_provider: Optional[Callable[[], PerspectiveContext]] = context_provider
+        self.ctx: Optional[PerspectiveContext] = None
+        if context_provider is None:
+            if project_root is None or start_real_path is None:
+                raise ValueError("project_root and start_real_path required when context_provider is not set")
+            self.ctx = perspective_open(
+                perspective_id=perspective_id,
+                project_root=project_root,
+                start_real_path=start_real_path,
+                role=role,
+            )
         self.mount_time = time.time()
         self._fd_table: Dict[int, int] = {}
         self._next_handle: int = 1000
+
+    def _get_ctx(self) -> PerspectiveContext:
+        if self._context_provider is not None:
+            return self._context_provider()
+        assert self.ctx is not None
+        return self.ctx
 
     def _fail(self, error_code: Optional[ResolverErrorCode]) -> None:
         logger.debug("perspective_fuse.fail cpd=? error_code=%s", error_code)
@@ -106,7 +118,7 @@ class PerspectiveFuseAdapter(Operations):
         return parent, name
 
     def _real_path(self, cpd: str, *, required: bool = True) -> Optional[str]:
-        resolved = resolve_virtual_path(ctx=self.ctx, cpd=cpd)
+        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=cpd)
         if not resolved.ok:
             self._fail(resolved.error_code)
         if required and not resolved.real_path:
@@ -122,7 +134,7 @@ class PerspectiveFuseAdapter(Operations):
     # FUSE API ---------------------------------------------------------------
     def access(self, path: str, mode: int) -> int:
         cpd = self._cpd(path)
-        resolved = resolve_virtual_path(ctx=self.ctx, cpd=cpd)
+        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=cpd)
         if not resolved.ok:
             self._log_op("access", cpd=cpd, real=resolved.real_path, error_code=resolved.error_code)
             self._fail(resolved.error_code)
@@ -131,11 +143,12 @@ class PerspectiveFuseAdapter(Operations):
 
     def getattr(self, path: str, fh=None):
         cpd = self._cpd(path)
-        resolved = resolve_virtual_path(ctx=self.ctx, cpd=cpd)
+        ctx = self._get_ctx()
+        resolved = resolve_virtual_path(ctx=ctx, cpd=cpd)
         if not resolved.ok:
             # Apply parent fallback only for directory-like getattr requests.
             if self._looks_like_directory_path(cpd):
-                dir_read = resolve_virtual_dir_for_read(ctx=self.ctx, cpd=cpd)
+                dir_read = resolve_virtual_dir_for_read(ctx=ctx, cpd=cpd)
                 if dir_read.ok and dir_read.node_type == "dir":
                     fallback_real = dir_read.effective_read_path
                     if fallback_real:
@@ -188,12 +201,13 @@ class PerspectiveFuseAdapter(Operations):
 
     def readdir(self, path: str, fh) -> Iterable[str]:
         cpd = self._cpd(path)
-        dir_read = resolve_virtual_dir_for_read(ctx=self.ctx, cpd=cpd)
+        ctx = self._get_ctx()
+        dir_read = resolve_virtual_dir_for_read(ctx=ctx, cpd=cpd)
         if not dir_read.ok:
             self._log_op("readdir", cpd=cpd, real=dir_read.real_path, error_code=dir_read.error_code)
             self._fail(dir_read.error_code)
         entries = [".", ".."]
-        for item in list_virtual_dir(ctx=self.ctx, cpd=cpd):
+        for item in list_virtual_dir(ctx=ctx, cpd=cpd):
             name = str(item.get("name") or "")
             if name:
                 entries.append(name)
@@ -221,7 +235,7 @@ class PerspectiveFuseAdapter(Operations):
 
     def create(self, path: str, mode: int, fi=None) -> int:
         parent_cpd, name = self._split_parent_name(path)
-        prepared = prepare_create(ctx=self.ctx, cpd_parent=parent_cpd, name=name, node_type="file")
+        prepared = prepare_create(ctx=self._get_ctx(), cpd_parent=parent_cpd, name=name, node_type="file")
         if not prepared.ok or not prepared.real_path:
             self._log_op("create", cpd=path, real=prepared.real_path, error_code=prepared.error_code)
             self._fail(prepared.error_code)
@@ -280,7 +294,7 @@ class PerspectiveFuseAdapter(Operations):
 
     def mkdir(self, path: str, mode: int) -> int:
         parent_cpd, name = self._split_parent_name(path)
-        prepared = prepare_create(ctx=self.ctx, cpd_parent=parent_cpd, name=name, node_type="dir")
+        prepared = prepare_create(ctx=self._get_ctx(), cpd_parent=parent_cpd, name=name, node_type="dir")
         if not prepared.ok or not prepared.real_path:
             self._log_op("mkdir", cpd=path, real=prepared.real_path, error_code=prepared.error_code)
             self._fail(prepared.error_code)
@@ -294,7 +308,7 @@ class PerspectiveFuseAdapter(Operations):
     def rename(self, old: str, new: str) -> int:
         target_parent, target_name = self._split_parent_name(new)
         source_resolved, target_prepared = prepare_rename(
-            ctx=self.ctx,
+            ctx=self._get_ctx(),
             source_cpd=self._cpd(old),
             target_parent_cpd=target_parent,
             target_name=target_name,
@@ -313,7 +327,7 @@ class PerspectiveFuseAdapter(Operations):
         return 0
 
     def unlink(self, path: str) -> int:
-        resolved = resolve_virtual_path(ctx=self.ctx, cpd=self._cpd(path))
+        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=self._cpd(path))
         if not resolved.ok:
             self._log_op("unlink", cpd=self._cpd(path), real=resolved.real_path, error_code=resolved.error_code)
             self._fail(resolved.error_code)
@@ -331,7 +345,7 @@ class PerspectiveFuseAdapter(Operations):
         return 0
 
     def rmdir(self, path: str) -> int:
-        resolved = resolve_virtual_path(ctx=self.ctx, cpd=self._cpd(path))
+        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=self._cpd(path))
         if not resolved.ok:
             self._log_op("rmdir", cpd=self._cpd(path), real=resolved.real_path, error_code=resolved.error_code)
             self._fail(resolved.error_code)
@@ -349,7 +363,7 @@ class PerspectiveFuseAdapter(Operations):
         return 0
 
     def statfs(self, path: str):
-        root = Path(self.ctx.project_root)
+        root = Path(self._get_ctx().project_root)
         st = os.statvfs(root)
         return {
             "f_bsize": st.f_bsize,

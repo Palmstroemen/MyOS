@@ -12,6 +12,7 @@ from core.perspective_resolver import (
     list_virtual_dir,
     parse_merged_templates_cpd,
     perspective_open,
+    perspective_open_from_cpd,
     prepare_create,
     prepare_rename,
     resolve_virtual_dir_for_read,
@@ -55,6 +56,56 @@ def test_t01_open_context_from_real_path(ctx: PerspectiveContext, workspace: dic
     assert ctx.project_root == str(workspace["projekte"])
     assert ctx.cwd_real == str(workspace["a_email"])
     assert ctx.cpd == "/kommunikation/email/Projekte/ProjektA"
+
+
+def test_t01b_open_context_at_project_root_yields_projects_anchor(workspace: dict[str, Path]):
+    """CWD at project_root (Projekte container) is valid; initial CPD is /Projekte."""
+    ctx = perspective_open(
+        perspective_id="flipped",
+        project_root=str(workspace["projekte"]),
+        start_real_path=str(workspace["projekte"]),
+        role=None,
+    )
+    assert ctx.cpd == "/Projekte"
+    assert ctx.cwd_real == str(workspace["projekte"])
+
+
+def test_perspective_open_from_cpd_projects_anchor(workspace: dict[str, Path]):
+    """perspective_open_from_cpd with /Projekte yields context at project_root."""
+    ctx = perspective_open_from_cpd(
+        project_root=str(workspace["projekte"]),
+        cpd="/Projekte",
+    )
+    assert ctx.cpd == "/Projekte"
+    assert ctx.cwd_real == str(workspace["projekte"])
+    assert ctx.project_root == str(workspace["projekte"])
+
+
+def test_perspective_open_from_cpd_project_path(workspace: dict[str, Path]):
+    """perspective_open_from_cpd with project CPD yields same context as perspective_open."""
+    cpd = "/kommunikation/email/Projekte/ProjektA"
+    ctx_from_cpd = perspective_open_from_cpd(
+        project_root=str(workspace["projekte"]),
+        cpd=cpd,
+    )
+    assert ctx_from_cpd.cpd == cpd
+    assert ctx_from_cpd.cwd_real == str(workspace["a_email"])
+    ctx_from_path = perspective_open(
+        perspective_id="flipped",
+        project_root=str(workspace["projekte"]),
+        start_real_path=str(workspace["a_email"]),
+    )
+    assert ctx_from_cpd.cpd == ctx_from_path.cpd
+    assert ctx_from_cpd.cwd_real == ctx_from_path.cwd_real
+
+
+def test_perspective_open_from_cpd_invalid_raises(workspace: dict[str, Path]):
+    """perspective_open_from_cpd with invalid CPD raises ValueError."""
+    with pytest.raises(ValueError, match="invalid CPD"):
+        perspective_open_from_cpd(
+            project_root=str(workspace["projekte"]),
+            cpd="/../Projekte/ProjektA",
+        )
 
 
 def test_t02_resolve_existing_cpd_directory(ctx: PerspectiveContext, workspace: dict[str, Path]):

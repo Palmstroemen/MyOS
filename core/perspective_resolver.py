@@ -88,11 +88,14 @@ def perspective_open(
     rel = start.relative_to(root)
     parts = rel.parts
     if len(parts) == 0:
-        raise ValueError("start_real_path must point into a project branch")
-
-    project_name = parts[0]
-    template_head: Tuple[str, ...] = tuple(parts[1:])
-    cpd = _build_cpd(template_head, project_name, ())
+        # CWD at project_root (e.g. "Projekte" container) is valid: open with projects anchor.
+        project_name = ""
+        template_head = ()
+        cpd = "/Projekte"
+    else:
+        project_name = parts[0]
+        template_head = tuple(parts[1:])
+        cpd = _build_cpd(template_head, project_name, ())
 
     return PerspectiveContext(
         perspective_id=perspective_id,
@@ -102,6 +105,48 @@ def perspective_open(
         role=role,
         template_head=template_head,
         acl_checker=None,
+    )
+
+
+def perspective_open_from_cpd(
+    *,
+    project_root: str,
+    cpd: str,
+    perspective_id: str = "flipped",
+    role: str | None = None,
+) -> PerspectiveContext:
+    """
+    Create a PerspectiveContext from (project_root, cpd) instead of start_real_path.
+    CPD must be in canonical form (containing \"Projekte\"). For projects anchor,
+    start_real_path is project_root; otherwise it is derived from parsed path segments.
+    """
+    root = Path(project_root).expanduser().resolve()
+    if perspective_id != "flipped":
+        raise ValueError("Only flipped perspective is supported in v1")
+    if not root.exists() or not root.is_dir():
+        raise ValueError("project_root must be an existing directory")
+
+    cpd_norm = _normalize_cpd(cpd)
+    parsed = _parse_cpd(cpd_norm)
+    if parsed is None:
+        raise ValueError("invalid CPD: cannot parse")
+
+    if parsed.is_projects_anchor or parsed.project_name is None:
+        start_real_path = str(root)
+    else:
+        start = (
+            root
+            / parsed.project_name
+            / Path(*parsed.template_parts)
+            / Path(*parsed.tail_parts)
+        ).resolve()
+        start_real_path = str(start)
+
+    return perspective_open(
+        perspective_id=perspective_id,
+        project_root=project_root,
+        start_real_path=start_real_path,
+        role=role,
     )
 
 
