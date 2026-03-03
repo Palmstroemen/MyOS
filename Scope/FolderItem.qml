@@ -41,6 +41,8 @@ Rectangle {
     readonly property bool hoverActive: hitArea.containsMouse
     property real batchBottomMargin: hoverActive ? TagChips.BATCH_BOTTOM_MARGIN_HOVER : TagChips.BATCH_BOTTOM_MARGIN_DEFAULT
     property bool tabPinned: false
+    property bool showPin: false
+    property string iconPin: ""
     property real tabDropOffset: (tabHoverDropEnabled && (hoverActive || tabPinned)) ? tabHoverDropPx : 0
     property bool isCwdMainPanelItem: false
     property bool hitAreaFullButton: false
@@ -545,5 +547,17 @@ Rectangle {
             }
             drop.acceptProposedAction()
         }
+    }
+
+    Image {
+        visible: root.showPin && String(root.iconPin || "").length > 0
+        z: 60
+        source: root.iconPin
+        width: Math.min(root.compactHeight * 0.5, 18)
+        height: width
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.rightMargin: 6
+        fillMode: Image.PreserveAspectFit
     }
 }

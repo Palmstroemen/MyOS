@@ -89,6 +89,8 @@ Item { // ROOT
     property color folderButtonBorder: pillBorder
     property bool isPerspective: false
     readonly property bool is_perspective: isPerspective
+    property bool showPerspectivePin: false
+    property string iconPin: ""
     property bool tintPathAsProject: false
     property real cwdOpacity: 1.0
     property real pathProjectOpacity: 0.7
@@ -2764,6 +2766,8 @@ Item { // ROOT
                                 flatBottomCorners: isCurrent
                                 renaming: false
                                 renameEnabled: false
+                                showPin: isCurrent && root.showPerspectivePin
+                                iconPin: root.iconPin
                                 onActivate: {
                                     pathSegmentActivated(index)
                                     navigateToPathRequested(fullPathForDisplayIndex(index))
@@ -3225,15 +3229,17 @@ Item { // ROOT
                         flatBottomCorners: true
                         renaming: false
                         renameEnabled: false
+                        showPin: root.showPerspectivePin
+                        iconPin: root.iconPin
                         onActivate: {}
                         onDoubleActivate: root.currentPathDoubleActivated()
                         onDrop: function(payload) {
                             if (!payload) return
                             clipboardDropRequested(payload)
                         }
-                    }            
+                    }
                     // Edit
-            
+
                     // FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                     //     id: cwpButton
                     //     width: parent.width

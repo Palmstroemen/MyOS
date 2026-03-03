@@ -18,6 +18,7 @@ ApplicationWindow {
     property string iconFolder: "image://theme/folder-open"
     property string iconFolderOff: "image://theme/folder"
     property string iconProjectFallback: Qt.resolvedUrl("Theme/icons/project.svg")
+    property string iconPin: Qt.resolvedUrl("Theme/icons/pin.svg")
     property string iconSearch: "image://theme/system-search"
     property string iconFile: "image://theme/text-x-generic"
     property string iconGear: "image://theme/preferences-system"
@@ -640,6 +641,12 @@ ApplicationWindow {
         return true
     }
 
+    function onCwdDoubleActivated() {
+        if (perspectiveModeEnabled) {
+            disablePerspectiveMode()
+        }
+    }
+
     function ensurePerspectiveOpen() {
         // onCwpChanged already refreshes perspective state before updateTemplates().
         // Avoid a redundant second refresh on startup/path changes.
@@ -650,6 +657,7 @@ ApplicationWindow {
             return true
         }
         var opened = backend.perspectiveOpen(cwp, "flipped") || ({ active: false })
+        console.log("ensurePerspectiveOpen:", !!opened.active, opened)
         refreshPerspectiveState()
         return !!opened.active || !!perspectiveState.active
     }
@@ -691,7 +699,9 @@ ApplicationWindow {
             return false
         }
         var result = backend.perspectiveSetCpd(next) || ({ ok: false })
+        console.log("perspectiveSetCpd result:", result)
         refreshPerspectiveState()
+        console.log("Perspektive aktiviert auf: CPD", (perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "(leer)", "active:", perspectiveModeEnabled)
         if (!result.ok) {
             return false
         }
@@ -3029,6 +3039,8 @@ ApplicationWindow {
             resolvePath: resolveTemplateDisplayPathToReal
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
+            showPerspectivePin: window.perspectiveModeEnabled
+            iconPin: window.iconPin
             searchActive: level2SearchActive
             searchText: level2SearchText
             onToggleMode: level2VerticalView = !level2VerticalView
@@ -3042,11 +3054,7 @@ ApplicationWindow {
         onLeftActionTriggered: {
             disablePerspectiveMode()
         }
-        onCurrentPathDoubleActivated: {
-            if (templatesBrowser.isPerspective && window.perspectiveModeEnabled) {
-                disablePerspectiveMode()
-            }
-        }
+        onCurrentPathDoubleActivated: onCwdDoubleActivated
         onToggleEmbryos: {
             window.templatesShowEmbryos = !window.templatesShowEmbryos
                 var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
@@ -3095,11 +3103,12 @@ ApplicationWindow {
                 applyFolderActivation(resolveTemplateDisplayPathToReal(path))
             }
             onFolderDoubleActivated: function(path, folderMeta) {
-                var targetPath = String(path || "")
-                if (targetPath.length > 0) {
-                    commitCTD(resolveTemplateDisplayPathToReal(targetPath))
-                }
-                if (!shouldApplyPerspectiveForFolderType(folderMeta)) {
+                var applyPerspective = shouldApplyPerspectiveForFolderType(folderMeta)
+                if (!applyPerspective) {
+                    var targetPath = String(path || "")
+                    if (targetPath.length > 0) {
+                        commitCTD(resolveTemplateDisplayPathToReal(targetPath))
+                    }
                     return
                 }
                 if (!ensurePerspectiveOpenForTemplates()) {
@@ -3127,6 +3136,8 @@ ApplicationWindow {
             pathDisplayPrefix: cwp
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
+            showPerspectivePin: window.perspectiveModeEnabled
+            iconPin: window.iconPin
             folders: subProjects
             childrenProvider: function(targetPath, options) { return listChildren(targetPath, options) }
             showEmbryos: window.projectsShowEmbryos
@@ -3215,6 +3226,7 @@ ApplicationWindow {
                 applyFolderActivation(path)
                 clearSearchAfterNavigate()
             }
+            onCurrentPathDoubleActivated: onCwdDoubleActivated
             onFolderActivated: function(name) {
                 show_FilesPanel()
             }
