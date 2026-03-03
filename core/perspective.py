@@ -5,6 +5,8 @@ perspective.py - MyOS filter configuration handling.
 
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
@@ -25,9 +27,11 @@ class FilterConfig:
     flatten: bool
     groups: List[str]
     desk: Optional[str]
+    perspective_cpd: Optional[str] = None
     inherit: str = "dynamic"
     flatten_set: bool = False
     desk_set: bool = False
+    perspective_set: bool = False
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "FilterConfig":
@@ -84,6 +88,13 @@ class FilterConfig:
         desk_set = bool(desk_values)
         desk = desk_values[0] if desk_values else None
 
+        perspective_values = _normalize_section_list(data.get("Perspective"))
+        perspective_set = bool(perspective_values)
+        perspective_cpd = str(perspective_values[0]).strip() if perspective_values else None
+        if perspective_cpd == "":
+            perspective_cpd = None
+            perspective_set = False
+
         return cls(
             name=name,
             scope=scope,
@@ -93,9 +104,11 @@ class FilterConfig:
             flatten=flatten,
             groups=groups,
             desk=desk,
+            perspective_cpd=perspective_cpd,
             inherit=inherit,
             flatten_set=flatten_set,
             desk_set=desk_set,
+            perspective_set=perspective_set,
         )
 
 
@@ -242,6 +255,8 @@ def resolve_effective_filter(
     flatten_set = False
     desk_value: Optional[str] = None
     desk_set = False
+    perspective_value: Optional[str] = None
+    perspective_set = False
     effective_name = ""
     effective_scope: Optional[str] = None
     effective_inherit = "dynamic"
@@ -261,6 +276,8 @@ def resolve_effective_filter(
             flatten_set = False
             desk_value = None
             desk_set = False
+            perspective_value = None
+            perspective_set = False
         merged_layers.append(layer)
         effective_name = cfg.name
         effective_scope = cfg.scope
@@ -275,6 +292,9 @@ def resolve_effective_filter(
         if cfg.desk_set:
             desk_value = cfg.desk
             desk_set = True
+        if cfg.perspective_set and cfg.perspective_cpd:
+            perspective_value = cfg.perspective_cpd
+            perspective_set = True
         if cfg.inherit == "fix":
             locked_by_fix = True
 
@@ -287,9 +307,11 @@ def resolve_effective_filter(
         flatten=flatten_value,
         groups=groups,
         desk=desk_value,
+        perspective_cpd=perspective_value,
         inherit=effective_inherit,
         flatten_set=flatten_set,
         desk_set=desk_set,
+        perspective_set=perspective_set,
     )
     # Keep layers in specificity order for display.
     return EffectiveFilter(
@@ -308,7 +330,8 @@ def apply_filter_projection(
     project_root: Optional[Union[str, Path]] = None,
 ) -> List[Dict[str, Any]]:
     if not filter_state:
-        return list(entries or [])
+        result = list(entries or [])
+        return result
     cfg = filter_state.config
     cwd_path = Path(cwd).expanduser().resolve()
     project_root_path = _resolve_optional_path(project_root)

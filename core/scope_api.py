@@ -348,6 +348,10 @@ class ScopeApi:
         target = self._resolve_path(path)
         project_root = self._resolve_perspective_project_root(target)
         if project_root is None:
+            print(
+                "perspective_open: failed missing project_root path=%s target=%s"
+                % (path, str(target)),
+            )
             return {"active": False, "ok": False, "errorCode": "invalid_path", "message": "missing project_root"}
         try:
             self._perspective_ctx = resolver_perspective_open(
@@ -358,8 +362,11 @@ class ScopeApi:
             )
         except Exception as exc:
             self._perspective_ctx = None
+            print("perspective_open: exception path=%s project_root=%s exc=%s" % (path, project_root, exc))
             return {"active": False, "ok": False, "errorCode": "invalid_path", "message": str(exc)}
-        return self.perspective_state()
+        out = self.perspective_state()
+        print("perspective_open: ok project_root=%s cpd=%s" % (project_root, out.get("cpd", "")))
+        return out
 
     def perspective_state(self) -> Dict[str, Any]:
         if self._perspective_ctx is None:
@@ -426,12 +433,28 @@ class ScopeApi:
             result = resolve_virtual_dir_for_read(ctx=ctx, cpd=next_cpd)
             if result.ok:
                 self._perspective_ctx = replace(ctx, cpd=str(result.cpd))
+            print(
+                "perspective_set_cpd",
+                normalized[:80],
+                "result.ok",
+                result.ok,
+                "ctx.cpd",
+                self._perspective_ctx.cpd if self._perspective_ctx else None,
+            )
             return self._serialize_perspective_result(result)
         result = resolve_virtual_dir_for_read(ctx=ctx, cpd=normalized)
         if result.ok:
             # CPD changes must not implicitly move CWD. CWD remains controlled
             # by explicit navigation actions (e.g. left click/right navigation).
             self._perspective_ctx = replace(ctx, cpd=str(result.cpd))
+        print(
+            "perspective_set_cpd",
+            normalized[:80],
+            "result.ok",
+            result.ok,
+            "ctx.cpd",
+            self._perspective_ctx.cpd if self._perspective_ctx else None,
+        )
         return self._serialize_perspective_result(result)
 
     def perspective_resolve_cpd(self, cpd: str) -> Dict[str, Any]:
@@ -912,8 +935,10 @@ class ScopeApi:
                 "groups": [],
                 "chain": [],
                 "manualPath": str(self._manual_filter_path) if self._manual_filter_path else "",
+                "perspectiveCpd": "",
             }
         first_path = effective.layers[0].source_path if effective.layers else None
+        perspective_cpd = str(effective.config.perspective_cpd or "").strip()
         return {
             "active": True,
             "name": effective.config.name,
@@ -923,6 +948,7 @@ class ScopeApi:
             "groups": list(effective.config.groups or []),
             "chain": effective.explain_chain(),
             "manualPath": str(self._manual_filter_path) if self._manual_filter_path else "",
+            "perspectiveCpd": perspective_cpd,
         }
 
     def set_manual_filter(self, filter_path: str) -> bool:
@@ -937,10 +963,14 @@ class ScopeApi:
             return False
         try:
             # Validate parseability before activating.
-            _ = resolve_effective_filter(resolved.parent, manual=resolved)
+            effective = resolve_effective_filter(resolved.parent, manual=resolved)
         except Exception:
             return False
         self._manual_filter_path = resolved
+        if effective and getattr(effective.config, "perspective_cpd", None):
+            cpd = str(effective.config.perspective_cpd or "").strip()
+            if cpd and hasattr(self, "perspective_set_cpd"):
+                self.perspective_set_cpd(cpd)
         return True
 
     def clear_manual_filter(self) -> bool:
