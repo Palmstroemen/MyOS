@@ -53,7 +53,7 @@ Item { // ROOT
     property int buttonTextYOffset: Math.round(compactButtonHeight * 0.05)
     property int iconSizeSmall: 20
     property int iconSizeLarge: 48
-    property int maxParents: 4
+    property int maxParents: 10
     property int verticalParentSpacing: 6
     property int indent: 0
     property string iconFolder: ""
@@ -177,6 +177,8 @@ Item { // ROOT
     property bool contentHeightUpdatePending: false
     property bool contentHeightSettlePending: false
     property bool cwdHoverEnabled: true
+    /// When true, show path bar (H: breadcrumb row, V: vertical parent list); when false, use cascade menu on CWD hover.
+    property bool usePathBar: true
     property bool cwdHoverPanelOpen: false
     property bool cwdHoverOverButton: false
     property bool cwdHoverOverPanel: false
@@ -1528,6 +1530,26 @@ Item { // ROOT
         return FBUtils.pathPartsDisplay(path, pathDisplayPrefix)
     }
 
+    /// For H-View breadcrumb: when at display root (path === pathDisplayPrefix), show full path segments; otherwise same as pathPartsDisplay().
+    function pathPartsDisplayForBar() {
+        var full = pathPartsFull()
+        var prefix = prefixParts()
+        if (prefix.length > 0 && prefix.length === full.length) {
+            return full
+        }
+        return pathPartsDisplay()
+    }
+
+    /// Full path for segment at index in the H-View bar; use with pathPartsDisplayForBar().
+    function fullPathForBarIndex(index) {
+        var full = pathPartsFull()
+        var prefix = prefixParts()
+        if (prefix.length > 0 && prefix.length === full.length) {
+            return "/" + full.slice(0, index + 1).join("/")
+        }
+        return fullPathForDisplayIndex(index)
+    }
+
     function getPathSegmentColor(fullPath, isCurrent) {
         // Resolve effective path color directly; do not depend on current folder list.
         var direct = _effectivePathColor(fullPath, isCurrent)
@@ -1930,6 +1952,13 @@ Item { // ROOT
             startIndex = Math.max(0, prefix.length - 1)
         }
         var paths = []
+        // When at display root (path === pathDisplayPrefix), loop runs 0 times; show parents of full path so the path bar is not empty.
+        if (parts.length > 0 && startIndex >= parts.length - 1) {
+            for (var j = 0; j < parts.length - 1; j++) {
+                paths.push("/" + parts.slice(0, j + 1).join("/"))
+            }
+            return paths
+        }
         for (var i = startIndex; i < parts.length - 1; i++) {
             paths.push("/" + parts.slice(0, i + 1).join("/"))
         }
@@ -1961,6 +1990,41 @@ Item { // ROOT
     function _overlayItemHasParent(item, expectedParent) {
         if (!item) return false
         return item.parent === expectedParent
+    }
+
+    /// Opens the CWD hover cascade panel; position and segment metrics are derived from the given item (e.g. CWD button).
+    /// No-op if usePathBar is true or cwdHoverEnabled is false.
+    function openCwdHoverFromItem(item) {
+        if (!cwdHoverEnabled) return
+        if (usePathBar) return
+        if (!item) return
+        if (cwdHoverPanelOpen) {
+            cwdHoverOverButton = true
+            cwdHoverCloseTimer.stop()
+            return
+        }
+        var host = cwdHoverOverlayHost()
+        var ptBar = item.mapToItem(host, 0, item.height)
+        cwdHoverPathBarBottomY = ptBar.y
+        var p = item.mapToItem(host, 0, item.height)
+        cwdHoverPanelX = p.x
+        cwdHoverPanelY = p.y
+        cwdHoverPanelWidth = Math.max(120, item.width)
+        cwdHoverSegmentY = p.y - item.height
+        cwdHoverSegmentHeight = item.height
+        cwdHoverCurrentPath = String(path || "")
+        cwdHoverOverButton = true
+        cwdHoverPanelOpen = true
+        cwdHoverChildPanelOpen = false
+        cwdHoverGrandchildPanelOpen = false
+        cwdHoverPanelHoverCount = 0
+        cwdHoverMainPanelHovered = false
+        cwdHoverOverPanel = false
+        cwdHoverCascadePanels = []
+        cwdHoverCascadePanelHovered = []
+        cwdHoverChildPanelPath = ""
+        cwdHoverGrandchildPanelPath = ""
+        cwdHoverCloseTimer.stop()
     }
 
     function cascadePanelY(anchorY, panelHeight) {
@@ -2350,6 +2414,13 @@ Item { // ROOT
                             checked: showHiddenFolders
                             onTriggered: toggleShowHiddenFolders()
                         }
+                        MenuSeparator {}
+                        MenuItem {
+                            text: qsTr("P Pfadleiste")
+                            checkable: true
+                            checked: usePathBar
+                            onTriggered: usePathBar = !usePathBar
+                        }
                         MenuItem {
                             text: qsTr("Vorschau")
                             checkable: true
@@ -2558,6 +2629,13 @@ Item { // ROOT
                                     checked: showHiddenFolders
                                     onTriggered: toggleShowHiddenFolders()
                                 }
+                                MenuSeparator {}
+                                MenuItem {
+                                    text: qsTr("P Pfadleiste")
+                                    checkable: true
+                                    checked: usePathBar
+                                    onTriggered: usePathBar = !usePathBar
+                                }
                                 MenuItem {
                                     text: qsTr("Vorschau")
                                     checkable: true
@@ -2702,9 +2780,11 @@ Item { // ROOT
 
                 Item {  // HORIZONTAL: path segment row (breadcrumbs)
                     id: pathHost
+                    visible: root.usePathBar
                     Layout.fillWidth: flowOnSecondLine
+                    Layout.minimumWidth: (root.usePathBar && !flowOnSecondLine) ? Math.max(80, compactButtonHeight * 2) : 0
                     Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(pathRow.implicitWidth, horizontalPathHostMaxWidth())
-                    Layout.maximumWidth: flowOnSecondLine ? -1 : horizontalPathHostMaxWidth()
+                    Layout.maximumWidth: flowOnSecondLine ? -1 : Math.max(horizontalPathHostMaxWidth(), (root.usePathBar ? Math.max(80, compactButtonHeight * 2) : 0))
                     Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
                     clip: true
                     Row {
@@ -2741,10 +2821,10 @@ Item { // ROOT
                         }
 
                         Repeater {
-                            model: pathPartsDisplay()
+                            model: pathPartsDisplayForBar()
                             delegate: FolderItem {
-                                property bool isCurrent: index === (pathPartsDisplay().length - 1)
-                                property string fullPathForSegment: fullPathForDisplayIndex(index)
+                                property bool isCurrent: index === (pathPartsDisplayForBar().length - 1)
+                                property string fullPathForSegment: fullPathForBarIndex(index)
                                 allowDrops: root.allowDrops
                                 y: isCurrent ? root.cwdTabDrop : 0
                                 label: itemName(modelData)
@@ -2770,7 +2850,7 @@ Item { // ROOT
                                 iconPin: root.iconPin
                                 onActivate: {
                                     pathSegmentActivated(index)
-                                    navigateToPathRequested(fullPathForDisplayIndex(index))
+                                    navigateToPathRequested(fullPathForSegment)
                                 }
                                 onDoubleActivate: {
                                     if (isCurrent) root.currentPathDoubleActivated()
@@ -2782,39 +2862,10 @@ Item { // ROOT
                                     onClicked: {
                                         if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
                                         pathSegmentActivated(index)
-                                        navigateToPathRequested(fullPathForDisplayIndex(index))
+                                        navigateToPathRequested(fullPathForSegment)
                                     }
                                     onEntered: {
-                                        if (!root.cwdHoverEnabled) return
-                                        if (root.cwdHoverPanelOpen) {
-                                            root.cwdHoverOverButton = true
-                                            cwdHoverCloseTimer.stop()
-                                            return
-                                        }
-                                        var host = root.cwdHoverOverlayHost()
-                                        var parentOk = root._overlayItemHasParent(parent, host)
-                                        var pathHost = parent.parent.parent.parent
-                                        var ptBar = pathHost.mapToItem(host, 0, pathHost.height)
-                                        root.cwdHoverPathBarBottomY = ptBar.y
-                                        var p = parent.mapToItem(host, 0, parent.height)
-                                        root.cwdHoverPanelX = p.x
-                                        root.cwdHoverPanelY = p.y
-                                        root.cwdHoverPanelWidth = Math.max(120, parent.width)
-                                        root.cwdHoverSegmentY = p.y - parent.height
-                                        root.cwdHoverSegmentHeight = parent.height
-                                        root.cwdHoverCurrentPath = String(root.path || "")
-                                        root.cwdHoverOverButton = true
-                                        root.cwdHoverPanelOpen = true
-                                        root.cwdHoverChildPanelOpen = false
-                                        root.cwdHoverGrandchildPanelOpen = false
-                                        root.cwdHoverPanelHoverCount = 0
-                                        root.cwdHoverMainPanelHovered = false
-                                        root.cwdHoverOverPanel = false
-                                        root.cwdHoverCascadePanels = []
-                                        root.cwdHoverCascadePanelHovered = []
-                                        root.cwdHoverChildPanelPath = ""
-                                        root.cwdHoverGrandchildPanelPath = ""
-                                        cwdHoverCloseTimer.stop()
+                                        root.openCwdHoverFromItem(parent)
                                     }
                                     onExited: {
                                         root.cwdHoverOverButton = false
@@ -2828,7 +2879,7 @@ Item { // ROOT
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 onDrop: function(payload) {
-                                    var targetPath = fullPathForDisplayIndex(index)
+                                    var targetPath = fullPathForSegment
                                     if (!targetPath) return
                                     emitMoveEntryIntent(payload, targetPath)
                                 }
@@ -2880,6 +2931,63 @@ Item { // ROOT
                         //         }
                         //     }
                         // }
+                    }
+                }
+                Item {  // HORIZONTAL: single CWD button when cascade mode (no path bar)
+                    id: cwdCascadeButtonHost
+                    visible: !root.usePathBar && !root.verticalView
+                    Layout.fillWidth: flowOnSecondLine
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(cwdCascadeButtonItem.implicitWidth, horizontalPathHostMaxWidth())
+                    Layout.maximumWidth: flowOnSecondLine ? -1 : horizontalPathHostMaxWidth()
+                    Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
+                    FolderItem {
+                        id: cwdCascadeButtonItem
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        allowDrops: root.allowDrops
+                        y: root.cwdTabDrop
+                        label: pathPartsDisplay().length ? pathPartsDisplay()[pathPartsDisplay().length - 1] : "/"
+                        style: effectiveStyle()
+                        compactHeight: compactButtonHeight
+                        largeHeight: largeButtonHeight
+                        largePadding: root.largeButtonPadding
+                        iconSmall: iconSizeSmall
+                        iconLarge: iconSizeLarge
+                        textYOffset: buttonTextYOffset
+                        property string currentFullPath: path
+                        iconSource: iconSourceForPath(currentFullPath, true, null)
+                        iconSourceHover: iconSourceHoverForPath(currentFullPath, null)
+                        property var customColors: root._effectivePathColor(currentFullPath, true)
+                        fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : accentPrimary
+                        strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : accentPrimary
+                        textColor: accentPrimaryText
+                        textSize: baseFont
+                        dimmedStyle: true
+                        flatBottomCorners: true
+                        renaming: false
+                        renameEnabled: false
+                        showPin: root.showPerspectivePin
+                        iconPin: root.iconPin
+                        onActivate: {
+                            if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
+                            root.pathSegmentActivated(pathPartsDisplay().length - 1)
+                            root.navigateToPathRequested(path || "")
+                        }
+                        onDoubleActivate: root.currentPathDoubleActivated()
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: root.openCwdHoverFromItem(cwdCascadeButtonItem)
+                            onExited: {
+                                root.cwdHoverOverButton = false
+                                cwdHoverCloseTimer.restart()
+                            }
+                        }
+                        onDrop: function(payload) {
+                            var targetPath = path
+                            if (!targetPath) return
+                            root.emitMoveEntryIntent(payload, targetPath)
+                        }
                     }
                 }
                 Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
@@ -3088,6 +3196,7 @@ Item { // ROOT
                     }
                     ColumnLayout { // VERTICAL VIEW: section 1 (parent paths)
                         id: verticalColumn
+                        visible: root.usePathBar
                         Layout.fillWidth: true
                         spacing: verticalParentSpacing
 
@@ -3236,6 +3345,16 @@ Item { // ROOT
                         onDrop: function(payload) {
                             if (!payload) return
                             clipboardDropRequested(payload)
+                        }
+                        MouseArea {
+                            visible: root.verticalView && !root.usePathBar
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: root.openCwdHoverFromItem(cwpButton)
+                            onExited: {
+                                root.cwdHoverOverButton = false
+                                cwdHoverCloseTimer.restart()
+                            }
                         }
                     }
                     // Edit
@@ -4058,7 +4177,7 @@ Item { // ROOT
             Rectangle {
                 id: cwdHoverBackdrop
                 parent: root.cwdHoverOverlayHost()
-                visible: root.cwdHoverPanelOpen && !root.verticalView
+                visible: root.cwdHoverPanelOpen
                 z: 9998
                 x: 0
                 y: root.cwdHoverPathBarBottomY
@@ -4084,7 +4203,7 @@ Item { // ROOT
             Item {
                 id: cwdHoverGhostButton
                 parent: root.cwdHoverOverlayHost()
-                visible: root.cwdHoverPanelOpen && !root.verticalView && root.cwdHoverSegmentHeight > 0
+                visible: root.cwdHoverPanelOpen && root.cwdHoverSegmentHeight > 0
                 z: 10000
                 x: root.cwdHoverPanelX
                 y: root.cwdHoverSegmentY
@@ -4108,7 +4227,7 @@ Item { // ROOT
             Item {
                 id: cwdHoverPanel
                 parent: root.cwdHoverOverlayHost()
-                visible: root.cwdHoverPanelOpen && !root.verticalView
+                visible: root.cwdHoverPanelOpen
                 x: root.cwdHoverPanelX
                 y: root.cwdHoverPanelY
                 z: 9999
@@ -4235,7 +4354,7 @@ Item { // ROOT
             Item {
                 id: cwdHoverCascadeOverlayLayer
                 parent: root.cwdHoverOverlayHost()
-                visible: root.cwdHoverPanelOpen && !root.verticalView
+                visible: root.cwdHoverPanelOpen
                 x: 0
                 y: 0
                 z: 9999
@@ -4367,7 +4486,7 @@ Item { // ROOT
             Item {
                 id: cwdHoverChildPanel
                 parent: root.cwdHoverOverlayHost()
-                visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && !root.verticalView && false
+                visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && false
                 x: root.cwdHoverPanelX + root.cwdHoverPanelWidth
                 y: root.cascadePanelY(root.cwdHoverChildPanelY, height)
                 z: 9999
@@ -4498,7 +4617,7 @@ Item { // ROOT
             Item {
                 id: cwdHoverGrandchildPanel
                 parent: root.cwdHoverOverlayHost()
-                visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && root.cwdHoverGrandchildPanelOpen && !root.verticalView && false
+                visible: root.cwdHoverPanelOpen && root.cwdHoverChildPanelOpen && root.cwdHoverGrandchildPanelOpen && false
                 x: root.cwdHoverPanelX + (2 * root.cwdHoverPanelWidth)
                 y: root.cascadePanelY(root.cwdHoverGrandchildPanelY, height)
                 z: 9999

@@ -2483,21 +2483,14 @@ ApplicationWindow {
             setSlotSize(slotTemplates_PV_TV, templatesBrowser, true, false)
             setSlotSize(slotFiles_PV_TV, filesPane, true, true)
         }
-        // Force folder browsers to recalc height and trigger layout polish so slots get correct size.
+        // Force folder browsers to recalc height so slots get correct size.
+        // Note: QQuickItem.polish is a signal in QML, not a callable function, so we do not call it from here.
         if (templatesBrowser && typeof templatesBrowser.scheduleContentHeightUpdate === "function") {
             templatesBrowser.scheduleContentHeightUpdate()
         }
         if (projectsBrowser && typeof projectsBrowser.scheduleContentHeightUpdate === "function") {
             projectsBrowser.scheduleContentHeightUpdate()
         }
-        Qt.callLater(function() {
-            if (layoutCases) layoutCases.polish()
-        })
-        Qt.callLater(function() {
-            Qt.callLater(function() {
-                if (layoutCases) layoutCases.polish()
-            })
-        })
     }
 
     Component { // SearchField Component
@@ -3131,7 +3124,7 @@ ApplicationWindow {
             parent: floatingPool
             z: 8
             visible: projectsBrowserVisible
-            maxParents: 0
+            maxParents: 10
             path: cwp
             pathDisplayPrefix: cwp
             pathSegmentMyosTest: pathSegmentMyosTest
