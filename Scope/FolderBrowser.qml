@@ -1895,7 +1895,8 @@ Item { // ROOT
         if (previewReopenStabilizing && verticalView) {
             return
         }
-        if (verticalView && fromCascadePanel) {
+        // Cascade overlay should not feed the horizontal preview stack.
+        if (fromCascadePanel) {
             return
         }
         var level = Math.max(0, Number(sourceLevel) || 0)
@@ -4084,7 +4085,7 @@ Item { // ROOT
 
             Column {
                 id: previewStack
-                visible: previewEnabled && !verticalView && previewRows.length > 0
+                visible: previewEnabled && !verticalView && !root.cwdHoverPanelOpen && previewRows.length > 0
                 Layout.fillWidth: true
                 Layout.preferredHeight: height
                 spacing: root.previewRowSpacing
