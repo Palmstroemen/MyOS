@@ -85,6 +85,7 @@ class DaemonState:
         project_root: str,
         cpd: str = "/Projekte",
         mount_point: str = "",
+        idle_timeout_s: int = 86400,
     ) -> None:
         self._lock = threading.Lock()
         self._project_root = project_root
@@ -93,6 +94,9 @@ class DaemonState:
         self._cached_ctx: Optional[PerspectiveContext] = None
         self._api: Optional[ScopeApi] = None
         self._shutdown_requested = False
+        self._idle_timeout_s = max(60, int(idle_timeout_s))
+        self._last_activity_mono = time.monotonic()
+        self._activity_event = threading.Event()
 
     @property
     def project_root(self) -> str:
@@ -127,6 +131,34 @@ class DaemonState:
     def request_shutdown(self) -> None:
         with self._lock:
             self._shutdown_requested = True
+
+    @property
+    def idle_timeout_s(self) -> int:
+        with self._lock:
+            return self._idle_timeout_s
+
+    def mark_activity(self) -> None:
+        with self._lock:
+            self._last_activity_mono = time.monotonic()
+        self._activity_event.set()
+
+    def seconds_since_activity(self) -> float:
+        with self._lock:
+            last = self._last_activity_mono
+        return max(0.0, time.monotonic() - last)
+
+    def idle_deadline_seconds(self) -> float:
+        with self._lock:
+            timeout_s = float(self._idle_timeout_s)
+            last = self._last_activity_mono
+        remaining = timeout_s - (time.monotonic() - last)
+        return max(0.0, remaining)
+
+    def wait_for_activity(self, timeout_s: float) -> bool:
+        hit = self._activity_event.wait(timeout=max(0.0, timeout_s))
+        if hit:
+            self._activity_event.clear()
+        return hit
 
     def get_context(self) -> PerspectiveContext:
         with self._lock:
@@ -326,6 +358,8 @@ def _run_socket_server(socket_path: str, state: DaemonState) -> None:
                 conn.close()
             except Exception:
                 pass
+            # Mark activity at the end of a request cycle to keep hot-path work first.
+            state.mark_activity()
     try:
         sock.close()
     except Exception:
@@ -341,6 +375,19 @@ def _pulse_loop(log_path: Path) -> None:
         _daemon_log("pulse", log_path=log_path)
 
 
+def _idle_watchdog_loop(state: DaemonState, log_path: Path) -> None:
+    """Shutdown daemon if there was no activity for idle_timeout_s."""
+    _daemon_log(f"idle-watchdog active timeout_s={state.idle_timeout_s}", log_path=log_path)
+    while not state.shutdown_requested:
+        remaining = state.idle_deadline_seconds()
+        if remaining <= 0:
+            idle_for = int(round(state.seconds_since_activity()))
+            _daemon_log(f"idle-timeout reached idle_for_s={idle_for}; requesting shutdown", log_path=log_path)
+            state.request_shutdown()
+            return
+        state.wait_for_activity(remaining)
+
+
 def run_daemon(
     project_root: str,
     mount_point: str,
@@ -350,16 +397,28 @@ def run_daemon(
     socket_path = socket_path or os.environ.get("MYOS_DAEMON_SOCKET") or _default_socket_path()
     project_root = str(Path(project_root).expanduser().resolve())
     mount_point = str(Path(mount_point).expanduser().resolve())
+    idle_timeout_env = os.environ.get("MYOS_DAEMON_IDLE_TIMEOUT_S", "").strip()
+    idle_timeout_s = 86400
+    if idle_timeout_env:
+        try:
+            idle_timeout_s = int(idle_timeout_env)
+        except Exception:
+            idle_timeout_s = 86400
 
     log_path = _daemon_log_path(socket_path)
     _daemon_log(f"started mount_point={mount_point!r} socket_path={socket_path!r}", log_path=log_path)
 
+    atexit.register(_daemon_log_close)
+    state = DaemonState(
+        project_root=project_root,
+        cpd="/Projekte",
+        mount_point=mount_point,
+        idle_timeout_s=idle_timeout_s,
+    )
     pulse_thread = threading.Thread(target=_pulse_loop, args=(log_path,), daemon=True)
     pulse_thread.start()
-
-    atexit.register(_daemon_log_close)
-
-    state = DaemonState(project_root=project_root, cpd="/Projekte", mount_point=mount_point)
+    idle_thread = threading.Thread(target=_idle_watchdog_loop, args=(state, log_path), daemon=True)
+    idle_thread.start()
 
     def context_provider() -> PerspectiveContext:
         return state.get_context()
