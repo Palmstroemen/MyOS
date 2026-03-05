@@ -196,88 +196,6 @@ ApplicationWindow {
     }
 
 
-    QtObject {
-        id: demoData
-        property var tree: ({
-            "Projekte": {
-                "Haus": {
-                    "Dach": {
-                        "Fundraising": {},
-                        "Webseite": {},
-                        "Angebote": {}
-                    },
-                    "Ausmalen": {}
-                },
-                "Garten": {}
-            }
-        })
-
-        function getNode(path) {
-            var parts = path.split("/").filter(function(p){ return p.length > 0 })
-            var node = tree
-            for (var i = 0; i < parts.length; i++) {
-                if (!node[parts[i]]) {
-                    return null
-                }
-                node = node[parts[i]]
-            }
-            return node
-        }
-
-        function childrenOf(path) {
-            var node = getNode(path)
-            if (!node) return []
-            return Object.keys(node)
-        }
-
-        function addChild(path, name) {
-            var node = getNode(path)
-            if (!node) return false
-            if (node[name]) return false
-            node[name] = {}
-            return true
-        }
-
-        function collectPathsFromNode(node, prefix, out) {
-            var keys = Object.keys(node)
-            for (var i = 0; i < keys.length; i++) {
-                var key = keys[i]
-                var next = prefix ? (prefix + "/" + key) : ("/" + key)
-                out.push(next)
-                collectPathsFromNode(node[key], next, out)
-            }
-        }
-
-        function collectFromPath(path) {
-            var node = getNode(path)
-            if (!node) return []
-            var out = []
-            collectPathsFromNode(node, path, out)
-            return out
-        }
-
-        function collectAll() {
-            var out = []
-            collectPathsFromNode(tree, "", out)
-            return out
-        }
-
-        function renamePath(path, newName) {
-            var parts = path.split("/").filter(function(p){ return p.length > 0 })
-            if (parts.length === 0) return false
-            var parentParts = parts.slice(0, parts.length - 1)
-            var oldName = parts[parts.length - 1]
-            var parentPath = "/" + parentParts.join("/")
-            var parentNode = parentParts.length === 0 ? tree : getNode(parentPath)
-            if (!parentNode) return false
-            if (!parentNode[oldName]) return false
-            if (parentNode[newName]) return false
-            parentNode[newName] = parentNode[oldName]
-            delete parentNode[oldName]
-            return true
-        }
-    }
-
     FolderListModel {
         id: fsModel
         showDirs: true
@@ -787,7 +705,7 @@ ApplicationWindow {
             }
             return dirs
         }
-        return demoData.childrenOf(path)
+        return []
     }
 
     function listTemplates(path) {
@@ -1374,13 +1292,7 @@ ApplicationWindow {
             }
             return items
         }
-        var demoItems = demoData.childrenOf(path).map(function(name){
-            return { name: name, isDir: true }
-        })
-        for (var j = 0; j < files.length; j++) {
-            demoItems.push({ name: files[j], isDir: false })
-        }
-        return demoItems
+        return []
     }
 
     function applyEntries(entries) {
@@ -2078,6 +1990,9 @@ ApplicationWindow {
         if (hasBackend() && mode !== "direct") {
             mode = "direct"
         }
+        if (!hasBackend()) {
+            mode = "direct"
+        }
         if (mode === "direct") {
             var directItems = listChildren(cwp)
             if (lower.length === 0) {
@@ -2089,29 +2004,6 @@ ApplicationWindow {
             })
             return
         }
-        if (mode === "deep") {
-            var allUnder = demoData.collectFromPath(cwp)
-            var prefix = cwp.endsWith("/") ? cwp : (cwp + "/")
-            var rel = allUnder.map(function(p){
-                return p.indexOf(prefix) === 0 ? p.slice(prefix.length) : p
-            })
-            if (lower.length === 0) {
-                subProjects = rel
-                return
-            }
-            subProjects = rel.filter(function(name){
-                return name.toLowerCase().indexOf(lower) !== -1
-            })
-            return
-        }
-        var all = demoData.collectAll()
-        if (lower.length === 0) {
-            subProjects = all
-            return
-        }
-        subProjects = all.filter(function(path){
-            return path.toLowerCase().indexOf(lower) !== -1
-        })
     }
 
     function updateStandardFolders() {
@@ -2208,12 +2100,6 @@ ApplicationWindow {
             var newPathResult = backend.renameEntry(renameTargetPath, trimmed)
             success = (typeof newPathResult === "string" && newPathResult.length > 0)
             if (success) newPath = newPathResult
-        } else {
-            success = demoData.renamePath(renameTargetPath, trimmed)
-            if (success) {
-                var newPathParts = parts.slice(0, parts.length - 1).concat([trimmed])
-                newPath = "/" + newPathParts.join("/")
-            }
         }
         if (success) {
             if (cwp === renameTargetPath || cwp.indexOf(renameTargetPath + "/") === 0) {
