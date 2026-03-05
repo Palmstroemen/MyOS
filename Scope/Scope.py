@@ -7,6 +7,8 @@ import hashlib
 import mimetypes
 import shutil
 import subprocess
+import tempfile
+import time
 from pathlib import Path
 from threading import Lock
 
@@ -306,11 +308,14 @@ class Backend(QObject):
             self._project_desktop_hash[initial_root] = self._desktop_state_hash
         self._refresh_sort_watchers(self._api.get_start_path())
         self._daemon_client = None
+        self._daemon_process = None
         if connect_daemon is not None:
             try:
                 self._daemon_client = connect_daemon()
             except Exception:
                 self._daemon_client = None
+        if self._daemon_client is None and connect_daemon is not None and os.environ.get("MYOS_SCOPE_START_DAEMON"):
+            self._start_perspective_daemon()
 
     @Slot(str, bool, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
@@ -877,9 +882,57 @@ class Backend(QObject):
         QCursor.setPos(int(round(pos.x() + dx)), int(pos.y()))
         return True
 
+    def _start_perspective_daemon(self) -> None:
+        """Start the perspective daemon as subprocess (when MYOS_SCOPE_START_DAEMON is set)."""
+        base = self._api.get_project_root() or self._api.get_start_path()
+        if not base:
+            return
+        path = Path(base).expanduser().resolve()
+        if (path / "Projekte").is_dir():
+            project_root = str(path / "Projekte")
+        else:
+            project_root = str(path)
+        runtime = os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir())
+        mount_point = Path(runtime) / f"myos-perspective-{os.getpid()}"
+        mount_point.mkdir(parents=True, exist_ok=True)
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "daemon", "--project-root", project_root, "--mount-point", str(mount_point)],
+                cwd=str(REPO_ROOT),
+                env=os.environ,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            return
+        self._daemon_process = proc
+        time.sleep(0.6)
+        try:
+            self._daemon_client = connect_daemon()
+        except Exception:
+            self._daemon_client = None
+
     def _on_about_to_quit(self) -> None:
         """Stop thumbnail tasks and timers so the app can exit promptly."""
         self._shutting_down = True
+        if self._daemon_process is not None:
+            if self._daemon_client is not None:
+                try:
+                    self._daemon_client.request_shutdown(timeout=1.0)
+                    time.sleep(0.8)
+                except Exception:
+                    pass
+            if self._daemon_process.poll() is None:
+                try:
+                    self._daemon_process.terminate()
+                    self._daemon_process.wait(timeout=3)
+                except Exception:
+                    try:
+                        self._daemon_process.kill()
+                    except Exception:
+                        pass
+            self._daemon_process = None
+        self._daemon_client = None
         for timer in self._thumb_refresh_timers.values():
             timer.stop()
         self._thumb_refresh_timers.clear()

@@ -5,13 +5,60 @@ runs FUSE with live-updated context.
 
 from __future__ import annotations
 
+import atexit
 import os
 import signal
 import socket
 import sys
 import threading
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
+
+_DAEMON_LOG_LOCK = threading.Lock()
+_DAEMON_LOG_FILE: Optional[Any] = None
+_DAEMON_LOG_PID: Optional[int] = None
+
+
+def _daemon_log_path(socket_path: str) -> Path:
+    """Log file next to socket: XDG_RUNTIME_DIR/perspective-daemon.log or ~/.config/myos/perspective-daemon.log."""
+    return Path(socket_path).resolve().parent / "perspective-daemon.log"
+
+
+def _daemon_log(msg: str, log_path: Optional[Path] = None) -> None:
+    """Append one line to the daemon log (timestamp, pid, msg). Thread-safe."""
+    global _DAEMON_LOG_FILE
+    with _DAEMON_LOG_LOCK:
+        try:
+            if log_path is not None and _DAEMON_LOG_FILE is None:
+                _DAEMON_LOG_FILE = open(log_path, "a", encoding="utf-8")
+            if _DAEMON_LOG_FILE is not None:
+                ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                pid = os.getpid()
+                _DAEMON_LOG_FILE.write(f"{ts} pid={pid} {msg}\n")
+                _DAEMON_LOG_FILE.flush()
+        except Exception:
+            pass
+
+
+def _daemon_log_close() -> None:
+    """Write 'ended' and close log file. Safe to call multiple times."""
+    global _DAEMON_LOG_FILE
+    with _DAEMON_LOG_LOCK:
+        if _DAEMON_LOG_FILE is not None:
+            try:
+                ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                pid = os.getpid()
+                _DAEMON_LOG_FILE.write(f"{ts} pid={pid} ended\n")
+                _DAEMON_LOG_FILE.flush()
+            except Exception:
+                pass
+            try:
+                _DAEMON_LOG_FILE.close()
+            except Exception:
+                pass
+            _DAEMON_LOG_FILE = None
 
 # Run from repo root so core and daemon are importable
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -287,6 +334,13 @@ def _run_socket_server(socket_path: str, state: DaemonState) -> None:
         os.kill(os.getpid(), signal.SIGTERM)
 
 
+def _pulse_loop(log_path: Path) -> None:
+    """Background thread: write a 'pulse' line every 60 seconds."""
+    while True:
+        time.sleep(60)
+        _daemon_log("pulse", log_path=log_path)
+
+
 def run_daemon(
     project_root: str,
     mount_point: str,
@@ -296,6 +350,14 @@ def run_daemon(
     socket_path = socket_path or os.environ.get("MYOS_DAEMON_SOCKET") or _default_socket_path()
     project_root = str(Path(project_root).expanduser().resolve())
     mount_point = str(Path(mount_point).expanduser().resolve())
+
+    log_path = _daemon_log_path(socket_path)
+    _daemon_log(f"started mount_point={mount_point!r} socket_path={socket_path!r}", log_path=log_path)
+
+    pulse_thread = threading.Thread(target=_pulse_loop, args=(log_path,), daemon=True)
+    pulse_thread.start()
+
+    atexit.register(_daemon_log_close)
 
     state = DaemonState(project_root=project_root, cpd="/Projekte", mount_point=mount_point)
 
@@ -313,7 +375,11 @@ def run_daemon(
     server_thread.start()
 
     def on_sigterm(_signum: int, _frame: Any) -> None:
+        _daemon_log_close()
         sys.exit(0)
     signal.signal(signal.SIGTERM, on_sigterm)
 
-    FUSE(adapter, mount_point, foreground=foreground, allow_other=False)
+    try:
+        FUSE(adapter, mount_point, foreground=foreground, allow_other=False)
+    finally:
+        _daemon_log_close()

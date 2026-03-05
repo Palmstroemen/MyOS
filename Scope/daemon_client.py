@@ -96,6 +96,11 @@ class DaemonClient:
             return []
         return result if isinstance(result, list) else []
 
+    def request_shutdown(self, timeout: float = 1.0) -> bool:
+        """Ask the daemon to shut down gracefully. Returns True if request was sent."""
+        result = _send_request(self._socket_path, "shutdown", timeout=timeout)
+        return result is not None
+
 
 def connect(socket_path: Optional[str] = None) -> Optional[DaemonClient]:
     """Try to connect to the daemon. Returns a DaemonClient if daemon responds to ping, else None."""
