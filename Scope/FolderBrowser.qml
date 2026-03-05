@@ -46,6 +46,7 @@ Item { // ROOT
     property real clipboardButtonOpacityEmpty: 0.45
     property string renameTargetPath: ""
     property string renameDraft: ""
+    onRenameTargetPathChanged: { }
     property int baseFont: 14
     property int compactButtonHeight: 32
     property int largeButtonHeight: 72
@@ -136,8 +137,9 @@ Item { // ROOT
     signal clipboardRequested()
     signal clipboardDropRequested(string payload)
     signal renameRequested(string fullPath)
+    signal contextMenuRequested(string fullPath, real x, real y, bool ctrlPressed)
     signal renameTextEdited(string text)
-    signal renameAccepted()
+    signal renameAccepted(string newName)
     signal renameCanceled()
     signal searchTextEdited(string value)
     signal moveEntryRequested(string sourcePath, string targetDir)
@@ -3037,10 +3039,14 @@ Item { // ROOT
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
-                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
-                                onRenameTextEdited: renameTextEdited(text)
-                                onRenameAccepted: renameAccepted()
-                                onRenameCanceled: renameCanceled()
+                                onRenameRequested: root.renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
+                                onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
+                                    var p = mapToItem(root, mouseX, mouseY)
+                                    root.contextMenuRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)), p.x, p.y, ctrlPressed)
+                                }
+                                onRenameTextEdited: root.renameTextEdited(text)
+                                onRenameAccepted: function(newName) { root.renameAccepted(newName) }
+                                onRenameCanceled: root.renameCanceled()
                                 onActivate: emitFolderActivatedIntent(fullPath)
                                 onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 onHoverEntered: {
@@ -3497,10 +3503,14 @@ Item { // ROOT
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                     renameEnabled: allowRename
                                     renameText: renameDraft
-                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
-                                    onRenameTextEdited: renameTextEdited(text)
-                                    onRenameAccepted: renameAccepted()
-                                    onRenameCanceled: renameCanceled()
+                                onRenameRequested: root.renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
+                                    onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
+                                        var p = mapToItem(root, mouseX, mouseY)
+                                        root.contextMenuRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)), p.x, p.y, ctrlPressed)
+                                    }
+                                    onRenameTextEdited: root.renameTextEdited(text)
+                                    onRenameAccepted: function(newName) { root.renameAccepted(newName) }
+                                    onRenameCanceled: root.renameCanceled()
                                 onActivate: emitFolderActivatedIntent(fullPath)
                                 onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 onHoverEntered: {
@@ -3900,10 +3910,14 @@ Item { // ROOT
                                                     renaming: allowRename && renameTargetPath === fullPath
                                                     renameEnabled: allowRename
                                                     renameText: renameDraft
-                                                    onRenameRequested: renameRequested(fullPath)
-                                                    onRenameTextEdited: renameTextEdited(text)
-                                                    onRenameAccepted: renameAccepted()
-                                                    onRenameCanceled: renameCanceled()
+                                                    onRenameRequested: root.renameRequested(fullPath)
+                                                    onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
+                                                        var p = mapToItem(root, mouseX, mouseY)
+                                                        root.contextMenuRequested(fullPath, p.x, p.y, ctrlPressed)
+                                                    }
+                                                    onRenameTextEdited: root.renameTextEdited(text)
+                                                    onRenameAccepted: function(newName) { root.renameAccepted(newName) }
+                                                    onRenameCanceled: root.renameCanceled()
                                                     onActivate: emitFolderActivatedIntent(fullPath)
                                                     onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                                     onHoverEntered: {
@@ -3980,10 +3994,14 @@ Item { // ROOT
                                 renaming: allowRename && renameTargetPath === (itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
                                 renameEnabled: allowRename
                                 renameText: renameDraft
-                                onRenameRequested: renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
-                                onRenameTextEdited: renameTextEdited(text)
-                                onRenameAccepted: renameAccepted()
-                                onRenameCanceled: renameCanceled()
+                                onRenameRequested: root.renameRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)))
+                                onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
+                                    var p = mapToItem(root, mouseX, mouseY)
+                                    root.contextMenuRequested(itemName(modelData).indexOf("/") === 0 ? itemName(modelData) : (path + "/" + itemName(modelData)), p.x, p.y, ctrlPressed)
+                                }
+                                onRenameTextEdited: root.renameTextEdited(text)
+                                onRenameAccepted: function(newName) { root.renameAccepted(newName) }
+                                onRenameCanceled: root.renameCanceled()
                                 onActivate: emitFolderActivatedIntent(fullPath)
                                 onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                 onHoverEntered: {

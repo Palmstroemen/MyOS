@@ -2172,35 +2172,55 @@ ApplicationWindow {
         renameTargetPath = path
         var parts = path.split("/").filter(function(p){ return p.length > 0 })
         renameDraft = parts.length > 0 ? parts[parts.length - 1] : ""
+        if (projectsBrowser) {
+            projectsBrowser.renameTargetPath = renameTargetPath
+            projectsBrowser.renameDraft = renameDraft
+        }
     }
 
     function cancelRename() {
         renameActive = false
         renameTargetPath = ""
         renameDraft = ""
+        if (projectsBrowser) {
+            projectsBrowser.renameTargetPath = ""
+            projectsBrowser.renameDraft = ""
+        }
     }
 
-    function commitRename() {
+    function commitRename(acceptedNewName) {
+        var draftToUse = (typeof acceptedNewName === "string" && acceptedNewName.length > 0) ? acceptedNewName : renameDraft
         if (!renameActive) return
-        var trimmed = renameDraft.trim().replace(/\s+/g, " ")
+        var trimmed = draftToUse.trim().replace(/\s+/g, " ")
+        var parts = renameTargetPath.split("/").filter(function(p){ return p.length > 0 })
+        var oldName = parts.length > 0 ? parts[parts.length - 1] : ""
         if (trimmed.length === 0) {
             cancelRename()
             return
         }
-        var parts = renameTargetPath.split("/").filter(function(p){ return p.length > 0 })
-        var oldName = parts.length > 0 ? parts[parts.length - 1] : ""
         if (trimmed === oldName) {
             cancelRename()
             return
         }
-        var success = demoData.renamePath(renameTargetPath, trimmed)
+        var success = false
+        var newPath = ""
+        if (hasBackend() && typeof backend.renameEntry === "function") {
+            var newPathResult = backend.renameEntry(renameTargetPath, trimmed)
+            success = (typeof newPathResult === "string" && newPathResult.length > 0)
+            if (success) newPath = newPathResult
+        } else {
+            success = demoData.renamePath(renameTargetPath, trimmed)
+            if (success) {
+                var newPathParts = parts.slice(0, parts.length - 1).concat([trimmed])
+                newPath = "/" + newPathParts.join("/")
+            }
+        }
         if (success) {
-            var newPathParts = parts.slice(0, parts.length - 1).concat([trimmed])
-            var newPath = "/" + newPathParts.join("/")
             if (cwp === renameTargetPath || cwp.indexOf(renameTargetPath + "/") === 0) {
                 cwp = newPath + cwp.slice(renameTargetPath.length)
             }
             setCwp(cwp)
+            updateSubProjects()
         }
         cancelRename()
     }
@@ -2282,6 +2302,7 @@ ApplicationWindow {
     property bool renameActive: false
     property string renameTargetPath: ""
     property string renameDraft: ""
+    property string folderContextPath: ""
 
     property bool browserLayoutRefreshPending: false
 
@@ -2959,6 +2980,15 @@ ApplicationWindow {
             visible: false
         }
 
+        Menu {
+            id: folderContextMenu
+            parent: floatingPool.parent
+            MenuItem {
+                text: qsTr("Umbenennen")
+                onTriggered: beginRename(folderContextPath)
+            }
+        }
+
         FolderBrowser {  // TemplatesBrowser
             id: templatesBrowser
             debugName: "TemplatesBrowser"
@@ -3243,9 +3273,21 @@ ApplicationWindow {
                 applyPerspectiveForRealPath(targetPath)
             }
             onFolderPreviewed: function(path) { handlePreviewPath(projectsBrowser, path) }
-            onRenameRequested: beginRename(fullPath)
-            onRenameTextEdited: renameDraft = text
-            onRenameAccepted: commitRename()
+            onRenameRequested: function(path) { beginRename(path) }
+            onContextMenuRequested: function(fullPath, menuX, menuY, ctrlPressed) {
+                folderContextPath = fullPath
+                var pt = projectsBrowser.mapToItem(floatingPool.parent, menuX, menuY)
+                folderContextMenu.popup(pt.x, pt.y)
+            }
+            onRenameTextEdited: function(text) {
+                renameDraft = text
+                if (projectsBrowser) projectsBrowser.renameDraft = text
+            }
+            onRenameAccepted: function(newName) {
+                renameDraft = newName
+                if (projectsBrowser) projectsBrowser.renameDraft = newName
+                commitRename(newName)
+            }
             onRenameCanceled: cancelRename()
             onMoveEntryRequested: function(sourcePath, targetDir) { handleMoveEntry(projectsBrowser, sourcePath, targetDir) }
             onCreateFolderRequested: function(basePath) { handleCreateFolder(projectsBrowser, basePath) }

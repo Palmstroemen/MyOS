@@ -30,6 +30,8 @@ Rectangle {
     property bool renaming: false
     property bool renameEnabled: false
     property string renameText: ""
+    property string _renameEditText: ""
+    onRenamingChanged: if (renaming) _renameEditText = renameText
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
     property bool dragEnabled: false
@@ -55,7 +57,7 @@ Rectangle {
     signal contextMenuRequested(real x, real y, bool ctrlPressed)
     signal renameRequested()
     signal renameTextEdited(string text)
-    signal renameAccepted()
+    signal renameAccepted(string newName)
     signal renameCanceled()
     signal dropReceived(string payload)
 
@@ -395,7 +397,7 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 4
         visible: renaming && style === "text"
-        text: renameText
+        text: root._renameEditText
         font.pixelSize: textSize
         horizontalAlignment: Text.AlignHCenter
         selectByMouse: true
@@ -407,14 +409,17 @@ Rectangle {
         topPadding: 1
         bottomPadding: 0
         background: Rectangle { color: "transparent" }
-        onTextChanged: renameTextEdited(text)
+        onTextChanged: {
+            root._renameEditText = text
+            root.renameTextEdited(text)
+        }
         onVisibleChanged: {
             if (visible) {
                 forceActiveFocus()
                 selectAll()
             }
         }
-        Keys.onReturnPressed: renameAccepted()
+        Keys.onReturnPressed: renameAccepted(root._renameEditText)
         Keys.onEscapePressed: renameCanceled()
     }
 
@@ -422,7 +427,7 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 4
         visible: renaming && style === "smallIcon"
-        text: renameText
+        text: root._renameEditText
         font.pixelSize: textSize
         horizontalAlignment: Text.AlignLeft
         selectByMouse: true
@@ -434,14 +439,17 @@ Rectangle {
         topPadding: 1
         bottomPadding: 0
         background: Rectangle { color: "transparent" }
-        onTextChanged: renameTextEdited(text)
+        onTextChanged: {
+            root._renameEditText = text
+            root.renameTextEdited(text)
+        }
         onVisibleChanged: {
             if (visible) {
                 forceActiveFocus()
                 selectAll()
             }
         }
-        Keys.onReturnPressed: renameAccepted()
+        Keys.onReturnPressed: renameAccepted(root._renameEditText)
         Keys.onEscapePressed: renameCanceled()
     }
 
@@ -454,7 +462,7 @@ Rectangle {
         anchors.bottomMargin: largePadding
         height: 24
         visible: renaming && style === "largeIcon"
-        text: renameText
+        text: root._renameEditText
         font.pixelSize: largeTextSize
         horizontalAlignment: Text.AlignHCenter
         selectByMouse: true
@@ -466,14 +474,17 @@ Rectangle {
         topPadding: 1
         bottomPadding: 0
         background: Rectangle { color: "transparent" }
-        onTextChanged: renameTextEdited(text)
+        onTextChanged: {
+            root._renameEditText = text
+            root.renameTextEdited(text)
+        }
         onVisibleChanged: {
             if (visible) {
                 forceActiveFocus()
                 selectAll()
             }
         }
-        Keys.onReturnPressed: renameAccepted()
+        Keys.onReturnPressed: renameAccepted(root._renameEditText)
         Keys.onEscapePressed: renameCanceled()
     }
 
@@ -492,7 +503,8 @@ Rectangle {
         hoverEnabled: true
         onClicked: function(mouse) {
             if (renaming) return
-            if (!root.hitAcceptsPoint(mouse.x, mouse.y)) {
+            var hit = root.hitAcceptsPoint(mouse.x, mouse.y)
+            if (!hit) {
                 mouse.accepted = false
                 return
             }
