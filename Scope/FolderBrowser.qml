@@ -176,6 +176,8 @@ Item { // ROOT
     property int verticalWidthCollapseDurationMs: 420
     property bool verticalWidthUpdatePending: false
     property int contentHeight: 0
+    /// When true, preview/cascade height is not included in contentHeight (e.g. edge-dock browser-only to avoid layout push).
+    property bool previewExcludedFromContentHeight: false
     property bool contentHeightUpdatePending: false
     property bool contentHeightSettlePending: false
     property bool cwdHoverEnabled: true
@@ -717,7 +719,7 @@ Item { // ROOT
         }
         var top = topRow ? topRow.implicitHeight : 0
         var bottom = (bottomRow && bottomRow.visible) ? (bottomRow.implicitHeight + mainColumn.spacing) : 0
-        var preview = (previewStack && previewStack.visible)
+        var preview = (!root.previewExcludedFromContentHeight && previewStack && previewStack.visible)
             ? (previewStack.height + mainColumn.spacing)
             : 0
         var result = Math.round(top + bottom + preview + 0)

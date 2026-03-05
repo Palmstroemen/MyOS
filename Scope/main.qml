@@ -42,6 +42,22 @@ ApplicationWindow {
     property bool templatesBrowserVisible: true
     property bool filesPanelHalfTransparent: false
     property bool schmalMode: false
+    // Edge-Dock mode (projects-only, X11-first): collapsed | expanded | expandedWithFiles
+    property bool edgeDockEnabled: false
+    property string edgeDockState: "expanded"
+    /// When false, FilesPanel is hidden and gets no layout space; only single-click shows it.
+    property bool filesPaneVisible: true
+    /// Max height for FilesPanel slot (0 = no cap). Used when edge dock or layout should limit panel growth.
+    property int filesPanelMaxHeight: 720
+    /// Stored window size when leaving expandedWithFiles; restored when entering expandedWithFiles again.
+    property int edgeDockStoredWidth: 0
+    property int edgeDockStoredHeight: 0
+    /// Stored size when entering collapsed; restored when expanding from collapsed.
+    property int edgeDockStoredExpandedWidth: 0
+    property int edgeDockStoredExpandedHeight: 0
+    property string _previousEdgeDockState: edgeDockState
+    readonly property bool edgeDockCollapsed: edgeDockEnabled && (edgeDockState === "collapsed")
+    readonly property int edgeDockTriggerBarHeight: (hasBackend() && typeof backend.platformName === "function" && backend.platformName() === "xcb") ? 4 : 24
     // Positive value lets FilesPanel overlap a bit to the left.
     property int filesPanelOverlapPx: 8
     // Zentrale Pfad-/Ordnernamen (Magic Values vermeiden)
@@ -306,9 +322,13 @@ ApplicationWindow {
 
     function show_FilesPanel() {
         filesPanelHalfTransparent = false
+        filesPaneVisible = true
+        if (edgeDockEnabled) edgeDockState = "expandedWithFiles"
     }
     function hide_FilesPanel() {
         filesPanelHalfTransparent = true
+        filesPaneVisible = false
+        if (edgeDockEnabled) edgeDockState = "expanded"
     }
 
     function hasBackend() {
@@ -2205,6 +2225,7 @@ ApplicationWindow {
     onLevel2VerticalViewChanged: scheduleBrowserLayoutRefresh()
     onProjectsBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
     onTemplatesBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
+    onFilesPaneVisibleChanged: scheduleBrowserLayoutRefresh()
     Connections {
         target: projectsBrowser
         function onImplicitWidthChanged() {
@@ -2296,7 +2317,8 @@ ApplicationWindow {
 
     function setSlotSize(slot, child, inRowLayout, isFilesPane) {
         if (!slot || !child) return
-        if (child.visible === false) {
+        var effectivelyVisible = isFilesPane ? filesPaneVisible : child.visible
+        if (child.visible === false || !effectivelyVisible) {
             slot.Layout.fillWidth = false
             slot.Layout.preferredWidth = 0
             slot.Layout.minimumWidth = 0
@@ -2331,7 +2353,7 @@ ApplicationWindow {
             slot.Layout.fillHeight = true
             slot.Layout.preferredHeight = -1
             slot.Layout.minimumHeight = 0
-            slot.Layout.maximumHeight = -1
+            slot.Layout.maximumHeight = (isFilesPane && filesPanelMaxHeight > 0) ? filesPanelMaxHeight : -1
             slot.Layout.alignment = 0
         } else if (isFolderBrowser) {
             slot.Layout.fillHeight = false
@@ -2476,6 +2498,48 @@ ApplicationWindow {
         else show_FilesPanel()
     }
 
+    onEdgeDockStateChanged: {
+        if (edgeDockEnabled) {
+            if (edgeDockState === "collapsed") {
+                edgeDockStoredExpandedWidth = width
+                edgeDockStoredExpandedHeight = height
+                height = edgeDockTriggerBarHeight
+            } else if (_previousEdgeDockState === "collapsed" && edgeDockState !== "collapsed") {
+                if (edgeDockStoredExpandedWidth > 0 && edgeDockStoredExpandedHeight > 0) {
+                    width = edgeDockStoredExpandedWidth
+                    height = edgeDockStoredExpandedHeight
+                }
+            }
+            if (_previousEdgeDockState === "expandedWithFiles" && edgeDockState !== "expandedWithFiles") {
+                edgeDockStoredWidth = width
+                edgeDockStoredHeight = height
+            } else if (edgeDockState === "expandedWithFiles" && edgeDockStoredWidth > 0 && edgeDockStoredHeight > 0) {
+                width = edgeDockStoredWidth
+                height = edgeDockStoredHeight
+            }
+            filesPaneVisible = (edgeDockState === "expandedWithFiles")
+            _previousEdgeDockState = edgeDockState
+        }
+    }
+    onEdgeDockEnabledChanged: {
+        if (edgeDockEnabled) {
+            // Beim Einschalten: aktuelle Größe für "expandedWithFiles" merken, Fenster auf Browser-Höhe verkleinern
+            edgeDockStoredWidth = width
+            edgeDockStoredHeight = height
+            var browserOnlyHeight = Math.max(200, height - Math.min(filesPanelMaxHeight, Math.round(height * 0.5)))
+            height = browserOnlyHeight
+            edgeDockState = "expanded"
+            filesPaneVisible = false
+            _previousEdgeDockState = edgeDockState
+        } else {
+            // Beim Ausschalten: Fenstergröße wiederherstellen (gespeicherte Größe von vor Edge-Dock)
+            if (edgeDockStoredWidth > 0 && edgeDockStoredHeight > 0) {
+                width = edgeDockStoredWidth
+                height = edgeDockStoredHeight
+            }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: theme.bg
@@ -2484,7 +2548,35 @@ ApplicationWindow {
             spacing: 6
             anchors.margins: Math.max(4, Math.round(16 / 3))
 
+            // Edge-Dock: X11 = top-edge strip (4px), Wayland = visible bar (24px). Click toggles collapsed <-> expanded.
+            Rectangle {
+                visible: edgeDockEnabled
+                Layout.fillWidth: true
+                Layout.preferredHeight: visible ? edgeDockTriggerBarHeight : 0
+                Layout.minimumHeight: visible ? edgeDockTriggerBarHeight : 0
+                color: (edgeDockTriggerBarHeight >= 20) ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.35) : "transparent"
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        if (!edgeDockEnabled) return
+                        if (edgeDockState === "collapsed") {
+                            edgeDockState = "expanded"
+                        } else {
+                            edgeDockState = "collapsed"
+                        }
+                    }
+                }
+                Text {
+                    visible: edgeDockTriggerBarHeight >= 20
+                    anchors.centerIn: parent
+                    text: edgeDockCollapsed ? qsTr("Scope \u25BC") : qsTr("Scope \u25B2")
+                    color: theme.smallButtonText
+                    font.pixelSize: Math.max(10, baseFont - 2)
+                }
+            }
+
             RowLayout { // Buttonbar
+                visible: !edgeDockCollapsed
                 Layout.fillWidth: true
                 Layout.preferredHeight: topButtonFlow.implicitHeight
                 Layout.minimumHeight: topButtonFlow.implicitHeight
@@ -2682,6 +2774,26 @@ ApplicationWindow {
                     }
                 }
 
+                Rectangle { // Edge-Dock: oberste Zeile nur Projekte; Klick auf obere Leiste klappt ein/aus
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: edgeDockEnabled ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
+                    border.width: 0
+                    implicitWidth: edgeDockLabel.implicitWidth + 16
+                    width: implicitWidth
+                    Text {
+                        id: edgeDockLabel
+                        anchors.centerIn: parent
+                        text: qsTr("Edge-Dock")
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: edgeDockEnabled = !edgeDockEnabled
+                    }
+                }
+
                 Rectangle { // Ensure Desk.md in current project
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
@@ -2781,6 +2893,7 @@ ApplicationWindow {
 
             Item {
                 id: layoutCases
+                visible: !edgeDockCollapsed
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
@@ -2883,7 +2996,7 @@ ApplicationWindow {
             id: templatesBrowser
             debugName: "TemplatesBrowser"
             parent: floatingPool
-            visible: templatesBrowserVisible
+            visible: templatesBrowserVisible && !edgeDockEnabled
             verticalPreferredHeight: 390
             isPerspective: window.templatesUsePerspective
             path: (templatesBrowser.isPerspective && window.perspectiveModeEnabled)
@@ -3015,6 +3128,7 @@ ApplicationWindow {
             onNavigateToPathRequested: function(path) {
                 applyFolderActivation(resolveTemplateDisplayPathToReal(path))
             }
+            // Edge-Dock: do not call show_FilesPanel() here (double-click path).
             onFolderDoubleActivated: function(path, folderMeta) {
                 var applyPerspective = shouldApplyPerspectiveForFolderType(folderMeta)
                 if (!applyPerspective) {
@@ -3033,6 +3147,7 @@ ApplicationWindow {
                 }
                 applyPerspectiveCpd(targetCpd)
             }
+            // Edge-Dock: do not call show_FilesPanel() here (hover/preview path).
             onFolderPreviewed: function(path) { handlePreviewPath(templatesBrowser, path) }
             onMoveEntryRequested: function(sourcePath, targetDir) { handleMoveEntry(templatesBrowser, sourcePath, targetDir) }
             onCreateFolderRequested: function(basePath) { handleCreateFolder(templatesBrowser, basePath) }
@@ -3083,6 +3198,7 @@ ApplicationWindow {
             iconFolder: window.iconFolder
             iconFolderOff: window.iconFolderOff
             iconSearch: window.iconSearch
+            previewExcludedFromContentHeight: window.edgeDockEnabled && (window.edgeDockState !== "expandedWithFiles")
             indent: 30
             previewShadeSliderMix: filesPane.uPanelTintMix
             panelColor: theme.panel
@@ -3143,6 +3259,7 @@ ApplicationWindow {
             onFolderActivated: function(name) {
                 show_FilesPanel()
             }
+            // Edge-Dock: do not call show_FilesPanel() here (double-click path).
             onFolderDoubleActivated: function(name, folderMeta) {
                 var targetPath = ""
                 if (name.indexOf("/") === 0) {
@@ -3162,6 +3279,7 @@ ApplicationWindow {
                 }
                 applyPerspectiveForRealPath(targetPath)
             }
+            // Edge-Dock: do not call show_FilesPanel() here (hover/preview path).
             onFolderPreviewed: function(path) { handlePreviewPath(projectsBrowser, path) }
             onRenameRequested: function(path) { beginRename(path) }
             onContextMenuRequested: function(fullPath, menuX, menuY, ctrlPressed) {
@@ -3198,6 +3316,7 @@ ApplicationWindow {
             id: filesPane
             parent: floatingPool
             z: 1
+            visible: filesPaneVisible
             itemsModel: filesModel
             baseFont: window.baseFont
             text: theme.text
