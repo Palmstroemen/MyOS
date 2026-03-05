@@ -2873,6 +2873,10 @@ ApplicationWindow {
                 text: qsTr("Umbenennen")
                 onTriggered: beginRename(folderContextPath)
             }
+            MenuItem {
+                text: qsTr("Löschen")
+                onTriggered: requestDeleteEntries([folderContextPath])
+            }
         }
 
         FolderBrowser {  // TemplatesBrowser

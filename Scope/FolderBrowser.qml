@@ -2846,8 +2846,9 @@ Item { // ROOT
                                 textSize: baseFont
                                 dimmedStyle: isCurrent
                                 flatBottomCorners: isCurrent
-                                renaming: false
-                                renameEnabled: false
+                                renaming: root.allowRename && root.renameTargetPath === fullPathForSegment
+                                renameEnabled: root.allowRename
+                                renameText: root.renameDraft
                                 showPin: isCurrent && root.showPerspectivePin
                                 iconPin: root.iconPin
                                 onActivate: {
@@ -2855,16 +2856,29 @@ Item { // ROOT
                                     navigateToPathRequested(fullPathForSegment)
                                 }
                                 onDoubleActivate: {
+                                    navigateToPathRequested(fullPathForSegment)
                                     if (isCurrent) root.currentPathDoubleActivated()
                                 }
+                                onRenameRequested: root.renameRequested(fullPathForSegment)
+                                onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
+                                    var p = mapToItem(root, mouseX, mouseY)
+                                    root.contextMenuRequested(fullPathForSegment, p.x, p.y, ctrlPressed)
+                                }
+                                onRenameTextEdited: root.renameTextEdited(text)
+                                onRenameAccepted: function(newName) { root.renameAccepted(newName) }
+                                onRenameCanceled: root.renameCanceled()
                                 MouseArea {
                                     visible: isCurrent && !root.verticalView
                                     anchors.fill: parent
                                     hoverEnabled: true
+                                    acceptedButtons: Qt.LeftButton
                                     onClicked: {
                                         if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
                                         pathSegmentActivated(index)
                                         navigateToPathRequested(fullPathForSegment)
+                                    }
+                                    onPressAndHold: {
+                                        if (root.allowRename) root.renameRequested(fullPathForSegment)
                                     }
                                     onEntered: {
                                         root.openCwdHoverFromItem(parent)
@@ -3240,12 +3254,25 @@ Item { // ROOT
                                 // strokeColor: segmentColors.stroke
                                 textColor: text
                                 textSize: baseFont
-                                renaming: false
-                                renameEnabled: false
+                                renaming: root.allowRename && root.renameTargetPath === fullPathForSegment
+                                renameEnabled: root.allowRename
+                                renameText: root.renameDraft
                                 onActivate: {
                                     pathSelected(modelData)
                                     navigateToPathRequested(modelData)
                                 }
+                                onDoubleActivate: {
+                                    pathSelected(modelData)
+                                    navigateToPathRequested(modelData)
+                                }
+                                onRenameRequested: root.renameRequested(fullPathForSegment)
+                                onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
+                                    var p = mapToItem(root, mouseX, mouseY)
+                                    root.contextMenuRequested(fullPathForSegment, p.x, p.y, ctrlPressed)
+                                }
+                                onRenameTextEdited: root.renameTextEdited(text)
+                                onRenameAccepted: function(newName) { root.renameAccepted(newName) }
+                                onRenameCanceled: root.renameCanceled()
                             }
                         }
 
@@ -3342,12 +3369,21 @@ Item { // ROOT
                         textBold: true
                         dimmedStyle: true
                         flatBottomCorners: true
-                        renaming: false
-                        renameEnabled: false
+                        renaming: root.allowRename && root.renameTargetPath === currentFullPath
+                        renameEnabled: root.allowRename
+                        renameText: root.renameDraft
                         showPin: root.showPerspectivePin
                         iconPin: root.iconPin
                         onActivate: {}
                         onDoubleActivate: root.currentPathDoubleActivated()
+                        onRenameRequested: root.renameRequested(currentFullPath)
+                        onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
+                            var p = mapToItem(root, mouseX, mouseY)
+                            root.contextMenuRequested(currentFullPath, p.x, p.y, ctrlPressed)
+                        }
+                        onRenameTextEdited: root.renameTextEdited(text)
+                        onRenameAccepted: function(newName) { root.renameAccepted(newName) }
+                        onRenameCanceled: root.renameCanceled()
                         onDrop: function(payload) {
                             if (!payload) return
                             clipboardDropRequested(payload)
