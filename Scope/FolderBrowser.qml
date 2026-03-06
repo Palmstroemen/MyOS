@@ -123,9 +123,11 @@ Item { // ROOT
     signal pathSelected(string path)
     /// Emitted whenever a path/folder/segment is activated; carries the resolved target path for navigation + refresh.
     signal navigateToPathRequested(string path)
-    // Primary click intent (single click)
+    /// Unified navigation intent: single → CTD only; double → CWD + CTD sync. gesture: "single" | "double", source: "pathbar" | "folderList" | "cascade" | "ghost" | "verticalParent".
+    signal navigationRequested(string path, string gesture, string source, var meta)
+    // Primary click intent (single click) — legacy; CWD/CTD handled via navigationRequested.
     signal folderActivated(string name)
-    // Secondary click intent (double click)
+    // Secondary click intent (double click) — legacy; CWD/CTD handled via navigationRequested.
     signal folderDoubleActivated(string name, var folderMeta)
     signal folderPreviewed(string path)
     signal toggleMode()
@@ -405,9 +407,16 @@ Item { // ROOT
         return "/" + parts.slice(0, idx + 1).join("/")
     }
 
+    function emitNavigationIntent(path, gesture, source, meta) {
+        var value = String(path || "").trim()
+        if (!value) return
+        navigationRequested(value, gesture || "single", source || "folderList", meta)
+    }
+
     function emitFolderActivatedIntent(path) {
         var value = String(path || "").trim()
         if (!value) return
+        emitNavigationIntent(value, "single", "folderList", null)
         folderActivated(value)
         navigateToPathRequested(value)
     }
@@ -415,6 +424,7 @@ Item { // ROOT
     function emitFolderDoubleActivatedIntent(path, folderMeta) {
         var value = String(path || "").trim()
         if (!value) return
+        emitNavigationIntent(value, "double", "folderList", folderMeta)
         folderDoubleActivated(value, folderMeta)
     }
 
@@ -1895,7 +1905,8 @@ Item { // ROOT
         if (previewReopenStabilizing && verticalView) {
             return
         }
-        // Cascade overlay should not feed the horizontal preview stack.
+        // CWD hover cascade overlay (path-bar dropdown) must not feed the preview stack.
+        // Hover from H-View preview rows (previewStack) must still open the next row; they pass false here.
         if (fromCascadePanel) {
             return
         }
@@ -2855,10 +2866,19 @@ Item { // ROOT
                                 showPin: isCurrent && root.showPerspectivePin
                                 iconPin: root.iconPin
                                 onActivate: {
+                                    // #region agent log
+                                    if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:pathSegment:onActivate",message:"Path segment activate",data:{index:Number(index),isCurrent:Boolean(isCurrent),path:String(fullPathForSegment||"")},timestamp:Date.now()})}).catch(function(){});
+                                    // #endregion
                                     pathSegmentActivated(index)
+                                    root.emitNavigationIntent(fullPathForSegment, "single", "pathbar", null)
                                     navigateToPathRequested(fullPathForSegment)
                                 }
                                 onDoubleActivate: {
+                                    // #region agent log
+                                    if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:pathSegment:onDoubleActivate",message:"Path segment double activate",data:{index:Number(index),isCurrent:Boolean(isCurrent),path:String(fullPathForSegment||"")},timestamp:Date.now()})}).catch(function(){});
+                                    // #endregion
+                                    pathSegmentActivated(index)
+                                    root.emitNavigationIntent(fullPathForSegment, "double", "pathbar", null)
                                     navigateToPathRequested(fullPathForSegment)
                                     if (isCurrent) root.currentPathDoubleActivated()
                                 }
@@ -2876,8 +2896,12 @@ Item { // ROOT
                                     hoverEnabled: true
                                     acceptedButtons: Qt.LeftButton
                                     onClicked: {
+                                        // #region agent log
+                                        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:pathSegment:overlay:onClicked",message:"Current path overlay clicked",data:{index:Number(index),isCurrent:Boolean(isCurrent),path:String(fullPathForSegment||""),cwdHoverPanelOpen:Boolean(root.cwdHoverPanelOpen)},timestamp:Date.now()})}).catch(function(){});
+                                        // #endregion
                                         if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
                                         pathSegmentActivated(index)
+                                        root.emitNavigationIntent(fullPathForSegment, "single", "pathbar", null)
                                         navigateToPathRequested(fullPathForSegment)
                                     }
                                     onPressAndHold: {
@@ -2990,9 +3014,13 @@ Item { // ROOT
                         onActivate: {
                             if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
                             root.pathSegmentActivated(pathPartsDisplay().length - 1)
+                            root.emitNavigationIntent(path || "", "single", "pathbar", null)
                             root.navigateToPathRequested(path || "")
                         }
-                        onDoubleActivate: root.currentPathDoubleActivated()
+                        onDoubleActivate: {
+                            root.emitNavigationIntent(path || "", "double", "pathbar", null)
+                            root.currentPathDoubleActivated()
+                        }
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
@@ -3262,10 +3290,12 @@ Item { // ROOT
                                 renameText: root.renameDraft
                                 onActivate: {
                                     pathSelected(modelData)
+                                    root.emitNavigationIntent(modelData, "single", "verticalParent", null)
                                     navigateToPathRequested(modelData)
                                 }
                                 onDoubleActivate: {
                                     pathSelected(modelData)
+                                    root.emitNavigationIntent(modelData, "double", "verticalParent", null)
                                     navigateToPathRequested(modelData)
                                 }
                                 onRenameRequested: root.renameRequested(fullPathForSegment)
@@ -4223,7 +4253,8 @@ Item { // ROOT
                                     onDoubleActivate: emitFolderDoubleActivatedIntent(fullPath, modelData)
                                     onHoverEntered: {
                                         var centerPoint = mapToItem(root, width / 2, height / 2)
-                                        updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y, true)
+                                        // false = from H-View preview row, not CWD overlay; must open next row.
+                                        updatePreviewFromHover(previewLevel + 1, fullPath, modelData, fillColor, centerPoint.x, centerPoint.y, false)
                                     }
                                 }
                             }
@@ -4273,10 +4304,14 @@ Item { // ROOT
                         root.closeCwdHoverPanels("ghost-button")
                         var idx = root.pathPartsDisplay().length - 1
                         if (idx >= 0) root.pathSegmentActivated(idx)
-                        if (root.cwdHoverCurrentPath.length > 0) root.navigateToPathRequested(root.cwdHoverCurrentPath)
+                        if (root.cwdHoverCurrentPath.length > 0) {
+                            root.emitNavigationIntent(root.cwdHoverCurrentPath, "single", "ghost", null)
+                            root.navigateToPathRequested(root.cwdHoverCurrentPath)
+                        }
                     }
                     onDoubleClicked: {
                         root.closeCwdHoverPanels("ghost-button")
+                        if (root.cwdHoverCurrentPath.length > 0) root.emitNavigationIntent(root.cwdHoverCurrentPath, "double", "ghost", null)
                         root.currentPathDoubleActivated()
                     }
                 }
