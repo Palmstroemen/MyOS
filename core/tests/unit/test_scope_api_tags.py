@@ -277,7 +277,9 @@ def test_folder_sizes_are_persisted_in_project_md_frontmatter_map(tmp_path):
     (folder / "a.txt").write_text("abc", encoding="utf-8")
 
     api = ScopeApi(str(project))
-    api.list_entries(str(project))
+    # list_entries no longer computes folder sizes (lazy via get_folder_size_bytes);
+    # list_tag_buckets persists the size of the viewed folder.
+    api.list_tag_buckets(str(folder))
 
     project_md_text = (myos / "Project.md").read_text(encoding="utf-8")
     assert "window_width_px: 900" in project_md_text
@@ -599,3 +601,4 @@ def test_scope_api_lists_sort_watch_roots(tmp_path):
     roots = api.list_sort_watch_roots(str(project_root))
 
     assert str(pictures.resolve()) in roots
+

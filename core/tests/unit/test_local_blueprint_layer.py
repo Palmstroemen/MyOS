@@ -14,19 +14,22 @@ TEST_LAB_ROOT = Path(__file__).parent / "test_lab"
 TEMPLATE_DIR = TEST_LAB_ROOT / "Templates"
 PLATE_DIR = TEST_LAB_ROOT / "plate"
 
-os.environ["MYOS_TEMPLATES_DIR"] = str(TEMPLATE_DIR)
-os.environ["MYOS_ROLES"] = "admin, info, kommunikation"
-print(f"[Test Setup] Set MYOS_TEMPLATES_DIR to: {TEMPLATE_DIR}")
+_TEST_ENV = {
+    "MYOS_TEMPLATES_DIR": str(TEMPLATE_DIR),
+    "MYOS_ROLES": "admin, info, kommunikation",
+}
 
-@pytest.fixture(scope="session", autouse=True)
+# Module scope (not import time) so these values do not leak into other test modules.
+@pytest.fixture(scope="module", autouse=True)
 def set_test_templates_dir():
-    original = os.getenv("MYOS_TEMPLATES_DIR")
-    os.environ["MYOS_TEMPLATES_DIR"] = str(TEMPLATE_DIR)
+    originals = {key: os.getenv(key) for key in _TEST_ENV}
+    os.environ.update(_TEST_ENV)
     yield
-    if original is not None:
-        os.environ["MYOS_TEMPLATES_DIR"] = original
-    else:
-        os.environ.pop("MYOS_TEMPLATES_DIR", None)
+    for key, original in originals.items():
+        if original is not None:
+            os.environ[key] = original
+        else:
+            os.environ.pop(key, None)
 
 @pytest.fixture(autouse=True)
 def cleanup_myos_mounts_before_test():
