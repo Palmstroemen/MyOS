@@ -1,0 +1,12 @@
+module Dialogs
+ConfigPromptDialog 1.0 ConfigPromptDialog.qml
+FolderMoveConfirmDialog 1.0 FolderMoveConfirmDialog.qml
+MoveReportDialog 1.0 MoveReportDialog.qml
+OpenWithDialog 1.0 OpenWithDialog.qml
+FilterSaveDialog 1.0 FilterSaveDialog.qml
+FilterNameDialog 1.0 FilterNameDialog.qml
+CreateFolderDialog 1.0 CreateFolderDialog.qml
+MoveSelectedFoldersDialog 1.0 MoveSelectedFoldersDialog.qml
+RenameEntryDialog 1.0 RenameEntryDialog.qml
+BatchRenameDialog 1.0 BatchRenameDialog.qml
+DeleteEntriesDialog 1.0 DeleteEntriesDialog.qml
