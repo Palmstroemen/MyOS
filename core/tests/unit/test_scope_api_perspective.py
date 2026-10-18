@@ -239,6 +239,8 @@ def test_folder_type_enum_for_children_embryo_born_normal(tmp_path):
     rows = api.list_children(str(project), include_embryos=True)
     by_name = {str(item.get("name") or ""): item for item in rows}
 
+    # Born folder (finanz): physical dir that was an embryo; appears in list_children with folderType BORN
+    assert "finanz" in by_name
     assert int(by_name["finanz"].get("folderType")) == 1
     assert bool(by_name["finanz"].get("isEmbryo")) is False
 
@@ -249,13 +251,21 @@ def test_folder_type_enum_for_children_embryo_born_normal(tmp_path):
     assert bool(by_name["manual"].get("isEmbryo")) is False
 
 
-def test_folder_type_enum_for_templates_is_embryo_only(tmp_path):
+def test_folder_type_enum_for_templates_includes_embryo_and_born(tmp_path):
     paths = _setup_merged_templates_tree(tmp_path)
     project = paths["project"]
-    api = ScopeApi(str(project))
+    (project / "finanz").mkdir(parents=True, exist_ok=True)
 
+    api = ScopeApi(str(project))
     rows = api.list_templates(str(project), include_embryos=True)
+    by_name = {str(item.get("name") or ""): item for item in rows}
+
     assert rows
-    for item in rows:
-        assert int(item.get("folderType")) == 2
-        assert bool(item.get("isEmbryo")) is True
+    # Born template folder (finanz) appears in template list as non-embryo
+    assert "finanz" in by_name
+    assert int(by_name["finanz"].get("folderType")) == 1
+    assert bool(by_name["finanz"].get("isEmbryo")) is False
+    # Embryo (admin) appears as embryo
+    assert "admin" in by_name
+    assert int(by_name["admin"].get("folderType")) == 2
+    assert bool(by_name["admin"].get("isEmbryo")) is True

@@ -43,6 +43,7 @@ def test_scope_api_acl_mode_monitor_enables_service_from_env(monkeypatch, tmp_pa
 def test_scope_api_acl_env_sets_default_project_audit_file(monkeypatch, tmp_path):
     root = tmp_path / "project"
     (root / ".MyOS").mkdir(parents=True)
+    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
     monkeypatch.setenv("MYOS_ACL_MODE", "monitor")
     monkeypatch.setenv("MYOS_ACL_AUDIT", "1")

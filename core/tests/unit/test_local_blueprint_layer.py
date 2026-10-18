@@ -299,6 +299,28 @@ def test_07_specific_embryo_exists(mount_haus):
     assert layer.is_embryo("kommunikation/extern") == True
     assert layer.is_embryo("kommunikation/intern") == True
 
+def test_birth_path_nested_embryo_materializes_parent_then_child(tmp_path, monkeypatch):
+    """_birth_path with nested path (e.g. 04_Finanz/Ausgaben) materializes parent then child."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)  # use project's Templates
+    project_root = tmp_path / "Project"
+    project_root.mkdir()
+    (project_root / ".MyOS").mkdir()
+    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (project_root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (project_root / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
+    (project_root / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
+
+    layer = Blueprint(project_root)
+    assert not (project_root / "04_Finanz").exists()
+    assert not (project_root / "04_Finanz" / "Ausgaben").exists()
+
+    result = layer._birth_path("/04_Finanz/Ausgaben")
+
+    assert result == project_root / "04_Finanz" / "Ausgaben"
+    assert (project_root / "04_Finanz").is_dir()
+    assert (project_root / "04_Finanz" / "Ausgaben").is_dir()
+
+
 def test_08_birth_process_no_percent(mount_haus):
     """Testet dass Embryos bei create/mkdir materialisiert werden."""
     layer, root = mount_haus

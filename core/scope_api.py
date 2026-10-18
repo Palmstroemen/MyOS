@@ -43,9 +43,10 @@ except Exception:  # pragma: no cover - optional for non-MyOS paths
 
 
 def find_project_root(start_path: Path) -> Optional[Path]:
+    """Project root = directory that has .MyOS/Project.md. .MyOS/ alone is not enough."""
     start_path = start_path.resolve()
     for candidate in [start_path] + list(start_path.parents):
-        if (candidate / ".MyOS").exists():
+        if (candidate / ".MyOS" / "Project.md").exists():
             return candidate
     return None
 
@@ -1252,41 +1253,68 @@ class ScopeApi:
         return target if target.is_dir() else None
 
     def _resolve_or_materialize_target_dir(self, target_dir: str) -> tuple[Optional[Path], str]:
+        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        if _dbg:
+            print(f"[birth] _resolve_or_materialize_target_dir target_dir={target_dir!r}")
         try:
             target = self._resolve_path(target_dir)
-        except Exception:
+        except Exception as e:
+            if _dbg:
+                print(f"[birth] _resolve_path failed: {e}")
             return None, "invalid_path"
 
         if target.is_dir():
+            if _dbg:
+                print(f"[birth] target already dir -> {target}")
             return target, ""
 
         acl_target = self._acl_probe("write_dir", target)
         if acl_target and acl_target.enforced and not acl_target.allowed:
+            if _dbg:
+                print("[birth] acl_denied_target")
             return None, "acl_denied_target"
 
         context_root, context_blueprint = self._resolve_context_for_target(target)
         if not context_root or context_blueprint is None:
+            if _dbg:
+                print(f"[birth] no context root/blueprint -> target_not_directory (root={context_root!r})")
             return None, "target_not_directory"
         if not is_within(target, context_root):
+            if _dbg:
+                print("[birth] target not within context_root -> target_not_directory")
             return None, "target_not_directory"
 
         rel_target = "" if target == context_root else str(target.relative_to(context_root))
         if not rel_target:
+            if _dbg:
+                print("[birth] rel_target empty -> target_not_directory")
             return None, "target_not_directory"
 
         is_embryo_target = bool(context_blueprint.is_embryo(rel_target))
         contains_embryos = bool(context_blueprint.contains_embryos(f"/{rel_target}"))
+        if _dbg:
+            print(f"[birth] rel_target={rel_target!r} is_embryo={is_embryo_target} contains_embryos={contains_embryos}")
         if not is_embryo_target and not contains_embryos:
+            if _dbg:
+                print("[birth] not embryo and not contains_embryos -> target_not_directory")
             return None, "target_not_directory"
 
         try:
+            if _dbg:
+                print(f"[birth] calling context_blueprint.mkdir(/{rel_target!r})")
             context_blueprint.mkdir(f"/{rel_target}", 0o755)
-        except Exception:
+        except Exception as e:
+            if _dbg:
+                print(f"[birth] mkdir failed: {e}")
             return None, "target_not_directory"
 
         resolved = self._resolve_dir(str(target))
         if resolved is None:
+            if _dbg:
+                print("[birth] _resolve_dir after mkdir -> None")
             return None, "target_not_directory"
+        if _dbg:
+            print(f"[birth] resolved -> {resolved}")
         return resolved, ""
 
     def set_acl_enforcement(self, service: Optional[ACLEnforcementService], user: Optional[str] = None) -> None:
@@ -1449,8 +1477,8 @@ class ScopeApi:
                         if acl_child and acl_child.enforced and not acl_child.allowed:
                             continue
                         rel_child = child.name if rel == "" else f"{rel}/{child.name}"
-                        if self._is_template_path(context_blueprint, rel_child):
-                            continue
+                        # Include born folders (physical dirs that were embryos): do not skip by template path.
+                        # They are marked via folder_type=FOLDER_TYPE_BORN from _classify_folder_type.
                         is_project = self.is_project(str(child))
                         project_color = self._resolve_effective_project_color(child) if is_project else None
                         folder_type = self._classify_folder_type(
@@ -2787,11 +2815,16 @@ class ScopeApi:
         return result
 
     def move_entry(self, source: str, target_dir: str) -> bool:
+        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        if _dbg:
+            print(f"[birth] move_entry source={source!r} target_dir={target_dir!r}")
         try:
             src = self._resolve_path(source)
         except Exception:
             return False
-        dst_dir, _ = self._resolve_or_materialize_target_dir(target_dir)
+        dst_dir, reason = self._resolve_or_materialize_target_dir(target_dir)
+        if _dbg:
+            print(f"[birth] move_entry after resolve: dst_dir={dst_dir!r} reason={reason!r}")
         if dst_dir is None:
             return False
         acl_target = self._acl_probe("write_dir", dst_dir)
@@ -2815,6 +2848,9 @@ class ScopeApi:
             return False
 
     def move_entries(self, sources: List[str], target_dir: str) -> Dict[str, Any]:
+        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        if _dbg:
+            print(f"[birth] move_entries target_dir={target_dir!r} sources#={len(sources)}")
         result: Dict[str, Any] = {
             "ok": True,
             "moved": [],
@@ -2822,6 +2858,8 @@ class ScopeApi:
             "errors": [],
         }
         dst_dir, target_reason = self._resolve_or_materialize_target_dir(target_dir)
+        if _dbg:
+            print(f"[birth] move_entries after resolve: dst_dir={dst_dir!r} reason={target_reason!r}")
         if dst_dir is None:
             result["ok"] = False
             reason = target_reason or "target_not_directory"

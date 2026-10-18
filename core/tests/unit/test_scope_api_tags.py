@@ -8,6 +8,7 @@ def test_list_project_tags_reads_hash_lines(tmp_path):
     project = tmp_path / "DemoProject"
     tags_md = project / ".MyOS" / "Tags.md"
     tags_md.parent.mkdir(parents=True)
+    (project / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     tags_md.write_text(
         "\n".join(
             [

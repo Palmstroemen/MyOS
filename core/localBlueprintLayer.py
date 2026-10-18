@@ -26,27 +26,17 @@ class BirthClinic:
     def give_birth(self, embryo_path: str) -> Path:
         """
         Complete birth process for a SINGLE embryo path.
-        Now embryo_path uses normal names (no % suffix).
-        Example: embryo_path = "admin" or "kommunikation/extern"
-        
         Returns: Path to the newborn physical folder
         """
-        # 1. Find template source for this specific embryo
+        if os.environ.get("MYOS_DEBUG_BIRTH"):
+            print(f"[birth] BirthClinic.give_birth embryo_path={embryo_path!r}")
         template_source = self.find_template_source(embryo_path)
-        
-        # Security: validate template before copying
         self._validate_template_security(template_source)
-        
-        # 3. Convert embryo path to physical path
         target_path = self._embryo_to_physical_path(embryo_path)
-        
-        # 4. Ensure parent directory exists
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Security: copy template without symlinks
         self._copy_template_safely(template_source, target_path)
-        
-        print(f"BirthClinic: Embryo '{embryo_path}' → {target_path} (from {template_source})")
+        if os.environ.get("MYOS_DEBUG_BIRTH"):
+            print(f"[birth] give_birth done -> {target_path}")
         return target_path
     
     def _validate_template_security(self, template_source: Path) -> None:
@@ -420,50 +410,76 @@ class Blueprint(Operations):
         
         return embryos
 
+    def get_template_folders_at(self, rel_path: str) -> List[Tuple[str, bool]]:
+        """
+        Get all template folder names at the given relative path (embryo and born).
+        Returns list of (name, is_embryo). Embryos are only included when writable.
+        """
+        if not rel_path:
+            node = self.embryo_tree
+        else:
+            node = self.embryo_tree
+            for part in rel_path.split("/"):
+                if not isinstance(node, dict) or part not in node:
+                    return []
+                node = node[part]
+        result: List[Tuple[str, bool]] = []
+        for name in node.keys():
+            full_path = f"{rel_path}/{name}" if rel_path else name
+            is_embryo = self.is_embryo(full_path)
+            if is_embryo and not self._can_write_embryo(full_path):
+                continue
+            result.append((name, is_embryo))
+        return result
+
     def _birth_path(self, fuse_path: str) -> Path:
         """
         Handle birth process for a path containing embryos.
-        Now works with normal paths (no % markers).
+        Births from root to leaf so parent embryos are materialized before sub-embryos.
         """
+        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        if _dbg:
+            print(f"[birth] _birth_path fuse_path={fuse_path!r}")
         parts = fuse_path.strip('/').split('/')
-        
-        # Find the LAST embryo in the path
         embryo_parts = []
         current_path = ""
-        
+
         for part in parts:
             if current_path:
                 test_path = f"{current_path}/{part}"
             else:
                 test_path = part
-            
+
             if self.is_embryo(test_path):
                 embryo_parts.append(part)
                 current_path = test_path
             else:
-                # Stop once a non-embryo segment is reached
                 break
-        
+
+        if _dbg:
+            print(f"[birth] _birth_path embryo_parts={embryo_parts!r}")
         if not embryo_parts:
             raise ValueError(f"No embryo found in path: {fuse_path}")
-        
-        # Embryo path (only embryo segments)
-        embryo_path = '/'.join(embryo_parts)
 
-        # Enforce ACLs for birth
-        if not self._can_write_embryo(embryo_path):
-            raise FuseOSError(errno.EACCES)
-        
-        # Remaining path after the embryo
         remaining_parts = parts[len(embryo_parts):]
-        
-        # Trigger birth for the embryo
-        newborn = self.birth_clinic.give_birth(embryo_path)
-        
-        # Create remaining path parts
+
+        newborn = self.project_root
+        for i in range(1, len(embryo_parts) + 1):
+            prefix_path = "/".join(embryo_parts[:i])
+            if not self._can_write_embryo(prefix_path):
+                raise FuseOSError(errno.EACCES)
+            if self.is_embryo(prefix_path):
+                if _dbg:
+                    print(f"[birth] give_birth({prefix_path!r})")
+                newborn = self.birth_clinic.give_birth(prefix_path)
+                if _dbg:
+                    print(f"[birth] give_birth -> {newborn}")
+            else:
+                newborn = self._physical_path(prefix_path)
+
         for part in remaining_parts:
             newborn = newborn / part
-        
+
         return newborn
 
     def _has_write_permission_for_embryo(self, embryo_name: str) -> bool:
@@ -560,8 +576,9 @@ class Blueprint(Operations):
         return entries
 
     def mkdir(self, path: str, mode) -> None:
-        # Birth on mkdir if path contains embryos
         rel_path = path.lstrip('/')
+        if os.environ.get("MYOS_DEBUG_BIRTH"):
+            print(f"[birth] Blueprint.mkdir path={path!r} is_embryo={self.is_embryo(rel_path)} contains_embryos={self.contains_embryos(path)}")
         if self.is_embryo(rel_path) or self.contains_embryos(path):
             self._birth_path(path)
         self._materialize_sort_virtual_path(path)

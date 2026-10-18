@@ -23,6 +23,18 @@ def _setup_embryo_project(tmp_path: Path) -> Path:
     return root
 
 
+def _setup_nested_embryo_project(tmp_path: Path) -> Path:
+    """Project with nested embryos: parent_embryo/child_embryo (e.g. 04_Finanz/Ausgaben)."""
+    root = tmp_path / "Project"
+    _write_project_marker(root)
+    _write_templates_config(root, "Standard")
+    (root / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    # Nested embryo: 04_Finanz and 04_Finanz/Ausgaben
+    (root / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
+    (root / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def test_move_entries_reports_moved_and_errors(tmp_path):
     src_root = tmp_path / "src"
     dst_root = tmp_path / "dst"
@@ -85,6 +97,72 @@ def test_move_entry_materializes_embryo_target_dir(tmp_path):
     assert not source.exists()
     assert embryo_target.is_dir()
     assert (embryo_target / "doc.txt").exists()
+
+
+def test_move_entry_materializes_nested_embryo_target_dir(tmp_path, monkeypatch):
+    """Move into unborn subfolder of embryo (e.g. 04_Finanz/Ausgaben) materializes parent and child, file ends up there."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)  # use project's Templates, not test_lab
+    root = _setup_nested_embryo_project(tmp_path)
+    source = root / "inbox" / "doc.txt"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("content", encoding="utf-8")
+    # Target is nested embryo: 04_Finanz (parent embryo) / Ausgaben (child embryo)
+    embryo_parent = root / "04_Finanz"
+    embryo_child = root / "04_Finanz" / "Ausgaben"
+
+    assert not embryo_parent.exists(), "parent embryo must not exist before move"
+    assert not embryo_child.exists(), "child embryo must not exist before move"
+
+    api = ScopeApi(str(root))
+    ok = api.move_entry(str(source), str(embryo_child))
+
+    assert ok is True, "move_entry into nested embryo should succeed"
+    assert not source.exists(), "source file should be gone"
+    assert embryo_parent.is_dir(), "parent embryo 04_Finanz should be materialized"
+    assert embryo_child.is_dir(), "child embryo 04_Finanz/Ausgaben should be materialized"
+    assert (embryo_child / "doc.txt").exists(), "file should be in 04_Finanz/Ausgaben"
+    assert (embryo_child / "doc.txt").read_text(encoding="utf-8") == "content"
+
+
+def test_resolve_or_materialize_target_dir_nested_embryo(tmp_path, monkeypatch):
+    """_resolve_or_materialize_target_dir for nested embryo path returns resolved dir and materializes both levels."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    root = _setup_nested_embryo_project(tmp_path)
+    target_dir = root / "04_Finanz" / "Ausgaben"
+
+    assert not target_dir.exists()
+
+    api = ScopeApi(str(root))
+    resolved, reason = api._resolve_or_materialize_target_dir(str(target_dir))
+
+    assert resolved is not None, f"expected resolved path, got reason={reason!r}"
+    assert resolved.is_dir()
+    assert resolved == target_dir.resolve() or resolved.samefile(target_dir)
+    assert (root / "04_Finanz").is_dir()
+    assert (root / "04_Finanz" / "Ausgaben").is_dir()
+
+
+def test_move_entries_materializes_nested_embryo_target_dir(tmp_path, monkeypatch):
+    """Move multiple files into nested embryo 04_Finanz/Ausgaben materializes parent and child."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    root = _setup_nested_embryo_project(tmp_path)
+    (root / "inbox").mkdir(parents=True, exist_ok=True)
+    (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
+    (root / "inbox" / "b.txt").write_text("b", encoding="utf-8")
+    embryo_child = root / "04_Finanz" / "Ausgaben"
+
+    assert not embryo_child.exists()
+
+    api = ScopeApi(str(root))
+    report = api.move_entries(
+        [str(root / "inbox" / "a.txt"), str(root / "inbox" / "b.txt")],
+        str(embryo_child),
+    )
+
+    assert report["ok"] is True
+    assert len(report["moved"]) == 2
+    assert (embryo_child / "a.txt").read_text(encoding="utf-8") == "a"
+    assert (embryo_child / "b.txt").read_text(encoding="utf-8") == "b"
 
 
 def test_move_entries_materializes_embryo_target_dir_for_directory_source(tmp_path):
