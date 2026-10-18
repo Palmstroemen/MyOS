@@ -52,6 +52,8 @@ Rectangle { // Files panel
     property string iconGear: ""
     property string itemStyle: "largeIcon"
     signal folderActivated(string name)
+    /// Unified navigation intent (double-click = CWD+CTD). gesture: "double", source: "filesPanel".
+    signal navigationRequested(string path, string gesture, string source)
     signal fileActivated(string name)
     signal openMyosFolder()
     signal leaveMyosFolder()
@@ -926,6 +928,8 @@ Rectangle { // Files panel
                 }
                 onDoubleActivate: {
                     if (model.isDir) {
+                        var fullPath = (itemPath && itemPath.length > 0) ? itemPath : ""
+                        if (fullPath.length > 0) root.navigationRequested(fullPath, "double", "filesPanel")
                         root.folderActivated(model.name)
                     } else {
                         if (itemPath && itemPath.length > 0) {

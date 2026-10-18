@@ -2866,20 +2866,14 @@ Item { // ROOT
                                 showPin: isCurrent && root.showPerspectivePin
                                 iconPin: root.iconPin
                                 onActivate: {
-                                    // #region agent log
-                                    if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:pathSegment:onActivate",message:"Path segment activate",data:{index:Number(index),isCurrent:Boolean(isCurrent),path:String(fullPathForSegment||"")},timestamp:Date.now()})}).catch(function(){});
-                                    // #endregion
                                     pathSegmentActivated(index)
                                     root.emitNavigationIntent(fullPathForSegment, "single", "pathbar", null)
-                                    navigateToPathRequested(fullPathForSegment)
+                                    root.navigateToPathRequested(fullPathForSegment)
                                 }
                                 onDoubleActivate: {
-                                    // #region agent log
-                                    if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:pathSegment:onDoubleActivate",message:"Path segment double activate",data:{index:Number(index),isCurrent:Boolean(isCurrent),path:String(fullPathForSegment||"")},timestamp:Date.now()})}).catch(function(){});
-                                    // #endregion
                                     pathSegmentActivated(index)
                                     root.emitNavigationIntent(fullPathForSegment, "double", "pathbar", null)
-                                    navigateToPathRequested(fullPathForSegment)
+                                    root.navigateToPathRequested(fullPathForSegment)
                                     if (isCurrent) root.currentPathDoubleActivated()
                                 }
                                 onRenameRequested: root.renameRequested(fullPathForSegment)
@@ -2896,13 +2890,10 @@ Item { // ROOT
                                     hoverEnabled: true
                                     acceptedButtons: Qt.LeftButton
                                     onClicked: {
-                                        // #region agent log
-                                        if (typeof fetch === "function") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H1",location:"Scope/FolderBrowser.qml:pathSegment:overlay:onClicked",message:"Current path overlay clicked",data:{index:Number(index),isCurrent:Boolean(isCurrent),path:String(fullPathForSegment||""),cwdHoverPanelOpen:Boolean(root.cwdHoverPanelOpen)},timestamp:Date.now()})}).catch(function(){});
-                                        // #endregion
                                         if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
                                         pathSegmentActivated(index)
                                         root.emitNavigationIntent(fullPathForSegment, "single", "pathbar", null)
-                                        navigateToPathRequested(fullPathForSegment)
+                                        root.navigateToPathRequested(fullPathForSegment)
                                     }
                                     onPressAndHold: {
                                         if (root.allowRename) root.renameRequested(fullPathForSegment)

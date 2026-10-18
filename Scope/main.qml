@@ -3125,27 +3125,34 @@ ApplicationWindow {
                     standardPath = nextPath
                 }
             }
-            onNavigateToPathRequested: function(path) {
-                applyFolderActivation(resolveTemplateDisplayPathToReal(path))
-            }
-            // Edge-Dock: do not call show_FilesPanel() here (double-click path).
-            onFolderDoubleActivated: function(path, folderMeta) {
-                var applyPerspective = shouldApplyPerspectiveForFolderType(folderMeta)
-                if (!applyPerspective) {
-                    var targetPath = String(path || "")
-                    if (targetPath.length > 0) {
-                        commitCTD(resolveTemplateDisplayPathToReal(targetPath))
+            onNavigationRequested: function(path, gesture, source, meta) {
+                var realPath = resolveTemplateDisplayPathToReal(path)
+                if (gesture === "single") {
+                    applyFolderActivation(realPath)
+                } else {
+                    var applyPerspective = shouldApplyPerspectiveForFolderType(meta)
+                    if (!applyPerspective) {
+                        if (String(path || "").trim().length > 0) {
+                            commitCTD(realPath)
+                        }
+                        return
                     }
-                    return
+                    if (!ensurePerspectiveOpenForTemplates()) {
+                        return
+                    }
+                    var targetCpd = perspectiveCpdFromTemplatePath(String(path || ""))
+                    if (targetCpd.length === 0) {
+                        return
+                    }
+                    applyPerspectiveCpd(targetCpd)
                 }
-                if (!ensurePerspectiveOpenForTemplates()) {
-                    return
-                }
-                var targetCpd = perspectiveCpdFromTemplatePath(String(path || ""))
-                if (targetCpd.length === 0) {
-                    return
-                }
-                applyPerspectiveCpd(targetCpd)
+            }
+            onNavigateToPathRequested: function(path) {
+                // CWD/CTD handled by onNavigationRequested
+            }
+            // Edge-Dock: do not call show_FilesPanel() here (double-click path). CWD/CTD handled by onNavigationRequested.
+            onFolderDoubleActivated: function(path, folderMeta) {
+                // Legacy signal; navigation handled by onNavigationRequested
             }
             // Edge-Dock: do not call show_FilesPanel() here (hover/preview path).
             onFolderPreviewed: function(path) { handlePreviewPath(templatesBrowser, path) }
@@ -3250,34 +3257,36 @@ ApplicationWindow {
                 window.searchText = value
                 window.updateSubProjects()
             }
+            onNavigationRequested: function(path, gesture, source, meta) {
+                var targetPath = String(path || "").trim().indexOf("/") === 0 ? String(path || "").trim() : (cwp + "/" + String(path || "").trim())
+                if (targetPath.length === 0) return
+                if (gesture === "single") {
+                    show_FilesPanel()
+                    applyFolderActivation(targetPath)
+                    clearSearchAfterNavigate()
+                } else {
+                    if (projectsBrowser && typeof projectsBrowser.resetPreview === "function") {
+                        projectsBrowser.resetPreview()
+                        projectsBrowser.scheduleContentHeightUpdate()
+                    }
+                    setCwp(targetPath, "projectsBrowser.navigationRequested")
+                    commitCTD(targetPath)
+                    clearSearchAfterNavigate()
+                    if (shouldApplyPerspectiveForFolderType(meta)) {
+                        applyPerspectiveForRealPath(targetPath)
+                    }
+                }
+            }
             onNavigateToPathRequested: function(path) {
-                show_FilesPanel()
-                applyFolderActivation(path)
-                clearSearchAfterNavigate()
+                // CWD/CTD handled by onNavigationRequested
             }
             onCurrentPathDoubleActivated: onCwdDoubleActivated
             onFolderActivated: function(name) {
                 show_FilesPanel()
             }
-            // Edge-Dock: do not call show_FilesPanel() here (double-click path).
+            // Edge-Dock: do not call show_FilesPanel() here (double-click path). CWD/CTD handled by onNavigationRequested.
             onFolderDoubleActivated: function(name, folderMeta) {
-                var targetPath = ""
-                if (name.indexOf("/") === 0) {
-                    targetPath = name
-                } else {
-                    targetPath = cwp + "/" + name
-                }
-                if (projectsBrowser && typeof projectsBrowser.resetPreview === "function") {
-                    projectsBrowser.resetPreview()
-                    projectsBrowser.scheduleContentHeightUpdate()
-                }
-                setCwp(targetPath, "projectsBrowser.folderDouble")
-                var committed = commitCTD(targetPath)
-                clearSearchAfterNavigate()
-                if (!shouldApplyPerspectiveForFolderType(folderMeta)) {
-                    return
-                }
-                applyPerspectiveForRealPath(targetPath)
+                // Legacy signal; navigation handled by onNavigationRequested
             }
             // Edge-Dock: do not call show_FilesPanel() here (hover/preview path).
             onFolderPreviewed: function(path) { handlePreviewPath(projectsBrowser, path) }
@@ -3303,13 +3312,13 @@ ApplicationWindow {
 
         Connections {
             target: templatesBrowser
-            onClipboardRequested: openClipboard()
-            onClipboardDropRequested: function(payload) { dropToClipboard(payload) }
+            function onClipboardRequested() { openClipboard() }
+            function onClipboardDropRequested(payload) { dropToClipboard(payload) }
         }
         Connections {
             target: projectsBrowser
-            onClipboardRequested: openClipboard()
-            onClipboardDropRequested: function(payload) { dropToClipboard(payload) }
+            function onClipboardRequested() { openClipboard() }
+            function onClipboardDropRequested(payload) { dropToClipboard(payload) }
         }
 
         FilesPanel {  // FilesPanel
@@ -3406,17 +3415,17 @@ ApplicationWindow {
             onRenameRequested: function(paths) { requestRenameEntries(paths) }
             onDeleteRequested: function(paths) { requestDeleteEntries(paths) }
             onSelectAllRequested: selectAllVisibleEntries()
-            onFolderActivated: function(name) {
+            onNavigationRequested: function(path, gesture, source) {
+                if (gesture !== "double" || source !== "filesPanel") return
+                var targetPath = String(path || "").trim()
+                if (targetPath.length === 0) return
                 show_FilesPanel()
-                var targetPath = ""
-                if (name.indexOf("/") === 0) {
-                    targetPath = name
-                } else {
-                    targetPath = cwp + "/" + name
-                }
-                setCwp(targetPath, "filesPane.folderActivated")
+                setCwp(targetPath, "filesPane.navigationRequested")
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
+            }
+            onFolderActivated: function(name) {
+                show_FilesPanel()
             }
             onFileActivated: function(name) {
                 openFileEntry(name)

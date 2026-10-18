@@ -513,9 +513,6 @@ Rectangle {
         onClicked: function(mouse) {
             if (renaming) return
             var hit = root.hitAcceptsPoint(mouse.x, mouse.y)
-            // #region agent log
-            if (typeof fetch === "function" && style === "text") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H2",location:"Scope/FolderItem.qml:MouseArea:onClicked",message:"FolderItem click",data:{label:String(label||""),style:String(style||""),hit:Boolean(hit),x:Number(mouse.x||0),y:Number(mouse.y||0),pendingSingleClick:Boolean(pendingSingleClick)},timestamp:Date.now()})}).catch(function(){});
-            // #endregion
             if (!hit) {
                 mouse.accepted = false
                 return
@@ -532,9 +529,6 @@ Rectangle {
         onDoubleClicked: function(mouse) {
             if (renaming) return
             var hitOk = root.hitAcceptsPoint(mouse.x, mouse.y)
-            // #region agent log
-            if (typeof fetch === "function" && style === "text") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H2",location:"Scope/FolderItem.qml:MouseArea:onDoubleClicked",message:"FolderItem double click",data:{label:String(label||""),style:String(style||""),hitOk:Boolean(hitOk),x:Number(mouse.x||0),y:Number(mouse.y||0)},timestamp:Date.now()})}).catch(function(){});
-            // #endregion
             if (!hitOk) {
                 mouse.accepted = false
                 return
@@ -559,9 +553,6 @@ Rectangle {
         interval: 220
         repeat: false
         onTriggered: {
-            // #region agent log
-            if (typeof fetch === "function" && style === "text") fetch("http://127.0.0.1:7243/ingest/2664ee5e-3bb0-4847-a7ea-14546cafe5a6",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:"path-dblclick-debug",hypothesisId:"H3",location:"Scope/FolderItem.qml:singleClickTimer:onTriggered",message:"FolderItem single click dispatch",data:{label:String(label||""),style:String(style||""),pendingSingleClick:Boolean(pendingSingleClick)},timestamp:Date.now()})}).catch(function(){});
-            // #endregion
             dispatchPendingSingleClick()
         }
     }
