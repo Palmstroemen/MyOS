@@ -12,18 +12,19 @@ note_style: notebook
 
 ## 📌 Projektstatus
 
-**Stand:** 2026-02-14  
+**Stand:** 2026-10-18  
 **Aktuelle Phase:** MVP-Umsetzung mit Fokus auf stabile Kernflows
 
 Der Stand ist deutlich weiter als frühe Prototypenphase.  
-Wesentliche Kernbausteine (PostFix, Scope, Tagging, DnD, Thumbnailing) sind implementiert und iterativ gehärtet.
+Wesentliche Kernbausteine (PostFix, Scope, Tagging, DnD, Thumbnailing, Filter, Perspektiven-MVP mit Daemon, Desk, Sort) sind implementiert und iterativ gehärtet.
+Kompakter Überblick: `docs/STATUS.md`.
 
 ---
 
 ## 🚀 Aktuelle Prioritäten (Roadmap)
 
 [ ] ACLs
-[ ] Perspektiven
+[ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)
 [ ] RecentFiles
 [ ] Learning MyOS weiter ausbauen
@@ -40,6 +41,12 @@ Wesentliche Kernbausteine (PostFix, Scope, Tagging, DnD, Thumbnailing) sind impl
 
 ## ✅ Recent Milestones
 
+- Perspective-Daemon (Resolver, FUSE, Scope-Client) mit Idle-Selbstabschaltung.
+- Scope: Pfadleiste H/V, Edge-Dock-Modus, Kontextmenü Löschen, einheitliches `navigationRequested`.
+- Verschachtelte Embryos werden von der Wurzel her geboren; Projekt-Root erfordert `.MyOS/Project.md`.
+- `Project.md`-Metadaten werden atomar geschrieben (behebt zerschossenes Frontmatter durch parallele Schreiber).
+- Desk: Projekt-Icon (`ProjectIcon`) + Remix-Icon-Set.
+- ClipboardTool: CopyQ speichert Text-Clips als Markdown.
 - PostFix modularisiert (Main entlastet, Verantwortlichkeiten klarer getrennt).
 - PostFix Fast-Start und zentrale Interaktionsverbesserungen umgesetzt.
 - Tag-Handling gehärtet (inkl. Security-Tests).
@@ -98,6 +105,8 @@ Wesentliche Kernbausteine (PostFix, Scope, Tagging, DnD, Thumbnailing) sind impl
 
 ## 📌 Nächste konkrete Slices
 
+- Scope-Legacy-/Doppel-Kandidaten abarbeiten (`Scope/.Legacy-Code-Kandidaten.md`, `Scope/.FolderBrowser-DoppelKandidaten.md`).
+- Entscheiden: `.TagsHere.json` versionieren oder ignorieren.
 - ACL-MVP Scope festlegen (Datenmodell + 1 sichtbarer Flow).
 - Perspektiven-MVP als minimalen nutzbaren Loop implementieren.
 - Scope/PostFix UI-Polish-Liste priorisieren (Top 5 irritierende Punkte).

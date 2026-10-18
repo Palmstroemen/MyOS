@@ -1,40 +1,54 @@
 # MyOS Project Status
 
-**Last updated:** 2026-02-17  
+**Last updated:** 2026-10-18
 **Phase:** MVP implementation with focus on stable core flows
+**Active branch:** `exp/core-line-no-learning` (well ahead of `main`)
 
 ## Summary
 
 MyOS has moved beyond early prototyping. Core components are implemented and iteratively hardened:
 
-- **Scope** — QML file browser with tag filtering, DnD, multi-selection
+- **Scope** — QML file browser: Templates + Projects rows, path bar (H/V view), CWD/CTD navigation, tag filtering, DnD, multi-selection, context menu, Edge-Dock mode
 - **PostFix** — Markdown editor with tag sidebar, Obsidian-compatible metadata
 - **CLI tools** — myls, myproject, mytag, myedit, myimport, myexport, myfilter
-- **Blueprint layer** — Embryo materialization, template-based project structure
+- **Blueprint layer** — Embryo materialization (including nested embryos), template-based project structure
+- **Filters & Perspectives** — Filter runtime (include/exclude/flatten); flipped-perspective MVP with resolver, FUSE and a perspective daemon
+- **Desk** — Per-project desk profile (theme, wallpaper, dock, project icon)
+- **Sort** — `Sort.md` runtime for automatic project sorting
 - **Tagging** — Project-scoped tags, color registry, security-tested
-- **Markdown thumbnailing** — Linux integration
+- **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`)
+- **ClipboardTool** — CopyQ integration that saves text clips as Markdown
+
+Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests` — 372 passing (2026-10-18).
 
 ## Current Priorities
 
 1. ACLs (access control)
-2. Perspectives
+2. Perspectives (MVP running; persistence/sharing model open)
 3. Rooms concept (project-dependent desktops)
-4. Learning MyOS expansion
-5. Demo data as playground
-6. Scope/PostFix UI polish
-7. Distribution packaging
-8. i18n preparation
+4. RecentFiles
+5. Learning MyOS expansion
+6. Demo data as playground
+7. Scope/PostFix UI polish
+8. Distribution packaging
+9. i18n preparation
 
-## Recent Milestones
+## Recent Milestones (Feb–Mar 2026, committed Oct 2026)
 
-- PostFix modularized (main.py slimmed, responsibilities separated)
-- PostFix fast-start and interaction improvements
-- Tag handling hardened (including security tests)
-- Linux Markdown thumbnailer built and integrated
-- Scope tagbar with filter logic (project/visible, OR-default)
-- Multi-selection and Drag&Drop in Scope
-- Safety dialog for folder moves
-- Batch-move API with structured feedback (moved/skipped/errors)
+- Perspective daemon (resolver, FUSE, Scope client) with idle self-shutdown
+- Scope: path bar in H/V view, Edge-Dock mode, delete via context menu, unified `navigationRequested` signal
+- Scope dialogs extracted into `Scope/Dialogs/`, path helpers into `Scope/js/`
+- Hidden folders optionally shown; `.MyOS` hidden in embryo/template views
+- Nested embryos materialize root-to-leaf on move/mkdir
+- Project root detection requires `.MyOS/Project.md`
+- `Project.md` metadata writes are atomic and locked (fixes corrupted frontmatter)
+
+## Known Open Points
+
+- Legacy and duplicate-logic candidates in Scope: `Scope/.Legacy-Code-Kandidaten.md`, `Scope/.FolderBrowser-DoppelKandidaten.md`
+- `main.qml` (~3500 lines) and `FolderBrowser.qml` (~4800 lines) are large; further splitting pending
+- `.TagsHere.json` tag caches appear in many folders; decide whether to track or ignore them
+- `core/context.md` and `Technical Intro.md` still describe the old `myos_core.py` prototype
 
 ## Operational Details
 
