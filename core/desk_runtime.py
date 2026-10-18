@@ -192,6 +192,7 @@ class DeskRuntime:
         payload = {
             "source": str(config.source_path),
             "theme_preset": config.theme_preset,
+            "project_icon": config.project_icon,
             "wallpaper_preset": config.wallpaper_preset,
             "wallpaper_path": config.wallpaper_path,
             "dock_preset": config.dock_preset,

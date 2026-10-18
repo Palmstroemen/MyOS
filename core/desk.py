@@ -21,6 +21,7 @@ _INHERIT_VALUES = {"dynamic", "fix", "not"}
 class DeskConfig:
     source_path: Path
     theme_preset: Optional[str]
+    project_icon: Optional[str]
     wallpaper_preset: Optional[str]
     wallpaper_path: Optional[str]
     dock_preset: Optional[str]
@@ -42,6 +43,7 @@ class DeskConfig:
         return cls(
             source_path=source_path,
             theme_preset=_first(normalized, "themepreset"),
+            project_icon=_first(normalized, "projecticon"),
             wallpaper_preset=_first(normalized, "wallpaperpreset"),
             wallpaper_path=_first(normalized, "wallpaperpath"),
             dock_preset=_first(normalized, "dockpreset"),
@@ -178,6 +180,7 @@ def _has_any_profile_value(config: DeskConfig) -> bool:
     return any(
         [
             config.theme_preset,
+            config.project_icon,
             config.wallpaper_preset,
             config.wallpaper_path,
             config.dock_preset,

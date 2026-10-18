@@ -150,6 +150,7 @@ def test_kde_backend_rejects_nonexistent_wallpaper_path_for_security(tmp_path):
     config = DeskConfig(
         source_path=source,
         theme_preset=None,
+        project_icon=None,
         wallpaper_preset=None,
         wallpaper_path=str(tmp_path / "missing.png"),
         dock_preset=None,
@@ -175,6 +176,7 @@ def test_kde_backend_rejects_relative_wallpaper_escape_for_security(tmp_path):
     config = DeskConfig(
         source_path=source,
         theme_preset=None,
+        project_icon=None,
         wallpaper_preset="../outside.png",
         wallpaper_path=None,
         dock_preset=None,
@@ -204,6 +206,7 @@ def test_kde_backend_rejects_relative_wallpaper_symlink_escape_for_security(tmp_
     config = DeskConfig(
         source_path=source,
         theme_preset=None,
+        project_icon=None,
         wallpaper_preset="wallpaper-link.png",
         wallpaper_path=None,
         dock_preset=None,
@@ -234,6 +237,7 @@ def test_kde_backend_accepts_relative_wallpaper_symlink_inside_profile(monkeypat
     config = DeskConfig(
         source_path=source,
         theme_preset=None,
+        project_icon=None,
         wallpaper_preset="local-link.png",
         wallpaper_path=None,
         dock_preset=None,
@@ -266,6 +270,7 @@ def test_kde_backend_allows_explicit_wallpaper_symlink_outside_profile(monkeypat
     config = DeskConfig(
         source_path=source,
         theme_preset=None,
+        project_icon=None,
         wallpaper_preset=None,
         wallpaper_path=str(explicit_link),
         dock_preset=None,
@@ -287,6 +292,7 @@ def test_kde_backend_dry_run_does_not_execute_subprocess(monkeypatch, tmp_path):
     config = DeskConfig(
         source_path=source,
         theme_preset="BreezeDark",
+        project_icon=None,
         wallpaper_preset=None,
         wallpaper_path=None,
         dock_preset=None,
@@ -317,6 +323,7 @@ def test_kde_backend_preserves_argument_boundaries_against_injection(monkeypatch
     config = DeskConfig(
         source_path=source,
         theme_preset=payload,
+        project_icon=None,
         wallpaper_preset=None,
         wallpaper_path=None,
         dock_preset=None,
@@ -355,6 +362,7 @@ def test_kde_backend_reports_timeout_without_throwing(monkeypatch, tmp_path):
     config = DeskConfig(
         source_path=source,
         theme_preset="BreezeDark",
+        project_icon=None,
         wallpaper_preset=None,
         wallpaper_path=None,
         dock_preset=None,
@@ -383,6 +391,7 @@ def test_kde_backend_handles_oserror_race_between_which_and_run(monkeypatch, tmp
     config = DeskConfig(
         source_path=source,
         theme_preset="BreezeDark",
+        project_icon=None,
         wallpaper_preset=None,
         wallpaper_path=None,
         dock_preset=None,
