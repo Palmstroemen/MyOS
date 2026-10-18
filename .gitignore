@@ -37,3 +37,10 @@ core/tests/unit/test_lab/plate/Projekte/Haus/finanz/rechnungen/2026/rechnung.pdf
 
 # Generated test fixtures
 core/tests/unit/test_lab/
+
+# Runtime clipboard folders
+Clipboard/
+MyOS_Test/Clipboard/
+
+# Local runtime sandbox
+MyOS_Test/

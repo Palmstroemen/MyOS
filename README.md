@@ -1,41 +1,68 @@
 # MyOS
-A new OS paradigm for LINUX
 
-**MyOS** is an experimental Linux desktop concept that puts the user and their projects at the center — not the underlying technology.  
-The goal is an intuitive, context-sensitive environment where everything revolves around your current project and its structure.
+A new OS paradigm for Linux: project-centric desktop and filesystem.
 
-## 🌱 Project Status
+**MyOS** is an experimental Linux desktop concept that puts the user and their projects at the center. The goal is an intuitive, context-sensitive environment where everything revolves around your current project and its structure.
 
-**Current Phase:** Concept development, prototyping, and community building.  
-Not a complete operating system yet — early experiments with filesystem integrations, GUI concepts, and workflow tools.
+## Project Status
 
----
+**Current phase:** MVP implementation — core API, Scope GUI, CLI tools, and blueprint layer are in place and iteratively hardened. Not a complete operating system; early experiments with FUSE, QML file browser, tagging, and workflow tools.
 
-## 🎯 What is MyOS?
-
-- **Project-Based Desktop:** Instead of a classic multi-user setup → a multi-project environment for a single user.  
-  Each project has its own desktop, launcher, wallpaper, and app configuration. Open windows stay tied to their respective projects.
-
-- **Deep Obsidian Integration:** Obsidian becomes the default text and note editor — running in a clean, distraction-free "Zen mode".  
-  Every project is automatically an Obsidian Vault.
-
-- **Standardized Project Folder Structures:** Projects offer predefined but initially hidden folders (`finance`, `legal`, `docs`, etc.),  
-  which only become visible when needed.
-
-- **Permissions and Localization:** Folder names and access rights can be customized per project and language preference, without technical hurdles.
+For a concise status snapshot and priorities, see [docs/STATUS.md](docs/STATUS.md). For the operational roadmap and open questions, see [ProjectLogbook.md](ProjectLogbook.md).
 
 ---
 
-## 🚀 Vision
+## What is MyOS?
 
-The tools for all this already exist — but they're overly complicated and fragmented.  
-**MyOS** aims to unify these capabilities into one clean, intuitive environment with smart defaults and a gentle learning curve.
+- **Project-based desktop:** Multi-project environment for a single user. Each project can have its own desktop, launcher, and app configuration; open windows stay tied to their respective projects.
+
+- **Standardized project structures:** Projects offer predefined but initially hidden folders (templates/embryos) that only materialize when used (e.g. first file moved in).
+
+- **Deep Obsidian integration (vision):** Obsidian as the default note editor in a distraction-free mode; every project as an Obsidian Vault.
+
+- **Permissions and localization:** Folder names and access rights can be customized per project and language.
 
 ---
-## Tools
-### Libfuse
 
+## Vision
 
-## 📦 Repository Structure
+The building blocks exist but are fragmented. MyOS aims to unify them into one clean, intuitive environment with sensible defaults and a gentle learning curve.
 
+---
 
+## Repository Structure
+
+| Path | Description |
+|------|--------------|
+| **core/** | API, FUSE/blueprint layer, project config, ACLs, tagging, design docs |
+| **Scope/** | QML file browser (Templates + Projects rows, tags, CWD/CTD) |
+| **PostFix/** | Markdown editor with tag sidebar, Obsidian-compatible |
+| **cli/** | CLI tools (myls, myproject, mytag, myedit, myfilter, etc.) |
+| **docs/** | Documentation index, development guide, conventions, security |
+| **Vision/** | Concept and GUI notes (e.g. CWD/CWP/CTD) |
+| **Learning MyOS/** | Tutorial and learning content (DE/EN) |
+| **MyOS_Test/** | Test/demo project structure |
+
+Design documents live under `core/Dokumentation/`. Entry points: [Designdokument.md](Designdokument.md), [docs/INDEX.md](docs/INDEX.md).
+
+---
+
+## Quick Start
+
+**Run the Scope file browser (requires Qt/QML and Python backend):**
+```bash
+python3 Scope/Scope.py
+```
+
+**Run tests:**
+```bash
+python3 -m pytest core/tests/unit cli/tests PostFix/tests -v
+```
+
+**CLI examples:**
+```bash
+python3 cli/myls.py MyOS_Test/Projekte/ --extended
+python3 PostFix/cli.py path/to/file.md
+```
+
+Setup, dependencies, and contribution guidelines: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
