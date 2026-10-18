@@ -602,3 +602,24 @@ def test_scope_api_lists_sort_watch_roots(tmp_path):
 
     assert str(pictures.resolve()) in roots
 
+
+def test_folder_sizes_update_keeps_body_and_leaves_no_temp_files(tmp_path):
+    project = tmp_path / "Project"
+    myos = project / ".MyOS"
+    myos.mkdir(parents=True)
+    (myos / "Project.md").write_text("---\ncolor: '#123456'\n---\nBody text\n", encoding="utf-8")
+    folder = project / "Folder"
+    folder.mkdir()
+    (folder / "a.txt").write_text("abcd", encoding="utf-8")
+
+    api = ScopeApi(str(project))
+    api.list_tag_buckets(str(folder))
+    (folder / "b.txt").write_text("ef", encoding="utf-8")
+    api.list_tag_buckets(str(folder))
+
+    text = (myos / "Project.md").read_text(encoding="utf-8")
+    assert text.startswith("---\ncolor: '#123456'\n")
+    assert "  Folder: 6" in text
+    assert "  Folder: 4" not in text
+    assert text.rstrip().endswith("Body text")
+    assert sorted(p.name for p in myos.iterdir()) == ["Project.md"]

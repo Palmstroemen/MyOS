@@ -9,6 +9,8 @@ import re
 import shutil
 import json
 import shlex
+import tempfile
+import threading
 from typing import List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer
@@ -107,6 +109,25 @@ def _normalize_tag_value(value: str) -> str:
     while text.startswith("#"):
         text = text[1:]
     return text.strip()
+
+
+# Serializes read-modify-write of Project.md metadata; Scope calls the API from GUI and pool threads.
+_PROJECT_MD_LOCK = threading.Lock()
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write text via temp file + rename so readers and other writers never see a partial file."""
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def _split_frontmatter(text: str) -> tuple[str, str]:
@@ -2096,28 +2117,29 @@ class ScopeApi:
             grouped.setdefault(project_md, {})[rel_key] = max(0, int(size or 0))
 
         for project_md, updates in grouped.items():
-            try:
-                original = project_md.read_text(encoding="utf-8", errors="replace") if project_md.exists() else "# MyOS Project\n"
-            except Exception:
-                continue
-            frontmatter, body = _split_frontmatter(original)
-            current_map = self._parse_folder_sizes_map_from_frontmatter(frontmatter)
-            changed = False
-            for key, value in updates.items():
-                if current_map.get(key) != value:
-                    current_map[key] = value
-                    changed = True
-            if not changed:
-                continue
-            new_frontmatter = self._replace_folder_sizes_map_in_frontmatter(frontmatter, current_map)
-            updated = self._serialize_frontmatter_document(original, new_frontmatter, body)
-            if updated == original:
-                continue
-            try:
-                project_md.parent.mkdir(parents=True, exist_ok=True)
-                project_md.write_text(updated, encoding="utf-8")
-            except Exception:
-                continue
+            with _PROJECT_MD_LOCK:
+                try:
+                    original = project_md.read_text(encoding="utf-8", errors="replace") if project_md.exists() else "# MyOS Project\n"
+                except Exception:
+                    continue
+                frontmatter, body = _split_frontmatter(original)
+                current_map = self._parse_folder_sizes_map_from_frontmatter(frontmatter)
+                changed = False
+                for key, value in updates.items():
+                    if current_map.get(key) != value:
+                        current_map[key] = value
+                        changed = True
+                if not changed:
+                    continue
+                new_frontmatter = self._replace_folder_sizes_map_in_frontmatter(frontmatter, current_map)
+                updated = self._serialize_frontmatter_document(original, new_frontmatter, body)
+                if updated == original:
+                    continue
+                try:
+                    project_md.parent.mkdir(parents=True, exist_ok=True)
+                    _atomic_write_text(project_md, updated)
+                except Exception:
+                    continue
 
     def _compute_folder_size_bytes(self, folder_path: Path) -> int:
         total = 0
