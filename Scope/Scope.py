@@ -356,7 +356,9 @@ class Backend(QObject):
     def moveEntries(self, sources, targetDir: str):
         cleaned = [str(item or "").strip() for item in (sources or [])]
         cleaned = [item for item in cleaned if item]
-        return self._api.move_entries(cleaned, targetDir)
+        result = self._api.move_entries(cleaned, targetDir)
+        self._invalidate_reabsorbed(result)
+        return result
 
     @Slot(str, bool, result="QVariantList")
     def listEntries(self, path: str, showHidden: bool = False):
@@ -552,6 +554,12 @@ class Backend(QObject):
                 self._project_desktop_hash[context_path] = latest_hash
                 self._desktop_state_hash = latest_hash
         return result
+
+    def _invalidate_reabsorbed(self, result) -> None:
+        # Reabsorbed folders vanished from disk: drop cached listings of them and their parents.
+        for raw in (result or {}).get("reabsorbed") or []:
+            self.invalidateEntries(raw)
+            self.invalidateEntries(str(Path(raw).parent))
 
     @Slot(str)
     def invalidateEntries(self, path: str) -> None:
@@ -822,7 +830,9 @@ class Backend(QObject):
     def deleteEntries(self, paths):
         cleaned = [str(item or "").strip() for item in (paths or [])]
         cleaned = [item for item in cleaned if item]
-        return self._api.delete_entries(cleaned)
+        result = self._api.delete_entries(cleaned)
+        self._invalidate_reabsorbed(result)
+        return result
 
     @Slot(str, result=bool)
     def openMarkdown(self, path: str) -> bool:

@@ -954,13 +954,7 @@ ApplicationWindow {
             })
             var errors = (batch && batch.errors) ? batch.errors : []
             if (batch && batch.moved && batch.moved.length > 0) {
-                selectedEntryPaths = []
-                updateSubProjects()
-                updateFiles()
-                updateTemplates()
-                var listingPath = templatesListingPath()
-                standardFolders = listTemplates(listingPath)
-                updateStandardFolders()
+                refreshAfterStructureChange()
             }
             if (errors.length > 0 || skipped.length > 0) {
                 var lines = []
@@ -1329,12 +1323,24 @@ ApplicationWindow {
         deleteEntriesDialog.open()
     }
 
+    /// Refresh file list and folder bars after entries were moved or deleted
+    /// (folders may have appeared, vanished or turned back into embryos).
+    function refreshAfterStructureChange() {
+        selectedEntryPaths = []
+        updateSubProjects()
+        updateFiles()
+        updateTemplates()
+        var listingPath = templatesListingPath()
+        standardFolders = listTemplates(listingPath)
+        updateStandardFolders()
+    }
+
     function performDeleteEntries(paths) {
         var result = backend.deleteEntries(paths || [])
         var deleted = (result && result.deleted) ? result.deleted.length : 0
         var errors = (result && result.errors) ? result.errors.length : 0
-        selectedEntryPaths = []
-        updateFiles()
+        // Deleted folders and reabsorbed (emptied) template folders change the folder bars too.
+        refreshAfterStructureChange()
         if (errors > 0) {
             moveReportMessage = qsTr("Geloescht: %1 Datei(en)\nNicht geloescht: %2 Datei(en)")
                 .arg(deleted)

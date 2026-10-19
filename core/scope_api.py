@@ -11,7 +11,7 @@ import json
 import shlex
 import tempfile
 import threading
-from typing import List, Optional, Dict, Any, TypedDict
+from typing import Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
@@ -2813,7 +2813,8 @@ class ScopeApi:
         return stems[0] if stems else ""
 
     def delete_entries(self, paths: List[str]) -> Dict[str, Any]:
-        result: Dict[str, Any] = {"ok": True, "deleted": [], "errors": []}
+        result: Dict[str, Any] = {"ok": True, "deleted": [], "errors": [], "reabsorbed": []}
+        emptied: List[Path] = []
         for source, key, duplicate, invalid in self._iter_unique_sources(paths):
             if invalid:
                 result["errors"].append({"source": key, "reason": "invalid_path"})
@@ -2833,10 +2834,30 @@ class ScopeApi:
                 else:
                     source.unlink()
                 result["deleted"].append(key)
+                emptied.append(source.parent)
             except Exception:
                 result["errors"].append({"source": key, "reason": "delete_failed"})
+        result["reabsorbed"] = self._reabsorb_emptied_folders(emptied)
         result["ok"] = len(result["errors"]) == 0
         return result
+
+    def _reabsorb_emptied_folders(self, folders: Iterable[Path]) -> List[str]:
+        """
+        Turn born template folders that an operation just emptied back into embryos
+        (Blueprint.reabsorb_upwards). Returns the removed folders as strings.
+        """
+        removed: List[str] = []
+        for folder in dict.fromkeys(folders):
+            if not folder.is_dir():
+                continue
+            root, blueprint = self._resolve_context_for_target(folder)
+            if not root or blueprint is None or folder == root or not is_within(folder, root):
+                continue
+            try:
+                removed.extend(str(path) for path in blueprint.reabsorb_upwards(str(folder.relative_to(root))))
+            except Exception:
+                continue
+        return removed
 
     def move_entry(self, source: str, target_dir: str) -> bool:
         _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
@@ -2867,6 +2888,7 @@ class ScopeApi:
             shutil.move(str(src), str(destination))
             rules = self._resolve_sort_rules_for_target(destination.parent)
             self._sort_runtime.apply_file(destination, rules, event="move")
+            self._reabsorb_emptied_folders([src.parent])
             return True
         except Exception:
             return False
@@ -2880,7 +2902,9 @@ class ScopeApi:
             "moved": [],
             "skipped": [],
             "errors": [],
+            "reabsorbed": [],
         }
+        emptied: List[Path] = []
         dst_dir, target_reason = self._resolve_or_materialize_target_dir(target_dir)
         if _dbg:
             print(f"[birth] move_entries after resolve: dst_dir={dst_dir!r} reason={target_reason!r}")
@@ -2923,6 +2947,7 @@ class ScopeApi:
             try:
                 shutil.move(str(src), str(destination))
                 result["moved"].append({"source": src_key, "destination": str(destination)})
+                emptied.append(src.parent)
                 rules = self._resolve_sort_rules_for_target(destination.parent)
                 sorted_result = self._sort_runtime.apply_file(destination, rules, event="move")
                 if sorted_result.get("ok") == "1" and sorted_result.get("reason") == "moved":
@@ -2935,6 +2960,7 @@ class ScopeApi:
             except Exception:
                 result["errors"].append({"source": src_key, "reason": "move_failed"})
 
+        result["reabsorbed"] = self._reabsorb_emptied_folders(emptied)
         result["ok"] = len(result["errors"]) == 0
         return result
 

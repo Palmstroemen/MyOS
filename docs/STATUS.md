@@ -1,6 +1,6 @@
 # MyOS Project Status
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-19
 **Phase:** MVP implementation with focus on stable core flows
 **Active branch:** `exp/core-line-no-learning` (well ahead of `main`)
 
@@ -11,7 +11,7 @@ MyOS has moved beyond early prototyping. Core components are implemented and ite
 - **Scope** — QML file browser: Templates + Projects rows, path bar (H/V view), CWD/CTD navigation, tag filtering, DnD, multi-selection, context menu, Edge-Dock mode
 - **PostFix** — Markdown editor with tag sidebar, Obsidian-compatible metadata
 - **CLI tools** — myls, myproject, mytag, myedit, myimport, myexport, myfilter
-- **Blueprint layer** — Embryo materialization (including nested embryos), template-based project structure
+- **Blueprint layer** — Embryo materialization one level at a time (including nested embryos); unused born folders turn back into embryos
 - **Filters & Perspectives** — Filter runtime (include/exclude/flatten); flipped-perspective MVP with resolver, FUSE and a perspective daemon
 - **Desk** — Per-project desk profile (theme, wallpaper, dock, project icon)
 - **Sort** — `Sort.md` runtime for automatic project sorting
@@ -19,7 +19,7 @@ MyOS has moved beyond early prototyping. Core components are implemented and ite
 - **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`)
 - **ClipboardTool** — CopyQ integration that saves text clips as Markdown
 
-Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests` — 372 passing (2026-10-18).
+Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests` — 399 passing (2026-10-19).
 
 ## Current Priorities
 
@@ -33,7 +33,13 @@ Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests` — 372 
 8. Distribution packaging
 9. i18n preparation
 
-## Recent Milestones (Feb–Mar 2026, committed Oct 2026)
+## Recent Milestones (Oct 2026)
+
+- Embryo birth materializes only the folder itself; visible subfolders stay embryos until first use
+- Born template folders that hold nothing of the user turn back into embryos after delete/move (cascading upwards); `myproject tidy` does the same for folders emptied outside MyOS
+- Scope: FilesPanel follows the folder preview (700 ms dwell, or on entering the panel); file drags survive list refreshes; drops inside the FilesPanel work
+
+## Earlier Milestones (Feb–Mar 2026, committed Oct 2026)
 
 - Perspective daemon (resolver, FUSE, Scope client) with idle self-shutdown
 - Scope: path bar in H/V view, Edge-Dock mode, delete via context menu, unified `navigationRequested` signal

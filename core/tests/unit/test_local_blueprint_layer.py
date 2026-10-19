@@ -374,6 +374,20 @@ def test_nested_birth_does_not_materialize_siblings_or_grandchildren(tmp_path, m
     assert layer.is_embryo("04_Finanz/Ausgaben/2026") is True
 
 
+def test_sub_embryo_of_born_folder_can_be_born(tmp_path, monkeypatch):
+    """With one-level births a born parent with embryo children is the normal case."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    project_root = _setup_finanz_template_project(tmp_path)
+    layer = Blueprint(project_root)
+    layer._birth_path("/04_Finanz")
+
+    result = layer._birth_path("/04_Finanz/Einnahmen")
+
+    assert result == project_root / "04_Finanz" / "Einnahmen"
+    assert result.is_dir()
+    assert not (project_root / "04_Finanz" / "Ausgaben").exists()
+
+
 def test_08_birth_process_no_percent(mount_haus):
     """Testet dass Embryos bei create/mkdir materialisiert werden."""
     layer, root = mount_haus

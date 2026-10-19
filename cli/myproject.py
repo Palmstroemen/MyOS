@@ -5,6 +5,7 @@ myproject - MyOS project CLI
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -32,6 +33,39 @@ def _create_project(path: str, create_missing: bool = False) -> int:
         return 1
 
 
+def _sub_project_roots(project_root: Path) -> list:
+    """Project roots nested below project_root (symlinks are not followed)."""
+    roots = []
+    for current, dirs, _files in os.walk(project_root, followlinks=False):
+        current_path = Path(current)
+        if current_path != project_root and (current_path / ".MyOS" / "Project.md").is_file():
+            roots.append(current_path)
+        dirs[:] = [d for d in dirs if d != ".MyOS"]
+    return roots
+
+
+def _tidy_project(path: str) -> int:
+    """
+    Turn unused born template folders back into embryos: in the project containing
+    `path` and in every sub-project below it, each with its own templates.
+    """
+    try:
+        from core.localBlueprintLayer import Blueprint
+
+        blueprint = Blueprint(Path(path).expanduser())
+        removed = blueprint.reabsorb_all()
+        for sub_root in _sub_project_roots(blueprint.project_root):
+            if sub_root.is_dir():
+                removed.extend(Blueprint(sub_root).reabsorb_all())
+        for folder in removed:
+            print(f"Reabsorbed {folder}")
+        print(f"{len(removed)} folder(s) turned back into embryos")
+        return 0
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+
 def parse_args(args=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="MyOS project management",
@@ -46,6 +80,12 @@ def parse_args(args=None) -> argparse.Namespace:
         help="Create the folder if it does not exist",
     )
 
+    tidy = sub.add_parser(
+        "tidy",
+        help="Turn born template folders that hold nothing of the user back into embryos",
+    )
+    tidy.add_argument("path", nargs="?", default=".", help="Any folder inside the project (default: .)")
+
     return parser.parse_args(args)
 
 
@@ -53,6 +93,8 @@ def main() -> None:
     args = parse_args()
     if args.command == "create":
         sys.exit(_create_project(args.path, create_missing=args.new))
+    if args.command == "tidy":
+        sys.exit(_tidy_project(args.path))
 
 
 if __name__ == "__main__":

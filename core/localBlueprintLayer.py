@@ -13,6 +13,7 @@ from core.acl import ACLPolicy
 from core.sort import SortRule, resolve_effective_sort_rules
 from core.sort_runtime import SortRuntime
 
+import filecmp
 import shutil
 import getpass
 
@@ -95,6 +96,79 @@ class BirthClinic:
             # Security: copy2 does not follow symlinks for files
             shutil.copy2(source, target)
     
+    # Caches MyOS writes on its own; they never count as user content.
+    DISPOSABLE_FILES = frozenset({".TagsHere.json"})
+
+    def reabsorb(self, embryo_path: str) -> bool:
+        """
+        Reverse of give_birth: remove a born folder that holds nothing of the user,
+        so it becomes an embryo again. Returns True if the folder was removed.
+        """
+        template_source = self.find_template_source(embryo_path)
+        target = self._embryo_to_physical_path(embryo_path)
+        plan = self._unused_birth_plan(target, template_source)
+        if plan is None:
+            return False
+        files, dirs = plan
+        try:
+            for path in files:
+                path.unlink()
+            for path in dirs:
+                # rmdir refuses non-empty folders, so anything added meanwhile survives.
+                path.rmdir()
+        except OSError:
+            return False
+        return True
+
+    def _unused_birth_plan(
+        self, folder: Path, template: Optional[Path], inside_config: bool = False
+    ) -> Optional[Tuple[List[Path], List[Path]]]:
+        """
+        Return (files, dirs) to delete if `folder` contains only unchanged copies of
+        `template` (what birth copied) and MyOS caches, else None. `dirs` is deepest
+        first and ends with `folder`. Visible subfolders of the born folder always
+        count as content (born sub-embryos are reabsorbed on their own, bottom-up);
+        inside hidden config dirs (e.g. .MyOS) only files are judged.
+        """
+        files: List[Path] = []
+        dirs: List[Path] = []
+        try:
+            entries = list(os.scandir(folder))
+        except OSError:
+            return None
+        for entry in entries:
+            path = Path(entry.path)
+            counterpart = template / entry.name if template is not None else None
+            # Security: never treat symlinks (or what they point to) as removable.
+            if entry.is_symlink():
+                return None
+            if entry.is_dir(follow_symlinks=False):
+                if not inside_config and not entry.name.startswith("."):
+                    return None
+                sub_template = (
+                    counterpart
+                    if counterpart is not None and counterpart.is_dir() and not counterpart.is_symlink()
+                    else None
+                )
+                sub_plan = self._unused_birth_plan(path, sub_template, inside_config=True)
+                if sub_plan is None:
+                    return None
+                files.extend(sub_plan[0])
+                dirs.extend(sub_plan[1])
+            elif entry.is_file(follow_symlinks=False):
+                if entry.name in self.DISPOSABLE_FILES:
+                    files.append(path)
+                    continue
+                if counterpart is None or counterpart.is_symlink() or not counterpart.is_file():
+                    return None
+                if not filecmp.cmp(path, counterpart, shallow=False):
+                    return None
+                files.append(path)
+            else:
+                return None
+        dirs.append(folder)
+        return files, dirs
+
     def find_template_source(self, embryo_path: str) -> Path:
         """Find the template source directory for an embryo path."""
         
@@ -452,46 +526,104 @@ class Blueprint(Operations):
         if _dbg:
             print(f"[birth] _birth_path fuse_path={fuse_path!r}")
         parts = fuse_path.strip('/').split('/')
-        embryo_parts = []
-        current_path = ""
-
-        for part in parts:
-            if current_path:
-                test_path = f"{current_path}/{part}"
-            else:
-                test_path = part
-
-            if self.is_embryo(test_path):
-                embryo_parts.append(part)
-                current_path = test_path
-            else:
-                break
-
-        if _dbg:
-            print(f"[birth] _birth_path embryo_parts={embryo_parts!r}")
-        if not embryo_parts:
-            raise ValueError(f"No embryo found in path: {fuse_path}")
-
-        remaining_parts = parts[len(embryo_parts):]
-
+        # Born levels are passed through: with one-level births a born parent
+        # with embryo children is the normal case.
         newborn = self.project_root
-        for i in range(1, len(embryo_parts) + 1):
-            prefix_path = "/".join(embryo_parts[:i])
-            if not self._can_write_embryo(prefix_path):
-                raise FuseOSError(errno.EACCES)
+        born_any = False
+        remaining_parts: List[str] = []
+        for i in range(1, len(parts) + 1):
+            prefix_path = "/".join(parts[:i])
             if self.is_embryo(prefix_path):
+                if not self._can_write_embryo(prefix_path):
+                    raise FuseOSError(errno.EACCES)
                 if _dbg:
                     print(f"[birth] give_birth({prefix_path!r})")
                 newborn = self.birth_clinic.give_birth(prefix_path)
+                born_any = True
                 if _dbg:
                     print(f"[birth] give_birth -> {newborn}")
-            else:
+            elif self._physical_path(prefix_path).is_dir():
                 newborn = self._physical_path(prefix_path)
+            else:
+                remaining_parts = parts[i - 1:]
+                break
+
+        if not born_any:
+            raise ValueError(f"No embryo found in path: {fuse_path}")
 
         for part in remaining_parts:
             newborn = newborn / part
 
         return newborn
+
+    def reabsorb_upwards(self, rel_path: str) -> List[Path]:
+        """
+        Turn the template folder at rel_path back into an embryo if it holds nothing
+        of the user (born sub-embryos inside are reabsorbed first), then continue with
+        its parents. Stops at the first folder that is kept and never touches the
+        project root. Returns removed folders, deepest first.
+        """
+        rel = rel_path.strip("/")
+        if not rel:
+            return []
+        removed = self._reabsorb_subtree(rel)
+        if self._physical_path(rel).exists():
+            return removed
+        parent = rel.rsplit("/", 1)[0] if "/" in rel else ""
+        while parent and self._reabsorb_one(parent):
+            removed.append(self._physical_path(parent))
+            parent = parent.rsplit("/", 1)[0] if "/" in parent else ""
+        return removed
+
+    def reabsorb_all(self) -> List[Path]:
+        """Reabsorb every unused born template folder of the project, bottom-up."""
+        return self._reabsorb_subtree("")
+
+    def _embryo_node(self, rel: str) -> Optional[Dict[str, Any]]:
+        node = self.embryo_tree
+        for part in [p for p in rel.split("/") if p]:
+            if not isinstance(node, dict) or part not in node:
+                return None
+            node = node[part]
+        return node
+
+    def _reabsorb_subtree(self, rel: str) -> List[Path]:
+        node = self._embryo_node(rel)
+        folder = self._physical_path(rel)
+        if node is None or folder.is_symlink() or not folder.is_dir():
+            return []
+        # A sub-project has its own templates; never judge it by ours.
+        if rel and (folder / ".MyOS" / "Project.md").exists():
+            return []
+        removed: List[Path] = []
+        for name in node:
+            if name.startswith("."):
+                continue
+            child = f"{rel}/{name}" if rel else name
+            removed.extend(self._reabsorb_subtree(child))
+        if rel and self._reabsorb_one(rel):
+            removed.append(folder)
+        return removed
+
+    def _reabsorb_one(self, rel: str) -> bool:
+        folder = self._physical_path(rel)
+        if folder.is_symlink() or not folder.is_dir():
+            return False
+        # A born sub-project is its own project, not a plain template folder.
+        if (folder / ".MyOS" / "Project.md").exists():
+            return False
+        # Folders the user may not write as embryos would vanish from their view.
+        if not self._can_write_embryo(rel):
+            return False
+        try:
+            removed = self.birth_clinic.reabsorb(rel)
+        except ValueError:
+            return False
+        if removed:
+            prefix = f"{rel}/"
+            for key in [k for k in self._embryo_cache if k == rel or k.startswith(prefix)]:
+                del self._embryo_cache[key]
+        return removed
 
     def _has_write_permission_for_embryo(self, embryo_name: str) -> bool:
         """Placeholder for permission check."""

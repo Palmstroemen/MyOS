@@ -228,6 +228,81 @@ def test_delete_entries_reports_missing_and_ignores_duplicate(tmp_path):
     assert report["errors"][0]["reason"] == "missing"
 
 
+def test_move_entries_into_sub_embryo_of_born_folder(tmp_path, monkeypatch):
+    """Parent already born, child still an embryo: the drop births just the child."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    root = _setup_nested_embryo_project(tmp_path)
+    (root / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
+    (root / "inbox").mkdir()
+    (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
+    (root / "inbox" / "b.txt").write_text("b", encoding="utf-8")
+    api = ScopeApi(str(root))
+    first = api.move_entries([str(root / "inbox" / "a.txt")], str(root / "04_Finanz"))
+    assert first["ok"] is True
+
+    report = api.move_entries([str(root / "inbox" / "b.txt")], str(root / "04_Finanz" / "Einnahmen"))
+
+    assert report["ok"] is True, report
+    assert (root / "04_Finanz" / "Einnahmen" / "b.txt").read_text(encoding="utf-8") == "b"
+    assert not (root / "04_Finanz" / "Ausgaben").exists()
+
+
+def _born_chain_with_file(tmp_path, monkeypatch):
+    """04_Finanz/Ausgaben born by dropping a.txt into it; returns (api, root, file)."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    root = _setup_nested_embryo_project(tmp_path)
+    (root / "inbox").mkdir()
+    (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
+    api = ScopeApi(str(root))
+    child = root / "04_Finanz" / "Ausgaben"
+    assert api.move_entries([str(root / "inbox" / "a.txt")], str(child))["ok"] is True
+    return api, root, child / "a.txt"
+
+
+def test_moving_last_file_out_turns_born_chain_back_into_embryos(tmp_path, monkeypatch):
+    api, root, moved_file = _born_chain_with_file(tmp_path, monkeypatch)
+
+    report = api.move_entries([str(moved_file)], str(root / "inbox"))
+
+    assert report["ok"] is True
+    assert (root / "inbox" / "a.txt").is_file()
+    assert not (root / "04_Finanz").exists()
+    assert report["reabsorbed"] == [str(root / "04_Finanz" / "Ausgaben"), str(root / "04_Finanz")]
+    assert api.blueprint.is_embryo("04_Finanz/Ausgaben") is True
+
+
+def test_deleting_last_file_turns_born_chain_back_into_embryos(tmp_path, monkeypatch):
+    api, root, born_file = _born_chain_with_file(tmp_path, monkeypatch)
+
+    report = api.delete_entries([str(born_file)])
+
+    assert report["ok"] is True
+    assert not (root / "04_Finanz").exists()
+    assert report["reabsorbed"] == [str(root / "04_Finanz" / "Ausgaben"), str(root / "04_Finanz")]
+
+
+def test_move_entry_single_also_reabsorbs(tmp_path, monkeypatch):
+    api, root, born_file = _born_chain_with_file(tmp_path, monkeypatch)
+
+    assert api.move_entry(str(born_file), str(root / "inbox")) is True
+
+    assert not (root / "04_Finanz").exists()
+
+
+def test_emptied_user_folder_is_kept(tmp_path, monkeypatch):
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    root = _setup_nested_embryo_project(tmp_path)
+    (root / "Privat").mkdir()
+    (root / "Privat" / "a.txt").write_text("a", encoding="utf-8")
+    api = ScopeApi(str(root))
+
+    report = api.delete_entries([str(root / "Privat" / "a.txt")])
+
+    assert report["ok"] is True
+    assert (root / "Privat").is_dir()
+    assert report["reabsorbed"] == []
+
+
 def test_navigating_into_nested_embryo_does_not_birth_but_drop_does(tmp_path, monkeypatch):
     """Browsing into an embryo and its sub-embryo is read-only; dropping files there births the chain only."""
     monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)

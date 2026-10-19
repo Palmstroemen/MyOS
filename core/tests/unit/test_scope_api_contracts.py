@@ -12,7 +12,7 @@ def test_move_entries_contract_has_stable_keys(tmp_path):
     api = ScopeApi(str(root))
     report = api.move_entries([str(src)], str(dst))
 
-    assert set(report.keys()) == {"ok", "moved", "skipped", "errors"}
+    assert set(report.keys()) == {"ok", "moved", "skipped", "errors", "reabsorbed"}
     assert isinstance(report["ok"], bool)
     assert isinstance(report["moved"], list)
     assert isinstance(report["skipped"], list)
@@ -29,7 +29,7 @@ def test_delete_entries_contract_has_stable_keys(tmp_path):
     api = ScopeApi(str(root))
     report = api.delete_entries([str(src)])
 
-    assert set(report.keys()) == {"ok", "deleted", "errors"}
+    assert set(report.keys()) == {"ok", "deleted", "errors", "reabsorbed"}
     assert isinstance(report["ok"], bool)
     assert isinstance(report["deleted"], list)
     assert isinstance(report["errors"], list)
