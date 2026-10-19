@@ -2836,16 +2836,23 @@ Item { // ROOT
                                 renameText: root.renameDraft
                                 showPin: isCurrent && root.showPerspectivePin
                                 iconPin: root.iconPin
+                                // pathSegmentActivated may rebuild the path bar and destroy this
+                                // delegate mid-handler; capture everything needed afterwards first.
                                 onActivate: {
-                                    pathSegmentActivated(index)
-                                    root.emitNavigationIntent(fullPathForSegment, "single", "pathbar", null)
-                                    root.navigateToPathRequested(fullPathForSegment)
+                                    var browser = root
+                                    var segmentPath = fullPathForSegment
+                                    browser.pathSegmentActivated(index)
+                                    browser.emitNavigationIntent(segmentPath, "single", "pathbar", null)
+                                    browser.navigateToPathRequested(segmentPath)
                                 }
                                 onDoubleActivate: {
-                                    pathSegmentActivated(index)
-                                    root.emitNavigationIntent(fullPathForSegment, "double", "pathbar", null)
-                                    root.navigateToPathRequested(fullPathForSegment)
-                                    if (isCurrent) root.currentPathDoubleActivated()
+                                    var browser = root
+                                    var segmentPath = fullPathForSegment
+                                    var wasCurrent = isCurrent
+                                    browser.pathSegmentActivated(index)
+                                    browser.emitNavigationIntent(segmentPath, "double", "pathbar", null)
+                                    browser.navigateToPathRequested(segmentPath)
+                                    if (wasCurrent) browser.currentPathDoubleActivated()
                                 }
                                 onRenameRequested: root.renameRequested(fullPathForSegment)
                                 onContextMenuRequested: function(mouseX, mouseY, ctrlPressed) {
@@ -2861,10 +2868,13 @@ Item { // ROOT
                                     hoverEnabled: true
                                     acceptedButtons: Qt.LeftButton
                                     onClicked: {
-                                        if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
-                                        pathSegmentActivated(index)
-                                        root.emitNavigationIntent(fullPathForSegment, "single", "pathbar", null)
-                                        root.navigateToPathRequested(fullPathForSegment)
+                                        // Same capture as onActivate: the delegate may be destroyed mid-handler.
+                                        var browser = root
+                                        var segmentPath = fullPathForSegment
+                                        if (browser.cwdHoverPanelOpen) browser.closeCwdHoverPanels("button-toggle")
+                                        browser.pathSegmentActivated(index)
+                                        browser.emitNavigationIntent(segmentPath, "single", "pathbar", null)
+                                        browser.navigateToPathRequested(segmentPath)
                                     }
                                     onPressAndHold: {
                                         if (root.allowRename) root.renameRequested(fullPathForSegment)
