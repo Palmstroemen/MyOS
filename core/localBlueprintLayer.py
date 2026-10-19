@@ -68,17 +68,28 @@ class BirthClinic:
             raise ValueError(error_msg)
     
     def _copy_template_safely(self, source: Path, target: Path):
-        """Copy template directory without symlinks."""
+        """
+        Copy one template level without symlinks.
+        Files and hidden config dirs (e.g. .MyOS) are copied; visible subfolders
+        stay embryos and are only born on first use.
+        """
         if source.is_dir():
-            # Security: symlinks=False prevents copying symlinks
-            shutil.copytree(
-                source, 
-                target, 
-                dirs_exist_ok=True,
-                symlinks=False,  # Security: do not copy symlinks
-                ignore_dangling_symlinks=True,  # Security: ignore dangling symlinks
-                ignore=None
-            )
+            target.mkdir(parents=True, exist_ok=True)
+            for item in source.iterdir():
+                if item.is_dir():
+                    if not item.name.startswith("."):
+                        continue
+                    # Security: symlinks=False prevents copying symlinks
+                    shutil.copytree(
+                        item,
+                        target / item.name,
+                        dirs_exist_ok=True,
+                        symlinks=False,  # Security: do not copy symlinks
+                        ignore_dangling_symlinks=True,  # Security: ignore dangling symlinks
+                    )
+                else:
+                    # Security: copy2 does not follow symlinks for files
+                    shutil.copy2(item, target / item.name, follow_symlinks=False)
             shutil.copystat(source, target)
         else:
             # Security: copy2 does not follow symlinks for files

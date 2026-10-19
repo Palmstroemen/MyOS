@@ -210,3 +210,28 @@ def test_delete_entries_reports_missing_and_ignores_duplicate(tmp_path):
     assert report["deleted"] == [str(doomed)]
     assert len(report["errors"]) == 1
     assert report["errors"][0]["reason"] == "missing"
+
+
+def test_navigating_into_nested_embryo_does_not_birth_but_drop_does(tmp_path, monkeypatch):
+    """Browsing into an embryo and its sub-embryo is read-only; dropping files there births the chain only."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    root = _setup_nested_embryo_project(tmp_path)
+    (root / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
+    parent = root / "04_Finanz"
+    child = parent / "Ausgaben"
+    api = ScopeApi(str(root))
+
+    for path in (parent, child):
+        api.list_children(str(path), True)
+        api.list_entries(str(path))
+        api.list_entries_filtered(str(path), [], False)
+        api.list_tag_buckets(str(path))
+    assert not parent.exists(), "navigation must not birth the embryo"
+
+    (root / "inbox").mkdir()
+    (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
+    report = api.move_entries([str(root / "inbox" / "a.txt")], str(child))
+
+    assert report["ok"] is True
+    assert (child / "a.txt").read_text(encoding="utf-8") == "a"
+    assert not (parent / "Einnahmen").exists(), "siblings stay embryos"

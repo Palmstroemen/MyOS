@@ -324,6 +324,56 @@ def test_birth_path_nested_embryo_materializes_parent_then_child(tmp_path, monke
     assert (project_root / "04_Finanz" / "Ausgaben").is_dir()
 
 
+def _setup_finanz_template_project(tmp_path):
+    """Project whose Standard template has 04_Finanz with .MyOS, a file and two sub-embryos."""
+    project_root = tmp_path / "Project"
+    (project_root / ".MyOS").mkdir(parents=True)
+    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (project_root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    finanz = project_root / "Templates" / "Standard" / "04_Finanz"
+    (finanz / ".MyOS").mkdir(parents=True)
+    (finanz / ".MyOS" / "batch.svg").write_text("<svg/>")
+    (finanz / "Liesmich.md").write_text("Finanzen")
+    (finanz / "Ausgaben" / "2026").mkdir(parents=True)
+    (finanz / "Einnahmen").mkdir(parents=True)
+    return project_root
+
+
+def test_birth_materializes_only_the_folder_and_keeps_subfolders_as_embryos(tmp_path, monkeypatch):
+    """Birth copies the folder's own files and .MyOS config, but no visible subfolders."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    project_root = _setup_finanz_template_project(tmp_path)
+    layer = Blueprint(project_root)
+
+    layer._birth_path("/04_Finanz")
+
+    born = project_root / "04_Finanz"
+    assert born.is_dir()
+    assert (born / ".MyOS" / "batch.svg").is_file()
+    assert (born / "Liesmich.md").read_text() == "Finanzen"
+    assert not (born / "Ausgaben").exists()
+    assert not (born / "Einnahmen").exists()
+    assert layer.is_embryo("04_Finanz/Ausgaben") is True
+    assert layer.is_embryo("04_Finanz/Einnahmen") is True
+    assert sorted(layer.get_embryos_at("04_Finanz")) == ["Ausgaben", "Einnahmen"]
+
+
+def test_nested_birth_does_not_materialize_siblings_or_grandchildren(tmp_path, monkeypatch):
+    """Birth of 04_Finanz/Ausgaben creates exactly that chain; siblings and deeper levels stay embryos."""
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    project_root = _setup_finanz_template_project(tmp_path)
+    layer = Blueprint(project_root)
+
+    result = layer._birth_path("/04_Finanz/Ausgaben")
+
+    assert result == project_root / "04_Finanz" / "Ausgaben"
+    assert result.is_dir()
+    assert not (project_root / "04_Finanz" / "Einnahmen").exists()
+    assert not (result / "2026").exists()
+    assert layer.is_embryo("04_Finanz/Einnahmen") is True
+    assert layer.is_embryo("04_Finanz/Ausgaben/2026") is True
+
+
 def test_08_birth_process_no_percent(mount_haus):
     """Testet dass Embryos bei create/mkdir materialisiert werden."""
     layer, root = mount_haus
