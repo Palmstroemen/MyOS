@@ -2716,6 +2716,8 @@ class ScopeApi:
             return {"status": "error", "reason": "source_missing", "source": source_key}
         if source == target_dir:
             return {"status": "skip", "reason": "same_as_target", "source": source_key}
+        if source.parent == target_dir:
+            return {"status": "skip", "reason": "already_in_target", "source": source_key}
         if is_within(target_dir, source):
             return {"status": "error", "reason": "target_inside_source", "source": source_key}
         destination = target_dir / source.name

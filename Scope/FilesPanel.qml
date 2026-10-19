@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.15
 import "Theme/tag_chips.js" as TagChips
 import "Theme/tag_chip_style.js" as TagChipStyle
 import "Theme/panel_colors.js" as PanelColors
+import "js/DropUtils.js" as DropUtils
 
 Rectangle { // Files panel
     id: root
@@ -51,6 +52,8 @@ Rectangle { // Files panel
     property string iconFile: ""
     property string iconGear: ""
     property string itemStyle: "largeIcon"
+    /// Folder currently listed (may be an unborn embryo); target for drops on free panel space.
+    property string currentPath: ""
     signal folderActivated(string name)
     /// Unified navigation intent (double-click = CWD+CTD). gesture: "double", source: "filesPanel".
     signal navigationRequested(string path, string gesture, string source)
@@ -153,6 +156,58 @@ Rectangle { // Files panel
 
     onShowFoldersChanged: filterChanged(showFolders)
     property string folderTagColorTarget: ""
+
+    /// Keeps the ghost image of the dragged item alive for the duration of a drag.
+    property var fileDragGrabResult: null
+
+    /// Start a file drag for the item under pressPos (selectionOverlay coordinates).
+    /// Payload, size and look are copied into fileDragProxy, so the drag no longer
+    /// depends on the delegate.
+    function beginFileDrag(pressPos) {
+        var gridX = pressPos.x + filesGrid.contentX
+        var gridY = pressPos.y + filesGrid.contentY
+        var idx = filesGrid.indexAt(gridX, gridY)
+        var item = idx >= 0 ? filesGrid.itemAtIndex(idx) : null
+        if (!item || !item.canDrag) return
+        var localX = gridX - item.x
+        var localY = gridY - item.y
+        if (!item.hitAcceptsPoint(localX, localY)) return
+        var payload = selectedPayloadFor(item.itemPath, item.selected)
+        if (payload.length === 0) return
+        fileDragProxy.dragPayload = payload
+        fileDragProxy.width = item.width
+        fileDragProxy.height = item.height
+        fileDragProxy.Drag.hotSpot.x = localX
+        fileDragProxy.Drag.hotSpot.y = localY
+        fileDragProxy.ghostSource = ""
+        item.grabToImage(function(result) {
+            root.fileDragGrabResult = result
+            if (fileDragProxy.Drag.active) fileDragProxy.ghostSource = result.url
+        })
+        moveFileDrag(selectionOverlay.mapToItem(null, pressPos.x, pressPos.y))
+        fileDragProxy.Drag.active = true
+    }
+
+    function moveFileDrag(scenePos) {
+        if (!fileDragProxy.parent) return
+        var p = fileDragProxy.parent.mapFromItem(null, scenePos.x, scenePos.y)
+        fileDragProxy.x = p.x - fileDragProxy.Drag.hotSpot.x
+        fileDragProxy.y = p.y - fileDragProxy.Drag.hotSpot.y
+    }
+
+    function endFileDrag(dropIt) {
+        if (fileDragProxy.Drag.active) {
+            if (dropIt) {
+                fileDragProxy.Drag.drop()
+            } else {
+                fileDragProxy.Drag.cancel()
+            }
+            fileDragProxy.Drag.active = false
+        }
+        fileDragProxy.dragPayload = ""
+        fileDragProxy.ghostSource = ""
+        fileDragGrabResult = null
+    }
 
     function selectedPayloadFor(itemPath, itemIsSelected) {
         var paths = []
@@ -912,10 +967,12 @@ Rectangle { // Files panel
                 textColor: root.text
                 textSize: root.baseFont
                 largeIconAlignLeft: false
-                dragEnabled: root.allowDrags
+                // Drags are run by the panel (fileDragHandler), not by the delegate:
+                // a list refresh mid-drag would destroy a delegate-owned drag.
+                dragEnabled: false
+                readonly property bool canDrag: root.allowDrags
                     && (!model.isEmbryo)
                     && itemPath.length > 0
-                dragPayload: root.selectedPayloadFor(itemPath, selected)
                 onActivate: function(ctrlPressed, shiftPressed) {
                     root.itemActivated(itemPath, ctrlPressed, shiftPressed)
                 }
@@ -941,10 +998,12 @@ Rectangle { // Files panel
                 }
                 DropArea {
                     anchors.fill: parent
-                    enabled: model.isDir && !model.isEmbryo
+                    // Embryos accept drops too; the backend births them on move.
+                    enabled: model.isDir
                     onDropped: function(drop) {
-                        if (!drop || !drop.text || itemPath.length === 0) return
-                        root.moveEntriesRequested(drop.text, itemPath)
+                        var payload = DropUtils.payloadText(drop)
+                        if (payload.length === 0 || itemPath.length === 0) return
+                        root.moveEntriesRequested(payload, itemPath)
                         drop.acceptProposedAction()
                     }
                 }
@@ -1006,19 +1065,40 @@ Rectangle { // Files panel
                 return selected
             }
 
+            // File drags start here and outlive the delegates: the hover preview may
+            // rebuild the list while a file is held, and the drag must survive that.
+            DragHandler {
+                id: fileDragHandler
+                target: null
+                acceptedButtons: Qt.LeftButton
+                enabled: root.allowDrags
+                onActiveChanged: {
+                    if (active) {
+                        root.beginFileDrag(centroid.pressPosition)
+                    } else {
+                        root.endFileDrag(true)
+                    }
+                }
+                onCentroidChanged: {
+                    if (active) root.moveFileDrag(centroid.scenePosition)
+                }
+                onCanceled: root.endFileDrag(false)
+            }
+
             DropArea {
                 anchors.fill: parent
                 onDropped: function(drop) {
-                    if (!drop || !drop.text) return
+                    var payload = DropUtils.payloadText(drop)
+                    if (payload.length === 0) return
                     var contentX = filesGrid.contentX || 0
                     var contentY = filesGrid.contentY || 0
                     var idx = filesGrid.indexAt(drop.x + contentX, drop.y + contentY)
-                    if (idx >= 0) {
-                        var item = filesGrid.itemAtIndex(idx)
-                        if (item && item.isFolder && item.itemPath && item.itemPath.length > 0) {
-                            root.moveEntriesRequested(drop.text, item.itemPath)
-                        }
-                    }
+                    var item = idx >= 0 ? filesGrid.itemAtIndex(idx) : null
+                    var targetDir = (item && item.isFolder && item.itemPath && item.itemPath.length > 0)
+                        ? item.itemPath
+                        : root.currentPath
+                    if (!targetDir || targetDir.length === 0) return
+                    root.moveEntriesRequested(payload, targetDir)
                     drop.acceptProposedAction()
                 }
             }
@@ -1201,5 +1281,25 @@ Rectangle { // Files panel
     Shortcut {
         sequences: [StandardKey.New]
         onActivated: root.createNoteRequested()
+    }
+
+    // Drag source while a file is held. Lives in the window overlay so it is drawn
+    // above all panels and is independent of the (rebuildable) file list.
+    Item {
+        id: fileDragProxy
+        parent: Overlay.overlay
+        z: 1000
+        visible: Drag.active
+        /// Read by drop targets via drop.source.dragPayload (see FolderBrowser.dropPayloadText).
+        property string dragPayload: ""
+        property alias ghostSource: fileDragGhost.source
+        Image {
+            id: fileDragGhost
+            anchors.fill: parent
+            opacity: 0.85
+        }
+        Drag.dragType: Drag.Internal
+        Drag.supportedActions: Qt.MoveAction
+        Drag.mimeData: ({ "text/plain": fileDragProxy.dragPayload })
     }
 }

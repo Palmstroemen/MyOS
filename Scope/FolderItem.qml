@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import "js/DropUtils.js" as DropUtils
 import "Theme/tag_chips.js" as TagChips
 
 Rectangle {
@@ -65,18 +66,7 @@ Rectangle {
     readonly property bool containsDrag: (typeof dropArea !== "undefined" && dropArea) ? Boolean(dropArea.containsDrag) : false
 
     function _dropPayload(drop) {
-        if (!drop) return ""
-        var t = String(drop.text || "").trim()
-        if (t.length > 0) return t
-        if (drop.source && drop.source.dragPayload !== undefined) {
-            var s = String(drop.source.dragPayload || "").trim()
-            if (s.length > 0) return s
-        }
-        if (typeof drop.getDataAsString === "function") {
-            var plain = String(drop.getDataAsString("text/plain") || "").trim()
-            if (plain.length > 0) return plain
-        }
-        return ""
+        return DropUtils.payloadText(drop)
     }
 
     function dispatchPendingSingleClick() {

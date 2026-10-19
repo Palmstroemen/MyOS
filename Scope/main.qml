@@ -131,6 +131,9 @@ ApplicationWindow {
     // CWP (Current Working Project): Im Code die Property cwp (Pfad zum aktuellen Projektordner, z. B. /Projekte/Haus/Dach).
     // CTD (Current Target Directory): Zielordner für Datei-Operationen (z. B. Verschieben, Vorschau).
     //     Properties: previewCTDPath (Vorschau beim Navigieren), committedCTDPath (bestätigter Zielpfad).
+    //     Verweilt der Zeiger filesPreviewDelayMs auf einem Ordner, spätestens aber beim Hineinfahren ins
+    //     FilesPanel, wird der hervorgehobene Vorschau-Ordner committet; das FilesPanel zeigt ihn, und ein
+    //     Drop auf die freie Fläche landet dort.
     //     Funktionen: previewCTD(path), commitCTD(path). Welcher Pfad für die Dateiliste gilt: currentFilesPath()
     //     (Fallback auf cwp, wenn kein CTD gesetzt).
 
@@ -263,11 +266,49 @@ ApplicationWindow {
         return String(cwp || "")
     }
 
+    /// Hover preview: the FilesPanel follows after the pointer rests for
+    /// filesPreviewDelayMs, or at the latest when the pointer enters the FilesPanel.
+    property int filesPreviewDelayMs: 700
+    /// FolderBrowser that emitted the pending hover preview (null when nothing is pending).
+    property var filesPreviewBrowser: null
+
+    Timer {
+        id: filesPreviewTimer
+        interval: window.filesPreviewDelayMs
+        repeat: false
+        onTriggered: window.flushFilesPreview()
+    }
+
     function previewCTD(path) {
         previewCTDPath = String(path || "").trim()
+        if (previewCTDPath.length === 0) {
+            filesPreviewTimer.stop()
+            filesPreviewBrowser = null
+            return
+        }
+        filesPreviewTimer.restart()
+    }
+
+    /// Commit the pending hover preview now. Uses the folder the browser visibly
+    /// highlights, not the last tab crossed on the way (e.g. into the FilesPanel).
+    function flushFilesPreview() {
+        var browser = filesPreviewBrowser
+        filesPreviewTimer.stop()
+        filesPreviewBrowser = null
+        if (!browser) {
+            return
+        }
+        // No highlight means the browser reset its preview: nothing to show.
+        var target = browser.highlightedPreviewPath()
+        if (target.length === 0) {
+            return
+        }
+        commitCTD(browser.resolvePath ? browser.resolvePath(target) : target)
     }
 
     function commitCTD(path) {
+        filesPreviewTimer.stop()
+        filesPreviewBrowser = null
         var nextPath = PathUtils.normalizeFsPath(path)
         if (nextPath.length === 0) {
             return false
@@ -308,6 +349,7 @@ ApplicationWindow {
 
     function handlePreviewPath(browser, path) {
         var p = (browser.resolvePath ? browser.resolvePath(path) : path)
+        filesPreviewBrowser = browser
         previewCTD(p)
     }
     function handleMoveEntry(browser, sourcePath, targetDir) {
@@ -906,7 +948,10 @@ ApplicationWindow {
         }
         if (typeof backend.moveEntries === "function") {
             var batch = backend.moveEntries(sources, targetDir)
-            var skipped = (batch && batch.skipped) ? batch.skipped : []
+            // Dropping an entry back into its own folder is a silent no-op, not worth a report.
+            var skipped = ((batch && batch.skipped) ? batch.skipped : []).filter(function(skip) {
+                return !(skip && skip.reason === "already_in_target")
+            })
             var errors = (batch && batch.errors) ? batch.errors : []
             if (batch && batch.moved && batch.moved.length > 0) {
                 selectedEntryPaths = []
@@ -3327,6 +3372,11 @@ ApplicationWindow {
             z: 1
             visible: filesPaneVisible
             itemsModel: filesModel
+            currentPath: window.currentFilesPath()
+            // Entering the panel shows the highlighted folder at the latest, so content and drop target match.
+            HoverHandler {
+                onHoveredChanged: if (hovered) window.flushFilesPreview()
+            }
             baseFont: window.baseFont
             text: theme.text
             textMuted: theme.textMuted

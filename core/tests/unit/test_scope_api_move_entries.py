@@ -61,6 +61,22 @@ def test_move_entries_reports_moved_and_errors(tmp_path):
     assert any(skip["reason"] == "duplicate_source" for skip in report["skipped"])
 
 
+def test_move_entries_into_own_parent_is_skipped_not_an_error(tmp_path):
+    """Dropping a file back into the folder it already lives in is a no-op."""
+    folder = tmp_path / "Folder"
+    folder.mkdir()
+    file_path = folder / "note.txt"
+    file_path.write_text("x", encoding="utf-8")
+
+    api = ScopeApi(str(tmp_path))
+    report = api.move_entries([str(file_path)], str(folder))
+
+    assert report["errors"] == []
+    assert report["moved"] == []
+    assert any(skip["reason"] == "already_in_target" for skip in report["skipped"])
+    assert file_path.read_text(encoding="utf-8") == "x"
+
+
 def test_move_entries_rejects_target_inside_source(tmp_path):
     source_dir = tmp_path / "FolderA"
     source_dir.mkdir()
