@@ -201,9 +201,9 @@ ApplicationWindow {
     property bool filesBaseSortAscending: true
 
     function setFilesSort(key) {
-        // Same column again flips the direction; a new column starts ascending,
-        // except size, which starts with the largest entries.
-        filesSortAscending = (key === filesSortKey) ? !filesSortAscending : (key !== "size")
+        // Same column again flips the direction. A new column starts ascending only for
+        // the name; date and size start with the newest / largest entries on top.
+        filesSortAscending = (key === filesSortKey) ? !filesSortAscending : (key === "name")
         filesSortKey = key
         if (key !== "size") {
             filesBaseSortKey = key
