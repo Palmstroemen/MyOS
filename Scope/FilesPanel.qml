@@ -44,6 +44,13 @@ Rectangle { // Files panel
     /** Bindung an Fenster-Sprache, damit Tag-Beschriftungen bei Sprachumschaltung neu übersetzt werden. */
     property string uiLanguage: ""
     property bool isTagIndexing: false
+    /// Tags are shown once they are used (simple first): the listed folder or its files
+    /// have tags, or a tag filter is on. Otherwise only the "#" button, which opens the
+    /// input for a first folder tag (tagEntryOpen, until the folder changes).
+    readonly property bool tagsInUse: (folderTags || []).length > 0 || (fileTags || []).length > 0
+        || (selectedTags || []).length > 0
+    property bool tagEntryOpen: false
+    onCurrentPathChanged: tagEntryOpen = false
     /// ACL filter panel (left, "set by the system"): principals of the listed folder, see
     /// ScopeApi.acl_summary. Shown only when the project has an ACLs.md.
     property bool aclPanelVisible: false
@@ -825,6 +832,35 @@ Rectangle { // Files panel
                         onClicked: root.itemStyleToggleRequested()
                     }
                 }
+
+                // "#": first folder tag here; hidden once tags are in use (they show then).
+                Rectangle {
+                    objectName: "tagEntryButton"
+                    visible: !root.tagsInUse
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: root.tagEntryOpen ? root.smallButtonActiveBg : root.smallButtonBg
+                    border.color: root.tagEntryOpen ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    Text {
+                        anchors.centerIn: parent
+                        text: "#"
+                        color: root.smallButtonText
+                        font.pixelSize: Math.round(root.topRightButtonSize * 0.6)
+                        font.bold: true
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            root.tagEntryOpen = !root.tagEntryOpen
+                            if (root.tagEntryOpen) Qt.callLater(function() { newFolderTagInput.forceActiveFocus() })
+                        }
+                    }
+                    ToolTip.visible: tagEntryButtonHover.hovered
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("Ordnertag vergeben")
+                    HoverHandler { id: tagEntryButtonHover }
+                }
             }
 
             Text {
@@ -864,7 +900,7 @@ Rectangle { // Files panel
                 radius: 0
                 border.width: 0
                 color: "transparent"
-                visible: true
+                visible: root.tagsInUse || root.tagEntryOpen
 
                 Column {
                     anchors.fill: parent
@@ -1002,6 +1038,7 @@ Rectangle { // Files panel
 
                                 TextField {
                                     id: newFolderTagInput
+                                    objectName: "newFolderTagInput"
                                     property bool suppressCompletion: false
                                     anchors.fill: parent
                                     anchors.leftMargin: 8
