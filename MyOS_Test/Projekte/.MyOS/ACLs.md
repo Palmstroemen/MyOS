@@ -24,8 +24,18 @@
 ## Gast
 - /01_Info/: read
 
+## Familie
+- /Familie/: read, write
+- /Familie/Ich/: none
+
+## Kinder
+- /Familie/Kinder/: read, write
+- /Familie/Freunde/: read
+
 # Users
 Oliver: Admin
 Anna: Buchhaltung, Team
 Karl: Team, Geschäftsleitung
 Mia: Gast
+Lisa: Familie
+Tom: Kinder
