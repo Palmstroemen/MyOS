@@ -17,6 +17,7 @@ from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root
 from core.acl_view import ACLView
+from core.project import find_config_in_parents
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 from core.desk import DeskConfig
 from core.desk_service import DeskService
@@ -89,6 +90,9 @@ def _extract_hash_line_tags_from_text(text: str) -> List[str]:
         for raw in str(text or "").splitlines():
             line = raw.strip()
             if not line.startswith("#"):
+                continue
+            # "# Tags" (hashes, then a space) is a Markdown heading, not a tag.
+            if line.lstrip("#")[:1].isspace():
                 continue
             tag = line.lstrip("#").strip()
             if tag:
@@ -1795,11 +1799,12 @@ class ScopeApi:
         return filtered
 
     def list_project_tags(self, path: str) -> List[str]:
+        # Like other configs, Tags.md inherits upwards: a subproject without one of its
+        # own suggests the tags of the nearest parent project that has one.
         target = self._resolve_path(path)
-        root = find_project_root(target)
-        if not root:
+        tags_file = find_config_in_parents(target, "Tags.md", honor_inherit_not=False)
+        if tags_file is None:
             return []
-        tags_file = root / ".MyOS" / "Tags.md"
         return _read_markdown_tag_list(tags_file)
 
     def list_folder_tags(self, path: str) -> List[str]:

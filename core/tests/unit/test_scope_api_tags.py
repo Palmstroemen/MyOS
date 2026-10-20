@@ -567,3 +567,36 @@ def test_scope_api_lists_sort_watch_roots(tmp_path):
     roots = api.list_sort_watch_roots(str(project_root))
 
     assert str(pictures.resolve()) in roots
+
+
+def test_list_project_tags_inherits_from_the_parent_project(tmp_path):
+    parent = tmp_path / "Parent"
+    (parent / ".MyOS").mkdir(parents=True)
+    (parent / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (parent / ".MyOS" / "Tags.md").write_text("#alpha\n#beta\n", encoding="utf-8")
+    sub = parent / "Sub"
+    (sub / ".MyOS").mkdir(parents=True)
+    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    own = parent / "Own"
+    (own / ".MyOS").mkdir(parents=True)
+    (own / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (own / ".MyOS" / "Tags.md").write_text("#gamma\n", encoding="utf-8")
+
+    api = ScopeApi(str(parent))
+
+    # A subproject without Tags.md suggests its parent's tags (configs inherit upwards).
+    assert api.list_project_tags(str(sub)) == ["alpha", "beta"]
+    # Its own Tags.md wins.
+    assert api.list_project_tags(str(own)) == ["gamma"]
+
+
+def test_list_project_tags_skips_markdown_headings(tmp_path):
+    # PostFix writes Tags.md with a "# Tags" heading; a heading is not a tag.
+    project = tmp_path / "DemoProject"
+    (project / ".MyOS").mkdir(parents=True)
+    (project / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n## Notes\n#Dringend\n", encoding="utf-8")
+
+    api = ScopeApi(str(project))
+
+    assert api.list_project_tags(str(project)) == ["Dringend", "Wichtig"]
