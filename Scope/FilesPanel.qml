@@ -269,7 +269,7 @@ Rectangle { // Files panel
     /// Keeps the ghost image of the dragged item alive for the duration of a drag.
     property var fileDragGrabResult: null
 
-    /// Start a file drag for the item under pressPos (selectionOverlay coordinates).
+    /// Start a file drag for the item under pressPos (filesGrid coordinates).
     /// Payload, size and look are copied into fileDragProxy, so the drag no longer
     /// depends on the delegate.
     function beginFileDrag(pressPos) {
@@ -293,7 +293,7 @@ Rectangle { // Files panel
             root.fileDragGrabResult = result
             if (fileDragProxy.Drag.active) fileDragProxy.ghostSource = result.url
         })
-        moveFileDrag(selectionOverlay.mapToItem(null, pressPos.x, pressPos.y))
+        moveFileDrag(filesGrid.mapToItem(null, pressPos.x, pressPos.y))
         fileDragProxy.Drag.active = true
     }
 
@@ -1508,6 +1508,28 @@ Rectangle { // Files panel
                     }
                 }
             }
+            // File drags start here and outlive the delegates: the hover preview may
+            // rebuild the list while a file is held, and the drag must survive that.
+            // The handler belongs to the GridView, an ancestor of the rows: on the overlay
+            // above them it took every press, so clicks and double-clicks never reached
+            // the rows. pressPosition is in grid coordinates, as the overlay's were.
+            DragHandler {
+                id: fileDragHandler
+                target: null
+                acceptedButtons: Qt.LeftButton
+                enabled: root.allowDrags
+                onActiveChanged: {
+                    if (active) {
+                        root.beginFileDrag(centroid.pressPosition)
+                    } else {
+                        root.endFileDrag(true)
+                    }
+                }
+                onCentroidChanged: {
+                    if (active) root.moveFileDrag(centroid.scenePosition)
+                }
+                onCanceled: root.endFileDrag(false)
+            }
             onContentYChanged: {
                 if (contentHeight <= height) return
                 if ((contentY + height + root.prefetchThreshold) >= contentHeight) {
@@ -1586,26 +1608,6 @@ Rectangle { // Files panel
                     }
                 }
                 return selected
-            }
-
-            // File drags start here and outlive the delegates: the hover preview may
-            // rebuild the list while a file is held, and the drag must survive that.
-            DragHandler {
-                id: fileDragHandler
-                target: null
-                acceptedButtons: Qt.LeftButton
-                enabled: root.allowDrags
-                onActiveChanged: {
-                    if (active) {
-                        root.beginFileDrag(centroid.pressPosition)
-                    } else {
-                        root.endFileDrag(true)
-                    }
-                }
-                onCentroidChanged: {
-                    if (active) root.moveFileDrag(centroid.scenePosition)
-                }
-                onCanceled: root.endFileDrag(false)
             }
 
             DropArea {
