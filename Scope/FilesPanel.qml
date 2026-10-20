@@ -946,7 +946,8 @@ Rectangle { // Files panel
                                         var raw = map[tagValue]
                                         return raw ? Qt.color(raw) : "transparent"
                                     }
-                                    readonly property color baseTagColor: customTagColor !== "transparent" ? customTagColor : Qt.color("#ffd54f")
+                                    // A color never equals the string "transparent"; test its alpha instead.
+                                    readonly property color baseTagColor: customTagColor.a > 0 ? customTagColor : Qt.color("#ffd54f")
                                     color: selected
                                         ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
                                         : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
@@ -1218,7 +1219,8 @@ Rectangle { // Files panel
                                                         var raw = map[tagValue]
                                                         return raw ? Qt.color(raw) : "transparent"
                                                     }
-                                                    readonly property color baseTagColor: customTagColor !== "transparent" ? customTagColor : Qt.color("#ffd54f")
+                                                    // A color never equals the string "transparent"; test its alpha instead.
+                                                    readonly property color baseTagColor: customTagColor.a > 0 ? customTagColor : Qt.color("#ffd54f")
                                                     color: selected
                                                         ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
                                                         : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
