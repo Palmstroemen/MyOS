@@ -69,10 +69,14 @@ Rectangle { // Files panel
     property string sortKey: "name"
     property bool sortAscending: true
 
-    /// The visible size column ({id, width, align, x}) or null when hidden.
+    /// Row geometry for header, rows and hover areas: { nameX, columns: [{.., x}] }, x from
+    /// the start of a row's content (6 px inside the row).
+    readonly property var listLayout: FormatUtils.placeListColumns(visibleListColumns, listDetailFontPx, listNameColumnWidth)
+
+    /// The visible size column ({id, width, align, side, x}) or null when hidden.
     readonly property var sizeColumn: {
-        for (var i = 0; i < visibleListColumns.length; i++) {
-            if (visibleListColumns[i].id === "size") return visibleListColumns[i]
+        for (var i = 0; i < listLayout.columns.length; i++) {
+            if (listLayout.columns[i].id === "size") return listLayout.columns[i]
         }
         return null
     }
@@ -84,7 +88,9 @@ Rectangle { // Files panel
     property int _measuredNameCount: 0
     readonly property int listNameColumnWidth: {
         var minimum = 12 * baseFont
-        var available = filesGrid.width - gridSpacing - 8 - FormatUtils.listColumnsWidth(visibleListColumns)
+        var available = filesGrid.width - gridSpacing - 12
+            - FormatUtils.sideWidth(visibleListColumns, "left", listDetailFontPx)
+            - FormatUtils.sideWidth(visibleListColumns, "right", listDetailFontPx)
         var wanted = longestNameWidth + iconSizeSmall + 30
         return Math.round(Math.max(minimum, Math.min(wanted, available)))
     }
@@ -1084,7 +1090,7 @@ Rectangle { // Files panel
 
             Text {
                 anchors.left: parent.left
-                anchors.leftMargin: 12 + root.iconSizeSmall
+                anchors.leftMargin: 12 + root.iconSizeSmall + root.listLayout.nameX
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Name") + root.sortArrow("name")
                 color: root.textMuted
@@ -1098,12 +1104,12 @@ Rectangle { // Files panel
                 }
             }
             Item {
-                // Same geometry as the row cells (FolderItem.detailColumnsX + column x).
-                x: root.listNameColumnWidth
+                // Same geometry as the row cells (FolderItem: 6 px inset + column x).
+                x: 6
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 Repeater {
-                    model: root.visibleListColumns
+                    model: root.listLayout.columns
                     delegate: Text {
                         readonly property bool isSize: modelData.id === "size"
                         x: modelData.x
@@ -1223,14 +1229,15 @@ Rectangle { // Files panel
                 detailColumns: {
                     if (root.itemStyle === "largeIcon") return []
                     var cells = []
-                    for (var c = 0; c < root.visibleListColumns.length; c++) {
-                        var col = root.visibleListColumns[c]
+                    for (var c = 0; c < root.listLayout.columns.length; c++) {
+                        var col = root.listLayout.columns[c]
                         cells.push({ text: FormatUtils.listCellText(col.id, model, root.folderSizesActive),
                             width: col.width, align: col.align, x: col.x })
                     }
                     return cells
                 }
-                detailColumnsX: root.listNameColumnWidth
+                nameOffsetX: root.itemStyle === "largeIcon" ? 0 : root.listLayout.nameX
+                nameColumnWidth: root.itemStyle === "largeIcon" ? 0 : root.listNameColumnWidth
                 largeIconAlignLeft: false
                 // Drags are run by the panel (fileDragHandler), not by the delegate:
                 // a list refresh mid-drag would destroy a delegate-owned drag.
@@ -1287,7 +1294,7 @@ Rectangle { // Files panel
             parent: filesGrid
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            x: root.sizeColumn ? root.listNameColumnWidth + root.sizeColumn.x : 0
+            x: root.sizeColumn ? 6 + root.sizeColumn.x : 0
             width: root.sizeColumn ? root.sizeColumn.width : 0
             visible: root.itemStyle !== "largeIcon" && root.sizeColumn !== null && !root.folderSizesActive
             HoverHandler {

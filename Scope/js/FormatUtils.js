@@ -56,45 +56,70 @@ function formatModified(ts) {
     return new Date(value * 1000).toLocaleString(locale, locale.dateTimeFormat(1))
 }
 
-/// List view columns (right of the name), in display order. Width in multiples of the
-/// font size; text left-aligned, numbers right-aligned. Titles are translated in QML
-/// (FilesPanel.listColumnTitle).
+/// List view columns, in display order. side: "left" of the name for what the system
+/// sets (permissions, owner, group; as in ls -l), "right" for the rest. Width in
+/// multiples of the font size; text left-aligned, numbers right-aligned. Titles are
+/// translated in QML (FilesPanel.listColumnTitle).
 var LIST_COLUMNS = [
-    { id: "modified", widthEm: 8, align: "left" },
-    { id: "size", widthEm: 7, align: "right" },
-    { id: "type", widthEm: 13, align: "left" },
-    { id: "tags", widthEm: 9, align: "left" },
-    { id: "accessed", widthEm: 8, align: "left" },
-    { id: "permissions", widthEm: 9, align: "left" },
-    { id: "owner", widthEm: 6, align: "left" },
-    { id: "group", widthEm: 6, align: "left" }
+    { id: "permissions", widthEm: 9, align: "left", side: "left" },
+    { id: "owner", widthEm: 6, align: "left", side: "left" },
+    { id: "group", widthEm: 6, align: "left", side: "left" },
+    { id: "modified", widthEm: 8, align: "left", side: "right" },
+    { id: "size", widthEm: 7, align: "right", side: "right" },
+    { id: "type", widthEm: 13, align: "left", side: "right" },
+    { id: "tags", widthEm: 9, align: "left", side: "right" },
+    { id: "accessed", widthEm: 8, align: "left", side: "right" }
 ]
 
 /// Gap between list columns, in multiples of the font size.
 var LIST_COLUMN_GAP_EM = 1.2
 
-/// Visible columns as [{id, width, align, x}] in display order; x is the offset from the
-/// start of the first column, so header, rows and hover areas share one geometry.
+/// Visible columns as [{id, width, align, side}] in display order.
 function visibleListColumns(enabledIds, fontPx) {
     var out = []
-    var x = 0
-    var gap = Math.round(LIST_COLUMN_GAP_EM * fontPx)
     for (var i = 0; i < LIST_COLUMNS.length; i++) {
         var col = LIST_COLUMNS[i]
         if (enabledIds && enabledIds.indexOf(col.id) !== -1) {
-            var width = Math.round(col.widthEm * fontPx)
-            out.push({ id: col.id, width: width, align: col.align, x: x })
-            x += width + gap
+            out.push({ id: col.id, width: Math.round(col.widthEm * fontPx), align: col.align, side: col.side })
         }
     }
     return out
 }
 
-/// Total width of the visible columns including the gaps between them.
-function listColumnsWidth(columns) {
-    if (!columns || columns.length === 0) return 0
-    var last = columns[columns.length - 1]
-    return last.x + last.width
+/// Width taken by the columns on one side of the name, gaps included.
+function sideWidth(columns, side, fontPx) {
+    var gap = Math.round(LIST_COLUMN_GAP_EM * fontPx)
+    var total = 0
+    for (var i = 0; columns && i < columns.length; i++) {
+        if (columns[i].side === side) total += columns[i].width + gap
+    }
+    return total
+}
+
+/// Row geometry shared by header, rows and hover areas: the name starts at nameX, left
+/// columns come before it, right columns follow the name block of nameWidth.
+/// Returns { nameX, columns: [{id, width, align, side, x}] } with x from the row start.
+function placeListColumns(columns, fontPx, nameWidth) {
+    var gap = Math.round(LIST_COLUMN_GAP_EM * fontPx)
+    var placed = []
+    var x = 0
+    for (var i = 0; columns && i < columns.length; i++) {
+        if (columns[i].side !== "left") continue
+        placed.push(_withX(columns[i], x))
+        x += columns[i].width + gap
+    }
+    var nameX = x
+    x = nameX + nameWidth
+    for (var j = 0; columns && j < columns.length; j++) {
+        if (columns[j].side === "left") continue
+        placed.push(_withX(columns[j], x))
+        x += columns[j].width + gap
+    }
+    return { nameX: nameX, columns: placed }
+}
+
+function _withX(col, x) {
+    return { id: col.id, width: col.width, align: col.align, side: col.side, x: x }
 }
 
 /// "#a #b" for the tags column. Rows carry it as tagsText: in a ListModel an array

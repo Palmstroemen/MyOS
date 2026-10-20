@@ -35,10 +35,13 @@ Rectangle {
     onRenamingChanged: if (renaming) _renameEditText = renameText
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
-    /// List style ("smallIcon") only: columns [{text, width, align, x}] placed at x from
-    /// detailColumnsX (end of the name column); geometry matches the FilesPanel header.
+    /// List style ("smallIcon") only: columns [{text, width, align, x}] with x from the row
+    /// start; columns may sit left and right of the name. Geometry matches the FilesPanel
+    /// header. nameOffsetX moves icon and name right of the left columns; nameColumnWidth
+    /// (0 = unlimited) is the width of icon plus name, longer names are elided.
     property var detailColumns: []
-    property int detailColumnsX: 0
+    property int nameOffsetX: 0
+    property int nameColumnWidth: 0
     property bool dragEnabled: false
     property bool allowDrops: false
     property string dragPayload: ""
@@ -266,7 +269,7 @@ Rectangle {
 
     Row {
         anchors.left: parent.left
-        anchors.leftMargin: 6
+        anchors.leftMargin: 6 + root.nameOffsetX
         anchors.verticalCenter: parent.verticalCenter
         spacing: 6
         visible: style === "smallIcon"
@@ -323,9 +326,9 @@ Rectangle {
             y: textYOffset
             visible: !renaming
             // Leave room for the detail column instead of running into it.
-            // The name ends where the first column starts (long names are elided).
-            width: detailColumns.length > 0
-                ? Math.min(implicitWidth, Math.max(0, root.detailColumnsX - iconSmall - 18))
+            // The name ends where the next column starts (long names are elided).
+            width: root.nameColumnWidth > 0
+                ? Math.min(implicitWidth, Math.max(0, root.nameColumnWidth - iconSmall - 18))
                 : implicitWidth
             elide: Text.ElideRight
         }
@@ -335,7 +338,8 @@ Rectangle {
         id: smallIconDetails
         // root.* throughout: inside a Text, a bare "style" would be Text.style.
         visible: root.style === "smallIcon" && root.detailColumns.length > 0 && !root.renaming
-        x: root.detailColumnsX
+        anchors.left: parent.left
+        anchors.leftMargin: 6
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         Repeater {
@@ -459,6 +463,8 @@ Rectangle {
     TextField {
         anchors.fill: parent
         anchors.margins: 4
+        // Starts where the name starts (left columns may come first in the list).
+        anchors.leftMargin: 4 + root.nameOffsetX
         visible: renaming && style === "smallIcon"
         text: root._renameEditText
         font.pixelSize: textSize
