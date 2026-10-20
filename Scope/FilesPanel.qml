@@ -1,4 +1,4 @@
-import QtQuick 2.15
+import QtQuick 6.7  // per-corner radii (Rectangle.topLeftRadius …)
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "Theme/tag_chips.js" as TagChips
@@ -557,8 +557,7 @@ Rectangle { // Files panel
                                 height: root.tagChipHeightPx
                                 radius: root.tagChipRightRadius
                                 color: baseColor
-                                // Others are dimmed while one is selected (texts only: the corner
-                                // mask would show through a dimmed chip).
+                                // Others are dimmed while one is selected (their texts).
                                 readonly property real textOpacity: aclColumn.hasSelection && !selected ? 0.55 : 1.0
                                 border.width: selected || aclChipMouse.containsMouse ? 2 : 1
                                 border.color: selected
@@ -566,19 +565,9 @@ Rectangle { // Files panel
                                     : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
 
                                 // Square left edge (towards the system side), rounded right edge
-                                // pointing into the list, as in PostFix. Unlike the tag chips the
-                                // text starts on the left, so the mask draws only the outer border
-                                // (a framed mask would put a line through the rights).
-                                Item {
-                                    readonly property real bw: aclChip.border.width
-                                    readonly property color bc: aclChip.border.color
-                                    width: aclChip.radius
-                                    height: aclChip.height
-                                    Rectangle { anchors.fill: parent; color: aclChip.color }
-                                    Rectangle { width: parent.width; height: parent.bw; color: parent.bc }
-                                    Rectangle { y: parent.height - parent.bw; width: parent.width; height: parent.bw; color: parent.bc }
-                                    Rectangle { width: parent.bw; height: parent.height; color: parent.bc }
-                                }
+                                // pointing into the list, as in PostFix.
+                                topLeftRadius: 0
+                                bottomLeftRadius: 0
 
                                 Text {
                                     id: aclRightsText
@@ -957,16 +946,9 @@ Rectangle { // Files panel
                                         ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
                                         : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
 
-                                    // QtQuick 2.15 Rectangle has only uniform radius. Mask left side to keep it square.
-                                    Rectangle {
-                                        anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        anchors.bottom: parent.bottom
-                                        width: Math.max(6, root.tagChipRightRadius - 2)
-                                        color: parent.color
-                                        border.width: parent.border.width
-                                        border.color: parent.border.color
-                                    }
+                                    // Square left edge, rounded right edge.
+                                    topLeftRadius: 0
+                                    bottomLeftRadius: 0
 
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -1129,15 +1111,9 @@ Rectangle { // Files panel
                                                     ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
                                                     : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
 
-                                                Rectangle {
-                                                    anchors.left: parent.left
-                                                    anchors.top: parent.top
-                                                    anchors.bottom: parent.bottom
-                                                    width: Math.max(6, root.tagChipRightRadius - 2)
-                                                    color: parent.color
-                                                    border.width: parent.border.width
-                                                    border.color: parent.border.color
-                                                }
+                                                // Square left edge, rounded right edge.
+                                                topLeftRadius: 0
+                                                bottomLeftRadius: 0
 
                                                 Text {
                                                     anchors.verticalCenter: parent.verticalCenter
@@ -1230,15 +1206,9 @@ Rectangle { // Files panel
                                                         ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
                                                         : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
 
-                                                    Rectangle {
-                                                        anchors.left: parent.left
-                                                        anchors.top: parent.top
-                                                        anchors.bottom: parent.bottom
-                                                        width: Math.max(6, root.tagChipRightRadius - 2)
-                                                        color: parent.color
-                                                        border.width: parent.border.width
-                                                        border.color: parent.border.color
-                                                    }
+                                                    // Square left edge, rounded right edge.
+                                                    topLeftRadius: 0
+                                                    bottomLeftRadius: 0
 
                                                     Text {
                                                         anchors.verticalCenter: parent.verticalCenter
@@ -1274,15 +1244,9 @@ Rectangle { // Files panel
                                                 border.color: Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
                                                 opacity: 0.45
 
-                                                Rectangle {
-                                                    anchors.left: parent.left
-                                                    anchors.top: parent.top
-                                                    anchors.bottom: parent.bottom
-                                                    width: Math.max(6, root.tagChipRightRadius - 2)
-                                                    color: parent.color
-                                                    border.width: parent.border.width
-                                                    border.color: parent.border.color
-                                                }
+                                                // Square left edge, rounded right edge.
+                                                topLeftRadius: 0
+                                                bottomLeftRadius: 0
 
                                                 Text {
                                                     anchors.verticalCenter: parent.verticalCenter
