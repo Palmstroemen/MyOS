@@ -41,7 +41,7 @@ def test_scope_api_monitor_mode_logs_allowed_read(tmp_path):
     (finanz / "report.md").write_text("# q1\n", encoding="utf-8")
 
     api = ScopeApi(str(root))
-    api.set_acl_enforcement(_build_monitor_service(f"{finanz}/**"), user="bertha")
+    api.set_acl_enforcement(_build_monitor_service(), user="bertha")
 
     entries = api.list_entries(str(finanz))
     assert any(item["name"] == "report.md" for item in entries)

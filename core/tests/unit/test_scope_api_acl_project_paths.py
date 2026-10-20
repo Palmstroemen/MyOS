@@ -1,0 +1,62 @@
+"""ACL rules in ACLs.md are relative to the project root; ScopeApi checks absolute paths.
+
+The enforcement must translate between the two, otherwise only "/*" rules ever match.
+"""
+
+from pathlib import Path
+
+import pytest
+
+from core.acl import ACLAuthorizer, ACLPolicy, PermissionRule
+from core.acl_enforcement import ACLEnforcementService
+from core.scope_api import ScopeApi
+
+
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch):
+    for key in ("MYOS_TEMPLATES_DIR", "MYOS_ACL_MODE", "MYOS_ACL_USER", "MYOS_ACL_BACKEND", "MYOS_ACL_AUDIT"):
+        monkeypatch.delenv(key, raising=False)
+
+
+def _lab(tmp_path: Path) -> Path:
+    root = tmp_path / "lab"
+    (root / "Finanz").mkdir(parents=True)
+    (root / "HR").mkdir()
+    (root / "Finanz" / "budget.md").write_text("# b\n", encoding="utf-8")
+    return root
+
+
+def test_relative_rule_filters_listing(tmp_path):
+    root = _lab(tmp_path)
+    policy = ACLPolicy(
+        roles={"finance"},
+        permissions={"finance": [PermissionRule(path="/Finanz/**", rights={"read", "write"})]},
+        users={"bertha": {"finance"}},
+    )
+    api = ScopeApi(str(root))
+    api.set_acl_enforcement(ACLEnforcementService(ACLAuthorizer(policy, backend="legacy"), mode="enforce"), user="bertha")
+
+    assert [e["name"] for e in api.list_entries(str(root))] == ["Finanz"]
+    assert [e["name"] for e in api.list_entries(str(root / "Finanz"))] == ["budget.md"]
+
+
+def test_real_acls_file_from_env_is_enforced(tmp_path, monkeypatch):
+    root = tmp_path / "Project"
+    (root / ".MyOS").mkdir(parents=True)
+    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / "Templates" / "Standard" / "finanz").mkdir(parents=True)
+    (root / ".MyOS" / "ACLs.md").write_text(
+        "# Permissions\n\n## Buchhalter\n- /finanz/: read, write\n\n# Users\nBertha: Buchhalter\n"
+    )
+    (root / "finanz").mkdir()
+    (root / "privat").mkdir()
+    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+
+    api = ScopeApi(str(root))
+    names = [e["name"] for e in api.list_entries(str(root))]
+
+    assert "finanz" in names
+    assert "privat" not in names

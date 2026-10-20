@@ -336,6 +336,8 @@ class ScopeApi:
         self._color_cache: Dict[str, Optional[str]] = {}
         self._root_default_project_color: Optional[str] = None
         self._acl_enforcement: Optional[ACLEnforcementService] = None
+        # Project the ACL rules were loaded from: their paths are relative to it.
+        self._acl_root: Optional[Path] = None
         self._acl_user: str = str(os.environ.get("MYOS_ACL_USER") or os.environ.get("USER") or "local").strip().lower()
         self._acl_audit_events: List[Dict[str, Any]] = []
         self._acl_audit_file: Optional[Path] = None
@@ -1345,10 +1347,35 @@ class ScopeApi:
             print(f"[birth] resolved -> {resolved}")
         return resolved, ""
 
-    def set_acl_enforcement(self, service: Optional[ACLEnforcementService], user: Optional[str] = None) -> None:
+    def set_acl_enforcement(
+        self,
+        service: Optional[ACLEnforcementService],
+        user: Optional[str] = None,
+        root: Optional[str] = None,
+    ) -> None:
+        """Use service for ACL checks; its rule paths are relative to root (default: project)."""
         self._acl_enforcement = service
+        self._acl_root = Path(root).expanduser().resolve() if root else (self.project_root or self.start_path)
         if user is not None and str(user).strip():
             self._acl_user = str(user).strip().lower()
+
+    def _acl_resource_path(self, resource: Path) -> str:
+        """
+        Path as written in ACLs.md: relative to the ACL project ("/" for its root).
+        Paths outside that project stay absolute, so only global rules like "/*" match them.
+        """
+        try:
+            absolute = Path(resource).expanduser().resolve()
+        except OSError:
+            return str(resource)
+        if self._acl_root is None:
+            return str(absolute)
+        try:
+            rel = absolute.relative_to(self._acl_root)
+        except ValueError:
+            return str(absolute)
+        text = str(rel).replace("\\", "/")
+        return "/" if text in ("", ".") else "/" + text
 
     def get_acl_audit_events(self) -> List[Dict[str, Any]]:
         return list(self._acl_audit_events)
@@ -1409,6 +1436,7 @@ class ScopeApi:
             return
 
         self._acl_enforcement = ACLEnforcementService(authorizer, mode=mode)
+        self._acl_root = Path(root).resolve()
 
         audit_path = str(os.environ.get("MYOS_ACL_AUDIT_FILE") or "").strip()
         audit_enabled = str(os.environ.get("MYOS_ACL_AUDIT") or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -1450,7 +1478,7 @@ class ScopeApi:
                 ACLCheckRequest(
                     user=self._acl_user,
                     action=acl_action,
-                    resource=str(resource),
+                    resource=self._acl_resource_path(resource),
                 )
             )
             self._on_acl_audit_event(

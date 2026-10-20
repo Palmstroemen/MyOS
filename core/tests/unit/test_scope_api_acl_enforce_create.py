@@ -6,7 +6,8 @@ from core.scope_api import ScopeApi
 
 
 def _build_service(mode: str, root: Path) -> ACLEnforcementService:
-    finance_rule = f"{(root / 'Finanz').resolve()}/**"
+    # ACLs.md paths are relative to the project root.
+    finance_rule = "/Finanz/**"
     policy = ACLPolicy(
         roles={"admin", "finance"},
         permissions={
