@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import fnmatch
 import os
 from pathlib import Path
@@ -39,6 +39,11 @@ class ACLPolicy:
     roles: Set[str]
     permissions: Dict[str, List[PermissionRule]]
     users: Dict[str, Set[str]]
+    # Normalized (lower-case) role/user key -> name as written (for display).
+    display_names: Dict[str, str] = field(default_factory=dict)
+
+    def display_name(self, key: str) -> str:
+        return self.display_names.get(key, key)
 
     @classmethod
     def from_project(cls, project_root: Path) -> "ACLPolicy":
@@ -51,14 +56,28 @@ class ACLPolicy:
         acl_roles, role_permissions, folder_defaults, users = _roles_from_acls(project_root)
 
         roles = {*_normalize_roles(template_roles), *_normalize_roles(acl_roles)}
+        # Template roles keep their folder's real name: {Folder} must expand to it
+        # (paths are case-sensitive, role keys are lower-case).
+        folder_names = {_normalize_role(name): name for name in template_roles}
         permissions = _build_permissions(
             roles=roles,
             template_roles=_normalize_roles(template_roles),
             role_permissions=_normalize_permissions(role_permissions),
             folder_defaults=_normalize_permissions({"folder": folder_defaults}).get("folder", []),
+            folder_names=folder_names,
         )
+        display_names = {
+            **folder_names,
+            **{_normalize_role(name): name for name in acl_roles},
+            **{str(user).strip().lower(): str(user).strip() for user in users},
+        }
 
-        return cls(roles=roles, permissions=permissions, users=_normalize_users(users))
+        return cls(
+            roles=roles,
+            permissions=permissions,
+            users=_normalize_users(users),
+            display_names=display_names,
+        )
 
     def roles_for_user(self, username: str) -> Set[str]:
         user_key = username.strip().lower()
@@ -297,16 +316,19 @@ def _build_permissions(
     template_roles: Set[str],
     role_permissions: Dict[str, Dict[str, Set[str]]],
     folder_defaults: Dict[str, Set[str]],
+    folder_names: Optional[Dict[str, str]] = None,
 ) -> Dict[str, List[PermissionRule]]:
     permissions: Dict[str, List[PermissionRule]] = {}
+    folder_names = folder_names or {}
 
     for role in roles:
         role_key = _normalize_role(role)
+        folder_name = folder_names.get(role_key, role_key)
 
         if role_key in role_permissions:
-            rules = _expand_rules(role_key, role_permissions[role_key])
+            rules = _expand_rules(folder_name, role_permissions[role_key])
         elif role_key in template_roles:
-            rules = _expand_rules(role_key, folder_defaults)
+            rules = _expand_rules(folder_name, folder_defaults)
         else:
             rules = []
 
@@ -315,11 +337,12 @@ def _build_permissions(
     return permissions
 
 
-def _expand_rules(role: str, rules: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
+def _expand_rules(folder_name: str, rules: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
+    """Rules with {Folder} replaced by the role's folder name (as written on disk)."""
     expanded: Dict[str, Set[str]] = {}
     for path, rights in rules.items():
         if "{folder}" in path.lower():
-            path = path.replace("{Folder}", role).replace("{folder}", role)
+            path = path.replace("{Folder}", folder_name).replace("{folder}", folder_name)
         normalized_path = _normalize_path(path)
         if normalized_path in expanded:
             expanded[normalized_path] = expanded[normalized_path].union(rights)

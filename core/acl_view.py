@@ -17,9 +17,10 @@ ALL_RIGHTS = frozenset({"read", "write", "execute", "change"})
 class Principal:
     """A role or user that has at least one right on a path."""
 
-    name: str
+    name: str  # as written in ACLs.md / on disk, for display
     kind: str  # "role" | "user"
     rights: FrozenSet[str]
+    key: str = ""  # lower-case key used by the policy
 
 
 class ACLView:
@@ -102,12 +103,13 @@ class ACLView:
         if rel is None:
             return []
         role_rights = {role: self._rights_for_role(role, rel) for role in self.policy.roles}
-        roles = [Principal(role, "role", r) for role, r in sorted(role_rights.items()) if r]
+        name = self.policy.display_name
+        roles = [Principal(name(role), "role", r, role) for role, r in sorted(role_rights.items()) if r]
         users = []
         for user, user_roles in sorted(self.policy.users.items()):
             rights = frozenset().union(*(role_rights.get(role, frozenset()) for role in user_roles))
             if rights:
-                users.append(Principal(user, "user", rights))
+                users.append(Principal(name(user), "user", rights, user))
         return roles + users
 
     def has_own_rules(self, path) -> bool:

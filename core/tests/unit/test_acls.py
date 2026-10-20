@@ -202,3 +202,40 @@ def test_acl_authorizer_casbin_backend_parity_if_installed():
     ]
     for user, path, right in user_checks:
         assert casbin_auth.can_user_access(user, path, right) == legacy.can_user_access(user, path, right)
+
+
+def test_template_role_gets_its_folder_with_original_case(tmp_path):
+    """{Folder} expands to the template folder's real name; paths are case-sensitive."""
+    from core.acl import ACLPolicy
+
+    project_root = tmp_path / "Project"
+    project_root.mkdir()
+    _write_templates(project_root, "Standard", ["04_Finanz", "01_Info"])
+    _write_project_config(project_root, "Standard")
+    (project_root / ".MyOS" / "ACLs.md").write_text(
+        "# Permissions\n\n## Folder\n- /{Folder}/: read, write\n"
+    )
+
+    policy = ACLPolicy.from_project(project_root)
+
+    assert policy.can_access("04_finanz", "/04_Finanz", "write")
+    assert not policy.can_access("04_finanz", "/01_Info", "read")
+
+
+def test_display_names_keep_original_case(tmp_path):
+    from core.acl import ACLPolicy
+
+    project_root = tmp_path / "Project"
+    project_root.mkdir()
+    _write_templates(project_root, "Standard", ["04_Finanz"])
+    _write_project_config(project_root, "Standard")
+    (project_root / ".MyOS" / "ACLs.md").write_text(
+        "# Permissions\n\n## Buchhaltung\n- /04_Finanz/: read\n\n# Users\nAnna: Buchhaltung\n"
+    )
+
+    policy = ACLPolicy.from_project(project_root)
+
+    assert policy.display_name("anna") == "Anna"
+    assert policy.display_name("buchhaltung") == "Buchhaltung"
+    assert policy.display_name("04_finanz") == "04_Finanz"
+    assert policy.display_name("unknown") == "unknown"

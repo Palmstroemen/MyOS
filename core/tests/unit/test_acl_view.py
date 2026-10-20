@@ -88,12 +88,14 @@ def test_principals_list_roles_and_users_with_their_rights(tmp_path):
     roles = {p.name: p.rights for p in view.principals(root / "finanz") if p.kind == "role"}
     users = {p.name: p.rights for p in view.principals(root / "finanz") if p.kind == "user"}
 
+    # Names as written in ACLs.md / on disk; keys stay lower-case for lookups.
     assert roles == {
-        "admin": {"read", "write", "execute"},
-        "buchhalter": {"read", "write", "execute"},
+        "Admin": {"read", "write", "execute"},
+        "Buchhalter": {"read", "write", "execute"},
         "finanz": {"read", "write"},
     }
-    assert users == {"anna": {"read", "write", "execute"}, "karl": {"read", "write", "execute"}}
+    assert users == {"Anna": {"read", "write", "execute"}, "Karl": {"read", "write", "execute"}}
+    assert {p.key for p in view.principals(root / "finanz") if p.kind == "user"} == {"anna", "karl"}
 
 
 def test_own_rules_versus_inherited(tmp_path):
