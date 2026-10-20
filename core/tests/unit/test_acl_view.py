@@ -136,3 +136,37 @@ def test_locked_out_role_is_not_listed_and_folder_has_own_rules(tmp_path):
     assert "Admin" in names and "Anna" in names
     assert view.rights_for_user("karl", geheim) == set()
     assert view.has_own_rules(geheim) is True
+
+
+def _subproject(parent: Path, rel: str, acls: str = None) -> Path:
+    sub = parent / rel
+    (sub / ".MyOS").mkdir(parents=True)
+    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    if acls is not None:
+        (sub / ".MyOS" / "ACLs.md").write_text(acls)
+    return sub
+
+
+def test_subproject_without_acls_inherits_the_parent_rules(tmp_path):
+    root = _project(tmp_path, ACLS)
+    sub = _subproject(root, "finanz/Kunde")
+    (sub / "rechnungen").mkdir()
+
+    view = ACLView.for_path(sub / "rechnungen")
+
+    assert view is not None
+    assert view.project_root == root.resolve()
+    assert view.relative_path(sub / "rechnungen") == "/finanz/Kunde/rechnungen"
+    assert view.rights_for_user("karl", sub / "rechnungen") == {"read", "write", "execute"}
+    assert view.rights_for_user("mia", sub) == set()
+
+
+def test_subproject_with_own_acls_uses_them(tmp_path):
+    root = _project(tmp_path, ACLS)
+    sub = _subproject(root, "finanz/Kunde", "# Permissions\n\n## Kunde\n- /*: read\n\n# Users\nMia: Kunde\n")
+
+    view = ACLView.for_path(sub)
+
+    assert view.project_root == sub.resolve()
+    assert view.rights_for_user("mia", sub) == {"read"}
+    assert view.rights_for_user("karl", sub) == set()

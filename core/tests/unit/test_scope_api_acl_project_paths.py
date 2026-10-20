@@ -60,3 +60,23 @@ def test_real_acls_file_from_env_is_enforced(tmp_path, monkeypatch):
 
     assert "finanz" in names
     assert "privat" not in names
+
+
+def test_subproject_is_enforced_with_the_parent_acls(tmp_path, monkeypatch):
+    root = tmp_path / "Project"
+    (root / ".MyOS").mkdir(parents=True)
+    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / ".MyOS" / "ACLs.md").write_text(
+        "# Permissions\n\n## Buchhalter\n- /finanz/: read, write\n\n# Users\nBertha: Buchhalter\n"
+    )
+    sub = root / "finanz" / "Kunde"
+    (sub / ".MyOS").mkdir(parents=True)
+    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (sub / "rechnungen").mkdir()
+    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+
+    api = ScopeApi(str(sub))
+
+    assert [e["name"] for e in api.list_entries(str(sub)) if not e["name"].startswith(".")] == ["rechnungen"]

@@ -15,7 +15,7 @@ import json
 import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
-from core.acl import ACLAuthorizer
+from core.acl import ACLAuthorizer, find_acl_project_root
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 from core.desk import DeskConfig
 from core.desk_service import DeskService
@@ -1427,7 +1427,9 @@ class ScopeApi:
         if backend not in {"auto", "legacy", "casbin"}:
             backend = "auto"
 
-        root = self.project_root or self.start_path
+        # Security: a subproject without its own ACLs.md is governed by its parent's
+        # (rules inherit directly); checking it against no rules would hide everything.
+        root = find_acl_project_root(self.project_root or self.start_path) or self.project_root or self.start_path
         try:
             authorizer = ACLAuthorizer.from_project(root, backend=backend)
         except Exception:

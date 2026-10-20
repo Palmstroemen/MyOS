@@ -6,8 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, FrozenSet, List, Optional, Tuple
 
-from core.acl import ACLPolicy, _normalize_path, _rule_base
-from core.project import ProjectFinder
+from core.acl import ACLPolicy, _normalize_path, _rule_base, find_acl_project_root
 
 # Rights a "*" grant stands for (ACL design document, MVP rights set).
 ALL_RIGHTS = frozenset({"read", "write", "execute", "change"})
@@ -42,14 +41,10 @@ class ACLView:
 
     @classmethod
     def for_path(cls, path) -> Optional["ACLView"]:
-        """View for the project containing path, or None if it has no ACLs.md."""
-        try:
-            root = ProjectFinder.find_nearest(Path(path).expanduser().resolve())
-        except OSError:
-            return None
+        """View for the ACLs.md governing path (inherited into subprojects), or None."""
+        root = find_acl_project_root(path)
         if root is None:
             return None
-        root = root.resolve()
         acl_file = root / ".MyOS" / "ACLs.md"
         try:
             mtime = acl_file.stat().st_mtime

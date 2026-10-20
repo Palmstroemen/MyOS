@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from core.config.parser import MarkdownConfigParser
-from core.project import ProjectConfig
+from core.project import ProjectConfig, find_config_in_parents
 
 try:
     import casbin as _casbin
@@ -143,6 +143,19 @@ class ACLAuthorizer:
             if self.policy.can_access(role, path_key, right_key):
                 return True
         return False
+
+
+def find_acl_project_root(path) -> Optional[Path]:
+    """
+    Project whose ACLs.md governs path: the nearest project with an ACLs.md, walking up.
+    A subproject without ACLs.md inherits its parent's rules directly; their paths stay
+    relative to the project that holds the ACLs.md.
+    """
+    try:
+        acl_file = find_config_in_parents(Path(path).expanduser(), "ACLs.md", honor_inherit_not=False)
+    except OSError:
+        return None
+    return acl_file.parent.parent.resolve() if acl_file is not None else None
 
 
 def _path_matches(rule_path: str, target_path: str) -> bool:

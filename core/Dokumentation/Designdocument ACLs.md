@@ -58,6 +58,10 @@ Notes:
   but another role of the same user may enter it, the user may enter it.
 - Because the nearest rule wins, a file-specific rule must list all intended rights
   (e.g. `/.MyOS/ACLs.md: read, write, change`, not just `change`).
+- **Subprojects inherit directly:** a subproject without its own `ACLs.md` is governed by
+  the nearest parent project's `ACLs.md`; paths stay relative to that parent project
+  (e.g. `/Familie/Ich/` for the subproject `Familie/Ich`). A subproject with its own
+  `ACLs.md` uses only that file.
 - If no `inherit` is defined, the default is **`dynamic`**.
 
 ---
