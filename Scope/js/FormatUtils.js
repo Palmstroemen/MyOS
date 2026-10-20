@@ -61,7 +61,7 @@ function formatModified(ts) {
 /// multiples of the font size; text left-aligned, numbers right-aligned. Titles are
 /// translated in QML (FilesPanel.listColumnTitle).
 var LIST_COLUMNS = [
-    { id: "permissions", widthEm: 9, align: "left", side: "left" },
+    { id: "permissions", widthEm: 10, align: "left", side: "left" },
     { id: "owner", widthEm: 6, align: "left", side: "left" },
     { id: "group", widthEm: 6, align: "left", side: "left" },
     { id: "modified", widthEm: 8, align: "left", side: "right" },
@@ -130,6 +130,14 @@ function tagsText(tags) {
     return parts.join(" ")
 }
 
+/// ls -l mode grouped for reading: file type (d folder, - file, l link), then the rights
+/// of owner, group and others, e.g. "drwxr-xr-x" -> "d rwx r-x r-x".
+function formatPermissions(mode) {
+    var text = String(mode || "")
+    if (text.length !== 10) return text
+    return text[0] + " " + text.slice(1, 4) + " " + text.slice(4, 7) + " " + text.slice(7, 10)
+}
+
 /// Cell text of one list row for a column id.
 function listCellText(id, row, folderSizesActive) {
     if (id === "size") {
@@ -141,7 +149,7 @@ function listCellText(id, row, folderSizesActive) {
     if (id === "accessed") return formatModified(row.accessedTs)
     if (id === "type") return String(row.typeName || "")
     if (id === "tags") return String(row.tagsText || "")
-    if (id === "permissions") return String(row.permissions || "")
+    if (id === "permissions") return formatPermissions(row.permissions)
     if (id === "owner") return String(row.owner || "")
     if (id === "group") return String(row.group || "")
     return ""
