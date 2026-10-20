@@ -180,6 +180,44 @@ ApplicationWindow {
     /// sidebar total) and only for the listed folder; leaving the folder switches them off.
     property bool folderSizesActive: false
     property bool folderSizesMeasuring: false
+    /// ACL filter panel data of the listed folder (backend.aclSummaryReady, computed in the
+    /// background); hasAcls is false without an ACLs.md, and the panel stays hidden.
+    property var aclSummary: ({ hasAcls: false, principals: [], access: ({}) })
+    /// Principal id ("role:team", "user:anna") the list is filtered by; "" = no filter.
+    property string selectedAclPrincipal: ""
+
+    function requestAclSummary() {
+        if (!hasBackend() || typeof backend.requestAclSummary !== "function") return
+        var paths = []
+        var source = fileItemsAll || []
+        for (var i = 0; i < source.length; i++) {
+            // Hidden entries do not count, as in filterEntries (counts and "*" match the list).
+            var name = String(source[i].name || "")
+            if (!projectsShowHiddenFolders && name.indexOf(".") === 0) continue
+            var p = entryPath(source[i])
+            if (p.length > 0) paths.push(p)
+        }
+        backend.requestAclSummary(currentFilesPath(), paths)
+    }
+
+    function applyAclSummary(listingPath, summary) {
+        if (PathUtils.normalizeFsPath(listingPath) !== PathUtils.normalizeFsPath(currentFilesPath())) return
+        aclSummary = summary && summary.hasAcls ? summary : ({ hasAcls: false, principals: [], access: ({}) })
+        // A filter by someone who no longer appears here ends (e.g. ACLs.md was edited).
+        if (selectedAclPrincipal.length > 0) {
+            var still = false
+            var principals = aclSummary.principals || []
+            for (var i = 0; i < principals.length; i++) {
+                if (principals[i].id === selectedAclPrincipal) still = true
+            }
+            if (!still) selectedAclPrincipal = ""
+            else filterEntries()
+        }
+    }
+
+    function toggleAclPrincipal(id) {
+        selectedAclPrincipal = selectedAclPrincipal === id ? "" : id
+    }
 
     function activateFolderSizes() {
         if (folderSizesActive) return
@@ -1430,6 +1468,7 @@ ApplicationWindow {
         fileItemsAll = next
         filterEntries()
         Qt.callLater(function() { recomputeTagBuckets() })
+        Qt.callLater(requestAclSummary)
     }
 
     function entryPath(entry) {
@@ -1629,6 +1668,17 @@ ApplicationWindow {
                     filtered.push(coreEntry)
                 }
             }
+        }
+        // ACL filter: only entries the selected role/person has any right on. Entries the
+        // summary does not know yet (just created) are hidden until it is recomputed.
+        if (selectedAclPrincipal.length > 0 && aclSummary.hasAcls) {
+            var access = aclSummary.access || ({})
+            var aclFiltered = []
+            for (var a = 0; a < filtered.length; a++) {
+                var ids = access[entryPath(filtered[a])]
+                if (ids && ids.indexOf(selectedAclPrincipal) !== -1) aclFiltered.push(filtered[a])
+            }
+            filtered = aclFiltered
         }
         fileItemsRaw = ListSort.sortEntries(filtered, filesSortKey, filesSortAscending)
         for (var m = 0; m < fileItemsRaw.length; m++) {
@@ -2159,6 +2209,9 @@ ApplicationWindow {
     }
     onCommittedCTDPathChanged: {
         selectedEntryPaths = []
+        // The ACL panel keeps showing the previous folder until the new summary arrives
+        // (computed in the background); its filter belongs to the folder it was set in.
+        selectedAclPrincipal = ""
         currentFolderSizeBytes = -1
         currentFolderSizeComplete = false
         // New folder: sizes are off again until asked for; stop measuring the old one.
@@ -2486,6 +2539,9 @@ ApplicationWindow {
         function onFolderSizesReady(listingPath, items) {
             applyFolderSizes(listingPath, items)
         }
+        function onAclSummaryReady(listingPath, summary) {
+            applyAclSummary(listingPath, summary)
+        }
         function onEntriesReady(path, entries) {
             if (path === cwp) {
                 applyEntries(entries)
@@ -2501,6 +2557,7 @@ ApplicationWindow {
         filterEntries()
     }
     onSelectedTagsChanged: filterEntries()
+    onSelectedAclPrincipalChanged: filterEntries()
     onSearchActiveChanged: {
         if (!searchActive) {
             searchText = ""
@@ -3614,6 +3671,11 @@ ApplicationWindow {
             tagSource: window.tagFilterSource
             uiLanguage: window.uiLanguage
             isTagIndexing: window.tagsIndexing
+            aclPanelVisible: !!window.aclSummary.hasAcls && (window.aclSummary.principals || []).length > 0
+            aclPrincipals: window.aclSummary.principals || []
+            aclEntryCount: Object.keys(window.aclSummary.access || ({})).length
+            selectedAclPrincipal: window.selectedAclPrincipal
+            onAclPrincipalToggled: function(id) { window.toggleAclPrincipal(id) }
             folderSizeBytes: window.currentFolderSizeBytes
             folderSizeComplete: window.currentFolderSizeComplete
             folderSizesActive: window.folderSizesActive

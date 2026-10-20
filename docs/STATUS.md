@@ -19,7 +19,7 @@ MyOS has moved beyond early prototyping. Core components are implemented and ite
 - **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`)
 - **ClipboardTool** — CopyQ integration that saves text clips as Markdown
 
-Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py` — 443 passing (2026-10-20). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
+Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py` — 451 passing (2026-10-20). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
 
 ## Current Priorities
 
@@ -40,6 +40,7 @@ Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tes
 - Scope: FilesPanel follows the folder preview (700 ms dwell, or on entering the panel); file drags survive list refreshes; drops inside the FilesPanel work
 - Scope: FilesPanel list view (toggle in the side panel) with header, selectable columns (Geändert, Größe) and click-to-sort; folder sizes are measured only on demand (resting on the size column or the sidebar total, or a click on its head), in two passes, for the current folder only; the never-read folder-size index in Project.md is gone
 - ACLs: rules in ACLs.md are project-relative and enforced as such; per role the nearest rule wins, `none` locks a role out; subprojects without own ACLs.md inherit the parent's
+- Scope: ACL filter panel left of the list (only in projects with an ACLs.md, computed in the background): who may access the folder on top, who may access only some entries under "Ausnahmen"; a click shows only the entries that role or person has rights on
 
 ## Earlier Milestones (Feb–Mar 2026, committed Oct 2026)
 

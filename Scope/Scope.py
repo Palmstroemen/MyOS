@@ -270,6 +270,8 @@ class Backend(QObject):
     # (listingPath, [{path, bytes, complete}]) in batches; bytes is a lower bound while
     # complete is False. The listing's own path carries the total of the listed folder.
     folderSizesReady = Signal(str, "QVariantList")
+    # (listingPath, summary) for the ACL filter panel, see ScopeApi.acl_summary.
+    aclSummaryReady = Signal(str, "QVariantMap")
     # FilesPanel views: tiles and list.
     FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
     # List view columns right of the name (ids as in Scope/js/FormatUtils.js).
@@ -299,6 +301,10 @@ class Backend(QObject):
         self._sizes_pool = QThreadPool(self)
         self._sizes_pool.setMaxThreadCount(1)
         self._sizes_generation = 0
+        # ACL panel: computed in the background, newest request wins (like folder sizes).
+        self._acl_pool = QThreadPool(self)
+        self._acl_pool.setMaxThreadCount(1)
+        self._acl_generation = 0
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._on_watched_file_changed)
         self._sort_watcher = QFileSystemWatcher(self)
@@ -612,6 +618,18 @@ class Backend(QObject):
 
     def _sizes_task_current(self, generation: int) -> bool:
         return not self._shutting_down and generation == self._sizes_generation
+
+    @Slot(str, "QVariantList")
+    def requestAclSummary(self, path: str, entryPaths) -> None:
+        """Compute the ACL panel for this listing in the background (aclSummaryReady)."""
+        self._acl_generation += 1
+        if self._shutting_down:
+            return
+        paths = [str(p or "") for p in (entryPaths or []) if str(p or "")]
+        self._acl_pool.start(AclSummaryTask(self, str(path or ""), paths, self._acl_generation))
+
+    def _acl_task_current(self, generation: int) -> bool:
+        return not self._shutting_down and generation == self._acl_generation
 
     @Slot(result=str)
     def filesViewStyle(self) -> str:
@@ -1004,6 +1022,9 @@ class Backend(QObject):
         self._sizes_generation += 1
         self._sizes_pool.clear()
         self._sizes_pool.waitForDone(1000)
+        self._acl_generation += 1
+        self._acl_pool.clear()
+        self._acl_pool.waitForDone(1000)
         if self._daemon_process is not None:
             if self._daemon_client is not None:
                 try:
@@ -1043,6 +1064,27 @@ class EntriesTask(QRunnable):
         except Exception:
             self._owner._store_entries(self._path, [])
             self._owner.entriesReady.emit(self._path, [])
+
+
+class AclSummaryTask(QRunnable):
+    """ACL panel data of one listing; dropped when a newer request came in meanwhile."""
+
+    def __init__(self, owner: Backend, listing_path: str, entry_paths: list, generation: int) -> None:
+        super().__init__()
+        self._owner = owner
+        self._listing_path = listing_path
+        self._entry_paths = entry_paths
+        self._generation = generation
+
+    def run(self) -> None:
+        if not self._owner._acl_task_current(self._generation):
+            return
+        try:
+            summary = self._owner._api.acl_summary(self._listing_path, self._entry_paths)
+        except Exception:
+            summary = {"hasAcls": False}
+        if self._owner._acl_task_current(self._generation):
+            self._owner.aclSummaryReady.emit(self._listing_path, summary)
 
 
 class FolderSizesTask(QRunnable):

@@ -44,6 +44,13 @@ Rectangle { // Files panel
     /** Bindung an Fenster-Sprache, damit Tag-Beschriftungen bei Sprachumschaltung neu übersetzt werden. */
     property string uiLanguage: ""
     property bool isTagIndexing: false
+    /// ACL filter panel (left, "set by the system"): principals of the listed folder, see
+    /// ScopeApi.acl_summary. Shown only when the project has an ACLs.md.
+    property bool aclPanelVisible: false
+    property var aclPrincipals: []
+    property int aclEntryCount: 0
+    property string selectedAclPrincipal: ""
+    signal aclPrincipalToggled(string id)
     /// Size of the listed folder from the live measurement; < 0 while unknown.
     property real folderSizeBytes: -1
     property bool folderSizeComplete: false
@@ -414,6 +421,187 @@ Rectangle { // Files panel
         itemContextMenu.x = mouseX
         itemContextMenu.y = mouseY
         itemContextMenu.open()
+    }
+
+    /// Short form of rights for a chip: read, write, execute, change -> "r w x c".
+    function aclRightsLetters(rights) {
+        var letters = { read: "r", write: "w", execute: "x", change: "c" }
+        var out = []
+        for (var i = 0; i < (rights || []).length; i++) {
+            out.push(letters[rights[i]] || rights[i])
+        }
+        return out.join(" ")
+    }
+
+    function aclRightsNames(rights) {
+        var names = { read: qsTr("Lesen"), write: qsTr("Schreiben"), execute: qsTr("Ausführen"), change: qsTr("Rechte ändern") }
+        var out = []
+        for (var i = 0; i < (rights || []).length; i++) {
+            out.push(names[rights[i]] || rights[i])
+        }
+        return out.join(", ")
+    }
+
+    function aclChipTip(p) {
+        if (p.section === "exception") {
+            return qsTr("Kein Zugriff auf diesen Ordner, aber auf %1 von %2 Einträgen").arg(p.count).arg(aclEntryCount)
+        }
+        var tip = qsTr("Hier: %1").arg(aclRightsNames(p.rights))
+        if (p.partial) tip += "\n" + qsTr("Kein Zugriff auf %1 von %2 Einträgen").arg(aclEntryCount - p.count).arg(aclEntryCount)
+        return tip
+    }
+
+    function aclSection(section) {
+        var out = []
+        for (var i = 0; i < (aclPrincipals || []).length; i++) {
+            if (aclPrincipals[i].section === section) out.push(aclPrincipals[i])
+        }
+        return out
+    }
+
+    readonly property string longestAclNameForMeasure: {
+        var best = ""
+        for (var i = 0; i < (aclPrincipals || []).length; i++) {
+            var n = String(aclPrincipals[i].name || "")
+            if (n.length > best.length) best = n
+        }
+        return best
+    }
+
+    // ACL filter panel: left of the list, mirroring the tag filter on the right. Who may
+    // access the listed folder on top, who may access only some of its entries below.
+    // Clicking a chip shows only the entries that role or person has rights on.
+    Rectangle {
+        id: aclPanel
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.topMargin: 10
+        anchors.bottomMargin: 10
+        anchors.leftMargin: 10
+        visible: root.aclPanelVisible
+        width: visible ? Math.max(74, Math.min(14 * root.baseFont, aclContentWidth)) : 0
+        color: "transparent"
+        z: 2
+
+        Text {
+            id: measureAcl
+            visible: false
+            font.pixelSize: root.tagChipFontPx
+            text: "r w x c  " + root.longestAclNameForMeasure + "  ▸"
+        }
+        readonly property int aclContentWidth: measureAcl.implicitWidth + root.tagChipPadH * 2 + 6 + (2 * root.sidePanelInnerMargin)
+
+        Flickable {
+            anchors.fill: parent
+            anchors.margins: root.sidePanelInnerMargin
+            contentWidth: width
+            contentHeight: aclColumn.height
+            clip: true
+
+            Column {
+                id: aclColumn
+                width: parent.width
+                spacing: 4
+                readonly property bool hasSelection: root.selectedAclPrincipal.length > 0
+
+                Repeater {
+                    model: [
+                        { section: "folder", title: qsTr("Zugriff") },
+                        { section: "exception", title: qsTr("Ausnahmen") }
+                    ]
+                    delegate: Column {
+                        readonly property var chips: root.aclSection(modelData.section)
+                        width: aclColumn.width
+                        spacing: 4
+                        visible: chips.length > 0
+                        topPadding: index > 0 ? 6 : 0
+
+                        Text {
+                            width: parent.width
+                            text: modelData.title
+                            color: root.smallButtonText
+                            font.pixelSize: root.tagSectionLabelPx
+                            elide: Text.ElideRight
+                        }
+
+                        Repeater {
+                            model: parent.chips
+                            delegate: Rectangle {
+                                id: aclChip
+                                readonly property bool selected: root.selectedAclPrincipal === modelData.id
+                                // Same greys as PostFix's ACL sidebar: people lighter than groups.
+                                readonly property color baseColor: modelData.kind === "user" ? "#d6d6d6" : "#b5b5b5"
+                                x: root.tagChipMargin
+                                width: Math.max(20, aclColumn.width - (2 * root.tagChipMargin))
+                                height: root.tagChipHeightPx
+                                radius: root.tagChipRightRadius
+                                color: baseColor
+                                // Others are dimmed while one is selected (texts only: the corner
+                                // mask would show through a dimmed chip).
+                                readonly property real textOpacity: aclColumn.hasSelection && !selected ? 0.55 : 1.0
+                                border.width: selected || aclChipMouse.containsMouse ? 2 : 1
+                                border.color: selected
+                                    ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
+                                    : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+
+                                // Square left edge (towards the system side), rounded right edge
+                                // pointing into the list, as in PostFix. Unlike the tag chips the
+                                // text starts on the left, so the mask draws only the outer border
+                                // (a framed mask would put a line through the rights).
+                                Item {
+                                    readonly property real bw: aclChip.border.width
+                                    readonly property color bc: aclChip.border.color
+                                    width: aclChip.radius
+                                    height: aclChip.height
+                                    Rectangle { anchors.fill: parent; color: aclChip.color }
+                                    Rectangle { width: parent.width; height: parent.bw; color: parent.bc }
+                                    Rectangle { y: parent.height - parent.bw; width: parent.width; height: parent.bw; color: parent.bc }
+                                    Rectangle { width: parent.bw; height: parent.height; color: parent.bc }
+                                }
+
+                                Text {
+                                    id: aclRightsText
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: root.tagChipPadH
+                                    // Rights here; for exceptions the number of entries instead.
+                                    text: modelData.section === "exception"
+                                        ? String(modelData.count)
+                                        : root.aclRightsLetters(modelData.rights) + (modelData.partial ? " *" : "")
+                                    color: "#555555"
+                                    opacity: aclChip.textOpacity
+                                    font.pixelSize: Math.max(8, root.tagChipFontPx - 1)
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.left: aclRightsText.right
+                                    anchors.leftMargin: 6
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: root.tagChipPadH
+                                    text: modelData.name + (aclChip.selected ? "  ✓" : "  ▸")
+                                    color: "#333333"
+                                    opacity: aclChip.textOpacity
+                                    font.pixelSize: root.tagChipFontPx
+                                    elide: Text.ElideLeft
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                                MouseArea {
+                                    id: aclChipMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.aclPrincipalToggled(modelData.id)
+                                }
+                                ToolTip.visible: aclChipMouse.containsMouse
+                                ToolTip.delay: 600
+                                ToolTip.text: root.aclChipTip(modelData)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Rectangle {
@@ -1059,11 +1247,11 @@ Rectangle { // Files panel
 
     Rectangle {
         id: filesPanelSurface
-        anchors.left: parent.left
+        anchors.left: aclPanel.visible ? aclPanel.right : parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.right: sidePanel.left
-        anchors.leftMargin: root.filesPanelFrameMargin
+        anchors.leftMargin: aclPanel.visible ? root.filesPanelFrameMarginRight : root.filesPanelFrameMargin
         anchors.topMargin: root.filesPanelFrameMargin
         anchors.bottomMargin: root.filesPanelFrameMargin
         anchors.rightMargin: root.filesPanelFrameMarginRight
@@ -1075,7 +1263,8 @@ Rectangle { // Files panel
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: root.filesPanelFrameMargin + root.filesPanelContentPadding
+        anchors.leftMargin: (aclPanel.visible ? aclPanel.anchors.leftMargin + aclPanel.width + root.filesPanelFrameMarginRight
+                                              : root.filesPanelFrameMargin) + root.filesPanelContentPadding
         anchors.topMargin: root.filesPanelFrameMargin + root.filesPanelContentPadding
         anchors.bottomMargin: root.filesPanelFrameMargin + root.filesPanelContentPadding
         anchors.rightMargin: sidePanel.width + root.filesPanelFrameMarginRight + root.filesPanelContentPadding

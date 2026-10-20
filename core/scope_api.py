@@ -16,6 +16,7 @@ import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root
+from core.acl_view import ACLView
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 from core.desk import DeskConfig
 from core.desk_service import DeskService
@@ -2301,6 +2302,25 @@ class ScopeApi:
         if not is_dir:
             entry["sizeBytes"] = int(info.st_size)
         return entry
+
+    def acl_summary(self, path: str, entry_paths: Iterable[str]) -> Dict[str, Any]:
+        """
+        Data of the ACL filter panel for a listed folder (see ACLView.listing_summary):
+        {hasAcls, path, principals, access}, or {hasAcls: False} when the project has
+        no ACLs.md. Read-only and without an audit event per entry (only the check
+        below is audited), so it can run for large listings in a background task.
+        """
+        view = ACLView.for_path(path)
+        if view is None:
+            return {"hasAcls": False}
+        # Security: the panel shows the content of ACLs.md (who may do what); with
+        # enforcement on, only a user who may read ACLs.md gets to see it.
+        probe = self._acl_probe("read", view.project_root / ".MyOS" / "ACLs.md")
+        if probe is not None and probe.enforced and not probe.allowed:
+            return {"hasAcls": False}
+        folder = Path(path).expanduser().resolve()
+        summary = view.listing_summary(folder, [str(p) for p in entry_paths])
+        return {"hasAcls": True, "path": str(folder), **summary}
 
     # How often (in entries) a running measurement asks whether it should go on.
     _MEASURE_CHECK_EVERY = 256

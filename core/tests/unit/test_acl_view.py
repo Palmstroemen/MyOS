@@ -138,6 +138,88 @@ def test_locked_out_role_is_not_listed_and_folder_has_own_rules(tmp_path):
     assert view.has_own_rules(geheim) is True
 
 
+def _summary(view, folder):
+    entries = sorted(str(p) for p in folder.iterdir())
+    return view.listing_summary(folder, entries)
+
+
+def test_listing_summary_folder_principals_and_exceptions(tmp_path):
+    root = _project(tmp_path, ACLS)
+    for name in ("finanz", "info", "work"):
+        (root / name).mkdir()
+    view = ACLView.for_path(root)
+
+    summary = _summary(view, root)
+    sections = {p["id"]: p["section"] for p in summary["principals"]}
+
+    # Only the admin's "/*" covers the project root itself.
+    assert {i for i, s in sections.items() if s == "folder"} == {"role:admin", "user:anna"}
+    # Who has rights on some entries only is listed below, as an exception.
+    assert sections["role:buchhalter"] == "exception"
+    assert sections["user:karl"] == "exception"
+    assert sections["role:finanz"] == "exception"
+    assert "user:mia" not in sections  # Entwickler rules are all deeper than this listing
+
+
+def test_listing_summary_access_per_entry(tmp_path):
+    root = _project(tmp_path, ACLS)
+    for name in ("finanz", "info", "work"):
+        (root / name).mkdir()
+    view = ACLView.for_path(root)
+
+    access = _summary(view, root)["access"]
+
+    assert set(access[str(root / "finanz")]) == {
+        "role:admin", "role:buchhalter", "role:finanz", "user:anna", "user:karl"}
+    assert "user:karl" not in access[str(root / "info")]
+    assert "role:info" in access[str(root / "info")]
+
+
+def test_listing_summary_rights_order_names_and_partial(tmp_path):
+    root = _project(tmp_path, ACLS.replace(
+        "- /rechtliches/: read\n",
+        "- /rechtliches/: read\n- /finanz/geheim/: none\n",
+    ))
+    (root / "finanz" / "geheim").mkdir(parents=True)
+    (root / "finanz" / "eingang").mkdir()
+    view = ACLView.for_path(root)
+
+    principals = {p["id"]: p for p in _summary(view, root / "finanz")["principals"]}
+
+    buchhalter = principals["role:buchhalter"]
+    assert buchhalter["name"] == "Buchhalter" and buchhalter["kind"] == "role"
+    assert buchhalter["rights"] == ["read", "write", "execute"]
+    # Locked out of "geheim": the filter would hide an entry, the chip says so.
+    assert buchhalter["partial"] is True
+    assert principals["role:admin"]["partial"] is False
+    # Mia gets in only through Entwickler's rule on "eingang".
+    assert principals["user:mia"]["section"] == "exception"
+    assert principals["user:mia"]["count"] == 1
+
+
+def test_listing_summary_without_entries_lists_folder_principals(tmp_path):
+    root = _project(tmp_path, ACLS)
+    (root / "work").mkdir()
+    view = ACLView.for_path(root)
+
+    summary = view.listing_summary(root / "work", [])
+
+    assert summary["access"] == {}
+    assert all(p["section"] == "folder" and not p["partial"] for p in summary["principals"])
+    assert "role:work" in {p["id"] for p in summary["principals"]}
+
+
+def test_listing_summary_accepts_unresolved_entry_paths(tmp_path):
+    root = _project(tmp_path, ACLS)
+    (root / "finanz").mkdir()
+    view = ACLView.for_path(root)
+    odd = str(root / "info" / ".." / "finanz")
+
+    access = view.listing_summary(root, [odd])["access"]
+
+    assert "role:buchhalter" in access[odd]
+
+
 def _subproject(parent: Path, rel: str, acls: str = None) -> Path:
     sub = parent / rel
     (sub / ".MyOS").mkdir(parents=True)
