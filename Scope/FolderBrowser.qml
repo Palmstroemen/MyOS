@@ -3999,6 +3999,11 @@ Item { // ROOT
                         id: bottomFoldersFlow
                         width: bottomFlowHost.width
                         height: implicitHeight
+                        // The wrapped row grows and shrinks with the width (e.g. built at width
+                        // 0 first: one folder per line). The bar's contentHeight must follow, as
+                        // in the vertical view; otherwise it keeps a stale height and the rows
+                        // are spread apart until some other change recomputes it.
+                        onImplicitHeightChanged: root.scheduleContentHeightUpdate()
                         spacing: 6
                         flow: Flow.LeftToRight
                         layoutDirection: Qt.LeftToRight
