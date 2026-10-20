@@ -390,11 +390,9 @@ Rectangle {
                 height: parent.height * TagChips.BATCH_HEIGHT_FRAC
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: parent.height * root.batchBottomMargin
-                Rectangle {
-                    anchors.fill: parent
-                    radius: TagChips.CHIP_RADIUS_COMPACT
-                    color: "#eeeeee"
-                }
+                // No background here: the batch sits on the folder icon, a light box behind
+                // it would be wider than the folder (the small icon keeps its box: there the
+                // batch replaces the folder).
                 Image {
                     visible: batchSource
                     anchors.centerIn: parent
