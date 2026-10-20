@@ -194,6 +194,9 @@ ApplicationWindow {
             // Hidden entries do not count, as in filterEntries (counts and "*" match the list).
             var name = String(source[i].name || "")
             if (!projectsShowHiddenFolders && name.indexOf(".") === 0) continue
+            // Embryos are not entries yet: their (template folder) roles would crowd the
+            // exceptions. Not in the summary, they are also hidden while an ACL filter is on.
+            if (source[i].isEmbryo) continue
             var p = entryPath(source[i])
             if (p.length > 0) paths.push(p)
         }

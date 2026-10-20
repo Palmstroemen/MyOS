@@ -33,6 +33,7 @@ Kompakter Überblick: `docs/STATUS.md`.
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
 [ ] PostFix UI verfeinern und Exporter bauen
     [ ] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
+    [ ] ACL-Panel: Embryos wahlweise mit einbeziehen (Schalter); derzeit zählen sie nicht
 [ ] Distribution erstellen
 [ ] Demo virtualisieren (Remote-Desktop-Setup) zum Code-Schutz
 [ ] Vielsprachigkeit vorbereiten (i18n/L10n)
