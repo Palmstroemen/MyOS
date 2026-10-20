@@ -1,3 +1,0 @@
-Standard
-
-### Templates sind nützlich.
