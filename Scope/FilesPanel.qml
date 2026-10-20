@@ -1119,13 +1119,16 @@ Rectangle { // Files panel
                                                     anchors.fill: parent
                                                     hoverEnabled: true
                                                     onClicked: {
+                                                        // Reset the input first: adding the tag changes the
+                                                        // suggestions and destroys this delegate, after which
+                                                        // its ids no longer resolve.
                                                         var suggestion = String(modelData || "").trim()
-                                                        if (suggestion.length > 0) {
-                                                            root.addFolderTagRequested(suggestion)
-                                                        }
                                                         newFolderTagInput.text = ""
                                                         newFolderTagInput.suppressCompletion = true
                                                         newFolderTagInput.focus = false
+                                                        if (suggestion.length > 0) {
+                                                            root.addFolderTagRequested(suggestion)
+                                                        }
                                                     }
                                                 }
                                             }
