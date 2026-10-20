@@ -45,8 +45,10 @@ karl: Entwickler, Buchhalter
 ```
 
 Notes:
-- Rights are explicit. **MVP rights set**: `read`, `write`, `execute`, `change`.
+- Rights are explicit. **MVP rights set**: `read`, `write`, `execute`, `change`, `delete`.
 - `change` only grants write access to `.MyOS/ACLs.md` (ACL management).
+- `delete` allows deleting entries. It is **not** implied by `write`: who may edit a folder
+  may not automatically delete in it (moving entries needs `write`). `*` includes `delete`.
 - Paths are **relative to the project root** (e.g. `/finanz/`).
 - `*` can be used as a wildcard path (e.g. `/*: read, write`).
 - **Nearest rule wins (per role):** a rule on a deeper folder *replaces* what the role

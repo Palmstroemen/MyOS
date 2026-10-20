@@ -239,11 +239,11 @@ class ACLSidebar(SidebarWidget):
     Left sidebar: roles and people with rights on the open note (from its ACLs.md).
     Rights are drawn around the name: read is an arrow out of the document ("◂" left
     of the name), write an arrow into it ("▸" right of it); execute and change stay
-    "x" and "c" on the left. People in a lighter grey than groups, as in Scope.
+    "x", "c" and "d" (delete) on the left. People in a lighter grey than groups, as in Scope.
     """
 
     # Rights without an arrow, shown as letters on the left (system side).
-    RIGHT_LETTERS = {"execute": "x", "change": "c"}
+    RIGHT_LETTERS = {"execute": "x", "change": "c", "delete": "d"}
     CHIP_COLORS = {"user": "#d6d6d6", "role": "#b5b5b5"}
 
     def __init__(self):
@@ -265,6 +265,7 @@ class ACLSidebar(SidebarWidget):
             "write": self.tr("Schreiben"),
             "execute": self.tr("Ausführen"),
             "change": self.tr("Rechte ändern"),
+            "delete": self.tr("Löschen"),
         }
         return ", ".join(names.get(r, r) for r in rights)
 

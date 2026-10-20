@@ -9,7 +9,7 @@ from typing import Dict, FrozenSet, List, Optional, Tuple
 from core.acl import ACLPolicy, _normalize_path, _rule_base, find_acl_project_root
 
 # Rights a "*" grant stands for (ACL design document, MVP rights set), in display order.
-RIGHTS_ORDER = ("read", "write", "execute", "change")
+RIGHTS_ORDER = ("read", "write", "execute", "change", "delete")
 ALL_RIGHTS = frozenset(RIGHTS_ORDER)
 
 

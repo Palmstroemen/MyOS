@@ -172,3 +172,11 @@ def test_acl_chip_arrows_are_equally_far_from_the_name():
     gap_left = name_left - (read.x() + read.width())
     gap_right = write.x() - (name.x() + name.width())
     assert abs(gap_left - gap_right) <= 1  # label widths round to whole pixels
+
+
+def test_acl_chip_shows_delete_as_d():
+    from PySide6.QtWidgets import QApplication
+    from PostFix.ui_panels import ACLSidebar
+
+    QApplication.instance() or QApplication([])
+    assert ACLSidebar()._chip_text({"name": "A", "rights": ["read", "execute", "delete"]}) == ("x d", "◂", "A", "")

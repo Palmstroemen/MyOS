@@ -262,3 +262,13 @@ def test_may_view_requires_read_on_acls_file_for_a_named_viewer(tmp_path):
     assert view.may_view("anna") is True  # Admin
     assert view.may_view("karl") is False
     assert view.may_view("nobody") is False
+
+
+def test_delete_is_a_right_of_its_own_and_part_of_star(tmp_path):
+    root = _project(tmp_path, ACLS.replace("- /rechtliches/: read\n", "- /rechtliches/: read, delete\n")
+                    .replace("- /*: read, write, execute\n", "- /*: *\n"))
+    view = ACLView.for_path(root)
+
+    assert view.rights_for_user("karl", root / "rechtliches") == {"read", "delete"}
+    assert "delete" in view.rights_for_user("anna", root / "info")  # "*" stands for all rights
+    assert "delete" not in view.rights_for_user("karl", root / "finanz")  # write does not imply it

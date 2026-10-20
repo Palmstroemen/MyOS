@@ -427,7 +427,7 @@ Rectangle { // Files panel
     // the name), write an arrow into it ("▸" right of it); execute and change stay
     // letters on the left.
     function aclRightsLetters(rights) {
-        var letters = { execute: "x", change: "c" }
+        var letters = { execute: "x", change: "c", delete: "d" }
         var out = []
         for (var i = 0; i < (rights || []).length; i++) {
             if (letters[rights[i]]) out.push(letters[rights[i]])
@@ -443,7 +443,7 @@ Rectangle { // Files panel
     }
 
     function aclRightsNames(rights) {
-        var names = { read: qsTr("Lesen"), write: qsTr("Schreiben"), execute: qsTr("Ausführen"), change: qsTr("Rechte ändern") }
+        var names = { read: qsTr("Lesen"), write: qsTr("Schreiben"), execute: qsTr("Ausführen"), change: qsTr("Rechte ändern"), delete: qsTr("Löschen") }
         var out = []
         for (var i = 0; i < (rights || []).length; i++) {
             out.push(names[rights[i]] || rights[i])
@@ -501,7 +501,7 @@ Rectangle { // Files panel
             id: measureAcl
             visible: false
             font.pixelSize: root.tagChipFontPx
-            text: "✓ x c  ◂ " + root.longestAclNameForMeasure + "  ▸"
+            text: "✓ x c d  ◂ " + root.longestAclNameForMeasure + "  ▸"
         }
         readonly property int aclContentWidth: measureAcl.implicitWidth + root.tagChipPadH * 2 + 6 + (2 * root.sidePanelInnerMargin)
 
