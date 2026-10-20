@@ -2032,15 +2032,40 @@ ApplicationWindow {
         }
     }
 
-    function onFolderSizeMeasured(listingPath, folderPath, bytes, complete) {
+    /// Apply a batch of live folder sizes in one pass (per-value updates would walk
+    /// the whole list and model for every folder and stall the GUI on big listings).
+    function applyFolderSizes(listingPath, items) {
         var listing = PathUtils.normalizeFsPath(currentFilesPath())
-        if (PathUtils.normalizeFsPath(listingPath) !== listing) return
-        if (PathUtils.normalizeFsPath(folderPath) === listing) {
-            currentFolderSizeBytes = bytes
-            currentFolderSizeComplete = complete
-            return
+        if (PathUtils.normalizeFsPath(listingPath) !== listing || !items) return
+        var byPath = {}
+        var any = false
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i]
+            if (PathUtils.normalizeFsPath(item.path) === listing) {
+                currentFolderSizeBytes = item.bytes
+                currentFolderSizeComplete = item.complete
+                continue
+            }
+            byPath[item.path] = item
+            any = true
         }
-        updateEntryFields(folderPath, { folderSizeBytes: bytes, folderSizeComplete: complete })
+        if (!any) return
+        // Entries are plain objects shared by fileItemsAll and fileItemsRaw; nothing binds to them.
+        var all = fileItemsAll || []
+        for (var a = 0; a < all.length; a++) {
+            var hit = all[a] ? byPath[all[a].path] : undefined
+            if (hit) {
+                all[a].folderSizeBytes = hit.bytes
+                all[a].folderSizeComplete = hit.complete
+            }
+        }
+        for (var j = 0; j < filesModel.count; j++) {
+            var row = byPath[filesModel.get(j).path]
+            if (row) {
+                filesModel.setProperty(j, "folderSizeBytes", row.bytes)
+                filesModel.setProperty(j, "folderSizeComplete", row.complete)
+            }
+        }
     }
 
     function setFolderSizesEnabled(enabled) {
@@ -2374,8 +2399,8 @@ ApplicationWindow {
         function onThumbnailReady(path, thumbUrl) {
             updateThumbnail(path, thumbUrl)
         }
-        function onFolderSizeReady(listingPath, folderPath, bytes, complete) {
-            onFolderSizeMeasured(listingPath, folderPath, bytes, complete)
+        function onFolderSizesReady(listingPath, items) {
+            applyFolderSizes(listingPath, items)
         }
         function onEntriesReady(path, entries) {
             if (path === cwp) {

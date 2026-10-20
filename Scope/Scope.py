@@ -267,8 +267,9 @@ class Backend(QObject):
     thumbnailReady = Signal(str, str)
     entriesReady = Signal(str, "QVariantList")
     languageChanged = Signal(str)
-    # (listingPath, folderPath, bytes, complete); bytes is a lower bound while complete is False.
-    folderSizeReady = Signal(str, str, float, bool)
+    # (listingPath, [{path, bytes, complete}]) in batches; bytes is a lower bound while
+    # complete is False. The listing's own path carries the total of the listed folder.
+    folderSizesReady = Signal(str, "QVariantList")
     # FilesPanel views: tiles and list.
     FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
     THUMBNAIL_REFRESH_DEBOUNCE_MS = 220
@@ -591,16 +592,11 @@ class Backend(QObject):
         task = EntriesTask(self, path)
         self._thumbnailer._pool.start(task)
 
-    def _start_folder_sizes_task(self, path: str, entries: list) -> None:
+    def _start_folder_sizes_task(self, path: str) -> None:
         self._sizes_generation += 1
         if self._shutting_down or not self._folder_sizes_enabled:
             return
-        folders = [
-            str(e.get("path") or "")
-            for e in (entries or [])
-            if e.get("isDir") and not e.get("isEmbryo") and e.get("path")
-        ]
-        self._sizes_pool.start(FolderSizesTask(self, path, folders, self._sizes_generation))
+        self._sizes_pool.start(FolderSizesTask(self, path, self._sizes_generation))
 
     def _sizes_task_current(self, generation: int) -> bool:
         return not self._shutting_down and generation == self._sizes_generation
@@ -969,6 +965,10 @@ class Backend(QObject):
     def _on_about_to_quit(self) -> None:
         """Stop thumbnail tasks and timers so the app can exit promptly."""
         self._shutting_down = True
+        # Running size measurements poll _shutting_down and stop within a few entries.
+        self._sizes_generation += 1
+        self._sizes_pool.clear()
+        self._sizes_pool.waitForDone(1000)
         if self._daemon_process is not None:
             if self._daemon_client is not None:
                 try:
@@ -1005,7 +1005,7 @@ class EntriesTask(QRunnable):
             self._owner._enrich_entries(entries, self._path)
             self._owner._store_entries(self._path, entries)
             self._owner.entriesReady.emit(self._path, entries)
-            self._owner._start_folder_sizes_task(self._path, entries)
+            self._owner._start_folder_sizes_task(self._path)
         except Exception:
             self._owner._store_entries(self._path, [])
             self._owner.entriesReady.emit(self._path, [])
@@ -1013,36 +1013,87 @@ class EntriesTask(QRunnable):
 
 class FolderSizesTask(QRunnable):
     """
-    Measure the sizes of a listing's folders in two passes. Pass 1 gives every folder
-    a small budget so one huge folder cannot hold up the others; folders over budget
-    report a lower bound and are finished in pass 2. Finally the listed folder itself.
+    Measure the subfolders of a listing in two passes and report results in batches.
+    Pass 1 gives every folder a small budget so one huge folder cannot hold up the
+    others; folders over budget report a lower bound and are finished in pass 2.
+    The listing's total is the sum of its files and subfolders (no second walk).
+    Every measurement stops as soon as the listing is left or the app quits.
     """
 
     PASS1_MAX_ENTRIES = 2000
+    BATCH_INTERVAL_S = 0.15
 
-    def __init__(self, owner: Backend, listing_path: str, folders: list, generation: int) -> None:
+    def __init__(self, owner: Backend, listing_path: str, generation: int) -> None:
         super().__init__()
         self._owner = owner
         self._listing_path = listing_path
-        self._folders = folders
         self._generation = generation
+        self._batch: list = []
+        self._last_flush = time.monotonic()
 
-    def _measure(self, path: str, max_entries) -> bool:
-        if not self._owner._sizes_task_current(self._generation):
-            return False
-        result = self._owner._api.measure_folder_size(path, max_entries=max_entries)
-        if not self._owner._sizes_task_current(self._generation):
-            return False
-        complete = bool(result.get("complete"))
-        self._owner.folderSizeReady.emit(self._listing_path, path, float(result.get("bytes") or 0), complete)
-        return complete
+    def _current(self) -> bool:
+        return self._owner._sizes_task_current(self._generation)
+
+    def _add(self, path: str, size: int, complete: bool) -> None:
+        self._batch.append({"path": path, "bytes": float(size), "complete": bool(complete)})
+        if time.monotonic() - self._last_flush >= self.BATCH_INTERVAL_S:
+            self._flush()
+
+    def _flush(self) -> None:
+        if self._batch and self._current():
+            self._owner.folderSizesReady.emit(self._listing_path, self._batch)
+        self._batch = []
+        self._last_flush = time.monotonic()
+
+    def _scan_listing(self):
+        """Direct file bytes and subfolders (visible first) of the listing."""
+        files_bytes = 0
+        visible, hidden = [], []
+        try:
+            device = os.lstat(self._listing_path).st_dev
+            with os.scandir(self._listing_path) as it:
+                for entry in it:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            if entry.stat(follow_symlinks=False).st_dev == device:
+                                (hidden if entry.name.startswith(".") else visible).append(entry.path)
+                        elif entry.is_file(follow_symlinks=False):
+                            files_bytes += int(entry.stat(follow_symlinks=False).st_size)
+                    except OSError:
+                        continue
+        except OSError:
+            pass
+        visible.sort(key=str.lower)
+        hidden.sort(key=str.lower)
+        return files_bytes, visible + hidden
+
+    def _measure(self, path: str, max_entries) -> dict:
+        return self._owner._api.measure_folder_size(path, max_entries=max_entries, should_continue=self._current)
 
     def run(self) -> None:
         try:
-            big = [p for p in self._folders if not self._measure(p, self.PASS1_MAX_ENTRIES)]
-            for path in big:
-                self._measure(path, None)
-            self._measure(self._listing_path, None)
+            files_bytes, folders = self._scan_listing()
+            results = {}
+            for path in folders:
+                if not self._current():
+                    return
+                results[path] = self._measure(path, self.PASS1_MAX_ENTRIES)
+                self._add(path, results[path]["bytes"], results[path]["complete"])
+            partial = any(not r["complete"] for r in results.values())
+            if partial:
+                total = files_bytes + sum(r["bytes"] for r in results.values())
+                self._add(self._listing_path, total, False)
+            self._flush()
+            for path in [p for p, r in results.items() if not r["complete"]]:
+                if not self._current():
+                    return
+                results[path] = self._measure(path, None)
+                self._add(path, results[path]["bytes"], results[path]["complete"])
+            total = files_bytes + sum(r["bytes"] for r in results.values())
+            self._add(self._listing_path, total, all(r["complete"] for r in results.values()))
+            self._flush()
         except Exception:
             return
 

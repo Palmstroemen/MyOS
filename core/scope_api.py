@@ -9,7 +9,7 @@ import re
 import shutil
 import json
 import shlex
-from typing import Iterable, List, Optional, Dict, Any, TypedDict
+from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
@@ -1644,11 +1644,15 @@ class ScopeApi:
                 is_dir = child.is_dir()
                 if not is_dir and child.suffix.lower() in {".md", ".markdown"}:
                     seen_md_files.add(child.name)
-                if is_dir:
-                    sidecar = self._read_folder_sidecar(child)
-                    entry_tags = sidecar["tags"]
-                else:
-                    entry_tags = self._read_entry_tags(child, md_tag_cache)
+                # An unreadable child (e.g. /root, /lost+found) is listed without
+                # tags or batch instead of emptying the whole listing.
+                try:
+                    if is_dir:
+                        entry_tags = self._read_folder_sidecar(child)["tags"]
+                    else:
+                        entry_tags = self._read_entry_tags(child, md_tag_cache)
+                except OSError:
+                    entry_tags = []
                 entry = self._build_file_entry(
                     name=child.name,
                     is_dir=is_dir,
@@ -1656,7 +1660,10 @@ class ScopeApi:
                     tags=entry_tags,
                 )
                 if is_dir:
-                    batch_info = self._get_folder_batch(child)
+                    try:
+                        batch_info = self._get_folder_batch(child)
+                    except OSError:
+                        batch_info = {"batch": None, "batchText": None}
                     if batch_info["batch"]:
                         entry["batch"] = batch_info["batch"]
                     if batch_info["batchText"]:
@@ -2230,13 +2237,22 @@ class ScopeApi:
                 pass
         return entry
 
-    def measure_folder_size(self, path: str, max_entries: Optional[int] = None) -> Dict[str, Any]:
+    # How often (in entries) a running measurement asks whether it should go on.
+    _MEASURE_CHECK_EVERY = 256
+
+    def measure_folder_size(
+        self,
+        path: str,
+        max_entries: Optional[int] = None,
+        should_continue: Optional[Callable[[], bool]] = None,
+    ) -> Dict[str, Any]:
         """
         Measure a folder's size live (nothing is persisted). Symlinks are not followed
         and other filesystems below the folder are not entered (like du -x).
         With max_entries the walk stops after that many entries and reports the bytes
         counted so far as a lower bound (complete=False), so one huge folder cannot
-        hold up the sizes of all others.
+        hold up the sizes of all others. should_continue is polled while walking; when
+        it returns False the walk stops the same way (navigation away, app quit).
         """
         try:
             target = self._resolve_path(path)
@@ -2257,6 +2273,12 @@ class ScopeApi:
                 with os.scandir(current) as it:
                     for entry in it:
                         if max_entries is not None and visited >= max_entries:
+                            return {"bytes": total, "complete": False}
+                        if (
+                            should_continue is not None
+                            and visited % self._MEASURE_CHECK_EVERY == 0
+                            and not should_continue()
+                        ):
                             return {"bytes": total, "complete": False}
                         visited += 1
                         try:

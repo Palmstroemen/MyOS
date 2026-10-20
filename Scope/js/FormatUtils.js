@@ -14,6 +14,15 @@ function formatBytes(bytes) {
     return text.replace(".", Qt.locale().decimalPoint) + " " + units[unit]
 }
 
+/// Size in whole KB with the locale's thousands separator, e.g. "4.403 KB". One unit for
+/// all rows lets the digit count act as a bar: big folders stand out without reading.
+/// Rounded up, so a non-empty file never shows "0 KB".
+function formatKilobytes(bytes) {
+    var value = Number(bytes)
+    if (!isFinite(value) || value < 0) return ""
+    return Math.ceil(value / 1024).toLocaleString(Qt.locale(), "f", 0) + " KB"
+}
+
 function _known(bytes) {
     return bytes !== undefined && bytes !== null && Number(bytes) >= 0
 }
@@ -22,11 +31,11 @@ function _known(bytes) {
 /// unknown, "> x" while only a lower bound is known (pass 1), "x" when complete.
 function entrySizeText(isDir, isEmbryo, sizeBytes, folderSizeBytes, folderSizeComplete, showFolderSizes) {
     if (!isDir) {
-        return _known(sizeBytes) ? formatBytes(sizeBytes) : ""
+        return _known(sizeBytes) ? formatKilobytes(sizeBytes) : ""
     }
     if (isEmbryo || !showFolderSizes || !_known(folderSizeBytes)) {
         return ""
     }
-    var text = formatBytes(folderSizeBytes)
+    var text = formatKilobytes(folderSizeBytes)
     return folderSizeComplete ? text : "> " + text
 }

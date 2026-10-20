@@ -120,3 +120,38 @@ def test_measure_folder_size_works_outside_projects(tmp_path):
     api = ScopeApi(str(tmp_path))
 
     assert api.measure_folder_size(str(outside)) == {"bytes": total, "complete": True}
+
+
+def test_measure_folder_size_can_be_cancelled_mid_walk(tmp_path):
+    """A huge folder must not block navigation or quitting: the walk stops when asked."""
+    root = _project(tmp_path)
+    big = root / "Big"
+    big.mkdir()
+    for i in range(1000):
+        (big / f"f{i}.bin").write_bytes(b"x")
+    calls = []
+
+    def should_continue():
+        calls.append(1)
+        return len(calls) < 2
+
+    result = ScopeApi(str(root)).measure_folder_size(str(big), should_continue=should_continue)
+
+    assert result["complete"] is False
+    assert result["bytes"] < 1000
+
+
+def test_list_entries_skips_details_of_unreadable_children(tmp_path):
+    """One unreadable child (like /root or /lost+found) must not empty the whole listing."""
+    root = _project(tmp_path)
+    (root / "ok.txt").write_text("x", encoding="utf-8")
+    locked = root / "Locked"
+    (locked / ".MyOS").mkdir(parents=True)
+    (locked / ".MyOS" / "myTags.md").write_text("#tag\n", encoding="utf-8")
+    locked.chmod(0o000)
+    try:
+        names = {e["name"] for e in ScopeApi(str(root)).list_entries(str(root))}
+    finally:
+        locked.chmod(0o755)
+
+    assert {"ok.txt", "Locked"} <= names
