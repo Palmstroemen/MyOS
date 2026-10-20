@@ -237,11 +237,13 @@ class TagSidebar(SidebarWidget):
 class ACLSidebar(SidebarWidget):
     """
     Left sidebar: roles and people with rights on the open note (from its ACLs.md).
-    Each chip shows the rights in short form on the left and the name on the right;
-    people in a lighter grey than groups, as in Scope's ACL panel.
+    Rights are drawn around the name: read is an arrow out of the document ("◂" left
+    of the name), write an arrow into it ("▸" right of it); execute and change stay
+    "x" and "c" on the left. People in a lighter grey than groups, as in Scope.
     """
 
-    RIGHT_LETTERS = {"read": "r", "write": "w", "execute": "x", "change": "c"}
+    # Rights without an arrow, shown as letters on the left (system side).
+    RIGHT_LETTERS = {"execute": "x", "change": "c"}
     CHIP_COLORS = {"user": "#d6d6d6", "role": "#b5b5b5"}
 
     def __init__(self):
@@ -266,18 +268,26 @@ class ACLSidebar(SidebarWidget):
         }
         return ", ".join(names.get(r, r) for r in rights)
 
-    def _chip_text(self, principal) -> tuple[str, str]:
-        rights = " ".join(self.RIGHT_LETTERS.get(r, r) for r in principal.get("rights", []))
-        return rights, f"{principal.get('name', '')}  ▸"
+    # Space between the name and each arrow (equal on both sides).
+    ARROW_GAP_PX = 4
+
+    def _chip_text(self, principal) -> tuple[str, str, str, str]:
+        """(letters, read arrow, name, write arrow) of a chip."""
+        rights = principal.get("rights", [])
+        letters = " ".join(self.RIGHT_LETTERS[r] for r in rights if r in self.RIGHT_LETTERS)
+        read = "◂" if "read" in rights else ""
+        write = "▸" if "write" in rights else ""
+        return letters, read, str(principal.get("name", "")), write
 
     def preferred_width(self) -> int:
-        """Width that fits the widest chip (rights, name, margins)."""
+        """Width that fits the widest chip (letters, name, write arrow, margins)."""
         metrics = self.fontMetrics()
         widest = 0
         for principal in self.principals:
-            rights, name = self._chip_text(principal)
-            widest = max(widest, metrics.horizontalAdvance(rights) + metrics.horizontalAdvance(name))
-        return widest + 48 if self.principals else 0
+            letters, _, name, _ = self._chip_text(principal)
+            widest = max(widest, metrics.horizontalAdvance(letters) + metrics.horizontalAdvance(name))
+        arrows = metrics.horizontalAdvance("◂") + metrics.horizontalAdvance("▸") + 2 * self.ARROW_GAP_PX
+        return widest + arrows + 48 if self.principals else 0
 
     def _rebuild(self):
         layout = self.layout()
@@ -288,7 +298,7 @@ class ACLSidebar(SidebarWidget):
                 item.widget().deleteLater()
         for principal in self.principals:
             bg = self.CHIP_COLORS.get(principal.get("kind"), self.CHIP_COLORS["role"])
-            rights, name = self._chip_text(principal)
+            letters, read, name, write = self._chip_text(principal)
             btn = QPushButton()
             btn.setProperty("aclName", principal.get("name", ""))
             btn.setStyleSheet(
@@ -312,14 +322,27 @@ class ACLSidebar(SidebarWidget):
             )
             row = QHBoxLayout(btn)
             row.setContentsMargins(8, 0, 8, 0)
-            rights_label = QLabel(rights)
-            rights_label.setStyleSheet("color: #555555;")
+            row.setSpacing(0)
+            letters_label = QLabel(letters)
+            letters_label.setStyleSheet("color: #555555;")
+            # Arrows sit in slots of their own glyph's width, ARROW_GAP_PX from the name on
+            # both sides; the write slot stays when empty, so names line up.
+            read_label = QLabel(read)
+            read_label.setStyleSheet("color: #333333;")
+            read_label.setFixedWidth(self.fontMetrics().horizontalAdvance("◂"))
             name_label = QLabel(name)
             name_label.setStyleSheet("color: #333333;")
             name_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            row.addWidget(rights_label)
+            write_label = QLabel(write)
+            write_label.setStyleSheet("color: #333333;")
+            write_label.setFixedWidth(self.fontMetrics().horizontalAdvance("▸"))
+            row.addWidget(letters_label)
             row.addStretch(1)
+            row.addWidget(read_label)
+            row.addSpacing(self.ARROW_GAP_PX)
             row.addWidget(name_label)
+            row.addSpacing(self.ARROW_GAP_PX)
+            row.addWidget(write_label)
             kind = self.tr("Person") if principal.get("kind") == "user" else self.tr("Gruppe")
             btn.setToolTip(f"{kind}: {self._right_names(principal.get('rights', []))}")
             btn.setMinimumHeight(row.sizeHint().height() + 8)

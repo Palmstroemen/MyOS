@@ -136,3 +136,39 @@ def test_acl_sidebar_builds_one_chip_per_principal():
     assert "#b5b5b5" in chips[0].styleSheet() and "#d6d6d6" in chips[1].styleSheet()
     assert "Lesen" in chips[1].toolTip()
     assert sidebar.preferred_width() > 0
+
+
+def test_acl_chip_shows_rights_as_arrows():
+    from PySide6.QtWidgets import QApplication
+    from PostFix.ui_panels import ACLSidebar
+
+    QApplication.instance() or QApplication([])
+    sidebar = ACLSidebar()
+    chip = sidebar._chip_text
+
+    # read: arrow out of the document (left of the name); write: arrow into it (right).
+    assert chip({"name": "Tom", "rights": ["read"]}) == ("", "◂", "Tom", "")
+    assert chip({"name": "Lisa", "rights": ["read", "write"]}) == ("", "◂", "Lisa", "▸")
+    assert chip({"name": "Bot", "rights": ["write"]}) == ("", "", "Bot", "▸")
+    # execute stays "x", change stays "c" (left, on the system side).
+    assert chip({"name": "Admin", "rights": ["read", "write", "execute", "change"]}) == ("x c", "◂", "Admin", "▸")
+
+
+def test_acl_chip_arrows_are_equally_far_from_the_name():
+    from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+    from PostFix.ui_panels import ACLSidebar
+
+    app = QApplication.instance() or QApplication([])
+    sidebar = ACLSidebar()
+    sidebar.set_principals([{"name": "Admin", "kind": "role", "rights": ["read", "write"]}])
+    sidebar.resize(200, 200)
+    sidebar.show()
+    app.processEvents()
+
+    chip = [b for b in sidebar.findChildren(QPushButton) if b.isVisibleTo(sidebar)][0]
+    labels = {l.text(): l for l in chip.findChildren(QLabel)}
+    read, name, write = labels["◂"], labels["Admin"], labels["▸"]
+    name_left = name.x() + name.width() - name.fontMetrics().horizontalAdvance("Admin")
+    gap_left = name_left - (read.x() + read.width())
+    gap_right = write.x() - (name.x() + name.width())
+    assert abs(gap_left - gap_right) <= 1  # label widths round to whole pixels

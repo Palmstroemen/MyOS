@@ -423,14 +423,23 @@ Rectangle { // Files panel
         itemContextMenu.open()
     }
 
-    /// Short form of rights for a chip: read, write, execute, change -> "r w x c".
+    // Rights on a chip (as in PostFix): read is an arrow out of the document ("◂" left of
+    // the name), write an arrow into it ("▸" right of it); execute and change stay
+    // letters on the left.
     function aclRightsLetters(rights) {
-        var letters = { read: "r", write: "w", execute: "x", change: "c" }
+        var letters = { execute: "x", change: "c" }
         var out = []
         for (var i = 0; i < (rights || []).length; i++) {
-            out.push(letters[rights[i]] || rights[i])
+            if (letters[rights[i]]) out.push(letters[rights[i]])
         }
         return out.join(" ")
+    }
+
+    /// Space between a chip's name and each arrow (px, equal on both sides).
+    readonly property int aclArrowGap: 4
+
+    function aclHas(rights, right) {
+        return (rights || []).indexOf(right) !== -1
     }
 
     function aclRightsNames(rights) {
@@ -484,11 +493,15 @@ Rectangle { // Files panel
         color: "transparent"
         z: 2
 
+        FontMetrics {
+            id: aclArrowMetrics
+            font.pixelSize: root.tagChipFontPx
+        }
         Text {
             id: measureAcl
             visible: false
             font.pixelSize: root.tagChipFontPx
-            text: "r w x c  " + root.longestAclNameForMeasure + "  ▸"
+            text: "✓ x c  ◂ " + root.longestAclNameForMeasure + "  ▸"
         }
         readonly property int aclContentWidth: measureAcl.implicitWidth + root.tagChipPadH * 2 + 6 + (2 * root.sidePanelInnerMargin)
 
@@ -565,25 +578,51 @@ Rectangle { // Files panel
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.left: parent.left
                                     anchors.leftMargin: root.tagChipPadH
-                                    // Rights here; for exceptions the number of entries instead.
-                                    text: modelData.section === "exception"
+                                    // x/c here; for exceptions the number of entries instead.
+                                    text: (aclChip.selected ? "✓ " : "") + (modelData.section === "exception"
                                         ? String(modelData.count)
-                                        : root.aclRightsLetters(modelData.rights) + (modelData.partial ? " *" : "")
+                                        : root.aclRightsLetters(modelData.rights) + (modelData.partial ? " *" : ""))
                                     color: "#555555"
                                     opacity: aclChip.textOpacity
                                     font.pixelSize: Math.max(8, root.tagChipFontPx - 1)
                                 }
+                                // Arrows sit aclArrowGap from the name on both sides; the write
+                                // slot stays when empty, so names line up.
                                 Text {
+                                    id: aclReadArrow
                                     anchors.verticalCenter: parent.verticalCenter
-                                    anchors.left: aclRightsText.right
-                                    anchors.leftMargin: 6
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: root.tagChipPadH
-                                    text: modelData.name + (aclChip.selected ? "  ✓" : "  ▸")
+                                    anchors.right: aclNameText.left
+                                    anchors.rightMargin: root.aclArrowGap
+                                    text: root.aclHas(modelData.rights, "read") ? "◂" : ""
+                                    color: "#333333"
+                                    opacity: aclChip.textOpacity
+                                    font.pixelSize: root.tagChipFontPx
+                                }
+                                Text {
+                                    id: aclNameText
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: aclWriteArrow.left
+                                    anchors.rightMargin: root.aclArrowGap
+                                    // As wide as the name, elided only when the chip is too narrow.
+                                    width: Math.max(0, Math.min(implicitWidth, aclWriteArrow.x - root.aclArrowGap
+                                        - (aclRightsText.x + aclRightsText.width + 6 + aclArrowMetrics.advanceWidth("◂") + root.aclArrowGap)))
+                                    text: modelData.name
                                     color: "#333333"
                                     opacity: aclChip.textOpacity
                                     font.pixelSize: root.tagChipFontPx
                                     elide: Text.ElideLeft
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                                Text {
+                                    id: aclWriteArrow
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: root.tagChipPadH
+                                    width: Math.ceil(aclArrowMetrics.advanceWidth("▸"))
+                                    text: root.aclHas(modelData.rights, "write") ? "▸" : ""
+                                    color: "#333333"
+                                    opacity: aclChip.textOpacity
+                                    font.pixelSize: root.tagChipFontPx
                                     horizontalAlignment: Text.AlignRight
                                 }
                                 MouseArea {
