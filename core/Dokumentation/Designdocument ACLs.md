@@ -134,6 +134,27 @@ The **/team/** area is the **human management space** for teams:
 
 This keeps technical config hidden while remaining **accessible and self‑explanatory**.
 
+### **5.3 Editing in the GUI (Concept)**
+Rights are edited where they are shown (PostFix ACL sidebar: click on a chip; Scope ACL
+panel: right click on a chip, as a left click filters). The model is the Windows
+**“Security” tab** many users know: a principal, one switch per right (in our chip
+pictogram `◂` read, `▸` write, `x`, `c`, `d`), inherited rights shown as such
+(“inherited from `/Familie/`”), and **“back to inherited”**.
+- **Who may edit:** users with `change` on `/.MyOS/ACLs.md` (the current user as for
+  enforcement: `MYOS_ACL_USER`, else `$USER`). For everybody else the chips only display.
+- **What an edit writes:** because the nearest rule wins, an edit is always one rule for
+  one role at exactly this path (`- /path/: read, write`); all rights off writes `none`,
+  “back to inherited” removes the line. A person has no rules of their own: editing a
+  person changes their role memberships (`# Users`).
+- **Template folder roles** (from `## Folder`) have no section; a section of their own
+  replaces the folder rules. The first edit therefore copies the role's folder rules into
+  its new section, so nothing else changes for it.
+- **Writing:** only the affected line changes (comments, order and spelling elsewhere
+  stay); the result is validated (`acl_schema`) before it is written, atomically.
+- **History instead of audit:** before each GUI edit the previous `ACLs.md` is kept
+  (dated copy in `.MyOS/`). That gives undo and a simple “who changed what, when” trail
+  without a separate audit system; formal audits are not an MVP goal.
+
 ---
 
 ## **6. Cross‑Platform & External Media**
@@ -159,6 +180,32 @@ Provide **optional mapping plugins**:
 - **POSIX ACL plugin** (Linux)
 
 These plugins would translate MyOS roles into native ACL entries when supported.
+
+### **6.4.1 Mapping to Windows, macOS and Linux**
+The MyOS model is no invention of its own: its building blocks match the native ACLs.
+
+| MyOS | Windows (NTFS) | macOS (extended ACLs) | Linux |
+|---|---|---|---|
+| role | group | group | group (several via POSIX ACLs) |
+| person | user | user | user |
+| `read`, `write`, `execute` | read, write, execute | read, write, execute | `r`, `w`, `x` (`x` on folders = enter) |
+| `delete` | delete | delete | no right of its own (`w` on the parent folder) |
+| `change` | change permissions | writesecurity | owner only (not delegable) |
+| inheritance (live) | inheritance | copied when created | default ACL, copied when created |
+| `none` / fewer rights deeper | disable inheritance there | same | leave the entry out |
+
+**Decision: no “deny”.** Windows and macOS know deny entries, and there a deny wins over
+an allow through another group. MyOS deliberately has none: a user's rights are the union
+of their roles (Karl in Team and Geschäftsleitung may enter a folder closed to Team). Hence
+`none` and “fewer rights deeper” mean **“stop inheriting for this role here”**, which
+Windows/macOS express by disabling inheritance at that folder and listing the remaining
+entries, and Linux by leaving the entry out. Without deny the model translates into all
+three systems, including Linux, which has no deny at all.
+
+**Inheritance:** MyOS evaluates inheritance live (a change on a folder applies below it at
+once). Windows propagates changes; macOS and POSIX default ACLs are copied when a file is
+created. A mapping plugin therefore writes explicit entries where needed and re-applies
+them after changes.
 
 ### **6.5 Live‑MyOS on USB (Exploratory)**
 Consider a **portable “Live‑MyOS”** image for USB sticks that enforces ACLs at runtime,
@@ -197,7 +244,9 @@ Define a small, stable interface for ACL backends:
 - Do we ever need a dedicated `mychmod` command, or is ACL editing sufficient?
 - How should role inheritance be expressed?
 - Should template roles auto‑generate users/groups?
-- How is auditing handled (who changed ACLs, when)?
+- ~~How is auditing handled (who changed ACLs, when)?~~ No audit system in the MVP: GUI
+  edits keep the previous `ACLs.md` (see 5.3). Access logging exists in the enforcement
+  layer but is off by default.
 
 ---
 
