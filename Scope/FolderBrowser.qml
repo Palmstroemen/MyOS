@@ -111,8 +111,11 @@ Item { // ROOT
         return ""
     }
 
-    readonly property color currentPathFillColor: {
-        var custom = _effectivePathColor(path, true)
+    readonly property color currentPathFillColor: pathFillColor(path)
+
+    /// Fill color of a path as shown for the current path (project color, else accent).
+    function pathFillColor(somePath) {
+        var custom = _effectivePathColor(somePath, true)
         if (custom && custom.fill !== undefined) {
             var fill = _toColorString(custom.fill)
             if (fill.length > 0) return fill

@@ -125,7 +125,13 @@ ApplicationWindow {
     property color currentProjectTint: theme.folderCwpTint
     property string defaultProjectTint: ""
     /// Eine gebundene Farbe für den FilesPanel-Rahmen: Projekt → Projektfarbe, sonst Default-Folder (wie CWD-Dropdowns).
-    readonly property color filesPanelTintColor: hasProjectInCwp && projectsBrowser ? projectsBrowser.currentPathFillColor : theme.folderPathTint
+    /// Follows the folder the panel shows (committed CTD), so a hover preview is tinted
+    /// like a double-click into that folder.
+    readonly property color filesPanelTintColor: hasProjectInFilesPath && projectsBrowser
+        ? projectsBrowser.pathFillColor(currentFilesPath())
+        : theme.folderPathTint
+    /// The folder shown in the FilesPanel (currentFilesPath) is a project; set by updateFiles.
+    property bool hasProjectInFilesPath: false
 
     // --- Pfadkonzepte CWD / CWP / CTD (Begriffe: siehe Vision/GUI Filebrowser.md, Abschnitt Begriffe) ---
     // CWD (Current Working Directory): Im Scope durch die Property cwp repräsentiert; der „Arbeitspfad“
@@ -2071,8 +2077,10 @@ ApplicationWindow {
             hasMyosInCwp = backend.hasMyosDir(cwp)
             if (typeof backend.isProject === "function") {
                 hasProjectInCwp = backend.isProject(cwp)
+                hasProjectInFilesPath = backend.isProject(targetPath)
             } else {
                 hasProjectInCwp = false
+                hasProjectInFilesPath = false
             }
         }
         updateClipboardState()
