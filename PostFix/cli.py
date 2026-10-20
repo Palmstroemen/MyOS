@@ -5,6 +5,11 @@ import os
 import sys
 from pathlib import Path
 
+# Started as a script (python3 PostFix/cli.py): make the repo root importable for
+# `core`, as Scope/Scope.py does. As a module (python3 -m PostFix.main) it already is.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 

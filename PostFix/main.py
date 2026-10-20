@@ -4,9 +4,15 @@ PostFix - Main Application Entry Point
 Builds UI directly in Python without .ui files for full control.
 """
 import subprocess
+import sys
 import tempfile
 import re
 from pathlib import Path
+
+# Started as a script (python3 PostFix/cli.py): make the repo root importable for
+# `core`, as Scope/Scope.py does. As a module (python3 -m PostFix.main) it already is.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 try:
     from .markdown_render import render_markdown
