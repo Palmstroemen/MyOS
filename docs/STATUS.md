@@ -38,7 +38,7 @@ Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tes
 - Embryo birth materializes only the folder itself; visible subfolders stay embryos until first use
 - Born template folders that hold nothing of the user turn back into embryos after delete/move (cascading upwards); `myproject tidy` does the same for folders emptied outside MyOS
 - Scope: FilesPanel follows the folder preview (700 ms dwell, or on entering the panel); file drags survive list refreshes; drops inside the FilesPanel work
-- Scope: FilesPanel list view (toggle in the side panel) with a size column; folder sizes are measured live in two passes (big folders show a lower bound first), switchable in the burger menu; the never-read folder-size index in Project.md is gone
+- Scope: FilesPanel list view (toggle in the side panel) with header, selectable columns (Geändert, Größe) and click-to-sort; folder sizes are measured only on demand (resting on the size column or the sidebar total, or a click on its head), in two passes, for the current folder only; the never-read folder-size index in Project.md is gone
 
 ## Earlier Milestones (Feb–Mar 2026, committed Oct 2026)
 

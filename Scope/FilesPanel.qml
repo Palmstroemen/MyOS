@@ -47,8 +47,13 @@ Rectangle { // Files panel
     /// Size of the listed folder from the live measurement; < 0 while unknown.
     property real folderSizeBytes: -1
     property bool folderSizeComplete: false
-    /// Live folder-size measurement switched on (burger menu); file sizes are always shown.
-    property bool showFolderSizes: true
+    /// Folder sizes of this listing were asked for (hover/click); file sizes are always shown.
+    property bool folderSizesActive: false
+    property bool folderSizesMeasuring: false
+    /// Pointer rested on the size column head or the sidebar total: measure folder sizes.
+    signal folderSizesRequested()
+    /// Dwell time before hovering starts a measurement (a pointer just passing by does not).
+    property int folderSizesHoverDelayMs: 300
     property real templatesBrowserWidth: 0
     property real projectsBrowserWidth: 0
     property string iconFolder: ""
@@ -63,6 +68,14 @@ Rectangle { // Files panel
     readonly property int listDetailFontPx: Math.max(9, Math.round(baseFont * 0.85))
     property string sortKey: "name"
     property bool sortAscending: true
+
+    /// Width of the visible size column (0 when hidden); its cells are the right-most column.
+    readonly property int sizeColumnWidth: {
+        for (var i = 0; i < visibleListColumns.length; i++) {
+            if (visibleListColumns[i].id === "size") return visibleListColumns[i].width
+        }
+        return 0
+    }
 
     function sortArrow(key) {
         return sortKey === key ? (sortAscending ? " ▲" : " ▼") : ""
@@ -540,18 +553,37 @@ Rectangle { // Files panel
             Text {
                 id: folderSizeLabel
                 width: parent.width
-                visible: root.showFolderSizes && root.folderSizeBytes >= 0
-                text: (root.folderSizeComplete ? "" : "> ") + FormatUtils.formatBytes(root.folderSizeBytes)
+                // Off: "Größe –" (hover to measure); measuring: "…" until a first value arrives.
+                text: !root.folderSizesActive
+                    ? qsTr("Größe") + " –"
+                    : (root.folderSizeBytes < 0
+                        ? "…"
+                        : (root.folderSizeComplete ? "" : "> ") + FormatUtils.formatBytes(root.folderSizeBytes))
                 color: root.smallButtonText
+                opacity: root.folderSizesActive ? 1.0 : 0.5
                 font.pixelSize: root.tagSectionLabelPx
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onContainsMouseChanged: {
+                        if (containsMouse && !root.folderSizesActive) sidebarSizeHoverTimer.restart()
+                        else sidebarSizeHoverTimer.stop()
+                    }
+                    onClicked: root.folderSizesRequested()
+                }
+                Timer {
+                    id: sidebarSizeHoverTimer
+                    interval: root.folderSizesHoverDelayMs
+                    onTriggered: root.folderSizesRequested()
+                }
             }
 
             Rectangle {
                 width: parent.width
                 height: Math.max(80, parent.height - (3 * root.topRightButtonSize) - root.sidePanelButtonSpacing - (2 * root.sidePanelInnerMargin) - 20
-                    - (folderSizeLabel.visible ? folderSizeLabel.height + root.sidePanelInnerMargin : 0))
+                    - folderSizeLabel.height - root.sidePanelInnerMargin)
                 radius: 0
                 border.width: 0
                 color: "transparent"
@@ -1029,17 +1061,37 @@ Rectangle { // Files panel
                 Repeater {
                     model: root.visibleListColumns
                     delegate: Text {
+                        readonly property bool isSize: modelData.id === "size"
                         width: modelData.width
                         horizontalAlignment: Text.AlignRight
-                        text: root.listColumnTitle(modelData.id) + root.sortArrow(modelData.id)
+                        // "… " in front: the head is right-aligned, so the title itself stays put.
+                        text: (isSize && root.folderSizesMeasuring ? "… " : "")
+                            + root.listColumnTitle(modelData.id)
+                            + root.sortArrow(modelData.id)
                         color: root.textMuted
+                        // Size head dimmed while folder sizes are off: hovering it measures them.
+                        opacity: isSize && !root.folderSizesActive ? 0.5 : 1.0
                         font.pixelSize: root.listDetailFontPx
                         font.bold: true
                         elide: Text.ElideLeft
                         MouseArea {
                             anchors.fill: parent
+                            hoverEnabled: parent.isSize
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.sortRequested(modelData.id)
+                            onContainsMouseChanged: {
+                                if (parent.isSize && containsMouse && !root.folderSizesActive) sizeHeadHoverTimer.restart()
+                                else sizeHeadHoverTimer.stop()
+                            }
+                            onClicked: {
+                                // Without hover (touch, quick click) the click also starts measuring.
+                                if (parent.isSize) root.folderSizesRequested()
+                                root.sortRequested(modelData.id)
+                            }
+                        }
+                        Timer {
+                            id: sizeHeadHoverTimer
+                            interval: root.folderSizesHoverDelayMs
+                            onTriggered: root.folderSizesRequested()
                         }
                     }
                 }
@@ -1127,7 +1179,7 @@ Rectangle { // Files panel
                     var cells = []
                     for (var c = 0; c < root.visibleListColumns.length; c++) {
                         var col = root.visibleListColumns[c]
-                        cells.push({ text: FormatUtils.listCellText(col.id, model, root.showFolderSizes), width: col.width })
+                        cells.push({ text: FormatUtils.listCellText(col.id, model, root.folderSizesActive), width: col.width })
                     }
                     return cells
                 }
@@ -1178,6 +1230,30 @@ Rectangle { // Files panel
                 if ((contentY + height + root.prefetchThreshold) >= contentHeight) {
                     root.requestMore()
                 }
+            }
+        }
+
+        // Resting the pointer on the size column (not only its head) asks for folder sizes.
+        // A HoverHandler only watches: clicks, selection and drags still reach the rows.
+        Item {
+            parent: filesGrid
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.right: parent.right
+            anchors.rightMargin: root.gridSpacing + 8
+            width: root.sizeColumnWidth
+            visible: root.itemStyle !== "largeIcon" && root.sizeColumnWidth > 0 && !root.folderSizesActive
+            HoverHandler {
+                id: sizeColumnHover
+                onHoveredChanged: {
+                    if (hovered) sizeColumnHoverTimer.restart()
+                    else sizeColumnHoverTimer.stop()
+                }
+            }
+            Timer {
+                id: sizeColumnHoverTimer
+                interval: root.folderSizesHoverDelayMs
+                onTriggered: root.folderSizesRequested()
             }
         }
 

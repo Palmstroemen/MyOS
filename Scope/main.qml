@@ -175,22 +175,42 @@ ApplicationWindow {
     /// Live-measured size of the listed folder (< 0 while unknown); lower bound until complete.
     property real currentFolderSizeBytes: -1
     property bool currentFolderSizeComplete: false
-    /// Live folder-size measurement (burger menu "Ordnergrößen"); persisted per user by the backend.
-    property bool folderSizesEnabled: true
+    /// Folder sizes are measured on demand only (hover/click on the size column or the
+    /// sidebar total) and only for the listed folder; leaving the folder switches them off.
+    property bool folderSizesActive: false
+    property bool folderSizesMeasuring: false
+
+    function activateFolderSizes() {
+        if (folderSizesActive) return
+        folderSizesActive = true
+        folderSizesMeasuring = true
+        if (hasBackend() && typeof backend.requestFolderSizes === "function") {
+            backend.requestFolderSizes(currentFilesPath())
+        }
+    }
     /// FilesPanel view: "largeIcon" (tiles) or "smallIcon" (list); persisted per user by the backend.
     property string filesItemStyle: "largeIcon"
     /// Visible list view columns (ids, see Scope/js/FormatUtils.js); persisted per user by the backend.
     property var filesListColumns: ["modified", "size"]
-    /// FilesPanel sort (header click): key "name" | "modified" | "size"; persisted per user.
+    /// FilesPanel sort (header click): key "name" | "modified" | "size".
     property string filesSortKey: "name"
     property bool filesSortAscending: true
+    /// Sort to return to when leaving a folder sorted by size. Only name/modified are
+    /// persisted: sorting by size belongs to the on-demand measurement of one folder.
+    property string filesBaseSortKey: "name"
+    property bool filesBaseSortAscending: true
 
     function setFilesSort(key) {
-        // Same column again flips the direction; a new column starts ascending.
-        filesSortAscending = (key === filesSortKey) ? !filesSortAscending : true
+        // Same column again flips the direction; a new column starts ascending,
+        // except size, which starts with the largest entries.
+        filesSortAscending = (key === filesSortKey) ? !filesSortAscending : (key !== "size")
         filesSortKey = key
-        if (hasBackend() && typeof backend.setFilesSort === "function") {
-            backend.setFilesSort(filesSortKey, filesSortAscending)
+        if (key !== "size") {
+            filesBaseSortKey = key
+            filesBaseSortAscending = filesSortAscending
+            if (hasBackend() && typeof backend.setFilesSort === "function") {
+                backend.setFilesSort(filesSortKey, filesSortAscending)
+            }
         }
         filterEntries()
     }
@@ -1389,7 +1409,24 @@ ApplicationWindow {
     }
 
     function applyEntries(entries) {
-        fileItemsAll = entries || []
+        // A re-listing of the same folder keeps the folder sizes measured so far (matched by path).
+        var known = {}
+        var previous = fileItemsAll || []
+        for (var k = 0; k < previous.length; k++) {
+            var old = previous[k]
+            if (old && old.path && old.folderSizeBytes !== undefined && old.folderSizeBytes >= 0) {
+                known[old.path] = old
+            }
+        }
+        var next = entries || []
+        for (var n = 0; n < next.length; n++) {
+            var hit = next[n] && next[n].path ? known[next[n].path] : undefined
+            if (hit) {
+                next[n].folderSizeBytes = hit.folderSizeBytes
+                next[n].folderSizeComplete = hit.folderSizeComplete
+            }
+        }
+        fileItemsAll = next
         filterEntries()
         Qt.callLater(function() { recomputeTagBuckets() })
     }
@@ -1965,6 +2002,11 @@ ApplicationWindow {
         }
         var entries = listEntries(targetPath)
         applyEntries(entries)
+        // Same folder re-listed (e.g. after a move) while sizes are on: measure again.
+        if (folderSizesActive && hasBackend() && typeof backend.requestFolderSizes === "function") {
+            folderSizesMeasuring = true
+            backend.requestFolderSizes(targetPath)
+        }
         if (hasBackend()) {
             hasMyosInCwp = backend.hasMyosDir(cwp)
             if (typeof backend.isProject === "function") {
@@ -2062,6 +2104,7 @@ ApplicationWindow {
             if (PathUtils.normalizeFsPath(item.path) === listing) {
                 currentFolderSizeBytes = item.bytes
                 currentFolderSizeComplete = item.complete
+                if (item.complete) folderSizesMeasuring = false
                 totalArrived = true
                 continue
             }
@@ -2092,14 +2135,6 @@ ApplicationWindow {
         }
     }
 
-    function setFolderSizesEnabled(enabled) {
-        folderSizesEnabled = !!enabled
-        if (hasBackend() && typeof backend.setFolderSizesEnabled === "function") {
-            backend.setFolderSizesEnabled(folderSizesEnabled)
-        }
-        // Re-list so sizes are measured again (on) or stale measurements stop (off).
-        updateFiles()
-    }
     onCwpChanged: {
         selectedEntryPaths = []
         selectedTags = []
@@ -2119,6 +2154,17 @@ ApplicationWindow {
         selectedEntryPaths = []
         currentFolderSizeBytes = -1
         currentFolderSizeComplete = false
+        // New folder: sizes are off again until asked for; stop measuring the old one.
+        // A sort by size ends with them and falls back to the previous column.
+        if (filesSortKey === "size") {
+            filesSortKey = filesBaseSortKey
+            filesSortAscending = filesBaseSortAscending
+        }
+        folderSizesActive = false
+        folderSizesMeasuring = false
+        if (hasBackend() && typeof backend.cancelFolderSizes === "function") {
+            backend.cancelFolderSizes()
+        }
         updateFiles()
     }
     onStandardPathChanged: {
@@ -2294,9 +2340,6 @@ ApplicationWindow {
         if (hasBackend() && typeof backend.currentLanguage === "function") {
             uiLanguage = backend.currentLanguage()
         }
-        if (hasBackend() && typeof backend.folderSizesEnabled === "function") {
-            folderSizesEnabled = backend.folderSizesEnabled()
-        }
         if (hasBackend() && typeof backend.filesViewStyle === "function") {
             filesItemStyle = backend.filesViewStyle()
         }
@@ -2307,6 +2350,8 @@ ApplicationWindow {
             var sort = backend.filesSort()
             filesSortKey = sort.key
             filesSortAscending = sort.ascending
+            filesBaseSortKey = sort.key
+            filesBaseSortAscending = sort.ascending
         }
         var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
         if (!hasBackend() && (!startPath || startPath === cwp)) {
@@ -3158,8 +3203,6 @@ ApplicationWindow {
 
         FolderBrowser {  // TemplatesBrowser
             id: templatesBrowser
-            showFolderSizes: window.folderSizesEnabled
-            onToggleFolderSizes: window.setFolderSizesEnabled(!window.folderSizesEnabled)
             debugName: "TemplatesBrowser"
             parent: floatingPool
             visible: templatesBrowserVisible && !edgeDockEnabled
@@ -3409,8 +3452,6 @@ ApplicationWindow {
             window.projectsShowEmbryos = !window.projectsShowEmbryos
             updateSubProjects()
         }
-            showFolderSizes: window.folderSizesEnabled
-            onToggleFolderSizes: window.setFolderSizesEnabled(!window.folderSizesEnabled)
             onToggleShowHiddenFolders: {
                 window.projectsShowHiddenFolders = !window.projectsShowHiddenFolders
                 updateSubProjects()
@@ -3568,7 +3609,9 @@ ApplicationWindow {
             isTagIndexing: window.tagsIndexing
             folderSizeBytes: window.currentFolderSizeBytes
             folderSizeComplete: window.currentFolderSizeComplete
-            showFolderSizes: window.folderSizesEnabled
+            folderSizesActive: window.folderSizesActive
+            folderSizesMeasuring: window.folderSizesMeasuring
+            onFolderSizesRequested: window.activateFolderSizes()
             onRequestMore: appendNextChunk()
             onFilterChanged: filterEntries()
             onItemActivated: function(path, ctrlPressed, shiftPressed) {

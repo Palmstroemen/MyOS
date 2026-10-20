@@ -274,8 +274,9 @@ class Backend(QObject):
     FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
     # List view columns right of the name (ids as in Scope/js/FormatUtils.js).
     FILES_LIST_COLUMNS = ("modified", "size")
-    # Sort keys of the list (Scope/js/ListSort.js).
-    FILES_SORT_KEYS = ("name", "modified", "size")
+    # Persisted sort keys of the list (Scope/js/ListSort.js). Sorting by size is not
+    # persisted: it belongs to the on-demand size measurement of one folder.
+    FILES_SORT_KEYS = ("name", "modified")
     THUMBNAIL_REFRESH_DEBOUNCE_MS = 220
     THUMBNAIL_REFRESH_RETRY_MS = 180
     THUMBNAIL_REFRESH_MAX_RETRIES = 8
@@ -292,10 +293,9 @@ class Backend(QObject):
         self._entries_lock = Lock()
         self._entries_cache: dict[str, list] = {}
         self._entries_pending: set[str] = set()
-        # Folder sizes: measured live, one folder at a time; a new listing bumps the
-        # generation so measurements for folders no longer shown stop early.
+        # Folder sizes: measured on demand (hover/click on the size column), one task at a
+        # time; a new request or cancel bumps the generation so older measurements stop.
         self._settings = QSettings("MyOS", "Scope")
-        self._folder_sizes_enabled = self._settings.value("folderSizesEnabled", True, type=bool)
         self._sizes_pool = QThreadPool(self)
         self._sizes_pool.setMaxThreadCount(1)
         self._sizes_generation = 0
@@ -596,18 +596,22 @@ class Backend(QObject):
         task = EntriesTask(self, path)
         self._thumbnailer._pool.start(task)
 
-    def _start_folder_sizes_task(self, path: str) -> None:
+    @Slot(str)
+    def requestFolderSizes(self, path: str) -> None:
+        """Measure the subfolders of this listing (on demand; replaces any running measurement)."""
         self._sizes_generation += 1
-        if self._shutting_down or not self._folder_sizes_enabled:
+        if self._shutting_down:
             return
-        self._sizes_pool.start(FolderSizesTask(self, path, self._sizes_generation))
+        resolved = str(Path(path).expanduser().resolve())
+        self._sizes_pool.start(FolderSizesTask(self, resolved, self._sizes_generation))
+
+    @Slot()
+    def cancelFolderSizes(self) -> None:
+        """Stop measurements of a listing that is no longer shown (energy saving)."""
+        self._sizes_generation += 1
 
     def _sizes_task_current(self, generation: int) -> bool:
         return not self._shutting_down and generation == self._sizes_generation
-
-    @Slot(result=bool)
-    def folderSizesEnabled(self) -> bool:
-        return bool(self._folder_sizes_enabled)
 
     @Slot(result=str)
     def filesViewStyle(self) -> str:
@@ -636,8 +640,11 @@ class Backend(QObject):
     @Slot(result="QVariantMap")
     def filesSort(self) -> dict:
         key = str(self._settings.value("filesSortKey", "name") or "")
+        if key not in self.FILES_SORT_KEYS:
+            # Unknown or no longer persisted key (e.g. "size" from older versions).
+            return {"key": "name", "ascending": True}
         ascending = self._settings.value("filesSortAscending", True, type=bool)
-        return {"key": key if key in self.FILES_SORT_KEYS else "name", "ascending": bool(ascending)}
+        return {"key": key, "ascending": bool(ascending)}
 
     @Slot(str, bool)
     def setFilesSort(self, key: str, ascending: bool) -> None:
@@ -645,13 +652,6 @@ class Backend(QObject):
             self._settings.setValue("filesSortKey", key)
             self._settings.setValue("filesSortAscending", bool(ascending))
 
-    @Slot(bool)
-    def setFolderSizesEnabled(self, enabled: bool) -> None:
-        self._folder_sizes_enabled = bool(enabled)
-        self._settings.setValue("folderSizesEnabled", self._folder_sizes_enabled)
-        if not self._folder_sizes_enabled:
-            # Energy saving: stop measurements already queued or running.
-            self._sizes_generation += 1
 
     def _store_entries(self, path: str, entries: list) -> None:
         with self._entries_lock:
@@ -1035,7 +1035,6 @@ class EntriesTask(QRunnable):
             self._owner._enrich_entries(entries, self._path)
             self._owner._store_entries(self._path, entries)
             self._owner.entriesReady.emit(self._path, entries)
-            self._owner._start_folder_sizes_task(self._path)
         except Exception:
             self._owner._store_entries(self._path, [])
             self._owner.entriesReady.emit(self._path, [])

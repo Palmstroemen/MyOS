@@ -27,13 +27,20 @@ function _known(bytes) {
     return bytes !== undefined && bytes !== null && Number(bytes) >= 0
 }
 
-/// Size column text for a list entry (negative = not measured yet). Folders: "" while
-/// unknown, "> x" while only a lower bound is known (pass 1), "x" when complete.
-function entrySizeText(isDir, isEmbryo, sizeBytes, folderSizeBytes, folderSizeComplete, showFolderSizes) {
+/// Size column text for a list entry (negative = not measured yet). Folders: "–" while
+/// sizes are off (not asked for), "" while measuring, "> x" while only a lower bound is
+/// known (pass 1), "x" when complete.
+function entrySizeText(isDir, isEmbryo, sizeBytes, folderSizeBytes, folderSizeComplete, folderSizesActive) {
     if (!isDir) {
         return _known(sizeBytes) ? formatKilobytes(sizeBytes) : ""
     }
-    if (isEmbryo || !showFolderSizes || !_known(folderSizeBytes)) {
+    if (isEmbryo) {
+        return ""
+    }
+    if (!folderSizesActive) {
+        return "–"
+    }
+    if (!_known(folderSizeBytes)) {
         return ""
     }
     var text = formatKilobytes(folderSizeBytes)
@@ -69,10 +76,10 @@ function visibleListColumns(enabledIds, fontPx) {
 }
 
 /// Cell text of one list row for a column id.
-function listCellText(id, row, showFolderSizes) {
+function listCellText(id, row, folderSizesActive) {
     if (id === "size") {
         return entrySizeText(row.isDir, row.isEmbryo, row.sizeBytes, row.folderSizeBytes,
-            row.folderSizeComplete, showFolderSizes)
+            row.folderSizeComplete, folderSizesActive)
     }
     if (id === "modified") {
         return row.isEmbryo ? "" : formatModified(row.modifiedTs)
