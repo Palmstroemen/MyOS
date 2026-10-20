@@ -14,6 +14,7 @@ try:
     from .smart_editor import SmartEditor
     from .window_layout import WindowLayoutMixin
     from .window_tags import WindowTagsMixin
+    from .window_acls import WindowAclsMixin
     from .window_theme import WindowThemeMixin
 except ImportError:
     from markdown_render import render_markdown
@@ -21,6 +22,7 @@ except ImportError:
     from smart_editor import SmartEditor
     from window_layout import WindowLayoutMixin
     from window_tags import WindowTagsMixin
+    from window_acls import WindowAclsMixin
     from window_theme import WindowThemeMixin
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
@@ -30,7 +32,7 @@ from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent,
 from PySide6.QtGui import QColor, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
 
-class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainWindow):
+class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowThemeMixin, QMainWindow):
     """Main application window."""
     NOTE_STYLE_ALIASES = {
         "postit": "postit",
@@ -195,13 +197,14 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         if hasattr(self.editor, "source_edit"):
             self.editor.source_edit.textChanged.connect(self._on_editor_text_changed)
 
+        # ACL sidebar: hidden until the open note is governed by an ACLs.md
+        # (see WindowAclsMixin._reload_acl_context).
         self.acl_host = QFrame()
-        self._show_acl_dummy = False
-        self.acl_host.setFixedWidth(120 if self._show_acl_dummy else 0)
+        self.acl_host.setFixedWidth(0)
         acl_layout = QVBoxLayout(self.acl_host)
         acl_layout.setContentsMargins(0, 0, 0, 0)
         acl_layout.addWidget(self.left_sidebar)
-        self.acl_host.setVisible(self._show_acl_dummy)
+        self.acl_host.setVisible(False)
 
         # Bottom toolbar
         self.bottom_toolbar = BottomToolbar()
@@ -291,11 +294,9 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
         self.left_mid_host = QFrame()
         left_mid_stack = QStackedLayout(self.left_mid_host)
         left_mid_stack.setStackingMode(QStackedLayout.StackAll)
-        if self._show_acl_dummy:
-            left_mid_stack.addWidget(self.acl_host)
+        left_mid_stack.addWidget(self.acl_host)
         left_mid_stack.addWidget(self.strip_left_mid_host)
-        if self._show_acl_dummy:
-            left_mid_stack.setAlignment(self.acl_host, Qt.AlignRight | Qt.AlignVCenter)
+        left_mid_stack.setAlignment(self.acl_host, Qt.AlignRight | Qt.AlignVCenter)
         left_mid_stack.setAlignment(self.strip_left_mid_host, Qt.AlignRight | Qt.AlignVCenter)
 
         self.right_mid_host = QFrame()
@@ -444,6 +445,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
 
     def _finish_noncritical_startup(self):
         self.apply_theme_color_hex(self.editor.current_bg)
+        self._reload_acl_context()
         if getattr(self.editor, "current_path", None):
             self._reload_tag_context()
         elif hasattr(self.editor, "tagsChanged"):
@@ -609,6 +611,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowThemeMixin, QMainW
             self.editor.sync_title_from_filename(new_base)
         self._schedule_save()
         self._reload_tag_context()
+        self._reload_acl_context()
         self._sync_filename_field_from_path(select_all=False)
 
     def on_note_style_selected(self, _index: int):

@@ -82,6 +82,16 @@ class ACLView:
             return frozenset()
         return self._rights_for_role(str(role).strip().lower(), rel)
 
+    def may_view(self, viewer: Optional[str]) -> bool:
+        """
+        Whether viewer may see these ACLs (who may do what) in a GUI panel.
+        Security: with enforcement on, the panels show the content of ACLs.md, so only a
+        user who may read ACLs.md sees them. viewer None means no enforcement.
+        """
+        if viewer is None:
+            return True
+        return "read" in self.rights_for_user(viewer, self.project_root / ".MyOS" / "ACLs.md")
+
     def rights_for_user(self, user: str, path) -> FrozenSet[str]:
         rel = self.relative_path(path)
         if rel is None:

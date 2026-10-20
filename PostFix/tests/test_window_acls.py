@@ -1,0 +1,138 @@
+"""PostFix ACL sidebar: who may access the open note (left = set by the system)."""
+
+import os
+from pathlib import Path
+
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PostFix import window_acls as wa
+
+ACLS = (
+    "# Permissions\n\n"
+    "## Admin\n- /*: read, write, execute\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    "## Buchhaltung\n- /finanz/: read, write\n- /finanz/geheim/: none\n\n"
+    "# Users\nOliver: Admin\nBertha: Buchhaltung\n"
+)
+
+
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch):
+    for key in ("MYOS_TEMPLATES_DIR", "MYOS_ACL_MODE", "MYOS_ACL_USER"):
+        monkeypatch.delenv(key, raising=False)
+
+
+def _project(tmp_path: Path, acls: str = ACLS) -> Path:
+    root = tmp_path / "Project"
+    (root / ".MyOS").mkdir(parents=True)
+    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    if acls is not None:
+        (root / ".MyOS" / "ACLs.md").write_text(acls)
+    (root / "finanz" / "geheim").mkdir(parents=True)
+    return root
+
+
+def test_principals_of_a_note_roles_then_users_with_ordered_rights(tmp_path):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("# Plan\n")
+
+    principals = wa.acl_principals_for_document(note)
+
+    assert [(p["kind"], p["name"]) for p in principals] == [
+        ("role", "Admin"), ("role", "Buchhaltung"), ("user", "Bertha"), ("user", "Oliver")]
+    assert principals[1]["rights"] == ["read", "write"]
+    assert principals[0]["rights"] == ["read", "write", "execute"]
+
+
+def test_locked_folder_and_no_acls_and_no_file(tmp_path):
+    root = _project(tmp_path)
+    secret = root / "finanz" / "geheim" / "x.md"
+    secret.write_text("x")
+
+    assert [p["name"] for p in wa.acl_principals_for_document(secret)] == ["Admin", "Oliver"]
+    assert wa.acl_principals_for_document(None) == []
+    assert wa.acl_principals_for_document(tmp_path / "loose.md") == []
+
+
+def test_enforced_viewer_without_read_on_acls_sees_nothing(tmp_path, monkeypatch):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("x")
+    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    assert wa.acl_principals_for_document(note) == []
+    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    assert wa.acl_principals_for_document(note) != []
+
+
+class _Sidebar:
+    def __init__(self):
+        self.principals = None
+
+    def set_principals(self, principals):
+        self.principals = list(principals)
+
+    def preferred_width(self):
+        return 130
+
+
+class _Host:
+    def __init__(self):
+        self.visible = None
+        self.width = None
+
+    def setVisible(self, visible):
+        self.visible = visible
+
+    def setFixedWidth(self, width):
+        self.width = width
+
+
+class _Editor:
+    current_path = None
+
+
+class _Window(wa.WindowAclsMixin):
+    def __init__(self):
+        self.left_sidebar = _Sidebar()
+        self.acl_host = _Host()
+        self.editor = _Editor()
+
+
+def test_reload_shows_sidebar_only_with_acls(tmp_path):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("x")
+    w = _Window()
+
+    w.editor.current_path = note
+    w._reload_acl_context()
+    assert w.acl_host.visible is True and w.acl_host.width == 130
+    assert len(w.left_sidebar.principals) == 4
+
+    w.editor.current_path = tmp_path / "loose.md"
+    w._reload_acl_context()
+    assert w.acl_host.visible is False and w.acl_host.width == 0
+    assert w.left_sidebar.principals == []
+
+
+def test_acl_sidebar_builds_one_chip_per_principal():
+    from PySide6.QtWidgets import QApplication, QPushButton
+    from PostFix.ui_panels import ACLSidebar
+
+    app = QApplication.instance() or QApplication([])
+    sidebar = ACLSidebar()
+    sidebar.set_principals([
+        {"name": "Buchhaltung", "kind": "role", "rights": ["read", "write"]},
+        {"name": "Bertha", "kind": "user", "rights": ["read", "write"]},
+    ])
+    app.processEvents()
+
+    chips = [b for b in sidebar.findChildren(QPushButton) if b.isVisibleTo(sidebar)]
+    assert [c.property("aclName") for c in chips] == ["Buchhaltung", "Bertha"]
+    assert "#b5b5b5" in chips[0].styleSheet() and "#d6d6d6" in chips[1].styleSheet()
+    assert "Lesen" in chips[1].toolTip()
+    assert sidebar.preferred_width() > 0

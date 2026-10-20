@@ -235,51 +235,100 @@ class TagSidebar(SidebarWidget):
 
 
 class ACLSidebar(SidebarWidget):
-    """Left sidebar for ACLs (fake implementation)."""
+    """
+    Left sidebar: roles and people with rights on the open note (from its ACLs.md).
+    Each chip shows the rights in short form on the left and the name on the right;
+    people in a lighter grey than groups, as in Scope's ACL panel.
+    """
+
+    RIGHT_LETTERS = {"read": "r", "write": "w", "execute": "x", "change": "c"}
+    CHIP_COLORS = {"user": "#d6d6d6", "role": "#b5b5b5"}
 
     def __init__(self):
         super().__init__("ACLs", "rgba(200, 220, 240, 60)")
+        self.principals = []
         self.setup_ui()
         self.retranslate_ui()
 
     def setup_ui(self):
+        self._rebuild()
+
+    def set_principals(self, principals):
+        self.principals = [dict(p) for p in principals or []]
+        self._rebuild()
+
+    def _right_names(self, rights) -> str:
+        names = {
+            "read": self.tr("Lesen"),
+            "write": self.tr("Schreiben"),
+            "execute": self.tr("Ausführen"),
+            "change": self.tr("Rechte ändern"),
+        }
+        return ", ".join(names.get(r, r) for r in rights)
+
+    def _chip_text(self, principal) -> tuple[str, str]:
+        rights = " ".join(self.RIGHT_LETTERS.get(r, r) for r in principal.get("rights", []))
+        return rights, f"{principal.get('name', '')}  ▸"
+
+    def preferred_width(self) -> int:
+        """Width that fits the widest chip (rights, name, margins)."""
+        metrics = self.fontMetrics()
+        widest = 0
+        for principal in self.principals:
+            rights, name = self._chip_text(principal)
+            widest = max(widest, metrics.horizontalAdvance(rights) + metrics.horizontalAdvance(name))
+        return widest + 48 if self.principals else 0
+
+    def _rebuild(self):
         layout = self.layout()
         layout.setContentsMargins(0, 8, 0, 8)
         while layout.count():
             item = layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        people = ["Alfred", "Bertha", "Christian", "Doris"]
-        groups = ["Buchhaltung", "Entwicklung", "Dokumentation"]
-        acl_items = [(name, "#d6d6d6") for name in people] + [(name, "#b5b5b5") for name in groups]
-        for item, bg in acl_items:
-            btn = QPushButton(f"{item}  ▸")
+        for principal in self.principals:
+            bg = self.CHIP_COLORS.get(principal.get("kind"), self.CHIP_COLORS["role"])
+            rights, name = self._chip_text(principal)
+            btn = QPushButton()
+            btn.setProperty("aclName", principal.get("name", ""))
             btn.setStyleSheet(
                 f"""
                 QPushButton {{
                     background-color: {bg};
-                    color: #333333;
-                    border: none;
+                    border: 1px solid rgba(0, 0, 0, 60);
                     border-top-left-radius: 2px;
                     border-bottom-left-radius: 2px;
                     border-top-right-radius: 12px;
                     border-bottom-right-radius: 12px;
-                    text-align: right;
                     padding: 4px 8px;
                     margin: 3px;
                 }}
                 QPushButton:hover {{
                     background-color: {bg};
-                    border: 1px solid #9a9a9a;
+                    border: 2px solid rgba(0, 0, 0, 95);
                 }}
+                QLabel {{ background: transparent; border: none; font-weight: normal; }}
             """
             )
-            btn.setCursor(Qt.PointingHandCursor)
+            row = QHBoxLayout(btn)
+            row.setContentsMargins(8, 0, 8, 0)
+            rights_label = QLabel(rights)
+            rights_label.setStyleSheet("color: #555555;")
+            name_label = QLabel(name)
+            name_label.setStyleSheet("color: #333333;")
+            name_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            row.addWidget(rights_label)
+            row.addStretch(1)
+            row.addWidget(name_label)
+            kind = self.tr("Person") if principal.get("kind") == "user" else self.tr("Gruppe")
+            btn.setToolTip(f"{kind}: {self._right_names(principal.get('rights', []))}")
+            btn.setMinimumHeight(row.sizeHint().height() + 8)
             layout.addWidget(btn)
         layout.addStretch()
 
     def retranslate_ui(self):
         self.set_title_text(self.tr("ACLs"))
+        self._rebuild()
 
 
 class BottomToolbar(QWidget):

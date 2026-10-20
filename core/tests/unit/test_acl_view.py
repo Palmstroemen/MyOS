@@ -252,3 +252,13 @@ def test_subproject_with_own_acls_uses_them(tmp_path):
     assert view.project_root == sub.resolve()
     assert view.rights_for_user("mia", sub) == {"read"}
     assert view.rights_for_user("karl", sub) == set()
+
+
+def test_may_view_requires_read_on_acls_file_for_a_named_viewer(tmp_path):
+    root = _project(tmp_path, ACLS.replace("- /.MyOS/ACLs.md: change\n", "- /.MyOS/ACLs.md: read, change\n"))
+    view = ACLView.for_path(root)
+
+    assert view.may_view(None) is True  # no enforcement: everybody sees the panel
+    assert view.may_view("anna") is True  # Admin
+    assert view.may_view("karl") is False
+    assert view.may_view("nobody") is False
