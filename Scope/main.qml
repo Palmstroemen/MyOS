@@ -178,6 +178,8 @@ ApplicationWindow {
     property bool folderSizesEnabled: true
     /// FilesPanel view: "largeIcon" (tiles) or "smallIcon" (list); persisted per user by the backend.
     property string filesItemStyle: "largeIcon"
+    /// Visible list view columns (ids, see Scope/js/FormatUtils.js); persisted per user by the backend.
+    property var filesListColumns: ["modified", "size"]
     property string tagMatchMode: "or" // or | and
     property bool projectsShowEmbryos: false
     property bool projectsShowHiddenFolders: false
@@ -1785,6 +1787,7 @@ ApplicationWindow {
         if (row.sizeBytes === undefined || row.sizeBytes === null) row.sizeBytes = -1
         if (row.folderSizeBytes === undefined || row.folderSizeBytes === null) row.folderSizeBytes = -1
         if (row.folderSizeComplete === undefined || row.folderSizeComplete === null) row.folderSizeComplete = false
+        if (row.modifiedTs === undefined || row.modifiedTs === null) row.modifiedTs = -1
         return row
     }
 
@@ -2275,6 +2278,9 @@ ApplicationWindow {
         }
         if (hasBackend() && typeof backend.filesViewStyle === "function") {
             filesItemStyle = backend.filesViewStyle()
+        }
+        if (hasBackend() && typeof backend.filesListColumns === "function") {
+            filesListColumns = backend.filesListColumns()
         }
         var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
         if (!hasBackend() && (!startPath || startPath === cwp)) {
@@ -3483,6 +3489,13 @@ ApplicationWindow {
             iconFile: window.iconFile
             iconGear: window.iconGear
             itemStyle: window.filesItemStyle
+            listColumns: window.filesListColumns
+            onListColumnsChangeRequested: function(columns) {
+                window.filesListColumns = columns
+                if (hasBackend() && typeof backend.setFilesListColumns === "function") {
+                    backend.setFilesListColumns(columns)
+                }
+            }
             onItemStyleToggleRequested: {
                 window.filesItemStyle = window.filesItemStyle === "largeIcon" ? "smallIcon" : "largeIcon"
                 if (hasBackend() && typeof backend.setFilesViewStyle === "function") {

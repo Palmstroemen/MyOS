@@ -58,6 +58,27 @@ Rectangle { // Files panel
     property string iconGear: ""
     /// "largeIcon" (tiles) or "smallIcon" (list with right-aligned size column).
     property string itemStyle: "largeIcon"
+    /// Visible list view columns (ids); the name column is always shown.
+    property var listColumns: ["modified", "size"]
+    readonly property int listDetailFontPx: Math.max(9, Math.round(baseFont * 0.85))
+    readonly property var visibleListColumns: FormatUtils.visibleListColumns(listColumns, listDetailFontPx)
+
+    function listColumnTitle(id) {
+        if (id === "size") return qsTr("Größe")
+        if (id === "modified") return qsTr("Geändert")
+        return id
+    }
+
+    function toggleListColumn(id) {
+        var next = []
+        for (var i = 0; i < FormatUtils.LIST_COLUMNS.length; i++) {
+            var colId = FormatUtils.LIST_COLUMNS[i].id
+            var on = listColumns.indexOf(colId) !== -1
+            if (colId === id) on = !on
+            if (on) next.push(colId)
+        }
+        listColumnsChangeRequested(next)
+    }
     /// Folder currently listed (may be an unborn embryo); target for drops on free panel space.
     property string currentPath: ""
     signal folderActivated(string name)
@@ -71,6 +92,8 @@ Rectangle { // Files panel
     signal xrayClicked()
     /// Side panel button: switch between tiles and list.
     signal itemStyleToggleRequested()
+    /// Header context menu: new set of visible list columns (ids, see FormatUtils.LIST_COLUMNS).
+    signal listColumnsChangeRequested(var columns)
     property bool showLeaveMyosButton: false
     property bool hasProjectInCwp: false
     property bool hasMyosDirInCwp: false
@@ -968,6 +991,69 @@ Rectangle { // Files panel
         anchors.rightMargin: sidePanel.width + root.filesPanelFrameMarginRight + root.filesPanelContentPadding
         spacing: 8
 
+        // List view header: column titles aligned with the row cells; right-click selects columns.
+        Item {
+            id: listHeader
+            Layout.fillWidth: true
+            Layout.preferredHeight: visible ? Math.round(root.listDetailFontPx * 1.8) : 0
+            visible: root.itemStyle !== "largeIcon"
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12 + root.iconSizeSmall
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Name")
+                color: root.textMuted
+                font.pixelSize: root.listDetailFontPx
+                font.bold: true
+            }
+            Row {
+                anchors.right: parent.right
+                // Rows are cellWidth - gridSpacing wide with an 8px inner margin (FolderItem).
+                anchors.rightMargin: root.gridSpacing + 8
+                anchors.verticalCenter: parent.verticalCenter
+                Repeater {
+                    model: root.visibleListColumns
+                    delegate: Text {
+                        width: modelData.width
+                        horizontalAlignment: Text.AlignRight
+                        text: root.listColumnTitle(modelData.id)
+                        color: root.textMuted
+                        font.pixelSize: root.listDetailFontPx
+                        font.bold: true
+                        elide: Text.ElideLeft
+                    }
+                }
+            }
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.rightMargin: root.gridSpacing
+                anchors.bottom: parent.bottom
+                height: 1
+                color: root.itemBorderColor
+            }
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                onClicked: function(mouse) {
+                    listColumnsMenu.popup()
+                }
+            }
+            Menu {
+                id: listColumnsMenu
+                Repeater {
+                    model: FormatUtils.LIST_COLUMNS
+                    delegate: MenuItem {
+                        text: root.listColumnTitle(modelData.id)
+                        checkable: true
+                        checked: root.listColumns.indexOf(modelData.id) !== -1
+                        onTriggered: root.toggleListColumn(modelData.id)
+                    }
+                }
+            }
+        }
+
         GridView {
             id: filesGrid
             Layout.fillWidth: true
@@ -1017,8 +1103,15 @@ Rectangle { // Files panel
                 strokeColor: selected ? Qt.rgba(0.74, 0.76, 0.80, 0.92) : root.itemBorderColor
                 textColor: root.text
                 textSize: root.baseFont
-                detailText: FormatUtils.entrySizeText(model.isDir, model.isEmbryo, model.sizeBytes,
-                    model.folderSizeBytes, model.folderSizeComplete, root.showFolderSizes)
+                detailColumns: {
+                    if (root.itemStyle === "largeIcon") return []
+                    var cells = []
+                    for (var c = 0; c < root.visibleListColumns.length; c++) {
+                        var col = root.visibleListColumns[c]
+                        cells.push({ text: FormatUtils.listCellText(col.id, model, root.showFolderSizes), width: col.width })
+                    }
+                    return cells
+                }
                 largeIconAlignLeft: false
                 // Drags are run by the panel (fileDragHandler), not by the delegate:
                 // a list refresh mid-drag would destroy a delegate-owned drag.

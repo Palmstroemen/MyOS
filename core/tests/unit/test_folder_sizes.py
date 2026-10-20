@@ -155,3 +155,20 @@ def test_list_entries_skips_details_of_unreadable_children(tmp_path):
         locked.chmod(0o755)
 
     assert {"ok.txt", "Locked"} <= names
+
+
+def test_entries_carry_modification_time(tmp_path):
+    """List view column "Geändert": files and folders carry their mtime; embryos do not."""
+    import os
+
+    root = _project(tmp_path)
+    (root / "a.txt").write_text("x", encoding="utf-8")
+    (root / "Folder").mkdir()
+    os.utime(root / "a.txt", (1_700_000_000, 1_700_000_000))
+    os.utime(root / "Folder", (1_600_000_000, 1_600_000_000))
+    api = ScopeApi(str(root))
+
+    for entries in (api.list_entries(str(root)), api.list_entries_quick(str(root), False)):
+        by_name = {e["name"]: e for e in entries}
+        assert by_name["a.txt"]["modifiedTs"] == 1_700_000_000
+        assert by_name["Folder"]["modifiedTs"] == 1_600_000_000

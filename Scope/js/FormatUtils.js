@@ -39,3 +39,43 @@ function entrySizeText(isDir, isEmbryo, sizeBytes, folderSizeBytes, folderSizeCo
     var text = formatKilobytes(folderSizeBytes)
     return folderSizeComplete ? text : "> " + text
 }
+
+/// Local date and time in the locale's short format, e.g. "20.10.26 09:24".
+function formatModified(ts) {
+    var value = Number(ts)
+    if (!isFinite(value) || value < 0) return ""
+    // QML enums are not visible in .pragma library scripts; 1 == Locale.ShortFormat.
+    var locale = Qt.locale()
+    return new Date(value * 1000).toLocaleString(locale, locale.dateTimeFormat(1))
+}
+
+/// List view columns (right of the name), in display order. Width in multiples of the
+/// font size. Titles are translated in QML (FilesPanel.listColumnTitle).
+var LIST_COLUMNS = [
+    { id: "modified", widthEm: 9 },
+    { id: "size", widthEm: 7 }
+]
+
+/// Visible columns as [{id, width}] in display order.
+function visibleListColumns(enabledIds, fontPx) {
+    var out = []
+    for (var i = 0; i < LIST_COLUMNS.length; i++) {
+        var col = LIST_COLUMNS[i]
+        if (enabledIds && enabledIds.indexOf(col.id) !== -1) {
+            out.push({ id: col.id, width: Math.round(col.widthEm * fontPx) })
+        }
+    }
+    return out
+}
+
+/// Cell text of one list row for a column id.
+function listCellText(id, row, showFolderSizes) {
+    if (id === "size") {
+        return entrySizeText(row.isDir, row.isEmbryo, row.sizeBytes, row.folderSizeBytes,
+            row.folderSizeComplete, showFolderSizes)
+    }
+    if (id === "modified") {
+        return row.isEmbryo ? "" : formatModified(row.modifiedTs)
+    }
+    return ""
+}

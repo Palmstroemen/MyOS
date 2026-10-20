@@ -35,8 +35,14 @@ Rectangle {
     onRenamingChanged: if (renaming) _renameEditText = renameText
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
-    /// Right-aligned detail (e.g. size) shown in the list style ("smallIcon") only.
-    property string detailText: ""
+    /// List style ("smallIcon") only: right-aligned columns [{text, width}], e.g. modified and
+    /// size; widths match the FilesPanel header so columns line up.
+    property var detailColumns: []
+    readonly property int detailColumnsWidth: {
+        var total = 0
+        for (var i = 0; i < detailColumns.length; i++) total += detailColumns[i].width
+        return total
+    }
     property bool dragEnabled: false
     property bool allowDrops: false
     property string dragPayload: ""
@@ -321,25 +327,33 @@ Rectangle {
             y: textYOffset
             visible: !renaming
             // Leave room for the detail column instead of running into it.
-            width: detailText !== ""
-                ? Math.min(implicitWidth, Math.max(0, root.width - iconSmall - 24 - smallIconDetail.implicitWidth))
+            width: detailColumns.length > 0
+                ? Math.min(implicitWidth, Math.max(0, root.width - iconSmall - 24 - root.detailColumnsWidth))
                 : implicitWidth
             elide: Text.ElideRight
         }
     }
 
-    Text {
-        id: smallIconDetail
+    Row {
+        id: smallIconDetails
         // root.* throughout: inside a Text, a bare "style" would be Text.style.
-        visible: root.style === "smallIcon" && root.detailText !== "" && !root.renaming
+        visible: root.style === "smallIcon" && root.detailColumns.length > 0 && !root.renaming
         anchors.right: parent.right
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root.textYOffset
-        text: root.detailText
-        color: root.textColor
-        opacity: 0.7
-        font.pixelSize: Math.max(9, Math.round(root.textSize * 0.85))
+        Repeater {
+            model: root.detailColumns
+            delegate: Text {
+                width: modelData.width
+                horizontalAlignment: Text.AlignRight
+                text: modelData.text
+                color: root.textColor
+                opacity: 0.7
+                font.pixelSize: Math.max(9, Math.round(root.textSize * 0.85))
+                elide: Text.ElideLeft
+            }
+        }
     }
 
     Column {

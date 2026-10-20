@@ -272,6 +272,8 @@ class Backend(QObject):
     folderSizesReady = Signal(str, "QVariantList")
     # FilesPanel views: tiles and list.
     FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
+    # List view columns right of the name (ids as in Scope/js/FormatUtils.js).
+    FILES_LIST_COLUMNS = ("modified", "size")
     THUMBNAIL_REFRESH_DEBOUNCE_MS = 220
     THUMBNAIL_REFRESH_RETRY_MS = 180
     THUMBNAIL_REFRESH_MAX_RETRIES = 8
@@ -614,6 +616,20 @@ class Backend(QObject):
     def setFilesViewStyle(self, style: str) -> None:
         if style in self.FILES_VIEW_STYLES:
             self._settings.setValue("filesViewStyle", style)
+
+    @Slot(result="QStringList")
+    def filesListColumns(self) -> list:
+        raw = self._settings.value("filesListColumns", None)
+        if raw is None:
+            return list(self.FILES_LIST_COLUMNS)
+        # Stored as comma string: QSettings returns a plain string for one-element lists.
+        ids = [part for part in str(raw).split(",") if part in self.FILES_LIST_COLUMNS]
+        return ids
+
+    @Slot("QStringList")
+    def setFilesListColumns(self, columns) -> None:
+        ids = [str(c) for c in (columns or []) if str(c) in self.FILES_LIST_COLUMNS]
+        self._settings.setValue("filesListColumns", ",".join(ids))
 
     @Slot(bool)
     def setFolderSizesEnabled(self, enabled: bool) -> None:

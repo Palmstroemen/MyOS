@@ -292,6 +292,7 @@ class FileEntry(TypedDict):
 class FileEntryWithOptionalEmbryo(FileEntry, total=False):
     isEmbryo: bool
     sizeBytes: int
+    modifiedTs: float
     # Filled in later by Scope's live measurement (measure_folder_size).
     folderSizeBytes: int
 
@@ -2230,11 +2231,15 @@ class ScopeApi:
         }
         if is_embryo:
             entry["isEmbryo"] = True
+            return entry
+        # One stat for the list view's columns; folder sizes come from live measurement.
+        try:
+            info = os.stat(path)
+        except OSError:
+            return entry
+        entry["modifiedTs"] = float(info.st_mtime)
         if not is_dir:
-            try:
-                entry["sizeBytes"] = int(os.stat(path).st_size)
-            except OSError:
-                pass
+            entry["sizeBytes"] = int(info.st_size)
         return entry
 
     # How often (in entries) a running measurement asks whether it should go on.
