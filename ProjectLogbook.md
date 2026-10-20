@@ -30,6 +30,7 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Learning MyOS weiter ausbauen
 [ ] Demodaten als Playground
 [ ] Scope UI verfeinern  
+    [ ] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
 [ ] PostFix UI verfeinern und Exporter bauen
 [ ] Distribution erstellen
 [ ] Demo virtualisieren (Remote-Desktop-Setup) zum Code-Schutz
