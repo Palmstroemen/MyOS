@@ -83,20 +83,23 @@ class ACLPolicy:
         user_key = username.strip().lower()
         return self.users.get(user_key, set())
 
-    def can_access(self, role: str, path: str, right: str = "read") -> bool:
+    def rights_for(self, role: str, path: str) -> Set[str]:
+        """
+        Rights of a role at path as written in ACLs.md ("*" = all, "none" = locked out).
+        Per role the nearest rule wins: a rule on a deeper folder replaces what the role
+        would inherit from rules on its parents, also when it grants less.
+        """
         role_key = _normalize_role(role)
-        path_key = _normalize_path(path)
-        right_key = right.strip().lower()
-
         if role_key not in self.roles:
-            return False
+            return set()
+        rights: Set[str] = set()
+        for rule in _nearest_rules(self.permissions.get(role_key, []), _normalize_path(path)):
+            rights |= set(rule.rights)
+        return rights
 
-        rules = self.permissions.get(role_key, [])
-        for rule in rules:
-            if _path_matches(rule.path, path_key):
-                if "*" in rule.rights or right_key in rule.rights:
-                    return True
-        return False
+    def can_access(self, role: str, path: str, right: str = "read") -> bool:
+        rights = self.rights_for(role, path)
+        return "*" in rights or right.strip().lower() in rights
 
 
 class ACLAuthorizer:
@@ -160,6 +163,30 @@ def _path_matches(rule_path: str, target_path: str) -> bool:
     return False
 
 
+def _rule_base(rule_path: str) -> str:
+    """Folder a rule is written for: /finanz/** and /finanz/* -> /finanz, /* -> root."""
+    parts = []
+    for part in rule_path.split("/"):
+        if any(ch in part for ch in "*?["):
+            break
+        parts.append(part)
+    return _normalize_path("/".join(parts) or "/")
+
+
+def _rule_depth(rule_path: str) -> int:
+    """How deep in the tree a rule's folder is (root = 0)."""
+    return len([part for part in _rule_base(rule_path).split("/") if part])
+
+
+def _nearest_rules(rules: Iterable[PermissionRule], target_path: str) -> List[PermissionRule]:
+    """Rules of one role that match target_path and are written for the deepest folder."""
+    matching = [rule for rule in rules if _path_matches(rule.path, target_path)]
+    if not matching:
+        return []
+    depth = max(_rule_depth(rule.path) for rule in matching)
+    return [rule for rule in matching if _rule_depth(rule.path) == depth]
+
+
 def _build_casbin_enforcer(policy: ACLPolicy):
     if _casbin is None:  # pragma: no cover - guarded by caller
         return None
@@ -178,12 +205,19 @@ g = _, _
 e = some(where (p.eft == allow))
 
 [matchers]
-m = g(r.sub, p.sub) && pathMatch(r.obj, p.obj) && (p.act == "*" || p.act == r.act)
+m = g(r.sub, p.sub) && pathMatch(r.obj, p.obj) && nearestRule(r.obj, p.obj, p.sub) && (p.act == "*" || p.act == r.act)
 """
     model = _casbin.model.Model()
     model.load_model_from_text(model_conf)
     enforcer = _casbin.Enforcer(model)
     enforcer.add_function("pathMatch", _casbin_path_match)
+
+    def _casbin_nearest_rule(request_path: str, policy_path: str, role: str) -> bool:
+        # Same "nearest rule per role wins" as ACLPolicy.rights_for, so both backends agree.
+        nearest = _nearest_rules(policy.permissions.get(str(role), []), str(request_path or ""))
+        return any(rule.path == str(policy_path) for rule in nearest)
+
+    enforcer.add_function("nearestRule", _casbin_nearest_rule)
 
     for role, rules in policy.permissions.items():
         for rule in rules:

@@ -3,10 +3,11 @@
 ## Folder
 - /{Folder}/: read, write
 - /01_Info/: read
+- /07_Arbeit/Vertraulich/: none
 
 ## Admin
 - /*: read, write, execute
-- /.MyOS/ACLs.md: change
+- /.MyOS/ACLs.md: read, write, change
 
 ## Buchhaltung
 - /04_Finanz/: read, write
@@ -14,6 +15,7 @@
 
 ## Team
 - /07_Arbeit/: read, write
+- /07_Arbeit/Vertraulich/: none
 - /08_Dokumentation/: read
 
 ## Geschäftsleitung

@@ -25,7 +25,8 @@ Recommended sections:
 - /info/: read
 
 ## Admin
-- /*: read, write, execute, change
+- /*: read, write, execute
+- /.MyOS/ACLs.md: read, write, change
 
 ## Buchhalter
 - /finanz/: read, write, execute
@@ -36,6 +37,7 @@ Recommended sections:
 - /ressources/: read
 - /ressources/datenblaetter/: read, write
 - /work/scrum/: read, write, execute
+- /work/personal/: none
 
 # Users
 anna: Admin
@@ -47,6 +49,15 @@ Notes:
 - `change` only grants write access to `.MyOS/ACLs.md` (ACL management).
 - Paths are **relative to the project root** (e.g. `/finanz/`).
 - `*` can be used as a wildcard path (e.g. `/*: read, write`).
+- **Nearest rule wins (per role):** a rule on a deeper folder *replaces* what the role
+  would inherit from rules on its parent folders – also when it grants less. So rights
+  can be taken away in sub-folders. `none` locks a role out of a folder
+  (e.g. `/work/personal/: none`). Roles without a rule on the sub-folder keep inheriting.
+  Rules written for the same folder (`/finanz/` and `/finanz/**`) are combined.
+- A user's rights are the **union of their roles**: if one role is locked out of a folder
+  but another role of the same user may enter it, the user may enter it.
+- Because the nearest rule wins, a file-specific rule must list all intended rights
+  (e.g. `/.MyOS/ACLs.md: read, write, change`, not just `change`).
 - If no `inherit` is defined, the default is **`dynamic`**.
 
 ---

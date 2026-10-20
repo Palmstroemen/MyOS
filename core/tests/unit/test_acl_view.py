@@ -119,3 +119,20 @@ def test_for_path_finds_the_project_from_any_depth(tmp_path):
 
     assert view is not None
     assert view.project_root == root.resolve()
+
+
+def test_locked_out_role_is_not_listed_and_folder_has_own_rules(tmp_path):
+    root = _project(tmp_path, ACLS.replace(
+        "- /rechtliches/: read\n",
+        "- /rechtliches/: read\n- /finanz/geheim/: none\n",
+    ))
+    view = ACLView.for_path(root)
+    geheim = root / "finanz" / "geheim"
+
+    names = {p.name for p in view.principals(geheim)}
+
+    assert "Buchhalter" not in names
+    assert "Karl" not in names  # his other role (Entwickler) has no rule here either
+    assert "Admin" in names and "Anna" in names
+    assert view.rights_for_user("karl", geheim) == set()
+    assert view.has_own_rules(geheim) is True

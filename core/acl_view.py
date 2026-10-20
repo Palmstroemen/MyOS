@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, FrozenSet, List, Optional, Tuple
 
-from core.acl import ACLPolicy, _normalize_path, _path_matches
+from core.acl import ACLPolicy, _normalize_path, _rule_base
 from core.project import ProjectFinder
 
 # Rights a "*" grant stands for (ACL design document, MVP rights set).
@@ -75,12 +75,10 @@ class ACLView:
         return "/" if text in ("", ".") else "/" + text
 
     def _rights_for_role(self, role: str, rel: str) -> FrozenSet[str]:
-        key = _normalize_path(rel)
-        rights = set()
-        for rule in self.policy.permissions.get(role, []):
-            if _path_matches(rule.path, key):
-                rights |= ALL_RIGHTS if "*" in rule.rights else rule.rights
-        return frozenset(rights)
+        rights = self.policy.rights_for(role, rel)
+        if "*" in rights:
+            return ALL_RIGHTS
+        return frozenset(rights - {"none"})
 
     def rights_for_role(self, role: str, path) -> FrozenSet[str]:
         rel = self.relative_path(path)
@@ -127,12 +125,3 @@ class ACLView:
                     return True
         return False
 
-
-def _rule_base(rule_path: str) -> str:
-    """Folder a rule is written for: /finanz/** and /finanz/* -> /finanz, /* -> root."""
-    parts = []
-    for part in rule_path.split("/"):
-        if any(ch in part for ch in "*?["):
-            break
-        parts.append(part)
-    return _normalize_path("/".join(parts) or "/")

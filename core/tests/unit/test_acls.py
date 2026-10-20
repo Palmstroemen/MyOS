@@ -239,3 +239,75 @@ def test_display_names_keep_original_case(tmp_path):
     assert policy.display_name("buchhaltung") == "Buchhaltung"
     assert policy.display_name("04_finanz") == "04_Finanz"
     assert policy.display_name("unknown") == "unknown"
+
+
+# --- Nearest rule per role wins (rights can be taken away in sub-folders) ---
+
+def _nearest_policy():
+    from core.acl import ACLPolicy, PermissionRule
+
+    return ACLPolicy(
+        roles={"team", "gl", "admin", "reader"},
+        permissions={
+            "team": [
+                PermissionRule(path="/07_Arbeit", rights={"read", "write"}),
+                PermissionRule(path="/07_Arbeit/Vertraulich", rights={"none"}),
+            ],
+            "gl": [PermissionRule(path="/07_Arbeit/Vertraulich", rights={"read", "write"})],
+            "admin": [PermissionRule(path="/*", rights={"*"})],
+            "reader": [
+                PermissionRule(path="/Archiv", rights={"read", "write"}),
+                PermissionRule(path="/Archiv/Alt", rights={"read"}),
+                PermissionRule(path="/Docs/**", rights={"read"}),
+                PermissionRule(path="/Docs", rights={"write"}),
+            ],
+        },
+        users={"anna": {"team"}, "karl": {"team", "gl"}},
+    )
+
+
+NEAREST_CHECKS = [
+    # none at a sub-folder locks the role out there, the rest of the parent stays open
+    ("team", "/07_Arbeit/Vertraulich", "read", False),
+    ("team", "/07_Arbeit/Vertraulich/plan.md", "write", False),
+    ("team", "/07_Arbeit/Projekt", "write", True),
+    # roles not named at the sub-folder are unaffected
+    ("gl", "/07_Arbeit/Vertraulich", "write", True),
+    ("admin", "/07_Arbeit/Vertraulich", "read", True),
+    # a deeper rule with fewer rights replaces the inherited ones
+    ("reader", "/Archiv/Alt/x", "write", False),
+    ("reader", "/Archiv/Alt/x", "read", True),
+    ("reader", "/Archiv/Neu", "write", True),
+    # rules written for the same folder (/Docs and /Docs/**) are combined
+    ("reader", "/Docs/a", "read", True),
+    ("reader", "/Docs/a", "write", True),
+]
+
+
+@pytest.mark.parametrize("role,path,right,expected", NEAREST_CHECKS)
+def test_nearest_rule_per_role_wins(role, path, right, expected):
+    assert _nearest_policy().can_access(role, path, right) is expected
+
+
+def test_user_rights_are_the_union_of_their_roles():
+    from core.acl import ACLAuthorizer
+
+    authorizer = ACLAuthorizer(_nearest_policy(), backend="legacy")
+
+    assert not authorizer.can_user_access("anna", "/07_Arbeit/Vertraulich", "read")
+    assert authorizer.can_user_access("karl", "/07_Arbeit/Vertraulich", "read")
+
+
+def test_nearest_rule_casbin_parity_if_installed():
+    import core.acl as acl_module
+    from core.acl import ACLAuthorizer
+
+    if acl_module._casbin is None:
+        pytest.skip("casbin not installed in test environment")
+
+    casbin_auth = ACLAuthorizer(_nearest_policy(), backend="casbin")
+    assert casbin_auth.backend == "casbin"
+    for role, path, right, expected in NEAREST_CHECKS:
+        assert casbin_auth.can_access(role, path, right) is expected, (role, path, right)
+    assert not casbin_auth.can_user_access("anna", "/07_Arbeit/Vertraulich", "read")
+    assert casbin_auth.can_user_access("karl", "/07_Arbeit/Vertraulich", "read")
