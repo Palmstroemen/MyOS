@@ -30,7 +30,7 @@ def test_scope_api_acl_mode_monitor_enables_service_from_env(monkeypatch, tmp_pa
 
     monkeypatch.setattr(
         "core.scope_api.ACLAuthorizer.from_project",
-        classmethod(lambda cls, project_root, backend="auto": _stub_authorizer(backend)),
+        classmethod(lambda cls, project_root, backend="auto", context=None: _stub_authorizer(backend)),
     )
 
     api = ScopeApi(str(tmp_path))
@@ -50,7 +50,7 @@ def test_scope_api_acl_env_sets_default_project_audit_file(monkeypatch, tmp_path
     monkeypatch.delenv("MYOS_ACL_AUDIT_FILE", raising=False)
     monkeypatch.setattr(
         "core.scope_api.ACLAuthorizer.from_project",
-        classmethod(lambda cls, project_root, backend="auto": _stub_authorizer(backend)),
+        classmethod(lambda cls, project_root, backend="auto", context=None: _stub_authorizer(backend)),
     )
 
     api = ScopeApi(str(root))
@@ -66,7 +66,7 @@ def test_scope_api_acl_env_respects_custom_audit_file(monkeypatch, tmp_path):
     monkeypatch.setenv("MYOS_ACL_AUDIT_FILE", str(custom))
     monkeypatch.setattr(
         "core.scope_api.ACLAuthorizer.from_project",
-        classmethod(lambda cls, project_root, backend="auto": _stub_authorizer(backend)),
+        classmethod(lambda cls, project_root, backend="auto", context=None: _stub_authorizer(backend)),
     )
 
     api = ScopeApi(str(tmp_path))

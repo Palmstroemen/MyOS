@@ -1432,7 +1432,9 @@ class ScopeApi:
         # (rules inherit directly); checking it against no rules would hide everything.
         root = find_acl_project_root(self.project_root or self.start_path) or self.project_root or self.start_path
         try:
-            authorizer = ACLAuthorizer.from_project(root, backend=backend)
+            # The folder rules apply again to the template folders of the current
+            # subproject (ACLPolicy.for_context); update_context reconfigures this.
+            authorizer = ACLAuthorizer.from_project(root, backend=backend, context=self.project_root)
         except Exception:
             self._acl_enforcement = None
             self._acl_audit_file = None

@@ -32,6 +32,7 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Scope UI verfeinern  
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
 [ ] PostFix UI verfeinern und Exporter bauen
+    [ ] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
 [ ] Distribution erstellen
 [ ] Demo virtualisieren (Remote-Desktop-Setup) zum Code-Schutz
 [ ] Vielsprachigkeit vorbereiten (i18n/L10n)

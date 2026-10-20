@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, FrozenSet, List, Optional, Tuple
 
 from core.acl import ACLPolicy, _normalize_path, _rule_base, find_acl_project_root
+from core.project import ProjectFinder
 
 # Rights a "*" grant stands for (ACL design document, MVP rights set), in display order.
 RIGHTS_ORDER = ("read", "write", "execute", "change", "delete")
@@ -33,8 +34,10 @@ class ACLView:
     them, and maps them to the project-relative paths ACLs.md is written in.
     """
 
-    # project root -> (ACLs.md mtime, view); reloaded when the file changes.
-    _cache: Dict[Path, Tuple[float, "ACLView"]] = {}
+    # (project root, context project) -> (ACLs.md mtime, view); reloaded when the file
+    # changes. The context is the (sub)project the path lies in: the folder rules apply
+    # again to its template folders (ACLPolicy.for_context).
+    _cache: Dict[Tuple[Path, Path], Tuple[float, "ACLView"]] = {}
 
     def __init__(self, policy: ACLPolicy, project_root: Path) -> None:
         self.policy = policy
@@ -51,14 +54,20 @@ class ACLView:
             mtime = acl_file.stat().st_mtime
         except OSError:
             return None
-        cached = cls._cache.get(root)
+        try:
+            context = ProjectFinder.find_nearest(Path(path).expanduser().resolve())
+        except OSError:
+            context = None
+        context = context.resolve() if context is not None else root
+        key = (root, context)
+        cached = cls._cache.get(key)
         if cached is not None and cached[0] == mtime:
             return cached[1]
         try:
-            view = cls(ACLPolicy.from_project(root), root)
+            view = cls(ACLPolicy.from_project(root).for_context(root, context), root)
         except Exception:
             return None
-        cls._cache[root] = (mtime, view)
+        cls._cache[key] = (mtime, view)
         return view
 
     def relative_path(self, path) -> Optional[str]:

@@ -80,3 +80,29 @@ def test_subproject_is_enforced_with_the_parent_acls(tmp_path, monkeypatch):
     api = ScopeApi(str(sub))
 
     assert [e["name"] for e in api.list_entries(str(sub)) if not e["name"].startswith(".")] == ["rechnungen"]
+
+
+def test_folder_rules_are_enforced_in_subproject_template_folders(tmp_path, monkeypatch):
+    root = tmp_path / "Project"
+    (root / ".MyOS").mkdir(parents=True)
+    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / "Templates" / "Standard" / "finanz").mkdir(parents=True)
+    (root / ".MyOS" / "ACLs.md").write_text(
+        "# Permissions\n\n## Folder\n- /{Folder}/: read, write\n\n## Familie\n- /Familie/: read\n\n"
+        "# Users\nBertha: finanz, Familie\n"
+    )
+    sub = root / "Familie"
+    (sub / ".MyOS").mkdir(parents=True)
+    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (sub / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (sub / "finanz").mkdir()
+    (sub / "finanz" / "beleg.md").write_text("x")
+    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+
+    api = ScopeApi(str(sub))
+
+    assert api._acl_probe("write", sub / "finanz" / "beleg.md").allowed is True
+    assert api._acl_probe("write", sub / "x.md").allowed is False  # Familie may only read

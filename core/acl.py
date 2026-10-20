@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import fnmatch
 import os
 from pathlib import Path
@@ -41,6 +41,10 @@ class ACLPolicy:
     users: Dict[str, Set[str]]
     # Normalized (lower-case) role/user key -> name as written (for display).
     display_names: Dict[str, str] = field(default_factory=dict)
+    # "## Folder" rules and the roles with a section of their own: needed to apply the
+    # folder rules again inside subprojects (for_context).
+    folder_defaults: Dict[str, Set[str]] = field(default_factory=dict)
+    own_sections: Set[str] = field(default_factory=set)
 
     def display_name(self, key: str) -> str:
         return self.display_names.get(key, key)
@@ -54,6 +58,8 @@ class ACLPolicy:
 
         template_roles = _roles_from_templates(project_root, config.get_effective_templates())
         acl_roles, role_permissions, folder_defaults, users = _roles_from_acls(project_root)
+        normalized_defaults = _normalize_permissions({"folder": folder_defaults}).get("folder", {})
+        normalized_sections = _normalize_permissions(role_permissions)
 
         roles = {*_normalize_roles(template_roles), *_normalize_roles(acl_roles)}
         # Template roles keep their folder's real name: {Folder} must expand to it
@@ -62,8 +68,8 @@ class ACLPolicy:
         permissions = _build_permissions(
             roles=roles,
             template_roles=_normalize_roles(template_roles),
-            role_permissions=_normalize_permissions(role_permissions),
-            folder_defaults=_normalize_permissions({"folder": folder_defaults}).get("folder", []),
+            role_permissions=normalized_sections,
+            folder_defaults=normalized_defaults,
             folder_names=folder_names,
         )
         display_names = {
@@ -77,7 +83,47 @@ class ACLPolicy:
             permissions=permissions,
             users=_normalize_users(users),
             display_names=display_names,
+            folder_defaults=normalized_defaults,
+            own_sections=set(normalized_sections),
         )
+
+    def for_context(self, project_root: Path, context: Optional[Path]) -> "ACLPolicy":
+        """
+        This policy as seen from context, a (sub)project governed by project_root's
+        ACLs.md: the "## Folder" rules apply again to the template folders of every
+        subproject between them, with the subproject's path in front
+        (/{Folder}/ -> /Familie/04_Finanz/ for the role 04_Finanz). Roles with a section
+        of their own are left alone: their rules are paths of project_root.
+        """
+        if context is None or not self.folder_defaults:
+            return self
+        root = Path(project_root).resolve()
+        try:
+            rel_parts = Path(context).resolve().relative_to(root).parts
+        except ValueError:
+            return self
+        permissions = {role: list(rules) for role, rules in self.permissions.items()}
+        roles = set(self.roles)
+        display_names = dict(self.display_names)
+        for depth in range(1, len(rel_parts) + 1):
+            sub = root.joinpath(*rel_parts[:depth])
+            if not (sub / ".MyOS" / "Project.md").exists():
+                continue
+            try:
+                folders = _roles_from_templates(sub, ProjectConfig(sub).get_effective_templates())
+            except Exception:
+                continue
+            prefix = "/" + "/".join(rel_parts[:depth])
+            for folder in folders:
+                role_key = _normalize_role(folder)
+                if role_key in self.own_sections:
+                    continue
+                for path, rights in _expand_rules(folder, self.folder_defaults).items():
+                    sub_path = _normalize_path(prefix + ("" if path == "/" else path))
+                    permissions.setdefault(role_key, []).append(PermissionRule(sub_path, set(rights)))
+                roles.add(role_key)
+                display_names.setdefault(role_key, folder)
+        return replace(self, roles=roles, permissions=permissions, display_names=display_names)
 
     def roles_for_user(self, username: str) -> Set[str]:
         user_key = username.strip().lower()
@@ -122,8 +168,9 @@ class ACLAuthorizer:
             self._enforcer = _build_casbin_enforcer(self.policy)
 
     @classmethod
-    def from_project(cls, project_root: Path, backend: str = "auto") -> "ACLAuthorizer":
-        return cls(ACLPolicy.from_project(project_root), backend=backend)
+    def from_project(cls, project_root: Path, backend: str = "auto", context: Optional[Path] = None) -> "ACLAuthorizer":
+        """Authorizer for project_root's ACLs.md as seen from context (see ACLPolicy.for_context)."""
+        return cls(ACLPolicy.from_project(project_root).for_context(project_root, context), backend=backend)
 
     def can_access(self, role: str, path: str, right: str = "read") -> bool:
         role_key = _normalize_role(role)

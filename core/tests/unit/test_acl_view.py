@@ -272,3 +272,40 @@ def test_delete_is_a_right_of_its_own_and_part_of_star(tmp_path):
     assert view.rights_for_user("karl", root / "rechtliches") == {"read", "delete"}
     assert "delete" in view.rights_for_user("anna", root / "info")  # "*" stands for all rights
     assert "delete" not in view.rights_for_user("karl", root / "finanz")  # write does not imply it
+
+
+def _templated_subproject(root: Path, rel: str) -> Path:
+    sub = _subproject(root, rel)
+    (sub / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    for folder in ("finanz", "info", "work"):
+        (sub / folder).mkdir(parents=True, exist_ok=True)
+    return sub
+
+
+def test_folder_rules_apply_to_the_template_folders_of_a_subproject(tmp_path):
+    root = _project(tmp_path, ACLS)
+    sub = _templated_subproject(root, "Familie")
+    view = ACLView.for_path(sub / "finanz")
+
+    # "## Folder" (/{Folder}/: read, write and /info/: read) again, inside the subproject.
+    assert view.rights_for_role("finanz", sub / "finanz") == {"read", "write"}
+    assert view.rights_for_role("finanz", sub / "info") == {"read"}
+    assert view.rights_for_role("work", sub / "finanz") == set()
+    # Rules of roles with a section of their own stay paths of the parent project.
+    assert view.rights_for_role("buchhalter", sub / "finanz") == set()
+    assert view.rights_for_role("buchhalter", root / "finanz") == {"read", "write", "execute"}
+    # The parent project's own folders are unchanged.
+    assert view.rights_for_role("finanz", root / "finanz") == {"read", "write"}
+
+
+def test_folder_rules_apply_in_nested_subprojects_and_listings(tmp_path):
+    root = _project(tmp_path, ACLS)
+    outer = _templated_subproject(root, "Familie")
+    inner = _templated_subproject(outer, "Ich")
+
+    view = ACLView.for_path(inner)
+    assert view.rights_for_role("work", inner / "work") == {"read", "write"}
+
+    summary = ACLView.for_path(outer).listing_summary(outer, [str(outer / "finanz"), str(outer / "work")])
+    assert "role:finanz" in summary["access"][str(outer / "finanz")]
+    assert "role:finanz" not in summary["access"][str(outer / "work")]

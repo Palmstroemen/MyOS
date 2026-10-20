@@ -64,6 +64,10 @@ Notes:
   the nearest parent project's `ACLs.md`; paths stay relative to that parent project
   (e.g. `/Familie/Ich/` for the subproject `Familie/Ich`). A subproject with its own
   `ACLs.md` uses only that file.
+- **Folder rules in subprojects:** the `## Folder` rules apply again to the template
+  folders of every subproject below, with the subproject's path in front (for the role
+  `04_Finanz`, `/{Folder}/` also becomes `/Familie/04_Finanz/`). Roles with a section of
+  their own are not repeated: their rules stay paths of the project holding `ACLs.md`.
 - If no `inherit` is defined, the default is **`dynamic`**.
 
 ---
