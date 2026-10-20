@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.15
 import Qt.labs.folderlistmodel 2.15
 import "Theme/tag_chips.js" as TagChips
 import "js/PathUtils.js" as PathUtils
+import "js/ListSort.js" as ListSort
 import "./Dialogs" 1.0
 
 ApplicationWindow {
@@ -180,6 +181,19 @@ ApplicationWindow {
     property string filesItemStyle: "largeIcon"
     /// Visible list view columns (ids, see Scope/js/FormatUtils.js); persisted per user by the backend.
     property var filesListColumns: ["modified", "size"]
+    /// FilesPanel sort (header click): key "name" | "modified" | "size"; persisted per user.
+    property string filesSortKey: "name"
+    property bool filesSortAscending: true
+
+    function setFilesSort(key) {
+        // Same column again flips the direction; a new column starts ascending.
+        filesSortAscending = (key === filesSortKey) ? !filesSortAscending : true
+        filesSortKey = key
+        if (hasBackend() && typeof backend.setFilesSort === "function") {
+            backend.setFilesSort(filesSortKey, filesSortAscending)
+        }
+        filterEntries()
+    }
     property string tagMatchMode: "or" // or | and
     property bool projectsShowEmbryos: false
     property bool projectsShowHiddenFolders: false
@@ -1578,7 +1592,7 @@ ApplicationWindow {
                 }
             }
         }
-        fileItemsRaw = filtered
+        fileItemsRaw = ListSort.sortEntries(filtered, filesSortKey, filesSortAscending)
         for (var m = 0; m < fileItemsRaw.length; m++) {
             var path = entryPath(fileItemsRaw[m])
             if (path.length > 0 && (!fileItemsRaw[m].path || fileItemsRaw[m].path.length === 0)) {
@@ -2042,17 +2056,19 @@ ApplicationWindow {
         if (PathUtils.normalizeFsPath(listingPath) !== listing || !items) return
         var byPath = {}
         var any = false
+        var totalArrived = false
         for (var i = 0; i < items.length; i++) {
             var item = items[i]
             if (PathUtils.normalizeFsPath(item.path) === listing) {
                 currentFolderSizeBytes = item.bytes
                 currentFolderSizeComplete = item.complete
+                totalArrived = true
                 continue
             }
             byPath[item.path] = item
             any = true
         }
-        if (!any) return
+        if (!any && !totalArrived) return
         // Entries are plain objects shared by fileItemsAll and fileItemsRaw; nothing binds to them.
         var all = fileItemsAll || []
         for (var a = 0; a < all.length; a++) {
@@ -2068,6 +2084,11 @@ ApplicationWindow {
                 filesModel.setProperty(j, "folderSizeBytes", row.bytes)
                 filesModel.setProperty(j, "folderSizeComplete", row.complete)
             }
+        }
+        // Sorted by size: re-sort when a pass ends (the listing total arrives after pass 1
+        // and pass 2), not on every value, so rows do not keep jumping while measuring.
+        if (totalArrived && filesSortKey === "size") {
+            filterEntries()
         }
     }
 
@@ -2281,6 +2302,11 @@ ApplicationWindow {
         }
         if (hasBackend() && typeof backend.filesListColumns === "function") {
             filesListColumns = backend.filesListColumns()
+        }
+        if (hasBackend() && typeof backend.filesSort === "function") {
+            var sort = backend.filesSort()
+            filesSortKey = sort.key
+            filesSortAscending = sort.ascending
         }
         var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
         if (!hasBackend() && (!startPath || startPath === cwp)) {
@@ -3490,6 +3516,9 @@ ApplicationWindow {
             iconGear: window.iconGear
             itemStyle: window.filesItemStyle
             listColumns: window.filesListColumns
+            sortKey: window.filesSortKey
+            sortAscending: window.filesSortAscending
+            onSortRequested: function(key) { window.setFilesSort(key) }
             onListColumnsChangeRequested: function(columns) {
                 window.filesListColumns = columns
                 if (hasBackend() && typeof backend.setFilesListColumns === "function") {

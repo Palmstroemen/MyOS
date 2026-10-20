@@ -274,6 +274,8 @@ class Backend(QObject):
     FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
     # List view columns right of the name (ids as in Scope/js/FormatUtils.js).
     FILES_LIST_COLUMNS = ("modified", "size")
+    # Sort keys of the list (Scope/js/ListSort.js).
+    FILES_SORT_KEYS = ("name", "modified", "size")
     THUMBNAIL_REFRESH_DEBOUNCE_MS = 220
     THUMBNAIL_REFRESH_RETRY_MS = 180
     THUMBNAIL_REFRESH_MAX_RETRIES = 8
@@ -630,6 +632,18 @@ class Backend(QObject):
     def setFilesListColumns(self, columns) -> None:
         ids = [str(c) for c in (columns or []) if str(c) in self.FILES_LIST_COLUMNS]
         self._settings.setValue("filesListColumns", ",".join(ids))
+
+    @Slot(result="QVariantMap")
+    def filesSort(self) -> dict:
+        key = str(self._settings.value("filesSortKey", "name") or "")
+        ascending = self._settings.value("filesSortAscending", True, type=bool)
+        return {"key": key if key in self.FILES_SORT_KEYS else "name", "ascending": bool(ascending)}
+
+    @Slot(str, bool)
+    def setFilesSort(self, key: str, ascending: bool) -> None:
+        if key in self.FILES_SORT_KEYS:
+            self._settings.setValue("filesSortKey", key)
+            self._settings.setValue("filesSortAscending", bool(ascending))
 
     @Slot(bool)
     def setFolderSizesEnabled(self, enabled: bool) -> None:

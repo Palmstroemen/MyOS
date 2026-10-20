@@ -61,6 +61,12 @@ Rectangle { // Files panel
     /// Visible list view columns (ids); the name column is always shown.
     property var listColumns: ["modified", "size"]
     readonly property int listDetailFontPx: Math.max(9, Math.round(baseFont * 0.85))
+    property string sortKey: "name"
+    property bool sortAscending: true
+
+    function sortArrow(key) {
+        return sortKey === key ? (sortAscending ? " ▲" : " ▼") : ""
+    }
     readonly property var visibleListColumns: FormatUtils.visibleListColumns(listColumns, listDetailFontPx)
 
     function listColumnTitle(id) {
@@ -94,6 +100,8 @@ Rectangle { // Files panel
     signal itemStyleToggleRequested()
     /// Header context menu: new set of visible list columns (ids, see FormatUtils.LIST_COLUMNS).
     signal listColumnsChangeRequested(var columns)
+    /// Header click: sort by this key ("name", "modified", "size"); main flips the direction.
+    signal sortRequested(string key)
     property bool showLeaveMyosButton: false
     property bool hasProjectInCwp: false
     property bool hasMyosDirInCwp: false
@@ -1002,10 +1010,16 @@ Rectangle { // Files panel
                 anchors.left: parent.left
                 anchors.leftMargin: 12 + root.iconSizeSmall
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Name")
+                text: qsTr("Name") + root.sortArrow("name")
                 color: root.textMuted
                 font.pixelSize: root.listDetailFontPx
                 font.bold: true
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -4
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.sortRequested("name")
+                }
             }
             Row {
                 anchors.right: parent.right
@@ -1017,11 +1031,16 @@ Rectangle { // Files panel
                     delegate: Text {
                         width: modelData.width
                         horizontalAlignment: Text.AlignRight
-                        text: root.listColumnTitle(modelData.id)
+                        text: root.listColumnTitle(modelData.id) + root.sortArrow(modelData.id)
                         color: root.textMuted
                         font.pixelSize: root.listDetailFontPx
                         font.bold: true
                         elide: Text.ElideLeft
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.sortRequested(modelData.id)
+                        }
                     }
                 }
             }
