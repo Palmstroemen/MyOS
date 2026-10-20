@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from dataclasses import replace
+import functools
+import grp
 import os
+import pwd
+import stat
 import subprocess
 import sys
 import re
@@ -107,6 +111,24 @@ def _normalize_tag_value(value: str) -> str:
     while text.startswith("#"):
         text = text[1:]
     return text.strip()
+
+
+@functools.lru_cache(maxsize=256)
+def _user_name(uid: int) -> str:
+    """Login name for a uid (list column "Besitzer"); the number if it has no name."""
+    try:
+        return pwd.getpwuid(uid).pw_name
+    except KeyError:
+        return str(uid)
+
+
+@functools.lru_cache(maxsize=256)
+def _group_name(gid: int) -> str:
+    """Group name for a gid (list column "Gruppe"); the number if it has no name."""
+    try:
+        return grp.getgrgid(gid).gr_name
+    except KeyError:
+        return str(gid)
 
 
 def _split_frontmatter(text: str) -> tuple[str, str]:
@@ -293,6 +315,10 @@ class FileEntryWithOptionalEmbryo(FileEntry, total=False):
     isEmbryo: bool
     sizeBytes: int
     modifiedTs: float
+    accessedTs: float
+    permissions: str
+    owner: str
+    group: str
     # Filled in later by Scope's live measurement (measure_folder_size).
     folderSizeBytes: int
 
@@ -2238,6 +2264,10 @@ class ScopeApi:
         except OSError:
             return entry
         entry["modifiedTs"] = float(info.st_mtime)
+        entry["accessedTs"] = float(info.st_atime)
+        entry["permissions"] = stat.filemode(info.st_mode)
+        entry["owner"] = _user_name(info.st_uid)
+        entry["group"] = _group_name(info.st_gid)
         if not is_dir:
             entry["sizeBytes"] = int(info.st_size)
         return entry

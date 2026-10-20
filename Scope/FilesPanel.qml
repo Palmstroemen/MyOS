@@ -69,12 +69,50 @@ Rectangle { // Files panel
     property string sortKey: "name"
     property bool sortAscending: true
 
-    /// Width of the visible size column (0 when hidden); its cells are the right-most column.
-    readonly property int sizeColumnWidth: {
+    /// The visible size column ({id, width, align, x}) or null when hidden.
+    readonly property var sizeColumn: {
         for (var i = 0; i < visibleListColumns.length; i++) {
-            if (visibleListColumns[i].id === "size") return visibleListColumns[i].width
+            if (visibleListColumns[i].id === "size") return visibleListColumns[i]
         }
-        return 0
+        return null
+    }
+
+    // Name column: as wide as the longest name, so the other columns move up to the
+    // names instead of sitting at the far right; at least 12 em, and narrow enough for
+    // all columns to fit (long names are then elided).
+    property real longestNameWidth: 0
+    property int _measuredNameCount: 0
+    readonly property int listNameColumnWidth: {
+        var minimum = 12 * baseFont
+        var available = filesGrid.width - gridSpacing - 8 - FormatUtils.listColumnsWidth(visibleListColumns)
+        var wanted = longestNameWidth + iconSizeSmall + 30
+        return Math.round(Math.max(minimum, Math.min(wanted, available)))
+    }
+
+    FontMetrics {
+        id: nameMetrics
+        font.pixelSize: root.baseFont
+    }
+
+    /// Track the widest name incrementally as rows are appended (the model fills in chunks).
+    function measureNames() {
+        var model = itemsModel
+        if (!model) return
+        if (model.count < _measuredNameCount) {
+            longestNameWidth = 0
+            _measuredNameCount = 0
+        }
+        var widest = longestNameWidth
+        for (var i = _measuredNameCount; i < model.count; i++) {
+            widest = Math.max(widest, nameMetrics.advanceWidth(String(model.get(i).name || "")))
+        }
+        longestNameWidth = widest
+        _measuredNameCount = model.count
+    }
+
+    Connections {
+        target: root.itemsModel
+        function onCountChanged() { root.measureNames() }
     }
 
     function sortArrow(key) {
@@ -85,6 +123,12 @@ Rectangle { // Files panel
     function listColumnTitle(id) {
         if (id === "size") return qsTr("Größe")
         if (id === "modified") return qsTr("Geändert")
+        if (id === "type") return qsTr("Typ")
+        if (id === "tags") return qsTr("Tags")
+        if (id === "accessed") return qsTr("Zugriff")
+        if (id === "permissions") return qsTr("Berechtigungen")
+        if (id === "owner") return qsTr("Besitzer")
+        if (id === "group") return qsTr("Gruppe")
         return id
     }
 
@@ -1053,18 +1097,20 @@ Rectangle { // Files panel
                     onClicked: root.sortRequested("name")
                 }
             }
-            Row {
-                anchors.right: parent.right
-                // Rows are cellWidth - gridSpacing wide with an 8px inner margin (FolderItem).
-                anchors.rightMargin: root.gridSpacing + 8
-                anchors.verticalCenter: parent.verticalCenter
+            Item {
+                // Same geometry as the row cells (FolderItem.detailColumnsX + column x).
+                x: root.listNameColumnWidth
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
                 Repeater {
                     model: root.visibleListColumns
                     delegate: Text {
                         readonly property bool isSize: modelData.id === "size"
+                        x: modelData.x
+                        anchors.verticalCenter: parent.verticalCenter
                         width: modelData.width
-                        horizontalAlignment: Text.AlignRight
-                        // "… " in front: the head is right-aligned, so the title itself stays put.
+                        horizontalAlignment: modelData.align === "right" ? Text.AlignRight : Text.AlignLeft
+                        // "… " in front: the size head is right-aligned, so the title itself stays put.
                         text: (isSize && root.folderSizesMeasuring ? "… " : "")
                             + root.listColumnTitle(modelData.id)
                             + root.sortArrow(modelData.id)
@@ -1073,7 +1119,7 @@ Rectangle { // Files panel
                         opacity: isSize && !root.folderSizesActive ? 0.5 : 1.0
                         font.pixelSize: root.listDetailFontPx
                         font.bold: true
-                        elide: Text.ElideLeft
+                        elide: modelData.align === "right" ? Text.ElideLeft : Text.ElideRight
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: parent.isSize
@@ -1179,10 +1225,12 @@ Rectangle { // Files panel
                     var cells = []
                     for (var c = 0; c < root.visibleListColumns.length; c++) {
                         var col = root.visibleListColumns[c]
-                        cells.push({ text: FormatUtils.listCellText(col.id, model, root.folderSizesActive), width: col.width })
+                        cells.push({ text: FormatUtils.listCellText(col.id, model, root.folderSizesActive),
+                            width: col.width, align: col.align, x: col.x })
                     }
                     return cells
                 }
+                detailColumnsX: root.listNameColumnWidth
                 largeIconAlignLeft: false
                 // Drags are run by the panel (fileDragHandler), not by the delegate:
                 // a list refresh mid-drag would destroy a delegate-owned drag.
@@ -1239,10 +1287,9 @@ Rectangle { // Files panel
             parent: filesGrid
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.right: parent.right
-            anchors.rightMargin: root.gridSpacing + 8
-            width: root.sizeColumnWidth
-            visible: root.itemStyle !== "largeIcon" && root.sizeColumnWidth > 0 && !root.folderSizesActive
+            x: root.sizeColumn ? root.listNameColumnWidth + root.sizeColumn.x : 0
+            width: root.sizeColumn ? root.sizeColumn.width : 0
+            visible: root.itemStyle !== "largeIcon" && root.sizeColumn !== null && !root.folderSizesActive
             HoverHandler {
                 id: sizeColumnHover
                 onHoveredChanged: {

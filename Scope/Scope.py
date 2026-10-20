@@ -273,10 +273,10 @@ class Backend(QObject):
     # FilesPanel views: tiles and list.
     FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
     # List view columns right of the name (ids as in Scope/js/FormatUtils.js).
-    FILES_LIST_COLUMNS = ("modified", "size")
+    FILES_LIST_COLUMNS = ("modified", "size", "type", "tags", "accessed", "permissions", "owner", "group")
     # Persisted sort keys of the list (Scope/js/ListSort.js). Sorting by size is not
     # persisted: it belongs to the on-demand size measurement of one folder.
-    FILES_SORT_KEYS = ("name", "modified")
+    FILES_SORT_KEYS = ("name", "modified", "type", "tags", "accessed", "permissions", "owner", "group")
     THUMBNAIL_REFRESH_DEBOUNCE_MS = 220
     THUMBNAIL_REFRESH_RETRY_MS = 180
     THUMBNAIL_REFRESH_MAX_RETRIES = 8
@@ -627,10 +627,11 @@ class Backend(QObject):
     def filesListColumns(self) -> list:
         raw = self._settings.value("filesListColumns", None)
         if raw is None:
-            return list(self.FILES_LIST_COLUMNS)
-        # Stored as comma string: QSettings returns a plain string for one-element lists.
-        ids = [part for part in str(raw).split(",") if part in self.FILES_LIST_COLUMNS]
-        return ids
+            return ["modified", "size"]
+        # Written as one comma string; an unquoted value in a hand-edited file comes back
+        # as a list instead, so accept both.
+        parts = raw if isinstance(raw, (list, tuple)) else str(raw).split(",")
+        return [str(part).strip() for part in parts if str(part).strip() in self.FILES_LIST_COLUMNS]
 
     @Slot("QStringList")
     def setFilesListColumns(self, columns) -> None:
@@ -829,9 +830,12 @@ class Backend(QObject):
 
     def _enrich_entries(self, entries: list, base_path: str) -> None:
         mime_db = QMimeDatabase()
+        # List column "Typ": the MIME description in the system language (e.g. "PDF-Dokument").
+        folder_type = mime_db.mimeTypeForName("inode/directory").comment()
         for entry in entries:
             if entry.get("isDir"):
                 entry["mime"] = "inode/directory"
+                entry["typeName"] = folder_type
                 entry["iconName"] = "folder"
                 entry["thumb"] = ""
                 continue
@@ -845,6 +849,7 @@ class Backend(QObject):
             raw_path = entry["path"]
             mime = mime_db.mimeTypeForFile(raw_path, QMimeDatabase.MatchExtension)
             entry["mime"] = mime.name()
+            entry["typeName"] = mime.comment()
             entry["iconName"] = mime.iconName() or mime.genericIconName() or "text-x-generic"
             entry["thumb"] = str(entry.get("thumb") or "")
         self._prime_thumbnails(entries)

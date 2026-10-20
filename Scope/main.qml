@@ -5,6 +5,7 @@ import Qt.labs.folderlistmodel 2.15
 import "Theme/tag_chips.js" as TagChips
 import "js/PathUtils.js" as PathUtils
 import "js/ListSort.js" as ListSort
+import "js/FormatUtils.js" as FormatUtils
 import "./Dialogs" 1.0
 
 ApplicationWindow {
@@ -201,9 +202,9 @@ ApplicationWindow {
     property bool filesBaseSortAscending: true
 
     function setFilesSort(key) {
-        // Same column again flips the direction. A new column starts ascending only for
-        // the name; date and size start with the newest / largest entries on top.
-        filesSortAscending = (key === filesSortKey) ? !filesSortAscending : (key === "name")
+        // Same column again flips the direction. A new column starts ascending, except
+        // dates and size, which start with the newest / largest entries on top.
+        filesSortAscending = (key === filesSortKey) ? !filesSortAscending : ListSort.defaultAscending(key)
         filesSortKey = key
         if (key !== "size") {
             filesBaseSortKey = key
@@ -1839,6 +1840,12 @@ ApplicationWindow {
         if (row.folderSizeBytes === undefined || row.folderSizeBytes === null) row.folderSizeBytes = -1
         if (row.folderSizeComplete === undefined || row.folderSizeComplete === null) row.folderSizeComplete = false
         if (row.modifiedTs === undefined || row.modifiedTs === null) row.modifiedTs = -1
+        if (row.accessedTs === undefined || row.accessedTs === null) row.accessedTs = -1
+        row.tagsText = FormatUtils.tagsText(entry.tags)
+        if (row.typeName === undefined || row.typeName === null) row.typeName = ""
+        if (row.permissions === undefined || row.permissions === null) row.permissions = ""
+        if (row.owner === undefined || row.owner === null) row.owner = ""
+        if (row.group === undefined || row.group === null) row.group = ""
         return row
     }
 

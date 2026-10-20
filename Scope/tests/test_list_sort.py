@@ -55,3 +55,32 @@ def test_modified_sort_puts_unknown_dates_last(sort_names):
 
 def test_unknown_key_falls_back_to_name(sort_names):
     assert sort_names(ENTRIES, "bogus", True) == sort_names(ENTRIES, "name", True)
+
+
+TEXT_ENTRIES = [
+    {"name": "c.md", "isDir": False, "typeName": "Markdown", "owner": "oliver", "tags": ["b"], "accessedTs": 5},
+    {"name": "a.pdf", "isDir": False, "typeName": "PDF-Dokument", "owner": "root", "tags": [], "accessedTs": 9},
+    {"name": "b.txt", "isDir": False, "typeName": "Einfacher Text", "owner": "Anna", "tags": ["a"], "accessedTs": -1},
+]
+
+
+def test_text_columns_sort_case_insensitive_with_empty_last(sort_names):
+    assert sort_names(TEXT_ENTRIES, "type", True) == ["b.txt", "c.md", "a.pdf"]
+    assert sort_names(TEXT_ENTRIES, "owner", True) == ["b.txt", "c.md", "a.pdf"]
+    assert sort_names(TEXT_ENTRIES, "tags", True) == ["b.txt", "c.md", "a.pdf"]
+    assert sort_names(TEXT_ENTRIES, "tags", False) == ["c.md", "b.txt", "a.pdf"]
+
+
+def test_access_time_sorts_like_a_date(sort_names):
+    assert sort_names(TEXT_ENTRIES, "accessed", False) == ["a.pdf", "c.md", "b.txt"]
+
+
+def test_default_direction_is_descending_only_for_dates_and_size():
+    app = QGuiApplication.instance() or QGuiApplication([])
+    engine = QJSEngine()
+    engine.evaluate(LIST_SORT_JS.read_text(encoding="utf-8").replace(".pragma library", ""))
+    first = engine.globalObject().property("defaultAscending")
+    results = {key: first.call([key]).toBool() for key in
+               ("name", "type", "tags", "permissions", "owner", "group", "modified", "accessed", "size")}
+    assert results == {"name": True, "type": True, "tags": True, "permissions": True, "owner": True,
+                       "group": True, "modified": False, "accessed": False, "size": False}

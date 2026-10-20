@@ -35,14 +35,10 @@ Rectangle {
     onRenamingChanged: if (renaming) _renameEditText = renameText
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
-    /// List style ("smallIcon") only: right-aligned columns [{text, width}], e.g. modified and
-    /// size; widths match the FilesPanel header so columns line up.
+    /// List style ("smallIcon") only: columns [{text, width, align, x}] placed at x from
+    /// detailColumnsX (end of the name column); geometry matches the FilesPanel header.
     property var detailColumns: []
-    readonly property int detailColumnsWidth: {
-        var total = 0
-        for (var i = 0; i < detailColumns.length; i++) total += detailColumns[i].width
-        return total
-    }
+    property int detailColumnsX: 0
     property bool dragEnabled: false
     property bool allowDrops: false
     property string dragPayload: ""
@@ -327,31 +323,34 @@ Rectangle {
             y: textYOffset
             visible: !renaming
             // Leave room for the detail column instead of running into it.
+            // The name ends where the first column starts (long names are elided).
             width: detailColumns.length > 0
-                ? Math.min(implicitWidth, Math.max(0, root.width - iconSmall - 24 - root.detailColumnsWidth))
+                ? Math.min(implicitWidth, Math.max(0, root.detailColumnsX - iconSmall - 18))
                 : implicitWidth
             elide: Text.ElideRight
         }
     }
 
-    Row {
+    Item {
         id: smallIconDetails
         // root.* throughout: inside a Text, a bare "style" would be Text.style.
         visible: root.style === "smallIcon" && root.detailColumns.length > 0 && !root.renaming
-        anchors.right: parent.right
-        anchors.rightMargin: 8
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: root.textYOffset
+        x: root.detailColumnsX
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         Repeater {
             model: root.detailColumns
             delegate: Text {
+                x: modelData.x
                 width: modelData.width
-                horizontalAlignment: Text.AlignRight
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: root.textYOffset
+                horizontalAlignment: modelData.align === "right" ? Text.AlignRight : Text.AlignLeft
                 text: modelData.text
                 color: root.textColor
                 opacity: 0.7
                 font.pixelSize: Math.max(9, Math.round(root.textSize * 0.85))
-                elide: Text.ElideLeft
+                elide: modelData.align === "right" ? Text.ElideLeft : Text.ElideRight
             }
         }
     }

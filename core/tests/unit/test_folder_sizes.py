@@ -172,3 +172,28 @@ def test_entries_carry_modification_time(tmp_path):
         by_name = {e["name"]: e for e in entries}
         assert by_name["a.txt"]["modifiedTs"] == 1_700_000_000
         assert by_name["Folder"]["modifiedTs"] == 1_600_000_000
+
+
+def test_entries_carry_permissions_owner_group_and_access_time(tmp_path):
+    """Optional list columns: Berechtigungen, Besitzer, Gruppe, Zugriff (from the same stat)."""
+    import grp
+    import os
+    import pwd
+
+    root = _project(tmp_path)
+    (root / "a.txt").write_text("x", encoding="utf-8")
+    (root / "a.txt").chmod(0o640)
+    (root / "Folder").mkdir()
+    (root / "Folder").chmod(0o755)
+    os.utime(root / "a.txt", (1_650_000_000, 1_700_000_000))
+    me = pwd.getpwuid(os.getuid()).pw_name
+    my_group = grp.getgrgid(os.stat(root / "a.txt").st_gid).gr_name
+    api = ScopeApi(str(root))
+
+    for entries in (api.list_entries(str(root)), api.list_entries_quick(str(root), False)):
+        by_name = {e["name"]: e for e in entries}
+        assert by_name["a.txt"]["permissions"] == "-rw-r-----"
+        assert by_name["Folder"]["permissions"] == "drwxr-xr-x"
+        assert by_name["a.txt"]["owner"] == me
+        assert by_name["a.txt"]["group"] == my_group
+        assert by_name["a.txt"]["accessedTs"] == 1_650_000_000
