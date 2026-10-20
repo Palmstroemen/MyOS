@@ -1680,12 +1680,17 @@ ApplicationWindow {
         }
         // ACL filter: only entries the selected role/person has any right on. Entries the
         // summary does not know yet (just created) are hidden until it is recomputed.
+        // A "locked:<id>" chip shows the opposite: the entries closed to that role/person.
         if (selectedAclPrincipal.length > 0 && aclSummary.hasAcls) {
             var access = aclSummary.access || ({})
+            var lockedPrefix = "locked:"
+            var showLocked = selectedAclPrincipal.indexOf(lockedPrefix) === 0
+            var principalId = showLocked ? selectedAclPrincipal.slice(lockedPrefix.length) : selectedAclPrincipal
             var aclFiltered = []
             for (var a = 0; a < filtered.length; a++) {
                 var ids = access[entryPath(filtered[a])]
-                if (ids && ids.indexOf(selectedAclPrincipal) !== -1) aclFiltered.push(filtered[a])
+                if (!ids) continue
+                if ((ids.indexOf(principalId) !== -1) !== showLocked) aclFiltered.push(filtered[a])
             }
             filtered = aclFiltered
         }

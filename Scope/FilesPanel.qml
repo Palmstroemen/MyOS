@@ -462,15 +462,19 @@ Rectangle { // Files panel
         if (p.section === "exception") {
             return qsTr("Kein Zugriff auf diesen Ordner, aber auf %1 von %2 Einträgen").arg(p.count).arg(aclEntryCount)
         }
-        var tip = qsTr("Hier: %1").arg(aclRightsNames(p.rights))
-        if (p.partial) tip += "\n" + qsTr("Kein Zugriff auf %1 von %2 Einträgen").arg(aclEntryCount - p.count).arg(aclEntryCount)
-        return tip
+        if (p.section === "locked") {
+            return qsTr("Zugriff auf diesen Ordner, aber gesperrt für %1 von %2 Einträgen").arg(p.count).arg(aclEntryCount)
+        }
+        return qsTr("Hier: %1").arg(aclRightsNames(p.rights))
     }
 
+    /// Chips of a panel section. "Ausnahmen" (exception) also holds the locked-out
+    /// principals (struck through), after those with access to some entries only.
     function aclSection(section) {
         var out = []
         for (var i = 0; i < (aclPrincipals || []).length; i++) {
-            if (aclPrincipals[i].section === section) out.push(aclPrincipals[i])
+            var s = aclPrincipals[i].section
+            if (s === section || (section === "exception" && s === "locked")) out.push(aclPrincipals[i])
         }
         return out
     }
@@ -574,10 +578,11 @@ Rectangle { // Files panel
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.left: parent.left
                                     anchors.leftMargin: root.tagChipPadH
-                                    // x/c here; for exceptions the number of entries instead.
-                                    text: (aclChip.selected ? "✓ " : "") + (modelData.section === "exception"
-                                        ? String(modelData.count)
-                                        : root.aclRightsLetters(modelData.rights) + (modelData.partial ? " *" : ""))
+                                    // x/c here; for exceptions the number of entries (with or, struck
+                                    // through, without access) instead.
+                                    text: (aclChip.selected ? "✓ " : "") + (modelData.section === "folder"
+                                        ? root.aclRightsLetters(modelData.rights)
+                                        : String(modelData.count))
                                     color: "#555555"
                                     opacity: aclChip.textOpacity
                                     font.pixelSize: Math.max(8, root.tagChipFontPx - 1)
@@ -606,6 +611,8 @@ Rectangle { // Files panel
                                     color: "#333333"
                                     opacity: aclChip.textOpacity
                                     font.pixelSize: root.tagChipFontPx
+                                    // Struck through: rights taken away for some entries here.
+                                    font.strikeout: modelData.section === "locked"
                                     elide: Text.ElideLeft
                                     horizontalAlignment: Text.AlignRight
                                 }

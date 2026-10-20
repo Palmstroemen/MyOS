@@ -309,3 +309,28 @@ def test_folder_rules_apply_in_nested_subprojects_and_listings(tmp_path):
     summary = ACLView.for_path(outer).listing_summary(outer, [str(outer / "finanz"), str(outer / "work")])
     assert "role:finanz" in summary["access"][str(outer / "finanz")]
     assert "role:finanz" not in summary["access"][str(outer / "work")]
+
+
+def test_listing_summary_lists_locked_out_principals_separately(tmp_path):
+    root = _project(tmp_path, ACLS.replace(
+        "- /rechtliches/: read\n",
+        "- /rechtliches/: read\n- /finanz/geheim/: none\n",
+    ))
+    (root / "finanz" / "geheim").mkdir(parents=True)
+    (root / "finanz" / "eingang").mkdir()
+    view = ACLView.for_path(root)
+    entries = [str(root / "finanz" / "eingang"), str(root / "finanz" / "geheim")]
+
+    summary = view.listing_summary(root / "finanz", entries)
+    locked = {p["id"]: p for p in summary["principals"] if p["section"] == "locked"}
+
+    # Buchhalter (and Karl through it) may enter finanz, but not geheim.
+    assert set(locked) == {"locked:role:buchhalter", "locked:user:karl"}
+    item = locked["locked:role:buchhalter"]
+    assert item["principal"] == "role:buchhalter" and item["name"] == "Buchhalter"
+    assert item["count"] == 1  # entries closed to it
+    # The principal itself stays on top, under its folder rights.
+    assert "role:buchhalter" in {p["id"] for p in summary["principals"] if p["section"] == "folder"}
+    # Order: folder, then exception, then locked.
+    order = [p["section"] for p in summary["principals"]]
+    assert order == sorted(order, key=["folder", "exception", "locked"].index)

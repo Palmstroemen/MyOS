@@ -136,6 +136,9 @@ class ACLView:
           section "folder": has rights on the folder itself (rights = those rights);
             partial: some listed entry is closed to it, so filtering by it hides entries.
           section "exception": no rights on the folder, but on count of its entries.
+          section "locked": a folder principal again, locked out of count entries; its id
+            is "locked:<principal id>" (filtering by it shows the entries closed to it),
+            principal is the plain id.
         access: entry path (as given) -> ids of the principals with any right on it.
         """
         folder_principals = self.principals(folder)
@@ -172,6 +175,13 @@ class ACLView:
         exceptions.sort(key=lambda item: (item[1].kind != "role", item[0]))
         for pid, principal in exceptions:
             result.append(self._summary_item(principal, pid, "exception", True, entry_count[pid]))
+        for principal in folder_principals:
+            pid = f"{principal.kind}:{principal.key}"
+            closed = total - entry_count.get(pid, 0)
+            if closed > 0:
+                item = self._summary_item(principal, f"locked:{pid}", "locked", True, closed)
+                item["principal"] = pid
+                result.append(item)
         return {"principals": result, "access": access}
 
     @staticmethod
