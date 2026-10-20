@@ -34,6 +34,8 @@ Item { // ROOT
     property bool showEmbryos: true
     property bool showEmbryoToggle: true
     property bool showHiddenFolders: false
+    /// Live folder-size measurement on (burger menu entry "Ordnergrößen").
+    property bool showFolderSizes: true
     property bool searchActive: false
     property string searchText: ""
     property bool allowRename: false
@@ -137,6 +139,7 @@ Item { // ROOT
     signal styleChanged(string style)
     signal toggleEmbryos()
     signal toggleShowHiddenFolders()
+    signal toggleFolderSizes()
     signal clipboardRequested()
     signal clipboardDropRequested(string payload)
     signal renameRequested(string fullPath)
@@ -2401,6 +2404,12 @@ Item { // ROOT
                             checked: showHiddenFolders
                             onTriggered: toggleShowHiddenFolders()
                         }
+                        MenuItem {
+                            text: qsTr("Ordnergrößen")
+                            checkable: true
+                            checked: showFolderSizes
+                            onTriggered: toggleFolderSizes()
+                        }
                         MenuSeparator {}
                         MenuItem {
                             text: qsTr("P Pfadleiste")
@@ -2615,6 +2624,12 @@ Item { // ROOT
                                     checkable: true
                                     checked: showHiddenFolders
                                     onTriggered: toggleShowHiddenFolders()
+                                }
+                                MenuItem {
+                                    text: qsTr("Ordnergrößen")
+                                    checkable: true
+                                    checked: showFolderSizes
+                                    onTriggered: toggleFolderSizes()
                                 }
                                 MenuSeparator {}
                                 MenuItem {

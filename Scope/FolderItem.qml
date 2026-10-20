@@ -35,6 +35,8 @@ Rectangle {
     onRenamingChanged: if (renaming) _renameEditText = renameText
     property int textLeftInset: 0
     property bool largeIconAlignLeft: false
+    /// Right-aligned detail (e.g. size) shown in the list style ("smallIcon") only.
+    property string detailText: ""
     property bool dragEnabled: false
     property bool allowDrops: false
     property string dragPayload: ""
@@ -318,7 +320,26 @@ Rectangle {
             font.bold: textBold
             y: textYOffset
             visible: !renaming
+            // Leave room for the detail column instead of running into it.
+            width: detailText !== ""
+                ? Math.min(implicitWidth, Math.max(0, root.width - iconSmall - 24 - smallIconDetail.implicitWidth))
+                : implicitWidth
+            elide: Text.ElideRight
         }
+    }
+
+    Text {
+        id: smallIconDetail
+        // root.* throughout: inside a Text, a bare "style" would be Text.style.
+        visible: root.style === "smallIcon" && root.detailText !== "" && !root.renaming
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: root.textYOffset
+        text: root.detailText
+        color: root.textColor
+        opacity: 0.7
+        font.pixelSize: Math.max(9, Math.round(root.textSize * 0.85))
     }
 
     Column {

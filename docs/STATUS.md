@@ -1,6 +1,6 @@
 # MyOS Project Status
 
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-20
 **Phase:** MVP implementation with focus on stable core flows
 **Active branch:** `exp/core-line-no-learning` (well ahead of `main`)
 
@@ -19,7 +19,7 @@ MyOS has moved beyond early prototyping. Core components are implemented and ite
 - **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`)
 - **ClipboardTool** — CopyQ integration that saves text clips as Markdown
 
-Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests` — 399 passing (2026-10-19).
+Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests` — 406 passing (2026-10-20).
 
 ## Current Priorities
 
@@ -38,6 +38,7 @@ Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests` — 399 
 - Embryo birth materializes only the folder itself; visible subfolders stay embryos until first use
 - Born template folders that hold nothing of the user turn back into embryos after delete/move (cascading upwards); `myproject tidy` does the same for folders emptied outside MyOS
 - Scope: FilesPanel follows the folder preview (700 ms dwell, or on entering the panel); file drags survive list refreshes; drops inside the FilesPanel work
+- Scope: FilesPanel list view (toggle in the side panel) with a size column; folder sizes are measured live in two passes (big folders show a lower bound first), switchable in the burger menu; the never-read folder-size index in Project.md is gone
 
 ## Earlier Milestones (Feb–Mar 2026, committed Oct 2026)
 

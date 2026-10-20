@@ -5,6 +5,7 @@ import "Theme/tag_chips.js" as TagChips
 import "Theme/tag_chip_style.js" as TagChipStyle
 import "Theme/panel_colors.js" as PanelColors
 import "js/DropUtils.js" as DropUtils
+import "js/FormatUtils.js" as FormatUtils
 
 Rectangle { // Files panel
     id: root
@@ -43,7 +44,11 @@ Rectangle { // Files panel
     /** Bindung an Fenster-Sprache, damit Tag-Beschriftungen bei Sprachumschaltung neu übersetzt werden. */
     property string uiLanguage: ""
     property bool isTagIndexing: false
-    property int folderSizeBytes: 0
+    /// Size of the listed folder from the live measurement; < 0 while unknown.
+    property real folderSizeBytes: -1
+    property bool folderSizeComplete: false
+    /// Live folder-size measurement switched on (burger menu); file sizes are always shown.
+    property bool showFolderSizes: true
     property real templatesBrowserWidth: 0
     property real projectsBrowserWidth: 0
     property string iconFolder: ""
@@ -51,6 +56,7 @@ Rectangle { // Files panel
     property string iconFolderXray: ""
     property string iconFile: ""
     property string iconGear: ""
+    /// "largeIcon" (tiles) or "smallIcon" (list with right-aligned size column).
     property string itemStyle: "largeIcon"
     /// Folder currently listed (may be an unborn embryo); target for drops on free panel space.
     property string currentPath: ""
@@ -63,6 +69,8 @@ Rectangle { // Files panel
     signal createProject()
     signal createMyosAndEnter()
     signal xrayClicked()
+    /// Side panel button: switch between tiles and list.
+    signal itemStyleToggleRequested()
     property bool showLeaveMyosButton: false
     property bool hasProjectInCwp: false
     property bool hasMyosDirInCwp: false
@@ -469,9 +477,50 @@ Rectangle { // Files panel
                 }
             }
 
+            // Zeile 3: Kacheln/Liste umschalten (Icon zeigt die Ansicht, zu der gewechselt wird)
+            Row {
+                width: parent.width
+                spacing: root.sidePanelButtonSpacing
+
+                Rectangle {
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: root.smallButtonBg
+                    border.color: root.smallButtonBorder
+                    Image {
+                        anchors.centerIn: parent
+                        source: root.itemStyle === "largeIcon"
+                            ? Qt.resolvedUrl("Theme/icons/view_list.svg")
+                            : Qt.resolvedUrl("Theme/icons/view_tiles.svg")
+                        width: root.topRightIconSize
+                        height: root.topRightIconSize
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize.width: width
+                        sourceSize.height: height
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.itemStyleToggleRequested()
+                    }
+                }
+            }
+
+            Text {
+                id: folderSizeLabel
+                width: parent.width
+                visible: root.showFolderSizes && root.folderSizeBytes >= 0
+                text: (root.folderSizeComplete ? "" : "> ") + FormatUtils.formatBytes(root.folderSizeBytes)
+                color: root.smallButtonText
+                font.pixelSize: root.tagSectionLabelPx
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+            }
+
             Rectangle {
                 width: parent.width
-                height: Math.max(80, parent.height - (2 * root.topRightButtonSize) - root.sidePanelButtonSpacing - root.sidePanelInnerMargin - 20)
+                height: Math.max(80, parent.height - (3 * root.topRightButtonSize) - root.sidePanelButtonSpacing - (2 * root.sidePanelInnerMargin) - 20
+                    - (folderSizeLabel.visible ? folderSizeLabel.height + root.sidePanelInnerMargin : 0))
                 radius: 0
                 border.width: 0
                 color: "transparent"
@@ -950,6 +999,8 @@ Rectangle { // Files panel
                     return baseName
                 }
                 style: root.itemStyle
+                // List rows are clickable across their full width, like in any file manager.
+                hitAreaFullButton: root.itemStyle !== "largeIcon"
                 compactHeight: root.compactButtonHeight
                 largeHeight: root.largeButtonHeight
                 largePadding: root.largeButtonPadding
@@ -966,6 +1017,8 @@ Rectangle { // Files panel
                 strokeColor: selected ? Qt.rgba(0.74, 0.76, 0.80, 0.92) : root.itemBorderColor
                 textColor: root.text
                 textSize: root.baseFont
+                detailText: FormatUtils.entrySizeText(model.isDir, model.isEmbryo, model.sizeBytes,
+                    model.folderSizeBytes, model.folderSizeComplete, root.showFolderSizes)
                 largeIconAlignLeft: false
                 // Drags are run by the panel (fileDragHandler), not by the delegate:
                 // a list refresh mid-drag would destroy a delegate-owned drag.

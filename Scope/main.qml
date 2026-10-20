@@ -171,7 +171,13 @@ ApplicationWindow {
     property var tagSuggestions: []
     property var selectedTags: []
     property bool tagsIndexing: false
-    property int currentFolderSizeBytes: 0
+    /// Live-measured size of the listed folder (< 0 while unknown); lower bound until complete.
+    property real currentFolderSizeBytes: -1
+    property bool currentFolderSizeComplete: false
+    /// Live folder-size measurement (burger menu "Ordnergrößen"); persisted per user by the backend.
+    property bool folderSizesEnabled: true
+    /// FilesPanel view: "largeIcon" (tiles) or "smallIcon" (list); persisted per user by the backend.
+    property string filesItemStyle: "largeIcon"
     property string tagMatchMode: "or" // or | and
     property bool projectsShowEmbryos: false
     property bool projectsShowHiddenFolders: false
@@ -1618,7 +1624,6 @@ ApplicationWindow {
         var nextFolderTagColors = ({})
         var nextFileTagColors = ({})
         var nextProjectTags = []
-        var nextFolderSize = currentFolderSizeBytes
         if (hasBackend() && typeof backend.listTagBuckets === "function") {
             try {
                 var buckets = backend.listTagBuckets(targetPath) || {}
@@ -1626,7 +1631,6 @@ ApplicationWindow {
                 nextFileTags = buckets.fileTags || []
                 nextFolderTagColors = buckets.folderTagColors || ({})
                 nextFileTagColors = buckets.fileTagColors || ({})
-                nextFolderSize = Number(buckets.folderSizeBytes !== undefined ? buckets.folderSizeBytes : currentFolderSizeBytes)
             } catch (e) {
                 nextFileTags = _fallbackFileTagsFromEntries()
             }
@@ -1667,7 +1671,6 @@ ApplicationWindow {
         fileTags = filteredFileTags
         folderTagColors = nextFolderTagColors
         fileTagColors = nextFileTagColors
-        currentFolderSizeBytes = Math.max(0, Math.round(nextFolderSize || 0))
         availableTags = folderTags.concat(fileTags)
 
         var suggestionBag = {}
@@ -1772,11 +1775,24 @@ ApplicationWindow {
         filterEntries()
     }
 
+    /// ListModel exposes to delegates only the roles present when it was first filled,
+    /// so every row carries the size roles from the start (-1 = not measured yet).
+    function _withSizeRoles(entry) {
+        var row = {}
+        for (var key in entry) {
+            row[key] = entry[key]
+        }
+        if (row.sizeBytes === undefined || row.sizeBytes === null) row.sizeBytes = -1
+        if (row.folderSizeBytes === undefined || row.folderSizeBytes === null) row.folderSizeBytes = -1
+        if (row.folderSizeComplete === undefined || row.folderSizeComplete === null) row.folderSizeComplete = false
+        return row
+    }
+
     function appendNextChunk() {
         if (fileItemsOffset >= fileItemsRaw.length) return
         var end = Math.min(fileItemsRaw.length, fileItemsOffset + fileItemsChunk)
         for (var i = fileItemsOffset; i < end; i++) {
-            filesModel.append(fileItemsRaw[i])
+            filesModel.append(_withSizeRoles(fileItemsRaw[i]))
         }
         fileItemsOffset = end
     }
@@ -1967,6 +1983,12 @@ ApplicationWindow {
 
     function updateThumbnail(fullPath, thumbUrl) {
         if (!fullPath || !thumbUrl) return
+        updateEntryFields(fullPath, { thumb: thumbUrl })
+    }
+
+    /// Set fields on the listed entry with this path (raw/all arrays and the visible model).
+    function updateEntryFields(fullPath, fields) {
+        if (!fullPath || !fields) return
         function _updateArray(source) {
             var changed = false
             var out = source.slice(0)
@@ -1979,7 +2001,9 @@ ApplicationWindow {
                 for (var key in item) {
                     next[key] = item[key]
                 }
-                next.thumb = thumbUrl
+                for (var field in fields) {
+                    next[field] = fields[field]
+                }
                 out[i] = next
                 changed = true
             }
@@ -2001,11 +2025,32 @@ ApplicationWindow {
                 if (!modelItem) continue
                 var modelPath = modelItem.path ? modelItem.path : (cwp + "/" + modelItem.name)
                 if (modelPath !== fullPath) continue
-                filesModel.setProperty(j, "thumb", thumbUrl)
+                for (var name in fields) {
+                    filesModel.setProperty(j, name, fields[name])
+                }
             }
         }
     }
 
+    function onFolderSizeMeasured(listingPath, folderPath, bytes, complete) {
+        var listing = PathUtils.normalizeFsPath(currentFilesPath())
+        if (PathUtils.normalizeFsPath(listingPath) !== listing) return
+        if (PathUtils.normalizeFsPath(folderPath) === listing) {
+            currentFolderSizeBytes = bytes
+            currentFolderSizeComplete = complete
+            return
+        }
+        updateEntryFields(folderPath, { folderSizeBytes: bytes, folderSizeComplete: complete })
+    }
+
+    function setFolderSizesEnabled(enabled) {
+        folderSizesEnabled = !!enabled
+        if (hasBackend() && typeof backend.setFolderSizesEnabled === "function") {
+            backend.setFolderSizesEnabled(folderSizesEnabled)
+        }
+        // Re-list so sizes are measured again (on) or stale measurements stop (off).
+        updateFiles()
+    }
     onCwpChanged: {
         selectedEntryPaths = []
         selectedTags = []
@@ -2023,6 +2068,8 @@ ApplicationWindow {
     }
     onCommittedCTDPathChanged: {
         selectedEntryPaths = []
+        currentFolderSizeBytes = -1
+        currentFolderSizeComplete = false
         updateFiles()
     }
     onStandardPathChanged: {
@@ -2198,6 +2245,12 @@ ApplicationWindow {
         if (hasBackend() && typeof backend.currentLanguage === "function") {
             uiLanguage = backend.currentLanguage()
         }
+        if (hasBackend() && typeof backend.folderSizesEnabled === "function") {
+            folderSizesEnabled = backend.folderSizesEnabled()
+        }
+        if (hasBackend() && typeof backend.filesViewStyle === "function") {
+            filesItemStyle = backend.filesViewStyle()
+        }
         var startPath = (typeof scopeStartPath !== "undefined" && scopeStartPath) ? scopeStartPath : cwp
         if (!hasBackend() && (!startPath || startPath === cwp)) {
             var resolved = Qt.resolvedUrl(".")
@@ -2320,6 +2373,9 @@ ApplicationWindow {
         }
         function onThumbnailReady(path, thumbUrl) {
             updateThumbnail(path, thumbUrl)
+        }
+        function onFolderSizeReady(listingPath, folderPath, bytes, complete) {
+            onFolderSizeMeasured(listingPath, folderPath, bytes, complete)
         }
         function onEntriesReady(path, entries) {
             if (path === cwp) {
@@ -3045,6 +3101,8 @@ ApplicationWindow {
 
         FolderBrowser {  // TemplatesBrowser
             id: templatesBrowser
+            showFolderSizes: window.folderSizesEnabled
+            onToggleFolderSizes: window.setFolderSizesEnabled(!window.folderSizesEnabled)
             debugName: "TemplatesBrowser"
             parent: floatingPool
             visible: templatesBrowserVisible && !edgeDockEnabled
@@ -3294,6 +3352,8 @@ ApplicationWindow {
             window.projectsShowEmbryos = !window.projectsShowEmbryos
             updateSubProjects()
         }
+            showFolderSizes: window.folderSizesEnabled
+            onToggleFolderSizes: window.setFolderSizesEnabled(!window.folderSizesEnabled)
             onToggleShowHiddenFolders: {
                 window.projectsShowHiddenFolders = !window.projectsShowHiddenFolders
                 updateSubProjects()
@@ -3397,7 +3457,13 @@ ApplicationWindow {
             iconFolderXray: Qt.resolvedUrl("Theme/icons/folder_xray.svg")
             iconFile: window.iconFile
             iconGear: window.iconGear
-            itemStyle: "largeIcon"
+            itemStyle: window.filesItemStyle
+            onItemStyleToggleRequested: {
+                window.filesItemStyle = window.filesItemStyle === "largeIcon" ? "smallIcon" : "largeIcon"
+                if (hasBackend() && typeof backend.setFilesViewStyle === "function") {
+                    backend.setFilesViewStyle(window.filesItemStyle)
+                }
+            }
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
             largeButtonPadding: window.largeButtonPadding
@@ -3434,6 +3500,8 @@ ApplicationWindow {
             uiLanguage: window.uiLanguage
             isTagIndexing: window.tagsIndexing
             folderSizeBytes: window.currentFolderSizeBytes
+            folderSizeComplete: window.currentFolderSizeComplete
+            showFolderSizes: window.folderSizesEnabled
             onRequestMore: appendNextChunk()
             onFilterChanged: filterEntries()
             onItemActivated: function(path, ctrlPressed, shiftPressed) {

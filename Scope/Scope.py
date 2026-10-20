@@ -28,6 +28,7 @@ from PySide6.QtCore import (
     QFileSystemWatcher,
     QTimer,
     QEvent,
+    QSettings,
 )
 from PySide6.QtGui import (
     QGuiApplication,
@@ -266,6 +267,10 @@ class Backend(QObject):
     thumbnailReady = Signal(str, str)
     entriesReady = Signal(str, "QVariantList")
     languageChanged = Signal(str)
+    # (listingPath, folderPath, bytes, complete); bytes is a lower bound while complete is False.
+    folderSizeReady = Signal(str, str, float, bool)
+    # FilesPanel views: tiles and list.
+    FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
     THUMBNAIL_REFRESH_DEBOUNCE_MS = 220
     THUMBNAIL_REFRESH_RETRY_MS = 180
     THUMBNAIL_REFRESH_MAX_RETRIES = 8
@@ -282,6 +287,13 @@ class Backend(QObject):
         self._entries_lock = Lock()
         self._entries_cache: dict[str, list] = {}
         self._entries_pending: set[str] = set()
+        # Folder sizes: measured live, one folder at a time; a new listing bumps the
+        # generation so measurements for folders no longer shown stop early.
+        self._settings = QSettings("MyOS", "Scope")
+        self._folder_sizes_enabled = self._settings.value("folderSizesEnabled", True, type=bool)
+        self._sizes_pool = QThreadPool(self)
+        self._sizes_pool.setMaxThreadCount(1)
+        self._sizes_generation = 0
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._on_watched_file_changed)
         self._sort_watcher = QFileSystemWatcher(self)
@@ -580,15 +592,40 @@ class Backend(QObject):
         self._thumbnailer._pool.start(task)
 
     def _start_folder_sizes_task(self, path: str, entries: list) -> None:
-        if self._shutting_down:
+        self._sizes_generation += 1
+        if self._shutting_down or not self._folder_sizes_enabled:
             return
-        if not self._api.get_project_root():
-            return
-        dir_entries = [e for e in (entries or []) if e.get("isDir")]
-        if not dir_entries:
-            return
-        task = FolderSizesTask(self, path, list(entries))
-        self._thumbnailer._pool.start(task)
+        folders = [
+            str(e.get("path") or "")
+            for e in (entries or [])
+            if e.get("isDir") and not e.get("isEmbryo") and e.get("path")
+        ]
+        self._sizes_pool.start(FolderSizesTask(self, path, folders, self._sizes_generation))
+
+    def _sizes_task_current(self, generation: int) -> bool:
+        return not self._shutting_down and generation == self._sizes_generation
+
+    @Slot(result=bool)
+    def folderSizesEnabled(self) -> bool:
+        return bool(self._folder_sizes_enabled)
+
+    @Slot(result=str)
+    def filesViewStyle(self) -> str:
+        style = str(self._settings.value("filesViewStyle", "largeIcon") or "")
+        return style if style in self.FILES_VIEW_STYLES else "largeIcon"
+
+    @Slot(str)
+    def setFilesViewStyle(self, style: str) -> None:
+        if style in self.FILES_VIEW_STYLES:
+            self._settings.setValue("filesViewStyle", style)
+
+    @Slot(bool)
+    def setFolderSizesEnabled(self, enabled: bool) -> None:
+        self._folder_sizes_enabled = bool(enabled)
+        self._settings.setValue("folderSizesEnabled", self._folder_sizes_enabled)
+        if not self._folder_sizes_enabled:
+            # Energy saving: stop measurements already queued or running.
+            self._sizes_generation += 1
 
     def _store_entries(self, path: str, entries: list) -> None:
         with self._entries_lock:
@@ -975,32 +1012,39 @@ class EntriesTask(QRunnable):
 
 
 class FolderSizesTask(QRunnable):
-    def __init__(self, owner: Backend, path: str, entries: list) -> None:
+    """
+    Measure the sizes of a listing's folders in two passes. Pass 1 gives every folder
+    a small budget so one huge folder cannot hold up the others; folders over budget
+    report a lower bound and are finished in pass 2. Finally the listed folder itself.
+    """
+
+    PASS1_MAX_ENTRIES = 2000
+
+    def __init__(self, owner: Backend, listing_path: str, folders: list, generation: int) -> None:
         super().__init__()
         self._owner = owner
-        self._path = path
-        self._entries = entries
+        self._listing_path = listing_path
+        self._folders = folders
+        self._generation = generation
+
+    def _measure(self, path: str, max_entries) -> bool:
+        if not self._owner._sizes_task_current(self._generation):
+            return False
+        result = self._owner._api.measure_folder_size(path, max_entries=max_entries)
+        if not self._owner._sizes_task_current(self._generation):
+            return False
+        complete = bool(result.get("complete"))
+        self._owner.folderSizeReady.emit(self._listing_path, path, float(result.get("bytes") or 0), complete)
+        return complete
 
     def run(self) -> None:
-        if self._owner._shutting_down:
+        try:
+            big = [p for p in self._folders if not self._measure(p, self.PASS1_MAX_ENTRIES)]
+            for path in big:
+                self._measure(path, None)
+            self._measure(self._listing_path, None)
+        except Exception:
             return
-        updated = False
-        for entry in self._entries:
-            if not entry.get("isDir"):
-                continue
-            path_str = str(entry.get("path") or "").strip()
-            if not path_str:
-                continue
-            try:
-                size = self._owner._api.get_folder_size_bytes(path_str)
-                if size is not None and size >= 0:
-                    entry["folderSizeBytes"] = size
-                    updated = True
-            except Exception:
-                continue
-        if updated:
-            self._owner._store_entries(self._path, self._entries)
-            self._owner.entriesReady.emit(self._path, self._entries)
 
 
 class ThemeIconProvider(QQuickImageProvider):

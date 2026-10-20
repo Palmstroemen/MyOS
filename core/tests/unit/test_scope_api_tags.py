@@ -235,8 +235,6 @@ def test_list_tag_buckets_splits_folder_and_file_tags(tmp_path):
     buckets = api.list_tag_buckets(str(root))
     assert buckets["folderTags"] == ["foldertag", "shared"]
     assert buckets["fileTags"] == ["filetag"]
-    assert isinstance(buckets["folderSizeBytes"], int)
-    assert buckets["folderSizeBytes"] >= 0
 
 
 def test_list_entries_does_not_create_sidecar_for_untagged_folders(tmp_path):
@@ -253,38 +251,6 @@ def test_list_entries_does_not_create_sidecar_for_untagged_folders(tmp_path):
 
     assert not (folder / ".MyOS").exists()
     assert not (folder / ".MyOS" / "myTags.md").exists()
-
-
-def test_folder_sizes_are_persisted_in_project_md_frontmatter_map(tmp_path):
-    project = tmp_path / "Project"
-    project.mkdir()
-    myos = project / ".MyOS"
-    myos.mkdir()
-    (myos / "Project.md").write_text(
-        "\n".join(
-            [
-                "---",
-                "window_width_px: 900",
-                "---",
-                "color: #123456",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    folder = project / "Folder"
-    folder.mkdir()
-    (folder / "a.txt").write_text("abc", encoding="utf-8")
-
-    api = ScopeApi(str(project))
-    # list_entries no longer computes folder sizes (lazy via get_folder_size_bytes);
-    # list_tag_buckets persists the size of the viewed folder.
-    api.list_tag_buckets(str(folder))
-
-    project_md_text = (myos / "Project.md").read_text(encoding="utf-8")
-    assert "window_width_px: 900" in project_md_text
-    assert "folder_sizes_bytes:" in project_md_text
-    assert "  Folder: 3" in project_md_text
 
 
 def test_folder_tag_colors_roundtrip_and_bucket_exposure(tmp_path):
@@ -601,25 +567,3 @@ def test_scope_api_lists_sort_watch_roots(tmp_path):
     roots = api.list_sort_watch_roots(str(project_root))
 
     assert str(pictures.resolve()) in roots
-
-
-def test_folder_sizes_update_keeps_body_and_leaves_no_temp_files(tmp_path):
-    project = tmp_path / "Project"
-    myos = project / ".MyOS"
-    myos.mkdir(parents=True)
-    (myos / "Project.md").write_text("---\ncolor: '#123456'\n---\nBody text\n", encoding="utf-8")
-    folder = project / "Folder"
-    folder.mkdir()
-    (folder / "a.txt").write_text("abcd", encoding="utf-8")
-
-    api = ScopeApi(str(project))
-    api.list_tag_buckets(str(folder))
-    (folder / "b.txt").write_text("ef", encoding="utf-8")
-    api.list_tag_buckets(str(folder))
-
-    text = (myos / "Project.md").read_text(encoding="utf-8")
-    assert text.startswith("---\ncolor: '#123456'\n")
-    assert "  Folder: 6" in text
-    assert "  Folder: 4" not in text
-    assert text.rstrip().endswith("Body text")
-    assert sorted(p.name for p in myos.iterdir()) == ["Project.md"]
