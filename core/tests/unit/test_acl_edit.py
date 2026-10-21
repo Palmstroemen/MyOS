@@ -90,16 +90,15 @@ def test_no_rights_writes_none_and_none_rights_restores_inheritance(tmp_path):
     assert _rights(root, "buchhalter", root / "finanz" / "archiv") == {"read", "write"}
 
 
-def test_template_folder_role_gets_a_section_with_its_folder_rules(tmp_path):
+def test_template_folder_role_gets_a_section_with_only_the_explicit_entry(tmp_path):
     root = _project(tmp_path)
 
     set_role_rights(root / "finanz" / "archiv", "finanz", {"read"}, editor="anna")
 
     text = _acls(root)
     section = text[text.index("## finanz"):text.index("# Users")]
-    # Its folder rules come along, so nothing else changes for the role ...
-    assert "- /finanz/: read, write\n" in section and "- /info/: read\n" in section
-    assert "- /finanz/archiv/: read\n" in section
+    # The folder rules stay inherited (not copied), so nothing else changes for the role ...
+    assert section == "## finanz\n- /finanz/archiv/: read\n\n"
     assert _rights(root, "finanz", root / "finanz") == {"read", "write"}
     assert _rights(root, "finanz", root / "info") == {"read"}
     assert _rights(root, "finanz", root / "finanz" / "archiv") == {"read"}

@@ -320,9 +320,9 @@ def _edit_text(text: str, policy: ACLPolicy, root: Path, role_key: str,
     if bounds is None:
         if rights is None:
             return text  # nothing written for this role here: already inherited
-        # A template folder role lives on the "## Folder" rules; a section of its own
-        # replaces them, so the new section starts with the role's current folder rules.
-        lines = _insert_section(lines, policy, root, role_key)
+        # A template folder role inherits the "## Folder" rules; its new section holds
+        # only explicit entries (the inherited ones keep applying, see ACLPolicy).
+        lines = _insert_section(lines, policy, role_key)
         bounds = _section_bounds(lines, role_key)
 
     start, end = bounds
@@ -345,18 +345,11 @@ def _edit_text(text: str, policy: ACLPolicy, root: Path, role_key: str,
     return "".join(lines)
 
 
-def _insert_section(lines: List[str], policy: ACLPolicy, root: Path, role_key: str) -> List[str]:
+def _insert_section(lines: List[str], policy: ACLPolicy, role_key: str) -> List[str]:
     # Roles without a section of their own are template folder roles (see from_project).
     if role_key in policy.own_sections:
         raise ACLEditError(f"section of role {role_key!r} not found")
-    header = f"## {policy.display_name(role_key)}\n"
-    body = []
-    for rule in policy.permissions.get(role_key, []):
-        written = rule.path
-        if written != "/*" and not any(ch in written for ch in "*?[") and (root / written.lstrip("/")).is_dir():
-            written += "/"
-        body.append(_rule_line(written, set(rule.rights)))
-    section = [header] + body + ["\n"]
+    section = [f"## {policy.display_name(role_key)}\n", "\n"]
     # Before "# Users" (the end of the permissions), else at the end of the file.
     for i, line in enumerate(_visible(lines)):
         match = _HEADING.match(line.rstrip("\n"))

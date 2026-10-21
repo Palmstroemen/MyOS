@@ -42,10 +42,13 @@ class ACLPolicy:
     users: Dict[str, Set[str]]
     # Normalized (lower-case) role/user key -> name as written (for display).
     display_names: Dict[str, str] = field(default_factory=dict)
-    # "## Folder" rules and the roles with a section of their own: needed to apply the
-    # folder rules again inside subprojects (for_context).
+    # "## Folder" rules, the roles with a section of their own and, per such role, the
+    # folders its section writes explicit entries for: needed to apply the folder rules
+    # again inside subprojects (for_context), where an explicit entry for the same folder
+    # replaces the inherited one.
     folder_defaults: Dict[str, Set[str]] = field(default_factory=dict)
     own_sections: Set[str] = field(default_factory=set)
+    explicit_bases: Dict[str, Set[str]] = field(default_factory=dict)
 
     def display_name(self, key: str) -> str:
         return self.display_names.get(key, key)
@@ -74,6 +77,10 @@ class ACLPolicy:
             folder_defaults=normalized_defaults,
             folder_names=folder_names,
         )
+        explicit_bases = {
+            role: {_rule_base(path) for path in _expand_rules(folder_names.get(role, role), rules)}
+            for role, rules in normalized_sections.items()
+        }
         display_names = {
             **folder_names,
             **{_normalize_role(name): name for name in acl_roles},
@@ -87,6 +94,7 @@ class ACLPolicy:
             display_names=display_names,
             folder_defaults=normalized_defaults,
             own_sections=set(normalized_sections),
+            explicit_bases=explicit_bases,
         )
 
     def for_context(self, project_root: Path, context: Optional[Path]) -> "ACLPolicy":
@@ -94,8 +102,8 @@ class ACLPolicy:
         This policy as seen from context, a (sub)project governed by project_root's
         ACLs.md: the "## Folder" rules apply again to the template folders of every
         subproject between them, with the subproject's path in front
-        (/{Folder}/ -> /Familie/04_Finanz/ for the role 04_Finanz). Roles with a section
-        of their own are left alone: their rules are paths of project_root.
+        (/{Folder}/ -> /Familie/04_Finanz/ for the role 04_Finanz), also for roles with a
+        section of their own, unless that section has an explicit entry for that folder.
         """
         if context is None or not self.folder_defaults:
             return self
@@ -118,10 +126,11 @@ class ACLPolicy:
             prefix = "/" + "/".join(rel_parts[:depth])
             for folder in folders:
                 role_key = _normalize_role(folder)
-                if role_key in self.own_sections:
-                    continue
+                explicit = self.explicit_bases.get(role_key, set())
                 for path, rights in _expand_rules(folder, self.folder_defaults).items():
                     sub_path = _normalize_path(prefix + ("" if path == "/" else path))
+                    if _rule_base(sub_path) in explicit:
+                        continue  # the role's own entry for this folder wins
                     permissions.setdefault(role_key, []).append(PermissionRule(sub_path, set(rights)))
                 roles.add(role_key)
                 display_names.setdefault(role_key, folder)
@@ -448,12 +457,15 @@ def _build_permissions(
         role_key = _normalize_role(role)
         folder_name = folder_names.get(role_key, role_key)
 
-        if role_key in role_permissions:
-            rules = _expand_rules(folder_name, role_permissions[role_key])
-        elif role_key in template_roles:
-            rules = _expand_rules(folder_name, folder_defaults)
-        else:
-            rules = []
+        # Like Windows: template folder roles inherit the "## Folder" rules; their own
+        # section adds explicit entries, and an explicit entry for the same folder
+        # replaces the inherited one there.
+        rules = _expand_rules(folder_name, role_permissions.get(role_key, {}))
+        if role_key in template_roles:
+            explicit = {_rule_base(path) for path in rules}
+            for path, rights in _expand_rules(folder_name, folder_defaults).items():
+                if _rule_base(path) not in explicit:
+                    rules[path] = rights
 
         permissions[role_key] = [PermissionRule(path, rights) for path, rights in rules.items()]
 

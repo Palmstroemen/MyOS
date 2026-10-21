@@ -67,8 +67,8 @@ Notes:
   `ACLs.md` uses only that file.
 - **Folder rules in subprojects:** the `## Folder` rules apply again to the template
   folders of every subproject below, with the subproject's path in front (for the role
-  `04_Finanz`, `/{Folder}/` also becomes `/Familie/04_Finanz/`). Roles with a section of
-  their own are not repeated: their rules stay paths of the project holding `ACLs.md`.
+  `04_Finanz`, `/{Folder}/` also becomes `/Familie/04_Finanz/`). The rules of a role's own
+  section stay paths of the project holding `ACLs.md` (see 2.4).
 - If no `inherit` is defined, the default is **`dynamic`**.
 
 ### **2.3 Layout: blank lines, notes and comments**
@@ -87,6 +87,26 @@ silently dropped that rule and opened the locked folder again (2026-10-21).
 - In role sections only list lines with a `:` are rules; other lines are notes.
 - Editing in the GUI and rules following a rename leave comments alone; a rule that is
   rewritten loses a comment at the end of its line.
+
+### **2.4 Template folder roles: inherited and explicit entries (like Windows)**
+A template folder role (e.g. `Finanz`) **inherits** the `## Folder` rules — in the project
+and in every subproject. A section of its own (`## Finanz`) holds **explicit** entries,
+which apply **in addition**: writing one never takes the inherited ones away elsewhere.
+For the **same folder**, an explicit entry replaces the inherited one (nearest rule
+wins), so rights can also be reduced right at the template folder:
+```markdown
+## Folder
+- /{Folder}/: read, write
+
+## Finanz
+- /Finanz/Belege/: read        # added; /Finanz/ and /Familie/Finanz/ stay read, write
+- /Familie/Finanz/: none       # replaces the inherited entry there
+```
+Decided 2026-10-21: before, a section of its own replaced *all* folder rules; the first
+GUI edit copied the project's folder rules into it and so silently dropped the role's
+rights in subprojects. Windows users know this model (inherited and explicit entries);
+the difference is that an explicit entry *replaces* the inherited one for its folder,
+where Windows would need a deny entry or switching inheritance off.
 
 ---
 
@@ -125,8 +145,9 @@ Each top‑level folder implies a **default role**:
 
 **Folder defaults:**  
 The `## Folder` block defines rights that apply to all auto‑generated roles.
-These defaults **do not merge** with role‑specific permissions; the role‑specific block
-must list all intended rights explicitly. This allows rights to be removed as well as added.
+They are the role's **inherited** entries; a role-specific block adds **explicit** entries,
+and an explicit entry replaces the inherited one for the same folder (see 2.4). So rights
+can be removed as well as added.
 Within the `## Folder` block, **duplicate paths are merged** (rights are unioned) so that
 global defaults like `/info/` remain additive.
 
@@ -171,9 +192,9 @@ pictogram `◂` read, `▸` write, `x`, `c`, `d`), inherited rights shown as suc
   without any group the line is removed (no rights, no chip). Groups written for the
   person but unknown at this place (a template folder role of another subproject) stay.
   Adding a person is a separate step (open). Losing one's own `change` right is refused.
-- **Template folder roles** (from `## Folder`) have no section; a section of their own
-  replaces the folder rules. The first edit therefore copies the role's folder rules into
-  its new section, so nothing else changes for it.
+- **Template folder roles** (from `## Folder`) have no section at first; the first edit
+  creates one with just that explicit entry. The folder rules stay inherited (2.4), so
+  nothing else changes for the role, also not in subprojects.
 - **Writing:** only the affected line changes (comments, order and spelling elsewhere
   stay); the result is validated (`acl_schema`) before it is written, atomically.
 - **Rules follow renames and moves:** renaming or moving an entry inside the project
