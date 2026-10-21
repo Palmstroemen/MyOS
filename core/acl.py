@@ -50,14 +50,15 @@ class ACLPolicy:
         return self.display_names.get(key, key)
 
     @classmethod
-    def from_project(cls, project_root: Path) -> "ACLPolicy":
+    def from_project(cls, project_root: Path, acl_file: Optional[Path] = None) -> "ACLPolicy":
+        """Policy of project_root; acl_file replaces its .MyOS/ACLs.md (to check a draft)."""
         project_root = Path(project_root)
         config = ProjectConfig(project_root)
         if not config.is_valid():
             raise ValueError(f"Not a valid MyOS project: {project_root}")
 
         template_roles = _roles_from_templates(project_root, config.get_effective_templates())
-        acl_roles, role_permissions, folder_defaults, users = _roles_from_acls(project_root)
+        acl_roles, role_permissions, folder_defaults, users = _roles_from_acls(project_root, acl_file)
         normalized_defaults = _normalize_permissions({"folder": folder_defaults}).get("folder", {})
         normalized_sections = _normalize_permissions(role_permissions)
 
@@ -330,9 +331,9 @@ def _resolve_templates_dir(project_root: Path) -> Optional[Path]:
 
 def _roles_from_acls(
     project_root: Path,
+    acl_file: Optional[Path] = None,
 ) -> Tuple[Set[str], Dict[str, Dict[str, Set[str]]], Dict[str, Set[str]], Dict[str, Set[str]]]:
-    myos_dir = project_root / ".MyOS"
-    acl_file = myos_dir / "ACLs.md"
+    acl_file = Path(acl_file) if acl_file is not None else project_root / ".MyOS" / "ACLs.md"
     if not acl_file.exists():
         return set(), {}, {}, {}
 

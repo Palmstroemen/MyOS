@@ -34,10 +34,12 @@ class ACLView:
     them, and maps them to the project-relative paths ACLs.md is written in.
     """
 
-    # (project root, context project) -> (ACLs.md mtime, view); reloaded when the file
+    # (project root, context project) -> (ACLs.md stamp, view); reloaded when the file
     # changes. The context is the (sub)project the path lies in: the folder rules apply
-    # again to its template folders (ACLPolicy.for_context).
-    _cache: Dict[Tuple[Path, Path], Tuple[float, "ACLView"]] = {}
+    # again to its template folders (ACLPolicy.for_context). The stamp is inode, mtime
+    # (ns) and size: two edits within one timestamp tick must not look unchanged, and
+    # edits replace the file (new inode).
+    _cache: Dict[Tuple[Path, Path], Tuple[Tuple[int, int, int], "ACLView"]] = {}
 
     def __init__(self, policy: ACLPolicy, project_root: Path) -> None:
         self.policy = policy
@@ -51,9 +53,10 @@ class ACLView:
             return None
         acl_file = root / ".MyOS" / "ACLs.md"
         try:
-            mtime = acl_file.stat().st_mtime
+            info = acl_file.stat()
         except OSError:
             return None
+        stamp = (info.st_ino, info.st_mtime_ns, info.st_size)
         try:
             context = ProjectFinder.find_nearest(Path(path).expanduser().resolve())
         except OSError:
@@ -61,13 +64,13 @@ class ACLView:
         context = context.resolve() if context is not None else root
         key = (root, context)
         cached = cls._cache.get(key)
-        if cached is not None and cached[0] == mtime:
+        if cached is not None and cached[0] == stamp:
             return cached[1]
         try:
             view = cls(ACLPolicy.from_project(root).for_context(root, context), root)
         except Exception:
             return None
-        cls._cache[key] = (mtime, view)
+        cls._cache[key] = (stamp, view)
         return view
 
     def relative_path(self, path) -> Optional[str]:

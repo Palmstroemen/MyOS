@@ -1,0 +1,173 @@
+"""Editing ACLs.md: one rule for one role at one path (see ACL design document 5.3)."""
+
+from pathlib import Path
+
+import pytest
+
+from core.acl_edit import ACLEditError, set_role_rights
+from core.acl_view import ACLView
+
+
+@pytest.fixture(autouse=True)
+def _project_templates_only(monkeypatch):
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+
+
+ACLS = (
+    "# Permissions\n"
+    "\n"
+    "## Folder\n"
+    "- /{Folder}/: read, write\n"
+    "- /info/: read\n"
+    "\n"
+    "## Admin\n"
+    "- /*: read, write, execute\n"
+    "- /.MyOS/ACLs.md: read, write, change\n"
+    "\n"
+    "## Buchhalter\n"
+    "- /finanz/: read, write\n"
+    "\n"
+    "# Users\n"
+    "Anna: Admin\n"
+    "Karl: Buchhalter\n"
+)
+
+
+def _project(tmp_path: Path) -> Path:
+    root = tmp_path / "Project"
+    (root / ".MyOS").mkdir(parents=True)
+    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    for folder in ("finanz", "info", "work"):
+        (root / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / folder).mkdir()
+    (root / "finanz" / "archiv").mkdir()
+    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+    return root
+
+
+def _acls(root: Path) -> str:
+    return (root / ".MyOS" / "ACLs.md").read_text()
+
+
+def _rights(root: Path, role: str, path: Path) -> set:
+    return set(ACLView.for_path(path).rights_for_role(role, path))
+
+
+def test_new_rule_is_added_to_the_role_section_and_nothing_else_changes(tmp_path):
+    root = _project(tmp_path)
+
+    set_role_rights(root / "finanz" / "archiv", "Buchhalter", {"read"}, editor="anna")
+
+    text = _acls(root)
+    assert "- /finanz/archiv/: read\n" in text
+    assert text.replace("- /finanz/archiv/: read\n", "") == ACLS  # order, spelling, blank lines kept
+    assert text.index("/finanz/archiv/") < text.index("# Users")  # inside the Buchhalter section
+    assert _rights(root, "buchhalter", root / "finanz" / "archiv") == {"read"}
+    assert _rights(root, "buchhalter", root / "finanz") == {"read", "write"}
+
+
+def test_existing_rule_is_replaced(tmp_path):
+    root = _project(tmp_path)
+
+    set_role_rights(root / "finanz", "buchhalter", {"read", "write", "delete"}, editor="anna")
+
+    text = _acls(root)
+    assert "- /finanz/: read, write, delete\n" in text
+    assert text.count("/finanz/") == 1
+    assert _rights(root, "buchhalter", root / "finanz") == {"read", "write", "delete"}
+
+
+def test_no_rights_writes_none_and_none_rights_restores_inheritance(tmp_path):
+    root = _project(tmp_path)
+
+    set_role_rights(root / "finanz" / "archiv", "Buchhalter", set(), editor="anna")
+    assert "- /finanz/archiv/: none\n" in _acls(root)
+    assert _rights(root, "buchhalter", root / "finanz" / "archiv") == set()
+
+    set_role_rights(root / "finanz" / "archiv", "Buchhalter", None, editor="anna")
+    assert _acls(root) == ACLS
+    assert _rights(root, "buchhalter", root / "finanz" / "archiv") == {"read", "write"}
+
+
+def test_template_folder_role_gets_a_section_with_its_folder_rules(tmp_path):
+    root = _project(tmp_path)
+
+    set_role_rights(root / "finanz" / "archiv", "finanz", {"read"}, editor="anna")
+
+    text = _acls(root)
+    section = text[text.index("## finanz"):text.index("# Users")]
+    # Its folder rules come along, so nothing else changes for the role ...
+    assert "- /finanz/: read, write\n" in section and "- /info/: read\n" in section
+    assert "- /finanz/archiv/: read\n" in section
+    assert _rights(root, "finanz", root / "finanz") == {"read", "write"}
+    assert _rights(root, "finanz", root / "info") == {"read"}
+    assert _rights(root, "finanz", root / "finanz" / "archiv") == {"read"}
+    # ... and the other folder roles keep the defaults.
+    assert _rights(root, "work", root / "work") == {"read", "write"}
+
+
+def test_only_users_with_change_on_acls_may_edit(tmp_path):
+    root = _project(tmp_path)
+
+    with pytest.raises(PermissionError):
+        set_role_rights(root / "finanz", "Buchhalter", {"read"}, editor="karl")
+    with pytest.raises(PermissionError):
+        set_role_rights(root / "finanz", "Buchhalter", {"read"}, editor="nobody")
+    assert _acls(root) == ACLS
+
+
+def test_editor_cannot_take_away_their_own_change_right(tmp_path):
+    root = _project(tmp_path)
+
+    with pytest.raises(ACLEditError):
+        set_role_rights(root / ".MyOS" / "ACLs.md", "Admin", {"read", "write"}, editor="anna")
+    assert _acls(root) == ACLS
+
+
+def test_previous_version_is_kept_with_date_and_editor(tmp_path):
+    root = _project(tmp_path)
+
+    set_role_rights(root / "finanz", "Buchhalter", {"read"}, editor="anna")
+
+    kept = list((root / ".MyOS" / "ACLs-history").glob("ACLs-*-anna.md"))
+    assert len(kept) == 1
+    assert kept[0].read_text() == ACLS
+
+
+def test_unknown_role_and_unknown_right_are_rejected(tmp_path):
+    root = _project(tmp_path)
+
+    with pytest.raises(ACLEditError):
+        set_role_rights(root / "finanz", "Marketing", {"read"}, editor="anna")
+    with pytest.raises(ACLEditError):
+        set_role_rights(root / "finanz", "Buchhalter", {"fly"}, editor="anna")
+    assert _acls(root) == ACLS
+
+
+def test_paths_in_subprojects_are_written_relative_to_the_acl_project(tmp_path):
+    root = _project(tmp_path)
+    sub = root / "Familie"
+    (sub / ".MyOS").mkdir(parents=True)
+    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (sub / "Ich").mkdir()
+
+    set_role_rights(sub / "Ich", "Buchhalter", {"read"}, editor="anna")
+
+    assert "- /Familie/Ich/: read\n" in _acls(root)
+    assert _rights(root, "buchhalter", sub / "Ich") == {"read"}
+
+
+def test_can_edit_and_own_rule(tmp_path):
+    from core.acl_edit import can_edit, own_rule
+
+    root = _project(tmp_path)
+
+    assert can_edit(root / "finanz", "anna") is True
+    assert can_edit(root / "finanz", "karl") is False
+    assert can_edit(tmp_path / "elsewhere", "anna") is False
+
+    assert own_rule(root / "finanz", "Buchhalter") == {"read", "write"}
+    assert own_rule(root / "finanz" / "archiv", "Buchhalter") is None  # inherited only
+    set_role_rights(root / "finanz" / "archiv", "Buchhalter", set(), editor="anna")
+    assert own_rule(root / "finanz" / "archiv", "Buchhalter") == set()  # "none"
