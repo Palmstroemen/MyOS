@@ -171,3 +171,42 @@ def test_can_edit_and_own_rule(tmp_path):
     assert own_rule(root / "finanz" / "archiv", "Buchhalter") is None  # inherited only
     set_role_rights(root / "finanz" / "archiv", "Buchhalter", set(), editor="anna")
     assert own_rule(root / "finanz" / "archiv", "Buchhalter") == set()  # "none"
+
+
+def test_rules_follow_a_renamed_folder(tmp_path):
+    from core.acl_edit import move_rules
+
+    root = _project(tmp_path)
+    set_role_rights(root / "finanz" / "archiv", "Buchhalter", {"read"}, editor="anna")
+    (root / "finanz").rename(root / "Finanzen")
+
+    changed = move_rules(root / "finanz", root / "Finanzen", editor="karl")  # karl has no change right
+
+    text = _acls(root)
+    assert changed is True
+    assert "- /Finanzen/: read, write\n" in text and "- /Finanzen/archiv/: read\n" in text
+    assert "/finanz/" not in text
+    assert "- /{Folder}/: read, write\n" in text  # folder rules are no fixed paths
+    assert _rights(root, "buchhalter", root / "Finanzen" / "archiv") == {"read"}
+    assert list((root / ".MyOS" / "ACLs-history").glob("ACLs-*-karl.md"))
+
+
+def test_moving_without_rules_changes_nothing(tmp_path):
+    from core.acl_edit import move_rules
+
+    root = _project(tmp_path)
+    (root / "work" / "notes").mkdir()
+
+    assert move_rules(root / "work" / "notes", root / "info" / "notes", editor="karl") is False
+    assert _acls(root) == ACLS
+
+
+def test_rules_waiting_at_the_new_path_block_the_move(tmp_path):
+    from core.acl_edit import check_move_rules
+
+    root = _project(tmp_path)
+    set_role_rights(root / "Neu", "Buchhalter", set(), editor="anna")  # a prepared lock for /Neu/
+
+    with pytest.raises(ACLEditError):
+        check_move_rules(root / "finanz", root / "Neu")
+    check_move_rules(root / "work", root / "Anders")  # no rules at either place: fine

@@ -1026,6 +1026,8 @@ ApplicationWindow {
             return qsTr("Entry is already in the target folder.")
         case "duplicate_source":
             return qsTr("Entry was selected multiple times.")
+        case "acl_rules_conflict":
+            return qsTr("Access rules are already waiting for this place; ask whoever manages the rights.")
         default:
             return qsTr("Operation skipped.")
         }

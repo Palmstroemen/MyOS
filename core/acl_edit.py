@@ -112,6 +112,94 @@ def own_rule(path, role: str) -> Optional[Set[str]]:
     return found
 
 
+def check_move_rules(old_path, new_path) -> None:
+    """
+    Raise ACLEditError when rules for new_path (or below) exist already.
+    Security: rules waiting for a path (e.g. a prepared "none") would be combined with the
+    rules that follow the moved entry, and rights of the same folder add up, so a rename
+    or move could undo such a lock. Call before renaming or moving.
+    """
+    root = find_acl_project_root(Path(new_path).expanduser().parent)
+    if root is None:
+        return
+    new_rel = _plain_rel(root, Path(new_path))
+    if new_rel is None:
+        return
+    lines = (root / ".MyOS" / "ACLs.md").read_text(encoding="utf-8").splitlines(keepends=True)
+    if _rule_lines_under(lines, new_rel):
+        raise ACLEditError(f"ACLs.md already has rules for {new_rel}")
+
+
+def move_rules(old_path, new_path, editor: str) -> bool:
+    """
+    After a rename or move inside the project: rewrite rules for old_path (and below)
+    to new_path. Rights stay as they were, only the paths follow; folder rules
+    ({Folder}) are no fixed paths and stay. Returns whether ACLs.md changed.
+    Not restricted to users with "change": who may rename or move an entry keeps its
+    rules intact (check_move_rules prevents that rights add up at the new path).
+    """
+    old_path, new_path = Path(old_path).expanduser(), Path(new_path).expanduser()
+    root = find_acl_project_root(old_path.parent)
+    if root is None or find_acl_project_root(new_path.parent) != root:
+        return False  # moved out of the project: its rules stay with the old path
+    old_rel, new_rel = _plain_rel(root, old_path), _plain_rel(root, new_path)
+    if old_rel is None or new_rel is None:
+        return False
+    acl_file = root / ".MyOS" / "ACLs.md"
+    original = acl_file.read_text(encoding="utf-8")
+    lines = original.splitlines(keepends=True)
+    hits = _rule_lines_under(lines, old_rel)
+    if not hits:
+        return False
+    for i in hits:
+        indent, rest = lines[i][: len(lines[i]) - len(lines[i].lstrip())], lines[i].lstrip()
+        bullet, raw_and_rights = rest[:2], rest[2:]
+        raw, sep, rights = raw_and_rights.partition(":")
+        written = raw.strip()
+        written = written if written.startswith("/") else "/" + written
+        lines[i] = f"{indent}{bullet}{new_rel}{written[len(old_rel):]}{sep}{rights}"
+    edited = "".join(lines)
+    draft = acl_file.with_name(".ACLs.md.draft")
+    draft.write_text(edited, encoding="utf-8")
+    try:
+        try:
+            ACLPolicy.from_project(root, acl_file=draft)
+        except Exception as exc:
+            raise ACLEditError(f"the edited ACLs.md is not valid: {exc}") from exc
+        _keep_previous(acl_file, original, editor)
+        os.replace(draft, acl_file)
+    finally:
+        if draft.exists():
+            draft.unlink()
+    return True
+
+
+def _plain_rel(root: Path, path: Path) -> Optional[str]:
+    """"/a/b" for root/a/b (no trailing slash, not resolved: the path may be gone)."""
+    try:
+        rel = path.absolute().relative_to(root)
+    except ValueError:
+        return None
+    text = "/".join(rel.parts)
+    return "/" + text if text else None
+
+
+def _rule_lines_under(lines: List[str], rel: str) -> List[int]:
+    """Indices of rule lines whose path is rel or below it ({Folder} rules excluded)."""
+    hits = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not (stripped.startswith("- ") or stripped.startswith("* ")) or ":" not in stripped:
+            continue
+        written = stripped[2:].partition(":")[0].strip()
+        if "{" in written:
+            continue
+        written = written if written.startswith("/") else "/" + written
+        if written.rstrip("/") == rel or written.startswith(rel + "/"):
+            hits.append(i)
+    return hits
+
+
 def _user_rights(policy: ACLPolicy, user: str, rel: str) -> Set[str]:
     rights: Set[str] = set()
     for role in policy.roles_for_user(str(user or "")):

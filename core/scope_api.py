@@ -16,7 +16,14 @@ import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root
-from core.acl_edit import ACLEditError, can_edit as acl_can_edit, own_rule as own_acl_rule, set_role_rights
+from core.acl_edit import (
+    ACLEditError,
+    can_edit as acl_can_edit,
+    check_move_rules,
+    move_rules as move_acl_rules,
+    own_rule as own_acl_rule,
+    set_role_rights,
+)
 from core.acl_view import ACLView
 from core import trash
 from core.project import find_config_in_parents
@@ -2746,11 +2753,41 @@ class ScopeApi:
             return str(source)
         if target.exists():
             return None
+        if self._acl_rules_blocked(source, target):
+            return None
         try:
             source.rename(target)
         except Exception:
             return None
+        self._acl_rules_follow(source, target)
         return str(target)
+
+    def _acl_rules_blocked(self, old: Path, new: Path) -> bool:
+        """
+        Security: rules waiting for the new path would add up with the rules that follow
+        the entry (acl_edit.check_move_rules); such a rename or move is refused.
+        """
+        try:
+            check_move_rules(old, new)
+        except ACLEditError:
+            return True
+        except OSError:
+            return False
+        return False
+
+    def _follow_sort_move(self, moved: Path, sorted_result) -> None:
+        """Sort.md may move an entry on after a move: its rules follow that step too."""
+        if (sorted_result or {}).get("ok") == "1" and sorted_result.get("reason") == "moved":
+            target = str(sorted_result.get("destination") or "")
+            if target:
+                self._acl_rules_follow(moved, Path(target))
+
+    def _acl_rules_follow(self, old: Path, new: Path) -> None:
+        """Rewrite ACL rules of old to new after a rename or move (rights unchanged)."""
+        try:
+            move_acl_rules(old, new, editor=self._acl_user)
+        except (ACLEditError, OSError):
+            pass
 
     def _iter_unique_sources(self, values: List[str]):
         seen: set[str] = set()
@@ -2946,10 +2983,14 @@ class ScopeApi:
         if move_plan.get("status") != "ok":
             return False
         destination = move_plan["destination"]
+        if self._acl_rules_blocked(src, destination):
+            return False
         try:
             shutil.move(str(src), str(destination))
+            self._acl_rules_follow(src, destination)
             rules = self._resolve_sort_rules_for_target(destination.parent)
-            self._sort_runtime.apply_file(destination, rules, event="move")
+            sorted_result = self._sort_runtime.apply_file(destination, rules, event="move")
+            self._follow_sort_move(destination, sorted_result)
             self._reabsorb_emptied_folders([src.parent])
             return True
         except Exception:
@@ -3006,12 +3047,17 @@ class ScopeApi:
                 continue
 
             destination = move_plan["destination"]
+            if self._acl_rules_blocked(src, destination):
+                result["errors"].append({"source": src_key, "reason": "acl_rules_conflict"})
+                continue
             try:
                 shutil.move(str(src), str(destination))
+                self._acl_rules_follow(src, destination)
                 result["moved"].append({"source": src_key, "destination": str(destination)})
                 emptied.append(src.parent)
                 rules = self._resolve_sort_rules_for_target(destination.parent)
                 sorted_result = self._sort_runtime.apply_file(destination, rules, event="move")
+                self._follow_sort_move(destination, sorted_result)
                 if sorted_result.get("ok") == "1" and sorted_result.get("reason") == "moved":
                     result.setdefault("sorted", []).append(
                         {

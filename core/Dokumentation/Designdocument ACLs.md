@@ -151,6 +151,11 @@ pictogram `◂` read, `▸` write, `x`, `c`, `d`), inherited rights shown as suc
   its new section, so nothing else changes for it.
 - **Writing:** only the affected line changes (comments, order and spelling elsewhere
   stay); the result is validated (`acl_schema`) before it is written, atomically.
+- **Rules follow renames and moves:** renaming or moving an entry inside the project
+  rewrites the rules for its old path (and below) to the new one; rights stay, `{Folder}`
+  rules are no fixed paths and stay. This needs no `change` right (nothing about the
+  rights changes). Security: if rules already wait for the new path, the rename or move is
+  refused — rights of the same folder add up, so a prepared `none` could be undone.
 - **History instead of audit:** before each GUI edit the previous `ACLs.md` is kept
   (dated copy in `.MyOS/`). That gives undo and a simple “who changed what, when” trail
   without a separate audit system; formal audits are not an MVP goal.
