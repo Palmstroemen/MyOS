@@ -75,6 +75,9 @@ class _Sidebar:
     def set_principals(self, principals):
         self.principals = list(principals)
 
+    def set_editable(self, editable):
+        self.editable = editable
+
     def preferred_width(self):
         return 130
 
@@ -180,3 +183,93 @@ def test_acl_chip_shows_delete_as_d():
 
     QApplication.instance() or QApplication([])
     assert ACLSidebar()._chip_text({"name": "A", "rights": ["read", "execute", "delete"]}) == ("x d", "◂", "A", "")
+
+
+def test_principals_carry_their_key(tmp_path):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("x")
+
+    keys = {p["name"]: p["key"] for p in wa.acl_principals_for_document(note)}
+
+    assert keys["Buchhaltung"] == "buchhaltung" and keys["Bertha"] == "bertha"
+
+
+def test_chips_are_editable_only_for_users_with_change(tmp_path, monkeypatch):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("x")
+    w = _Window()
+    w.editor.current_path = note
+
+    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    w._reload_acl_context()
+    assert w.left_sidebar.editable is True
+
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    w._reload_acl_context()
+    assert w.left_sidebar.editable is False
+
+
+def test_apply_role_rights_writes_and_reloads(tmp_path, monkeypatch):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("x")
+    w = _Window()
+    w.editor.current_path = note
+    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    w._reload_acl_context()
+
+    error = w._apply_role_rights("buchhaltung", {"read"})
+
+    assert error == ""
+    assert "- /finanz/plan.md: read\n" in (root / ".MyOS" / "ACLs.md").read_text()
+    rights = {p["name"]: p["rights"] for p in w.left_sidebar.principals}
+    assert rights["Buchhaltung"] == ["read"]
+
+    assert w._apply_role_rights("buchhaltung", None) == ""  # back to inherited
+    assert "plan.md" not in (root / ".MyOS" / "ACLs.md").read_text()
+
+
+def test_apply_without_permission_reports_and_changes_nothing(tmp_path, monkeypatch):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("x")
+    w = _Window()
+    w.editor.current_path = note
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+
+    error = w._apply_role_rights("buchhaltung", {"read"})
+
+    assert error
+    assert (root / ".MyOS" / "ACLs.md").read_text() == ACLS
+
+
+def test_role_editor_shows_rights_and_returns_the_choice():
+    from PySide6.QtWidgets import QApplication
+    from PostFix.ui_panels import ACLRoleEditor
+
+    QApplication.instance() or QApplication([])
+    editor = ACLRoleEditor("Buchhaltung", ["read", "write"], own_rule=False)
+
+    assert editor.chosen_rights() == {"read", "write"}
+    assert editor.reset_button.isEnabled() is False  # inherited only: nothing to reset
+    editor.toggle("write")
+    editor.toggle("delete")
+    assert editor.chosen_rights() == {"read", "delete"}
+    assert ACLRoleEditor("X", [], own_rule=True).reset_button.isEnabled() is True
+
+
+def test_role_editor_says_in_words_what_is_allowed():
+    from PySide6.QtWidgets import QApplication
+    from PostFix.ui_panels import ACLRoleEditor
+
+    QApplication.instance() or QApplication([])
+    editor = ACLRoleEditor("Buchhaltung", ["read"], own_rule=False)
+
+    assert editor.meaning["read"].text() == "✓ darf lesen"
+    assert editor.meaning["write"].text() == "✗ darf nicht schreiben"
+    editor.toggle("write")
+    assert editor.meaning["write"].text() == "✓ darf schreiben"
+    assert "was diese Gruppe mit dieser Notiz machen darf" in editor.intro.text()
+    assert "geerbt" in editor.origin.text()

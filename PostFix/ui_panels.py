@@ -246,11 +246,22 @@ class ACLSidebar(SidebarWidget):
     RIGHT_LETTERS = {"execute": "x", "change": "c", "delete": "d"}
     CHIP_COLORS = {"user": "#d6d6d6", "role": "#b5b5b5"}
 
+    # A group chip was clicked while editable: (role key, display name, rights, chip).
+    roleEditRequested = Signal(str, str, list, object)
+
     def __init__(self):
         super().__init__("ACLs", "rgba(200, 220, 240, 60)")
         self.principals = []
+        self.editable = False
         self.setup_ui()
         self.retranslate_ui()
+
+    def set_editable(self, editable: bool):
+        """Group chips open the rights editor (only for users with "change" on ACLs.md)."""
+        editable = bool(editable)
+        if editable != self.editable:
+            self.editable = editable
+            self._rebuild()
 
     def setup_ui(self):
         self._rebuild()
@@ -345,7 +356,17 @@ class ACLSidebar(SidebarWidget):
             row.addSpacing(self.ARROW_GAP_PX)
             row.addWidget(write_label)
             kind = self.tr("Person") if principal.get("kind") == "user" else self.tr("Gruppe")
-            btn.setToolTip(f"{kind}: {self._right_names(principal.get('rights', []))}")
+            tip = f"{kind}: {self._right_names(principal.get('rights', []))}"
+            # Groups only for now: a person's rights come from their roles.
+            if self.editable and principal.get("kind") == "role":
+                tip += "\n" + self.tr("Klick: Rechte für diese Notiz ändern")
+                btn.setCursor(Qt.PointingHandCursor)
+                btn.clicked.connect(
+                    lambda _checked=False, p=principal, b=btn: self.roleEditRequested.emit(
+                        str(p.get("key", "")), str(p.get("name", "")), list(p.get("rights", [])), b
+                    )
+                )
+            btn.setToolTip(tip)
             btn.setMinimumHeight(row.sizeHint().height() + 8)
             layout.addWidget(btn)
         layout.addStretch()
@@ -353,6 +374,133 @@ class ACLSidebar(SidebarWidget):
     def retranslate_ui(self):
         self.set_title_text(self.tr("ACLs"))
         self._rebuild()
+
+
+class ACLRoleEditor(QFrame):
+    """
+    Small popup to set one group's rights on the open note: one switch per right in the
+    chip pictogram (◂ read, ▸ write, x, c, d), plus "back to inherited" when the group
+    has a rule of its own here (see ACL design document 5.3).
+    """
+
+    applyRequested = Signal(object)  # set of rights
+    resetRequested = Signal()
+
+    RIGHTS = (
+        ("read", "◂"),
+        ("write", "▸"),
+        ("execute", "x"),
+        ("change", "c"),
+        ("delete", "d"),
+    )
+
+    def __init__(self, role_name: str, rights, own_rule: bool, parent=None):
+        super().__init__(parent, Qt.Popup)
+        self.setObjectName("aclRoleEditor")
+        # The greys of the ACL chips: switches are chips (square left edge, rounded right
+        # edge), switched on in the darker group grey.
+        self.setStyleSheet(
+            """
+            QFrame#aclRoleEditor { background: #cfcfcf; border: 1px solid #9a9a9a; border-radius: 6px; }
+            QLabel { color: #333333; background: transparent; border: none; }
+            QPushButton {
+                color: #333333;
+                background: #e4e4e4;
+                border: 1px solid rgba(0, 0, 0, 60);
+                border-radius: 4px;
+                padding: 3px 8px;
+            }
+            QPushButton:hover { border: 1px solid rgba(0, 0, 0, 110); }
+            QPushButton:disabled { color: #8a8a8a; background: #d8d8d8; }
+            QPushButton[aclSwitch="true"] {
+                border-top-left-radius: 2px;
+                border-bottom-left-radius: 2px;
+                /* Qt drops radii whose sum exceeds the height (~22 px here). */
+                border-top-right-radius: 9px;
+                border-bottom-right-radius: 9px;
+            }
+            QPushButton[aclSwitch="true"]:checked { background: #b5b5b5; font-weight: bold; }
+        """
+        )
+        # What each right allows, as "darf …" / "darf nicht …" next to its switch.
+        self.verbs = {
+            "read": self.tr("lesen"),
+            "write": self.tr("schreiben"),
+            "execute": self.tr("ausführen"),
+            "change": self.tr("Rechte ändern"),
+            "delete": self.tr("löschen"),
+        }
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+        title = QLabel(self.tr("Rechte von %1 für diese Notiz").replace("%1", role_name))
+        title.setStyleSheet("font-weight: bold;")
+        layout.addWidget(title)
+        self.intro = QLabel(self.tr("Hier steuern Sie genau, was diese Gruppe mit dieser Notiz machen darf."))
+        self.intro.setWordWrap(True)
+        layout.addWidget(self.intro)
+        self.switches = {}
+        self.meaning = {}
+        for right, symbol in self.RIGHTS:
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            switch = QPushButton(symbol)
+            switch.setCheckable(True)
+            switch.setChecked(right in set(rights or []))
+            switch.setProperty("aclSwitch", True)
+            switch.setFixedWidth(40)
+            meaning = QLabel()
+            switch.toggled.connect(lambda _on, r=right: self._update_meaning(r))
+            row.addWidget(switch)
+            row.addWidget(meaning, 1)
+            layout.addLayout(row)
+            self.switches[right] = switch
+            self.meaning[right] = meaning
+            self._update_meaning(right)
+        self.origin = QLabel(
+            self.tr("Für diese Notiz gilt eine eigene Regel.") if own_rule
+            else self.tr("Diese Rechte sind vom übergeordneten Ordner geerbt.")
+        )
+        self.origin.setWordWrap(True)
+        self.origin.setStyleSheet("color: #555555;")
+        layout.addWidget(self.origin)
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: #b00020;")
+        self.error_label.setWordWrap(True)
+        self.error_label.hide()
+        layout.addWidget(self.error_label)
+        buttons = QHBoxLayout()
+        self.apply_button = QPushButton(self.tr("Übernehmen"))
+        self.reset_button = QPushButton(self.tr("Zurück auf geerbt"))
+        self.reset_button.setEnabled(bool(own_rule))
+        cancel = QPushButton(self.tr("Abbrechen"))
+        for button in (self.apply_button, self.reset_button, cancel):
+            buttons.addWidget(button)
+        layout.addLayout(buttons)
+        self.apply_button.clicked.connect(lambda: self.applyRequested.emit(self.chosen_rights()))
+        self.reset_button.clicked.connect(self.resetRequested.emit)
+        cancel.clicked.connect(self.close)
+
+    def _update_meaning(self, right: str):
+        verb = self.verbs[right]
+        if self.switches[right].isChecked():
+            self.meaning[right].setText("✓ " + self.tr("darf %1").replace("%1", verb))
+            self.meaning[right].setStyleSheet("color: #333333;")
+        else:
+            self.meaning[right].setText("✗ " + self.tr("darf nicht %1").replace("%1", verb))
+            self.meaning[right].setStyleSheet("color: #777777;")
+
+    def chosen_rights(self) -> set:
+        return {right for right, switch in self.switches.items() if switch.isChecked()}
+
+    def toggle(self, right: str):
+        switch = self.switches[right]
+        switch.setChecked(not switch.isChecked())
+
+    def show_error(self, message: str):
+        self.error_label.setText(message)
+        self.error_label.setVisible(bool(message))
+        self.adjustSize()
 
 
 class BottomToolbar(QWidget):
