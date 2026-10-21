@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Ordner-Verschieben bestaetigen")
+    title: qsTr("Confirm Folder Move")
     modal: true
     focus: true
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -18,8 +18,8 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Ok, qsTr("Uebernehmen"))
-        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+        window._setDialogButtonText(root, Dialog.Ok, qsTr("Apply"))
+        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
     }
     onAccepted: {
         window._performMove(window.pendingMoveSources, window.pendingMoveTargetDir)

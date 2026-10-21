@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Dateien loeschen")
+    title: qsTr("Delete Files")
     modal: true
     focus: true
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -18,8 +18,8 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Ok, qsTr("Uebernehmen"))
-        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+        window._setDialogButtonText(root, Dialog.Ok, qsTr("Apply"))
+        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
     }
     onAccepted: {
         window.performDeleteEntries(window.pendingDeletePaths)
@@ -28,7 +28,7 @@ Dialog {
     onRejected: window.pendingDeletePaths = []
     contentItem: Text {
         width: Math.max(120, root.width - 32)
-        text: qsTr("Wirklich %1 Dateien loeschen? Das kann nicht rueckgaengig gemacht werden.")
+        text: qsTr("Delete %1 files? This cannot be undone.")
             .arg(window.pendingDeletePaths.length)
         wrapMode: Text.WordWrap
         color: window.dialogTextStrong

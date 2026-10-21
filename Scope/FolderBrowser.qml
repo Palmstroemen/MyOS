@@ -2368,21 +2368,21 @@ Item { // ROOT
                         id: verticalDisplayMenu
                         y: parent ? parent.height + 4 : 0
                         MenuItem {
-                            text: qsTr("t Text")
+                            text: qsTr("T Text")
                             visible: showStyleToggle
                             checkable: true
                             checked: buttonStyle === "text"
                             onTriggered: styleChanged("text")
                         }
                         MenuItem {
-                            text: qsTr("G Gross")
+                            text: qsTr("L Large")
                             visible: showStyleToggle && allowLargeIcons
                             checkable: true
                             checked: buttonStyle === "largeIcon"
                             onTriggered: styleChanged("largeIcon")
                         }
                         MenuItem {
-                            text: qsTr("k Klein")
+                            text: qsTr("S Small")
                             visible: showStyleToggle
                             checkable: true
                             checked: buttonStyle === "smallIcon"
@@ -2399,33 +2399,33 @@ Item { // ROOT
                             onTriggered: toggleEmbryos()
                         }
                         MenuItem {
-                            text: qsTr("Versteckte Ordner anzeigen")
+                            text: qsTr("Show hidden folders")
                             checkable: true
                             checked: showHiddenFolders
                             onTriggered: toggleShowHiddenFolders()
                         }
                         MenuSeparator {}
                         MenuItem {
-                            text: qsTr("P Pfadleiste")
+                            text: qsTr("P Path bar")
                             checkable: true
                             checked: usePathBar
                             onTriggered: usePathBar = !usePathBar
                         }
                         MenuItem {
-                            text: qsTr("Vorschau")
+                            text: qsTr("Preview")
                             checkable: true
                             checked: previewEnabled
                             onTriggered: previewEnabled = !previewEnabled
                         }
                         MenuItem {
-                            text: qsTr("Vorschau Hintergrund")
+                            text: qsTr("Preview background")
                             checkable: true
                             checked: previewShowBackground
                             onTriggered: previewShowBackground = !previewShowBackground
                         }
                         MenuSeparator {}
                         MenuItem {
-                            text: qsTr("Instant Reopen")
+                            text: qsTr("Instant reopen")
                             checkable: true
                             checked: previewInstantReopenEnabled
                             onTriggered: previewInstantReopenEnabled = !previewInstantReopenEnabled
@@ -2583,21 +2583,21 @@ Item { // ROOT
                                 id: horizontalDisplayMenu
                                 y: parent ? parent.height + 4 : 0
                                 MenuItem {
-                                    text: qsTr("t Text")
+                                    text: qsTr("T Text")
                                     visible: showStyleToggle
                                     checkable: true
                                     checked: buttonStyle === "text"
                                     onTriggered: styleChanged("text")
                                 }
                                 MenuItem {
-                                    text: qsTr("G Gross")
+                                    text: qsTr("L Large")
                                     visible: showStyleToggle && allowLargeIcons
                                     checkable: true
                                     checked: buttonStyle === "largeIcon"
                                     onTriggered: styleChanged("largeIcon")
                                 }
                                 MenuItem {
-                                    text: qsTr("k Klein")
+                                    text: qsTr("S Small")
                                     visible: showStyleToggle
                                     checkable: true
                                     checked: buttonStyle === "smallIcon"
@@ -2614,33 +2614,33 @@ Item { // ROOT
                                     onTriggered: toggleEmbryos()
                                 }
                                 MenuItem {
-                                    text: qsTr("Versteckte Ordner anzeigen")
+                                    text: qsTr("Show hidden folders")
                                     checkable: true
                                     checked: showHiddenFolders
                                     onTriggered: toggleShowHiddenFolders()
                                 }
                                 MenuSeparator {}
                                 MenuItem {
-                                    text: qsTr("P Pfadleiste")
+                                    text: qsTr("P Path bar")
                                     checkable: true
                                     checked: usePathBar
                                     onTriggered: usePathBar = !usePathBar
                                 }
                                 MenuItem {
-                                    text: qsTr("Vorschau")
+                                    text: qsTr("Preview")
                                     checkable: true
                                     checked: previewEnabled
                                     onTriggered: previewEnabled = !previewEnabled
                                 }
                                 MenuItem {
-                                    text: qsTr("Vorschau Hintergrund")
+                                    text: qsTr("Preview background")
                                     checkable: true
                                     checked: previewShowBackground
                                     onTriggered: previewShowBackground = !previewShowBackground
                                 }
                                 MenuSeparator {}
                                 MenuItem {
-                                    text: qsTr("Instant Reopen")
+                                    text: qsTr("Instant reopen")
                                     checkable: true
                                     checked: previewInstantReopenEnabled
                                     onTriggered: previewInstantReopenEnabled = !previewInstantReopenEnabled
@@ -2709,7 +2709,7 @@ Item { // ROOT
                                 anchors.fill: parent
                                 anchors.margins: 4
                                 text: searchText
-                                placeholderText: "Search      + deep    # all"
+                                placeholderText: qsTr("Search      + deep    # all")
                                 font.pixelSize: baseFont
                                 selectByMouse: true
                                 color: root.text
@@ -3192,7 +3192,7 @@ Item { // ROOT
                                 anchors.fill: parent
                                 anchors.margins: 4
                                 text: searchText
-                                placeholderText: "Search      + deep    # all"
+                                placeholderText: qsTr("Search      + deep    # all")
                                 font.pixelSize: baseFont
                                 selectByMouse: true
                                 color: root.text

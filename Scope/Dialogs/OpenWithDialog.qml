@@ -5,7 +5,7 @@ import "../js/PathUtils.js" as PathUtils
 Dialog {
     id: root
     required property var window
-    title: qsTr("Oeffnen mit ...")
+    title: qsTr("Open with ...")
     modal: true
     focus: true
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -22,15 +22,15 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Ok, qsTr("Oeffnen"))
-        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+        window._setDialogButtonText(root, Dialog.Ok, qsTr("Open"))
+        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
         openWithCommandInput.forceActiveFocus()
         openWithCommandInput.selectAll()
     }
     onAccepted: {
         var ok = window.performOpenWith(window.pendingOpenWithPath, openWithCommandInput.text)
         if (!ok) {
-            window.moveReportMessage = qsTr("Konnte Datei nicht mit dem gewaehlten Programm oeffnen.")
+            window.moveReportMessage = qsTr("Could not open the file with the chosen program.")
             window.moveReportDialog.open()
         }
         window.pendingOpenWithPath = ""
@@ -39,7 +39,7 @@ Dialog {
     contentItem: Column {
         spacing: 8
         Text {
-            text: qsTr("Programmkommando fuer \"%1\":").arg(PathUtils.basename(window.pendingOpenWithPath))
+            text: qsTr("Program command for \"%1\":").arg(PathUtils.basename(window.pendingOpenWithPath))
             wrapMode: Text.WordWrap
             color: window.dialogTextStrong
             font.pixelSize: window.baseFont
@@ -47,7 +47,7 @@ Dialog {
         TextField {
             id: openWithCommandInput
             text: window.pendingOpenWithCommand
-            placeholderText: qsTr("z.B. code, kate, libreoffice")
+            placeholderText: qsTr("e.g. code, kate, libreoffice")
             selectByMouse: true
             color: window.dialogInputText
             placeholderTextColor: window.dialogInputPlaceholder
@@ -67,7 +67,7 @@ Dialog {
             Keys.onEscapePressed: root.reject()
         }
         Text {
-            text: qsTr("Schnellwahl:")
+            text: qsTr("Quick choices:")
             color: window.dialogTextMuted
             font.pixelSize: Math.max(window.baseFont - 1, 11)
             visible: window.openWithQuickCommands && window.openWithQuickCommands.length > 0

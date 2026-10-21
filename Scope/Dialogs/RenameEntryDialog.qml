@@ -5,7 +5,7 @@ import "../js/PathUtils.js" as PathUtils
 Dialog {
     id: root
     required property var window
-    title: qsTr("Datei umbenennen")
+    title: qsTr("Rename File")
     modal: true
     focus: true
     standardButtons: Dialog.Cancel
@@ -19,7 +19,7 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
         renameEntryInput.forceActiveFocus()
         renameEntryInput.selectAll()
     }
@@ -32,7 +32,7 @@ Dialog {
         }
         var renamed = window.backend.renameEntry(window.pendingRenamePath, nextName)
         if (!renamed || renamed.length === 0) {
-            window.moveReportMessage = qsTr("Konnte \"%1\" nicht umbenennen.").arg(PathUtils.basename(window.pendingRenamePath))
+            window.moveReportMessage = qsTr("Could not rename \"%1\".").arg(PathUtils.basename(window.pendingRenamePath))
             window.moveReportDialog.open()
             window.pendingRenamePath = ""
             window.pendingRenameName = ""
@@ -50,7 +50,7 @@ Dialog {
     contentItem: Column {
         spacing: 8
         Text {
-            text: qsTr("Neuen Dateinamen eingeben und mit Return uebernehmen.")
+            text: qsTr("Enter a new file name and press Return to apply.")
             wrapMode: Text.WordWrap
             color: window.dialogTextStrong
             font.pixelSize: window.baseFont
@@ -58,7 +58,7 @@ Dialog {
         TextField {
             id: renameEntryInput
             text: window.pendingRenameName
-            placeholderText: qsTr("Neuer Name")
+            placeholderText: qsTr("New name")
             selectByMouse: true
             color: window.dialogInputText
             placeholderTextColor: window.dialogInputPlaceholder

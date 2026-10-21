@@ -956,11 +956,12 @@ class Backend(QObject):
             self._app.removeTranslator(self._translator)
             self._translator = None
 
-        if code != "de":
+        # Source strings are English; other languages load i18n/scope_<code>.qm.
+        if code != "en":
             translator = QTranslator(self)
             qm_path = self._i18n_dir / f"scope_{code}.qm"
             if not translator.load(str(qm_path)):
-                code = "de"
+                code = "en"
             else:
                 self._app.installTranslator(translator)
                 self._translator = translator

@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Desktop-Aenderungen speichern")
+    title: qsTr("Save desktop changes")
     modal: true
     focus: true
     standardButtons: Dialog.NoButton
@@ -28,13 +28,13 @@ Dialog {
         spacing: 12
         padding: 14
         Text {
-            text: qsTr("Desktop-Aenderungen fuer Kontext: ") + window.pendingConfigPromptContext
+            text: qsTr("Desktop changes for context: ") + window.pendingConfigPromptContext
             color: window.dialogTextStrong
             wrapMode: Text.Wrap
             font.pixelSize: window.baseFont
         }
         Text {
-            text: qsTr("Wohin soll die Konfiguration gespeichert werden?")
+            text: qsTr("Where should the configuration be saved?")
             color: window.dialogTextMuted
             wrapMode: Text.Wrap
             font.pixelSize: window.baseFont

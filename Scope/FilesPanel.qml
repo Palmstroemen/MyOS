@@ -141,14 +141,14 @@ Rectangle { // Files panel
     readonly property var visibleListColumns: FormatUtils.visibleListColumns(listColumns, listDetailFontPx)
 
     function listColumnTitle(id) {
-        if (id === "size") return qsTr("Größe")
-        if (id === "modified") return qsTr("Geändert")
-        if (id === "type") return qsTr("Typ")
+        if (id === "size") return qsTr("Size")
+        if (id === "modified") return qsTr("Modified")
+        if (id === "type") return qsTr("Type")
         if (id === "tags") return qsTr("Tags")
-        if (id === "accessed") return qsTr("Zugriff")
-        if (id === "permissions") return qsTr("Berechtigungen")
-        if (id === "owner") return qsTr("Besitzer")
-        if (id === "group") return qsTr("Gruppe")
+        if (id === "accessed") return qsTr("Access")
+        if (id === "permissions") return qsTr("Permissions")
+        if (id === "owner") return qsTr("Owner")
+        if (id === "group") return qsTr("Group")
         return id
     }
 
@@ -450,7 +450,7 @@ Rectangle { // Files panel
     }
 
     function aclRightsNames(rights) {
-        var names = { read: qsTr("Lesen"), write: qsTr("Schreiben"), execute: qsTr("Ausführen"), change: qsTr("Rechte ändern"), delete: qsTr("Löschen") }
+        var names = { read: qsTr("Read"), write: qsTr("Write"), execute: qsTr("Execute"), change: qsTr("Change rights"), delete: qsTr("Delete") }
         var out = []
         for (var i = 0; i < (rights || []).length; i++) {
             out.push(names[rights[i]] || rights[i])
@@ -460,12 +460,12 @@ Rectangle { // Files panel
 
     function aclChipTip(p) {
         if (p.section === "exception") {
-            return qsTr("Kein Zugriff auf diesen Ordner, aber auf %1 von %2 Einträgen").arg(p.count).arg(aclEntryCount)
+            return qsTr("No access to this folder, but to %1 of %2 entries").arg(p.count).arg(aclEntryCount)
         }
         if (p.section === "locked") {
-            return qsTr("Zugriff auf diesen Ordner, aber gesperrt für %1 von %2 Einträgen").arg(p.count).arg(aclEntryCount)
+            return qsTr("Access to this folder, but locked out of %1 of %2 entries").arg(p.count).arg(aclEntryCount)
         }
-        return qsTr("Hier: %1").arg(aclRightsNames(p.rights))
+        return qsTr("Here: %1").arg(aclRightsNames(p.rights))
     }
 
     /// Chips of a panel section. "Ausnahmen" (exception) also holds the locked-out
@@ -531,8 +531,8 @@ Rectangle { // Files panel
 
                 Repeater {
                     model: [
-                        { section: "folder", title: qsTr("Zugriff") },
-                        { section: "exception", title: qsTr("Ausnahmen") }
+                        { section: "folder", title: qsTr("Access") },
+                        { section: "exception", title: qsTr("Exceptions") }
                     ]
                     delegate: Column {
                         readonly property var chips: root.aclSection(modelData.section)
@@ -854,7 +854,7 @@ Rectangle { // Files panel
                     }
                     ToolTip.visible: tagEntryButtonHover.hovered
                     ToolTip.delay: 600
-                    ToolTip.text: qsTr("Ordnertag vergeben")
+                    ToolTip.text: qsTr("Add folder tag")
                     HoverHandler { id: tagEntryButtonHover }
                 }
             }
@@ -864,7 +864,7 @@ Rectangle { // Files panel
                 width: parent.width
                 // Off: "Größe –" (hover to measure); measuring: "…" until a first value arrives.
                 text: !root.folderSizesActive
-                    ? qsTr("Größe") + " –"
+                    ? qsTr("Size") + " –"
                     : (root.folderSizeBytes < 0
                         ? "…"
                         : (root.folderSizeComplete ? "" : "> ") + FormatUtils.formatBytes(root.folderSizeBytes))
@@ -917,7 +917,7 @@ Rectangle { // Files panel
 
                             Text {
                                 width: parent.width
-                                text: (root.uiLanguage ? "" : "") + qsTr("Ordnertags")
+                                text: (root.uiLanguage ? "" : "") + qsTr("Folder tags")
                                 color: root.smallButtonText
                                 font.pixelSize: root.tagSectionLabelPx
                                 elide: Text.ElideRight
@@ -1040,7 +1040,7 @@ Rectangle { // Files panel
                                     font.pixelSize: root.tagChipFontPx
                                     clip: true
                                     selectByMouse: true
-                                    placeholderText: (root.uiLanguage ? "" : "") + qsTr("Neuer Ordnertag ...")
+                                    placeholderText: (root.uiLanguage ? "" : "") + qsTr("New folder tag ...")
                                     color: root.text
                                     background: Item {}
                                     onTextEdited: suppressCompletion = false
@@ -1170,7 +1170,7 @@ Rectangle { // Files panel
 
                                     Text {
                                         width: parent.width
-                                        text: (root.uiLanguage ? "" : "") + qsTr("Filetags")
+                                        text: (root.uiLanguage ? "" : "") + qsTr("File tags")
                                         color: root.smallButtonText
                                         font.pixelSize: root.tagSectionLabelPx
                                         elide: Text.ElideRight
@@ -1261,7 +1261,7 @@ Rectangle { // Files panel
                                                     anchors.leftMargin: root.tagChipPadH
                                                     anchors.right: parent.right
                                                     anchors.rightMargin: root.tagChipPadH
-                                                    text: (root.uiLanguage ? "" : "") + qsTr("… parse tags")
+                                                    text: (root.uiLanguage ? "" : "") + qsTr("… parsing tags")
                                                     color: root.textMuted
                                                     font.pixelSize: root.tagChipFontPx
                                                     elide: Text.ElideRight
@@ -1740,12 +1740,12 @@ Rectangle { // Files panel
         id: filesContextMenu
 
         MenuItem {
-            text: qsTr("Notiz erstellen")
+            text: qsTr("Create Note")
             onTriggered: root.createNoteRequested()
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("In neuen Ordner verschieben")
+            text: qsTr("Move into New Folder")
             enabled: root.selectedPaths && root.selectedPaths.length > 1
             onTriggered: root.moveSelectedIntoNewFolderRequested(root.selectedPaths)
         }
@@ -1755,24 +1755,24 @@ Rectangle { // Files panel
         id: itemContextMenu
 
         MenuItem {
-            text: qsTr("Oeffnen")
+            text: qsTr("Open")
             enabled: (!root.contextTargetIsDir && root.contextTargetFileSelection.length === 1)
             onTriggered: root.openRequested(root.contextTargetFileSelection[0])
         }
         MenuItem {
-            text: qsTr("Oeffnen mit ...")
+            text: qsTr("Open with ...")
             enabled: (!root.contextTargetIsDir && root.contextTargetFileSelection.length === 1)
             onTriggered: root.openWithRequested(root.contextTargetFileSelection[0])
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("Alle markieren")
+            text: qsTr("Select all")
             enabled: root.itemsModel && root.itemsModel.count > 0
             onTriggered: root.selectAllRequested()
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("Umbenennen")
+            text: qsTr("Rename")
             enabled: (!root.contextTargetIsDir && root.contextTargetSelection.length === 1)
                      || (root.contextTargetFileSelection.length > 1)
             onTriggered: {
@@ -1784,13 +1784,13 @@ Rectangle { // Files panel
             }
         }
         MenuItem {
-            text: qsTr("Loeschen")
+            text: qsTr("Delete")
             enabled: root.contextTargetFileSelection.length > 0
             onTriggered: root.deleteRequested(root.contextTargetFileSelection)
         }
         MenuSeparator {}
         MenuItem {
-            text: qsTr("In neuen Ordner verschieben")
+            text: qsTr("Move into New Folder")
             enabled: root.contextTargetSelection.length > 1
             onTriggered: root.moveSelectedIntoNewFolderRequested(root.contextTargetSelection)
         }
@@ -1806,14 +1806,14 @@ Rectangle { // Files panel
             root.folderTagColorRequested(root.folderTagColorTarget, hexColor)
         }
 
-        MenuItem { text: qsTr("Farbe: Rot"); onTriggered: folderTagColorMenu.applyColor("#d64f4f") }
-        MenuItem { text: qsTr("Farbe: Orange"); onTriggered: folderTagColorMenu.applyColor("#d68b39") }
-        MenuItem { text: qsTr("Farbe: Gelb"); onTriggered: folderTagColorMenu.applyColor("#c9b332") }
-        MenuItem { text: qsTr("Farbe: Gruen"); onTriggered: folderTagColorMenu.applyColor("#4ea35a") }
-        MenuItem { text: qsTr("Farbe: Cyan"); onTriggered: folderTagColorMenu.applyColor("#3ca2a6") }
-        MenuItem { text: qsTr("Farbe: Blau"); onTriggered: folderTagColorMenu.applyColor("#4c72d9") }
-        MenuItem { text: qsTr("Farbe: Violett"); onTriggered: folderTagColorMenu.applyColor("#8a58cf") }
-        MenuItem { text: qsTr("Farbe: Grau"); onTriggered: folderTagColorMenu.applyColor("#7b7f89") }
+        MenuItem { text: qsTr("Color: Red"); onTriggered: folderTagColorMenu.applyColor("#d64f4f") }
+        MenuItem { text: qsTr("Color: Orange"); onTriggered: folderTagColorMenu.applyColor("#d68b39") }
+        MenuItem { text: qsTr("Color: Yellow"); onTriggered: folderTagColorMenu.applyColor("#c9b332") }
+        MenuItem { text: qsTr("Color: Green"); onTriggered: folderTagColorMenu.applyColor("#4ea35a") }
+        MenuItem { text: qsTr("Color: Cyan"); onTriggered: folderTagColorMenu.applyColor("#3ca2a6") }
+        MenuItem { text: qsTr("Color: Blue"); onTriggered: folderTagColorMenu.applyColor("#4c72d9") }
+        MenuItem { text: qsTr("Color: Violet"); onTriggered: folderTagColorMenu.applyColor("#8a58cf") }
+        MenuItem { text: qsTr("Color: Gray"); onTriggered: folderTagColorMenu.applyColor("#7b7f89") }
     }
 
     Shortcut {

@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("In neuen Ordner verschieben")
+    title: qsTr("Move into New Folder")
     modal: true
     focus: true
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -18,8 +18,8 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Ok, qsTr("Uebernehmen"))
-        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+        window._setDialogButtonText(root, Dialog.Ok, qsTr("Apply"))
+        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
         folderBatchNameInput.forceActiveFocus()
         folderBatchNameInput.selectAll()
     }
@@ -27,34 +27,34 @@ Dialog {
         var folderName = String(folderBatchNameInput.text || "").trim()
         if (!folderName) {
             window.pendingFolderBatchSources = []
-            window.pendingFolderBatchName = qsTr("Neuer Ordner")
+            window.pendingFolderBatchName = qsTr("New Folder")
             return
         }
         if (!window.hasBackend() || typeof window.backend.createFolder !== "function") {
             window.pendingFolderBatchSources = []
-            window.pendingFolderBatchName = qsTr("Neuer Ordner")
+            window.pendingFolderBatchName = qsTr("New Folder")
             return
         }
         var targetPath = window.backend.createFolder(window.cwp, folderName)
         if (!targetPath || targetPath.length === 0) {
-            window.moveReportMessage = qsTr("Konnte Zielordner \"%1\" nicht erstellen.").arg(folderName)
+            window.moveReportMessage = qsTr("Could not create target folder \"%1\".").arg(folderName)
             window.moveReportDialog.open()
             window.pendingFolderBatchSources = []
-            window.pendingFolderBatchName = qsTr("Neuer Ordner")
+            window.pendingFolderBatchName = qsTr("New Folder")
             return
         }
         window._performMove(window.pendingFolderBatchSources, targetPath)
         window.pendingFolderBatchSources = []
-        window.pendingFolderBatchName = qsTr("Neuer Ordner")
+        window.pendingFolderBatchName = qsTr("New Folder")
     }
     onRejected: {
         window.pendingFolderBatchSources = []
-        window.pendingFolderBatchName = qsTr("Neuer Ordner")
+        window.pendingFolderBatchName = qsTr("New Folder")
     }
     contentItem: Column {
         spacing: 10
         Text {
-            text: qsTr("Erstellt einen Ordner und verschiebt die ausgewaehlten Eintraege hinein.")
+            text: qsTr("Create a folder and move the selected entries into it.")
             wrapMode: Text.WordWrap
             color: window.dialogTextStrong
             font.pixelSize: window.baseFont
@@ -62,7 +62,7 @@ Dialog {
         TextField {
             id: folderBatchNameInput
             text: window.pendingFolderBatchName
-            placeholderText: qsTr("Neuer Ordnername")
+            placeholderText: qsTr("New folder name")
             selectByMouse: true
             color: window.dialogInputText
             placeholderTextColor: window.dialogInputPlaceholder

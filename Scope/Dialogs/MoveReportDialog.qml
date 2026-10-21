@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Verschiebebericht")
+    title: qsTr("Move Report")
     modal: true
     focus: true
     standardButtons: Dialog.Ok
@@ -17,7 +17,7 @@ Dialog {
         border.color: window.dialogPanelBorder
         border.width: 2
     }
-    onOpened: window._setDialogButtonText(root, Dialog.Ok, qsTr("Schliessen"))
+    onOpened: window._setDialogButtonText(root, Dialog.Ok, qsTr("Close"))
     onAccepted: window.moveReportMessage = ""
     onRejected: window.moveReportMessage = ""
     contentItem: Text {

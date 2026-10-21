@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Dateien gesammelt umbenennen")
+    title: qsTr("Batch Rename Files")
     modal: true
     focus: true
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -19,8 +19,8 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Ok, qsTr("Uebernehmen"))
-        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+        window._setDialogButtonText(root, Dialog.Ok, qsTr("Apply"))
+        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
         batchRenameToInput.forceActiveFocus()
         batchRenameToInput.selectAll()
     }
@@ -28,7 +28,7 @@ Dialog {
         var fromText = String(window.pendingBatchReplaceFrom || "")
         var toText = String(batchRenameToInput.text || "")
         if (fromText.length === 0) {
-            window.moveReportMessage = qsTr("Kein gemeinsamer Suchtext gefunden.")
+            window.moveReportMessage = qsTr("No shared search text found.")
             window.moveReportDialog.open()
             window.pendingBatchRenamePaths = []
             window.pendingBatchReplaceFrom = ""
@@ -36,7 +36,7 @@ Dialog {
             return
         }
         if (!window.hasBackend() || typeof window.backend.renameEntriesBatch !== "function") {
-            window.moveReportMessage = qsTr("Sammelumbenennung ist in diesem Modus nicht verfuegbar.")
+            window.moveReportMessage = qsTr("Batch rename is not available in this mode.")
             window.moveReportDialog.open()
             window.pendingBatchRenamePaths = []
             window.pendingBatchReplaceFrom = ""
@@ -52,7 +52,7 @@ Dialog {
         window.pendingBatchReplaceTo = ""
         window.selectedEntryPaths = renamedPaths
         window.updateFiles()
-        window.moveReportMessage = qsTr("Umbenannt: %1\nUnveraendert: %2\nFehlgeschlagen: %3")
+        window.moveReportMessage = qsTr("Renamed: %1\nUnchanged: %2\nFailed: %3")
             .arg(renamedPaths.length)
             .arg(unchangedCount)
             .arg(failedCount)
@@ -68,7 +68,7 @@ Dialog {
         spacing: 12
         Text {
             width: parent.width
-            text: qsTr("\"%1\" umbenennen auf").arg(window.pendingBatchReplaceFrom)
+            text: qsTr("Rename \"%1\" to").arg(window.pendingBatchReplaceFrom)
             wrapMode: Text.WordWrap
             color: window.dialogTextStrong
             font.pixelSize: Math.max(window.baseFont + 1, 14)
@@ -80,7 +80,7 @@ Dialog {
             text: window.pendingBatchReplaceTo
             placeholderText: window.pendingBatchReplaceFrom.length > 0
                 ? window.pendingBatchReplaceFrom
-                : qsTr("Neuer Text")
+                : qsTr("New text")
             selectByMouse: true
             color: window.dialogInputText
             placeholderTextColor: window.dialogInputPlaceholder
@@ -97,7 +97,7 @@ Dialog {
         }
         Text {
             width: parent.width
-            text: qsTr("Bei Namenskonflikten wird automatisch (1), (2), ... angehaengt.")
+            text: qsTr("For name conflicts, (1), (2), ... will be appended automatically.")
             wrapMode: Text.WordWrap
             color: window.dialogTextMuted
             font.pixelSize: Math.max(window.baseFont - 1, 11)

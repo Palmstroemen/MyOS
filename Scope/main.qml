@@ -271,9 +271,9 @@ ApplicationWindow {
     property string pendingMoveMessage: ""
     property string moveReportMessage: ""
     property var pendingFolderBatchSources: []
-    property string pendingFolderBatchName: qsTr("Neuer Ordner")
+    property string pendingFolderBatchName: qsTr("New Folder")
     property string pendingCreateFolderTargetPath: ""
-    property string pendingCreateFolderName: qsTr("Neuer Ordner")
+    property string pendingCreateFolderName: qsTr("New Folder")
     property string pendingRenamePath: ""
     property string pendingRenameName: ""
     property var pendingDeletePaths: []
@@ -1011,21 +1011,21 @@ ApplicationWindow {
     function _moveReasonText(code) {
         switch (String(code || "")) {
         case "target_not_directory":
-            return qsTr("Ziel ist kein Ordner.")
+            return qsTr("Target is not a folder.")
         case "source_missing":
-            return qsTr("Eintrag existiert nicht mehr.")
+            return qsTr("Entry no longer exists.")
         case "target_inside_source":
-            return qsTr("Ein Ordner kann nicht in sich selbst verschoben werden.")
+            return qsTr("A folder cannot be moved into itself.")
         case "destination_exists":
-            return qsTr("Am Ziel existiert bereits ein Eintrag mit diesem Namen.")
+            return qsTr("An entry with this name already exists at the destination.")
         case "move_failed":
-            return qsTr("Verschieben fehlgeschlagen.")
+            return qsTr("Move failed.")
         case "same_as_target":
-            return qsTr("Eintrag ist bereits im Zielordner.")
+            return qsTr("Entry is already in the target folder.")
         case "duplicate_source":
-            return qsTr("Eintrag wurde mehrfach ausgewaehlt.")
+            return qsTr("Entry was selected multiple times.")
         default:
-            return qsTr("Vorgang uebersprungen.")
+            return qsTr("Operation skipped.")
         }
     }
 
@@ -1050,13 +1050,13 @@ ApplicationWindow {
                 var lines = []
                 var movedCount = (batch && batch.moved) ? batch.moved.length : 0
                 if (movedCount > 0) {
-                    lines.push(qsTr("Verschoben: %1").arg(movedCount))
+                    lines.push(qsTr("Moved: %1").arg(movedCount))
                 }
                 if (errors.length > 0) {
                     if (lines.length > 0) {
                         lines.push("")
                     }
-                    lines.push(qsTr("Konnte nicht verschieben:"))
+                    lines.push(qsTr("Could not move:"))
                     for (var e = 0; e < errors.length; e++) {
                         var err = errors[e]
                         var errSource = PathUtils.basename(err && err.source ? err.source : "")
@@ -1068,7 +1068,7 @@ ApplicationWindow {
                     if (lines.length > 0) {
                         lines.push("")
                     }
-                    lines.push(qsTr("Uebersprungen:"))
+                    lines.push(qsTr("Skipped:"))
                     for (var s = 0; s < skipped.length; s++) {
                         var skip = skipped[s]
                         var skipSource = PathUtils.basename(skip && skip.source ? skip.source : "")
@@ -1133,7 +1133,7 @@ ApplicationWindow {
             pendingMoveSources = sources
             pendingMoveTargetDir = resolvedTarget
             var count = sources.length
-            pendingMoveMessage = qsTr("Soll(en) %1 Ordner wirklich nach \"%2\" verschoben werden?")
+            pendingMoveMessage = qsTr("Really move %1 folder(s) to \"%2\"?")
                 .arg(count)
                 .arg(resolvedTarget)
             folderMoveConfirmDialog.open()
@@ -1142,7 +1142,7 @@ ApplicationWindow {
         if (sources.length === 1 && hasBackend() && typeof backend.previewSortTargetForMove === "function") {
             var preview = backend.previewSortTargetForMove(String(sources[0] || ""), resolvedTarget)
             if (preview && preview.ok && preview.target) {
-                moveReportMessage = qsTr("Nach dem Verschieben wird einsortiert nach:\n%1").arg(String(preview.target))
+                moveReportMessage = qsTr("After moving, it will be sorted into:\n%1").arg(String(preview.target))
                 moveReportDialog.open()
             }
         }
@@ -1156,7 +1156,7 @@ ApplicationWindow {
         var targetDir = currentFilesPath()
         var createdPath = backend.createNote(targetDir, "New Note")
         if (!createdPath || createdPath.length === 0) {
-            moveReportMessage = qsTr("Konnte in diesem Ordner keine Notiz erstellen.")
+            moveReportMessage = qsTr("Could not create a note in this folder.")
             moveReportDialog.open()
             return
         }
@@ -1186,7 +1186,7 @@ ApplicationWindow {
             return
         }
         pendingFolderBatchSources = cleaned
-        pendingFolderBatchName = qsTr("Neuer Ordner")
+        pendingFolderBatchName = qsTr("New Folder")
         moveSelectedFoldersDialog.open()
     }
 
@@ -1196,7 +1196,7 @@ ApplicationWindow {
             return
         }
         pendingCreateFolderTargetPath = target
-        pendingCreateFolderName = qsTr("Neuer Ordner")
+        pendingCreateFolderName = qsTr("New Folder")
         createFolderDialog.open()
     }
 
@@ -1343,7 +1343,7 @@ ApplicationWindow {
             return
         }
         if (filesOnly.length < 2) {
-            moveReportMessage = qsTr("Sammelumbenennung funktioniert aktuell nur fuer Dateien.")
+            moveReportMessage = qsTr("Batch rename currently works for files only.")
             moveReportDialog.open()
             return
         }
@@ -1396,13 +1396,13 @@ ApplicationWindow {
             }
         }
         if (deletable.length === 0) {
-            moveReportMessage = qsTr("Virtuelle Embryo-Ordner koennen nicht geloescht werden.")
+            moveReportMessage = qsTr("Virtual embryo folders cannot be deleted.")
             moveReportDialog.open()
             return
         }
         cleaned = deletable
         if (embryoBlocked.length > 0) {
-            moveReportMessage = qsTr("Embryo-Ordner wurden beim Loeschen uebersprungen: %1").arg(embryoBlocked.length)
+            moveReportMessage = qsTr("Embryo folders were skipped when deleting: %1").arg(embryoBlocked.length)
             moveReportDialog.open()
         }
         if (cleaned.length <= 3) {
@@ -1432,7 +1432,7 @@ ApplicationWindow {
         // Deleted folders and reabsorbed (emptied) template folders change the folder bars too.
         refreshAfterStructureChange()
         if (errors > 0) {
-            moveReportMessage = qsTr("Geloescht: %1 Datei(en)\nNicht geloescht: %2 Datei(en)")
+            moveReportMessage = qsTr("Deleted: %1 file(s)\nNot deleted: %2 file(s)")
                 .arg(deleted)
                 .arg(errors)
             moveReportDialog.open()
@@ -2012,7 +2012,7 @@ ApplicationWindow {
         } else {
             var ok = backend.setManualFilter(target)
             if (!ok) {
-                moveReportMessage = qsTr("Filter konnte nicht aktiviert werden.")
+                moveReportMessage = qsTr("Filter could not be activated.")
                 moveReportDialog.open()
             }
         }
@@ -2054,12 +2054,12 @@ ApplicationWindow {
         }
         var result = backend.saveFilter(cwp, filterSaveSourcePath, target, pendingFilterNewName)
         if (result && result.ok) {
-            moveReportMessage = qsTr("Filter gespeichert: %1").arg(String(result.path || ""))
+            moveReportMessage = qsTr("Filter saved: %1").arg(String(result.path || ""))
             moveReportDialog.open()
             refreshFilters()
             return
         }
-        moveReportMessage = qsTr("Filter konnte nicht gespeichert werden.")
+        moveReportMessage = qsTr("Filter could not be saved.")
         moveReportDialog.open()
     }
 
@@ -2733,7 +2733,7 @@ ApplicationWindow {
                     anchors.fill: parent
                     anchors.margins: 4
                     text: searchText
-                    placeholderText: "Search      + deep    # all"
+                    placeholderText: qsTr("Search      + deep    # all")
                     font.pixelSize: baseFont
                     selectByMouse: true
                     color: theme.text
@@ -2886,7 +2886,7 @@ ApplicationWindow {
                     Text {
                         id: themeSwitchLabel
                         anchors.centerIn: parent
-                        text: darkTheme ? qsTr("Hell") : qsTr("Dunkel")
+                        text: darkTheme ? qsTr("Light") : qsTr("Dark")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -2948,16 +2948,16 @@ ApplicationWindow {
                     id: filterMenu
 
                     MenuItem {
-                        text: qsTr("Auto folgen")
+                        text: qsTr("Auto follow")
                         onTriggered: clearManualFilterOverride()
                     }
                     MenuItem {
-                        text: qsTr("Aktiven Filter oeffnen")
+                        text: qsTr("Open active filter")
                         enabled: String(activeFilter.path || "").length > 0
                         onTriggered: openActiveFilterSource()
                     }
                     MenuItem {
-                        text: qsTr("Filter speichern ...")
+                        text: qsTr("Save filter ...")
                         enabled: String(activeFilter.path || "").length > 0
                         onTriggered: promptFilterSave()
                     }
@@ -2993,7 +2993,7 @@ ApplicationWindow {
                     Text {
                         id: projectsToggleLabel
                         anchors.centerIn: parent
-                        text: qsTr("Projekte") + " " + (projectsBrowserVisible ? qsTr("AN") : qsTr("AUS"))
+                        text: qsTr("Projects") + " " + (projectsBrowserVisible ? qsTr("ON") : qsTr("OFF"))
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3013,7 +3013,7 @@ ApplicationWindow {
                     Text {
                         id: templatesToggleLabel
                         anchors.centerIn: parent
-                        text: qsTr("Vorlagen") + " " + (templatesBrowserVisible ? qsTr("AN") : qsTr("AUS"))
+                        text: qsTr("Templates") + " " + (templatesBrowserVisible ? qsTr("ON") : qsTr("OFF"))
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3033,7 +3033,7 @@ ApplicationWindow {
                     Text {
                         id: filesOpacityToggleLabel
                         anchors.centerIn: parent
-                        text: qsTr("Dateien 50%")
+                        text: qsTr("Files 50%")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3053,7 +3053,7 @@ ApplicationWindow {
                     Text {
                         id: schmalModeLabel
                         anchors.centerIn: parent
-                        text: qsTr("Schmal")
+                        text: qsTr("Narrow")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3073,7 +3073,7 @@ ApplicationWindow {
                     Text {
                         id: edgeDockLabel
                         anchors.centerIn: parent
-                        text: qsTr("Edge-Dock")
+                        text: qsTr("Edge dock")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3093,7 +3093,7 @@ ApplicationWindow {
                     Text {
                         id: deskThemeLabel
                         anchors.centerIn: parent
-                        text: qsTr("Projekt mit Thema versehen")
+                        text: qsTr("Give project a theme")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3105,9 +3105,9 @@ ApplicationWindow {
                             }
                             var result = backend.ensureProjectConfig(cwp, "Desk.md")
                             if (!result || !result.ok) {
-                                moveReportMessage = qsTr("Desk.md konnte nicht erstellt werden.")
+                                moveReportMessage = qsTr("Desk.md could not be created.")
                             } else {
-                                moveReportMessage = qsTr("Desk.md ist bereit im aktuellen Projekt.")
+                                moveReportMessage = qsTr("Desk.md is ready in the current project.")
                             }
                             moveReportDialog.open()
                         }
@@ -3124,7 +3124,7 @@ ApplicationWindow {
                     Text {
                         id: sortActivateLabel
                         anchors.centerIn: parent
-                        text: qsTr("Ordnung aktivieren")
+                        text: qsTr("Enable sorting")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3136,9 +3136,9 @@ ApplicationWindow {
                             }
                             var result = backend.ensureProjectConfig(cwp, "Sort.md")
                             if (!result || !result.ok) {
-                                moveReportMessage = qsTr("Sort.md konnte nicht erstellt werden.")
+                                moveReportMessage = qsTr("Sort.md could not be created.")
                             } else {
-                                moveReportMessage = qsTr("Sort.md ist bereit im aktuellen Projekt.")
+                                moveReportMessage = qsTr("Sort.md is ready in the current project.")
                             }
                             moveReportDialog.open()
                         }
@@ -3155,7 +3155,7 @@ ApplicationWindow {
                     Text {
                         id: sortNowLabel
                         anchors.centerIn: parent
-                        text: qsTr("Jetzt einsortieren")
+                        text: qsTr("Sort in now")
                         color: theme.smallButtonText
                         font.pixelSize: baseFont
                     }
@@ -3168,7 +3168,7 @@ ApplicationWindow {
                             var report = backend.applySortNow(cwp)
                             var movedCount = (report && report.moved) ? report.moved.length : 0
                             var errorCount = (report && report.errors) ? report.errors.length : 0
-                            moveReportMessage = qsTr("Sortierung: %1 verschoben, %2 Fehler")
+                            moveReportMessage = qsTr("Sorting: %1 moved, %2 errors")
                                 .arg(movedCount)
                                 .arg(errorCount)
                             moveReportDialog.open()
@@ -3272,11 +3272,11 @@ ApplicationWindow {
             id: folderContextMenu
             parent: floatingPool.parent
             MenuItem {
-                text: qsTr("Umbenennen")
+                text: qsTr("Rename")
                 onTriggered: beginRename(folderContextPath)
             }
             MenuItem {
-                text: qsTr("Löschen")
+                text: qsTr("Delete")
                 onTriggered: requestDeleteEntries([folderContextPath])
             }
         }

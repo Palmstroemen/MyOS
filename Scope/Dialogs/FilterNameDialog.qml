@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Neuer Filter")
+    title: qsTr("New filter")
     modal: true
     focus: true
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -21,8 +21,8 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Ok, qsTr("Uebernehmen"))
-        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+        window._setDialogButtonText(root, Dialog.Ok, qsTr("Apply"))
+        window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
         filterNameInput.forceActiveFocus()
         filterNameInput.selectAll()
     }
@@ -35,7 +35,7 @@ Dialog {
     contentItem: Column {
         spacing: 8
         Text {
-            text: qsTr("Name fuer den neuen Filter")
+            text: qsTr("Name for the new filter")
             wrapMode: Text.WordWrap
             color: window.dialogTextStrong
             font.pixelSize: window.baseFont
@@ -43,7 +43,7 @@ Dialog {
         TextField {
             id: filterNameInput
             text: window.pendingFilterNewName
-            placeholderText: qsTr("z.B. Eingangsrechnungen")
+            placeholderText: qsTr("e.g. incoming invoices")
             selectByMouse: true
             color: window.dialogInputText
             placeholderTextColor: window.dialogInputPlaceholder

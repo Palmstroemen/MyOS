@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Filter speichern")
+    title: qsTr("Save filter")
     modal: true
     focus: true
     standardButtons: Dialog.Cancel
@@ -17,11 +17,11 @@ Dialog {
         border.color: window.dialogPanelBorder
         border.width: 2
     }
-    onOpened: window._setDialogButtonText(root, Dialog.Cancel, qsTr("Abbrechen"))
+    onOpened: window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
     contentItem: Column {
         spacing: 10
         Text {
-            text: qsTr("Sie haben eine Anpassung des Filters vorgenommen. Wo soll diese Anpassung gelten?")
+            text: qsTr("You changed the filter. Where should this change apply?")
             wrapMode: Text.WordWrap
             color: window.dialogTextStrong
             font.pixelSize: window.baseFont
