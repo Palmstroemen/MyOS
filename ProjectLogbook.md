@@ -34,6 +34,8 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] PostFix UI verfeinern und Exporter bauen
     [ ] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
     [ ] ACL-Panel: Embryos wahlweise mit einbeziehen (Schalter); derzeit zählen sie nicht
+    [ ] Ordner umbenennen: passende Regeln in ACLs.md mitziehen (sonst greifen sie ins Leere)
+[ ] Papierkorb pro Projekt (.MyOS/Trash/), siehe core/Dokumentation/Designdocument Trash.md
 [ ] Distribution erstellen
 [ ] Demo virtualisieren (Remote-Desktop-Setup) zum Code-Schutz
 [ ] Vielsprachigkeit vorbereiten (i18n/L10n)
