@@ -109,7 +109,7 @@
     <message>
         <location filename="../ui_panels.py" line="450"/>
         <source>Control exactly what this group may do with this note.</source>
-        <translation>Hier steuern Sie genau, was diese Gruppe mit dieser Notiz machen darf.</translation>
+        <translation>Hier steuerst du genau, was diese Gruppe mit dieser Notiz machen darf.</translation>
     </message>
     <message>
         <location filename="../ui_panels.py" line="472"/>

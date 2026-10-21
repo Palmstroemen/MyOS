@@ -139,7 +139,7 @@
     <message>
         <location filename="../Dialogs/AclRoleDialog.qml" line="95"/>
         <source>Control exactly what this group may do with this folder.</source>
-        <translation>Hier steuern Sie genau, was diese Gruppe mit diesem Ordner machen darf.</translation>
+        <translation>Hier steuerst du genau, was diese Gruppe mit diesem Ordner machen darf.</translation>
     </message>
     <message>
         <location filename="../Dialogs/AclRoleDialog.qml" line="136"/>
@@ -384,7 +384,7 @@ Fehlgeschlagen: %3</translation>
     </message>
     <message>
         <location filename="../FilesPanel.qml" line="482"/>
-        <location filename="../FilesPanel.qml" line="1948"/>
+        <location filename="../FilesPanel.qml" line="1949"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
@@ -439,98 +439,98 @@ Fehlgeschlagen: %3</translation>
         <translation>Neuer Ordnertag ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1281"/>
+        <location filename="../FilesPanel.qml" line="1282"/>
         <source>Subfolders</source>
         <translation>Unterordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1316"/>
+        <location filename="../FilesPanel.qml" line="1317"/>
         <source>File tags</source>
         <translation>Filetags</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1360"/>
+        <location filename="../FilesPanel.qml" line="1361"/>
         <source>… parsing tags</source>
         <translation>… Tags werden gelesen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1491"/>
+        <location filename="../FilesPanel.qml" line="1492"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1898"/>
+        <location filename="../FilesPanel.qml" line="1899"/>
         <source>Create Note</source>
         <translation>Notiz erstellen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1902"/>
+        <location filename="../FilesPanel.qml" line="1903"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1908"/>
-        <location filename="../FilesPanel.qml" line="1955"/>
+        <location filename="../FilesPanel.qml" line="1909"/>
+        <location filename="../FilesPanel.qml" line="1956"/>
         <source>Move into New Folder</source>
         <translation>In neuen Ordner verschieben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1918"/>
+        <location filename="../FilesPanel.qml" line="1919"/>
         <source>Open</source>
         <translation>Öffnen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1923"/>
+        <location filename="../FilesPanel.qml" line="1924"/>
         <source>Open with ...</source>
         <translation>Öffnen mit ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1929"/>
+        <location filename="../FilesPanel.qml" line="1930"/>
         <source>Select all</source>
         <translation>Alle markieren</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1935"/>
+        <location filename="../FilesPanel.qml" line="1936"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1971"/>
+        <location filename="../FilesPanel.qml" line="1972"/>
         <source>Color: Red</source>
         <translation>Farbe: Rot</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1972"/>
+        <location filename="../FilesPanel.qml" line="1973"/>
         <source>Color: Orange</source>
         <translation>Farbe: Orange</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1973"/>
+        <location filename="../FilesPanel.qml" line="1974"/>
         <source>Color: Yellow</source>
         <translation>Farbe: Gelb</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1974"/>
+        <location filename="../FilesPanel.qml" line="1975"/>
         <source>Color: Green</source>
         <translation>Farbe: Grün</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1975"/>
+        <location filename="../FilesPanel.qml" line="1976"/>
         <source>Color: Cyan</source>
         <translation>Farbe: Cyan</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1976"/>
+        <location filename="../FilesPanel.qml" line="1977"/>
         <source>Color: Blue</source>
         <translation>Farbe: Blau</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1977"/>
+        <location filename="../FilesPanel.qml" line="1978"/>
         <source>Color: Violet</source>
         <translation>Farbe: Violett</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1978"/>
+        <location filename="../FilesPanel.qml" line="1979"/>
         <source>Color: Gray</source>
         <translation>Farbe: Grau</translation>
     </message>
@@ -578,7 +578,7 @@ Fehlgeschlagen: %3</translation>
     <message>
         <location filename="../Dialogs/FilterSaveDialog.qml" line="24"/>
         <source>You changed the filter. Where should this change apply?</source>
-        <translation>Sie haben eine Anpassung des Filters vorgenommen. Wo soll diese Anpassung gelten?</translation>
+        <translation>Du hast den Filter angepasst. Wo soll diese Anpassung gelten?</translation>
     </message>
 </context>
 <context>
