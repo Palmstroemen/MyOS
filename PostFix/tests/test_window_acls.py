@@ -104,6 +104,9 @@ class _Window(wa.WindowAclsMixin):
         self.acl_host = _Host()
         self.editor = _Editor()
 
+    def tr(self, text):  # QObject.tr of the real window
+        return text
+
 
 def test_reload_shows_sidebar_only_with_acls(tmp_path):
     root = _project(tmp_path)
@@ -137,7 +140,7 @@ def test_acl_sidebar_builds_one_chip_per_principal():
     chips = [b for b in sidebar.findChildren(QPushButton) if b.isVisibleTo(sidebar)]
     assert [c.property("aclName") for c in chips] == ["Buchhaltung", "Bertha"]
     assert "#b5b5b5" in chips[0].styleSheet() and "#d6d6d6" in chips[1].styleSheet()
-    assert "Lesen" in chips[1].toolTip()
+    assert "Read" in chips[1].toolTip()
     assert sidebar.preferred_width() > 0
 
 
@@ -267,9 +270,10 @@ def test_role_editor_says_in_words_what_is_allowed():
     QApplication.instance() or QApplication([])
     editor = ACLRoleEditor("Buchhaltung", ["read"], own_rule=False)
 
-    assert editor.meaning["read"].text() == "✓ darf lesen"
-    assert editor.meaning["write"].text() == "✗ darf nicht schreiben"
+    # Source strings are English; the German UI comes from postfix_de.qm.
+    assert editor.meaning["read"].text() == "✓ may read"
+    assert editor.meaning["write"].text() == "✗ may not write"
     editor.toggle("write")
-    assert editor.meaning["write"].text() == "✓ darf schreiben"
-    assert "was diese Gruppe mit dieser Notiz machen darf" in editor.intro.text()
-    assert "geerbt" in editor.origin.text()
+    assert editor.meaning["write"].text() == "✓ may write"
+    assert "what this group may do with this note" in editor.intro.text()
+    assert "inherited" in editor.origin.text()

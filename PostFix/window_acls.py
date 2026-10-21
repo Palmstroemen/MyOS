@@ -58,11 +58,11 @@ class WindowAclsMixin:
         """
         path = getattr(self.editor, "current_path", None)
         if not path:
-            return self._acl_text("Keine Notiz geöffnet.")
+            return self.tr("No note is open.")
         try:
             set_role_rights(path, role_key, None if rights is None else set(rights), editor=current_acl_user())
         except PermissionError:
-            return self._acl_text("Du darfst die Rechte hier nicht ändern.")
+            return self.tr("You may not change the rights here.")
         except (ACLEditError, OSError) as exc:
             return str(exc)
         self._reload_acl_context()
@@ -86,8 +86,3 @@ class WindowAclsMixin:
             editor.move(chip.mapToGlobal(chip.rect().topRight()))
         self._acl_role_editor = editor  # keep it alive while open
         editor.show()
-
-    def _acl_text(self, text: str) -> str:
-        # QObject.tr of the window (translations); plain text where there is none (tests).
-        translate = getattr(self, "tr", None)
-        return translate(text) if callable(translate) else text

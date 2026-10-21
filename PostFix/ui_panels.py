@@ -192,7 +192,7 @@ class TagSidebar(SidebarWidget):
             btn.setCursor(Qt.PointingHandCursor)
             btn.singleClicked.connect(lambda k=key, v=value: self.colorDefinitionSearchRequested.emit(k, v))
             btn.doubleClicked.connect(lambda k=key, v=value: self._pick_color_definition(k, v))
-            btn.setToolTip(self.tr("Klick: naechster Treffer | Doppelklick: Farbe aendern"))
+            btn.setToolTip(self.tr("Click: next match | Double-click: change color"))
             btn.setStyleSheet(build_tag_chip_stylesheet(chip_bg, chip_fg))
             layout.addWidget(btn)
 
@@ -204,7 +204,7 @@ class TagSidebar(SidebarWidget):
             btn.singleClicked.connect(lambda t=tag: self.tagSearchRequested.emit(t))
             btn.doubleClicked.connect(lambda t=tag: self._pick_tag_color(t))
             btn.setCursor(Qt.PointingHandCursor)
-            btn.setToolTip(self.tr("Klick: naechster Treffer | Doppelklick: Farbe aendern"))
+            btn.setToolTip(self.tr("Click: next match | Double-click: change color"))
             layout.addWidget(btn)
 
         layout.addStretch()
@@ -218,13 +218,13 @@ class TagSidebar(SidebarWidget):
 
     def _pick_tag_color(self, tag: str):
         initial = QColor(self._tag_colors.get(tag, "#ffd54f"))
-        chosen = QColorDialog.getColor(initial, self, self.tr("Farbe fuer #%1").replace("%1", tag))
+        chosen = QColorDialog.getColor(initial, self, self.tr("Color for #%1").replace("%1", tag))
         if not chosen.isValid():
             return
         self.tagColorChangeRequested.emit(tag, chosen.name())
 
     def _pick_color_definition(self, key: str, old_hex: str):
-        chosen = QColorDialog.getColor(QColor(old_hex), self, self.tr("Farbe fuer %1").replace("%1", key))
+        chosen = QColorDialog.getColor(QColor(old_hex), self, self.tr("Color for %1").replace("%1", key))
         if not chosen.isValid():
             return
         self.colorDefinitionChangeRequested.emit(key, old_hex, chosen.name())
@@ -272,11 +272,11 @@ class ACLSidebar(SidebarWidget):
 
     def _right_names(self, rights) -> str:
         names = {
-            "read": self.tr("Lesen"),
-            "write": self.tr("Schreiben"),
-            "execute": self.tr("Ausführen"),
-            "change": self.tr("Rechte ändern"),
-            "delete": self.tr("Löschen"),
+            "read": self.tr("Read"),
+            "write": self.tr("Write"),
+            "execute": self.tr("Execute"),
+            "change": self.tr("Change rights"),
+            "delete": self.tr("Delete"),
         }
         return ", ".join(names.get(r, r) for r in rights)
 
@@ -355,11 +355,11 @@ class ACLSidebar(SidebarWidget):
             row.addWidget(name_label)
             row.addSpacing(self.ARROW_GAP_PX)
             row.addWidget(write_label)
-            kind = self.tr("Person") if principal.get("kind") == "user" else self.tr("Gruppe")
+            kind = self.tr("Person") if principal.get("kind") == "user" else self.tr("Group")
             tip = f"{kind}: {self._right_names(principal.get('rights', []))}"
             # Groups only for now: a person's rights come from their roles.
             if self.editable and principal.get("kind") == "role":
-                tip += "\n" + self.tr("Klick: Rechte für diese Notiz ändern")
+                tip += "\n" + self.tr("Click: change the rights for this note")
                 btn.setCursor(Qt.PointingHandCursor)
                 btn.clicked.connect(
                     lambda _checked=False, p=principal, b=btn: self.roleEditRequested.emit(
@@ -424,19 +424,19 @@ class ACLRoleEditor(QFrame):
         )
         # What each right allows, as "darf …" / "darf nicht …" next to its switch.
         self.verbs = {
-            "read": self.tr("lesen"),
-            "write": self.tr("schreiben"),
-            "execute": self.tr("ausführen"),
-            "change": self.tr("Rechte ändern"),
-            "delete": self.tr("löschen"),
+            "read": self.tr("read"),
+            "write": self.tr("write"),
+            "execute": self.tr("execute"),
+            "change": self.tr("change rights"),
+            "delete": self.tr("delete"),
         }
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(6)
-        title = QLabel(self.tr("Rechte von %1 für diese Notiz").replace("%1", role_name))
+        title = QLabel(self.tr("Rights of %1 for this note").replace("%1", role_name))
         title.setStyleSheet("font-weight: bold;")
         layout.addWidget(title)
-        self.intro = QLabel(self.tr("Hier steuern Sie genau, was diese Gruppe mit dieser Notiz machen darf."))
+        self.intro = QLabel(self.tr("Control exactly what this group may do with this note."))
         self.intro.setWordWrap(True)
         layout.addWidget(self.intro)
         self.switches = {}
@@ -458,8 +458,8 @@ class ACLRoleEditor(QFrame):
             self.meaning[right] = meaning
             self._update_meaning(right)
         self.origin = QLabel(
-            self.tr("Für diese Notiz gilt eine eigene Regel.") if own_rule
-            else self.tr("Diese Rechte sind vom übergeordneten Ordner geerbt.")
+            self.tr("This note has a rule of its own.") if own_rule
+            else self.tr("These rights are inherited from the parent folder.")
         )
         self.origin.setWordWrap(True)
         self.origin.setStyleSheet("color: #555555;")
@@ -470,10 +470,10 @@ class ACLRoleEditor(QFrame):
         self.error_label.hide()
         layout.addWidget(self.error_label)
         buttons = QHBoxLayout()
-        self.apply_button = QPushButton(self.tr("Übernehmen"))
-        self.reset_button = QPushButton(self.tr("Zurück auf geerbt"))
+        self.apply_button = QPushButton(self.tr("Apply"))
+        self.reset_button = QPushButton(self.tr("Back to inherited"))
         self.reset_button.setEnabled(bool(own_rule))
-        cancel = QPushButton(self.tr("Abbrechen"))
+        cancel = QPushButton(self.tr("Cancel"))
         for button in (self.apply_button, self.reset_button, cancel):
             buttons.addWidget(button)
         layout.addLayout(buttons)
@@ -484,10 +484,10 @@ class ACLRoleEditor(QFrame):
     def _update_meaning(self, right: str):
         verb = self.verbs[right]
         if self.switches[right].isChecked():
-            self.meaning[right].setText("✓ " + self.tr("darf %1").replace("%1", verb))
+            self.meaning[right].setText("✓ " + self.tr("may %1").replace("%1", verb))
             self.meaning[right].setStyleSheet("color: #333333;")
         else:
-            self.meaning[right].setText("✗ " + self.tr("darf nicht %1").replace("%1", verb))
+            self.meaning[right].setText("✗ " + self.tr("may not %1").replace("%1", verb))
             self.meaning[right].setStyleSheet("color: #777777;")
 
     def chosen_rights(self) -> set:
@@ -563,9 +563,9 @@ class BottomToolbar(QWidget):
         self._primary_button_map = {}
         self.primary_layout.addStretch()
         actions = [
-            ("↗", "send_to", self.tr("Senden an")),
-            ("⇱", "open_in", self.tr("Oeffnen in")),
-            ("⎙", "print", self.tr("Drucken")),
+            ("↗", "send_to", self.tr("Send to")),
+            ("⇱", "open_in", self.tr("Open in")),
+            ("⎙", "print", self.tr("Print")),
         ]
         for icon, action_key, label in actions:
             btn = QPushButton(icon)
@@ -625,7 +625,7 @@ class BottomToolbar(QWidget):
         if self._active_flyout == primary_action and self.flyout.isVisible():
             return
         self._ensure_runtime_resources()
-        printer_items = [(p["label"], ["printer"], p["name"]) for p in (self._printers or [])] or [(self.tr("Drucker"), ["printer"], self.tr("Drucker"))]
+        printer_items = [(p["label"], ["printer"], p["name"]) for p in (self._printers or [])] or [(self.tr("Printer"), ["printer"], self.tr("Printer"))]
         print_items = [("PDF", ["application-pdf", "pdf", "evince", "okular"], "PDF")] + printer_items
         items = {
             "send_to": [

@@ -167,7 +167,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         self.editor.on_frontmatter_changed = self._on_editor_text_changed
         if hasattr(self.editor, "MODE_FOCUS"):
             self.editor.set_view_mode(self.editor.MODE_FOCUS)
-            self.btn_view_mode.setText(self.tr("Fokusmodus"))
+            self.btn_view_mode.setText(self.tr("Focus mode"))
             self.btn_view_mode.setEnabled(False)
         if hasattr(self.editor, "tagsChanged"):
             self.editor.tagsChanged.connect(self._on_editor_tags_changed)
@@ -399,9 +399,9 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
     def retranslate_ui(self):
         self._populate_note_style_combo()
         if hasattr(self, "file_name_edit"):
-            self.file_name_edit.setPlaceholderText(self.tr("Dateiname"))
+            self.file_name_edit.setPlaceholderText(self.tr("File name"))
         if hasattr(self, "btn_view_mode"):
-            self.btn_view_mode.setText(self.tr("Fokusmodus"))
+            self.btn_view_mode.setText(self.tr("Focus mode"))
         if hasattr(self, "btn_language"):
             self.btn_language.setText(self._language.upper())
         if hasattr(self, "left_sidebar") and hasattr(self.left_sidebar, "retranslate_ui"):
@@ -429,14 +429,15 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             app.removeTranslator(self._translator)
             self._translator = None
 
-        if code != "de":
+        # Source strings are English; other languages load i18n/postfix_<code>.qm.
+        if code != "en":
             translator = QTranslator(self)
             qm_path = self._i18n_dir / f"postfix_{code}.qm"
             if translator.load(str(qm_path)):
                 app.installTranslator(translator)
                 self._translator = translator
             else:
-                code = "de"
+                code = "en"
 
         self._language = code
         self.retranslate_ui()
@@ -524,7 +525,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             
     def toggle_view_mode(self):
         """Single-mode editor: keep focus mode active."""
-        self.btn_view_mode.setText(self.tr("Fokusmodus"))
+        self.btn_view_mode.setText(self.tr("Focus mode"))
         self.editor.set_view_mode(SmartEditor.MODE_FOCUS)
         
     def show_menu(self):
@@ -644,7 +645,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         btn = getattr(self, "btn_menu", None)
         if combo is None or btn is None:
             return
-        label = combo.currentText() or self.tr("Stil: Auto")
+        label = combo.currentText() or self.tr("Style: Auto")
         btn.setToolTip(label)
 
     def eventFilter(self, obj, event):
