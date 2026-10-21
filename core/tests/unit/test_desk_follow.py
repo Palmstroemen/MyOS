@@ -280,3 +280,18 @@ def test_the_panel_theme_follows_the_projects_too(tree):
 
     service.refresh_context(tree["hecke"])
     assert desktop.state.panel_theme == "Mint-Y-Dark-Teal"
+
+
+def test_what_a_desk_leaves_open_does_not_stay_from_the_previous_project(tree):
+    # Garten has a blue taskbar; Haus only sets a wallpaper. In Haus the taskbar must not
+    # stay blue: the theme comes from Projekte, the taskbar from the user's own desktop.
+    (tree["garten"] / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Garten-Theme\nPanelTheme: Mint-Y-Blue\n")
+    (tree["haus"] / ".MyOS" / "Desk.md").write_text("# Desk\nWallpaperPath: /bg/haus.jpg\n")
+    desktop = FakeDesktop(panel_theme="Linux Mint")
+    service = _service(desktop)
+    service.refresh_context(tree["garten"])
+    assert desktop.state.panel_theme == "Mint-Y-Blue"
+
+    service.refresh_context(tree["haus"])
+
+    assert desktop.state == DesktopState(theme="Projekte-Theme", wallpaper="/bg/haus.jpg", panel_theme="Linux Mint")

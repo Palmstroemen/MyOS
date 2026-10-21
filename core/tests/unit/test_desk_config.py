@@ -427,3 +427,75 @@ def test_desk_values_may_contain_spaces_and_blank_lines_do_not_end_the_section(t
     assert config.wallpaper_path == "/home/u/Bilder/Mein Garten.jpg"
     assert config.theme_preset == "Mint-L-Darker-Aqua"
     assert config.project_icon == "plant"
+
+
+def _desk_file(path: Path, text: str) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    desk = path / ".MyOS" / "Desk.md"
+    desk.parent.mkdir(exist_ok=True)
+    desk.write_text("# Desk\n" + text, encoding="utf-8")
+    return desk
+
+
+def test_settings_a_desk_leaves_open_come_from_the_desks_above(tmp_path):
+    root = tmp_path / "Project"
+    _desk_file(root, "ThemePreset: RootTheme\nPanelTheme: RootPanel\nWallpaperPath: /root.jpg\n")
+    child_desk = _desk_file(root / "Child", "WallpaperPath: /child.jpg\nProjectIcon: plant\n")
+
+    resolved = resolve_active_desk(root / "Child")
+
+    assert resolved.source_path == child_desk
+    assert (resolved.theme_preset, resolved.panel_theme) == ("RootTheme", "RootPanel")
+    assert resolved.wallpaper_path == "/child.jpg"
+    assert resolved.project_icon == "plant"
+
+
+def test_what_no_desk_sets_comes_from_the_fallback(tmp_path):
+    root = tmp_path / "Project"
+    _desk_file(root, "ThemePreset: RootTheme\n")
+    fallback = _desk_file(tmp_path / "home", "ThemePreset: Own\nPanelTheme: Linux Mint\nWallpaperPath: /own.jpg\n")
+
+    resolved = resolve_active_desk(root, fallback=fallback)
+
+    assert (resolved.theme_preset, resolved.panel_theme, resolved.wallpaper_path) == ("RootTheme", "Linux Mint", "/own.jpg")
+
+
+def test_inherit_not_takes_nothing_from_the_desks_above_but_the_fallback(tmp_path):
+    root = tmp_path / "Project"
+    _desk_file(root, "ThemePreset: RootTheme\nPanelTheme: RootPanel\n")
+    _desk_file(root / "Child", "ThemePreset: ChildTheme\nInherit: not\n")
+    fallback = _desk_file(tmp_path / "home", "PanelTheme: Linux Mint\n")
+
+    resolved = resolve_active_desk(root / "Child", fallback=fallback)
+
+    assert (resolved.theme_preset, resolved.panel_theme) == ("ChildTheme", "Linux Mint")
+
+
+def test_the_wallpaper_is_inherited_as_one_setting(tmp_path):
+    root = tmp_path / "Project"
+    _desk_file(root, "WallpaperPath: /root.jpg\n")
+    _desk_file(root / "Child", "WallpaperPreset: /child.jpg\n")
+
+    resolved = resolve_active_desk(root / "Child")
+
+    assert (resolved.wallpaper_preset, resolved.wallpaper_path) == ("/child.jpg", None)
+
+
+def test_an_inherited_relative_wallpaper_preset_stays_relative_to_its_own_desk(tmp_path):
+    root = tmp_path / "Project"
+    root_desk = _desk_file(root, "WallpaperPreset: bild.jpg\n")
+    _desk_file(root / "Child", "ThemePreset: ChildTheme\n")
+
+    resolved = resolve_active_desk(root / "Child")
+
+    assert resolved.wallpaper_preset == str(root_desk.parent / "bild.jpg")
+
+
+def test_an_inherited_wallpaper_preset_may_not_escape_its_desk_folder(tmp_path):
+    root = tmp_path / "Project"
+    _desk_file(root, "WallpaperPreset: ../../geheim.jpg\n")
+    _desk_file(root / "Child", "ThemePreset: ChildTheme\n")
+
+    resolved = resolve_active_desk(root / "Child")
+
+    assert resolved.wallpaper_preset is None and resolved.theme_preset == "ChildTheme"

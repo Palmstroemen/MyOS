@@ -6,7 +6,7 @@ desk.py - MyOS desk profile discovery and parsing.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -149,46 +149,81 @@ def resolve_active_desk(
       3) nearest ancestor desk profile
       4) fallback desk file
     """
+    fallback_desk = _parse_path(fallback) if fallback else None
     if manual:
-        try:
-            manual_path = Path(manual).expanduser().resolve()
-        except Exception:
-            manual_path = None
-        parsed_manual = _try_parse_desk(manual_path) if manual_path is not None else None
+        parsed_manual = _parse_path(manual)
         if parsed_manual is not None:
-            return parsed_manual
+            return _complete(parsed_manual, [fallback_desk])
 
     try:
         target = Path(cwd).expanduser().resolve()
     except Exception:
         target = None
     if target is None:
-        if fallback:
-            try:
-                fallback_path = Path(fallback).expanduser().resolve()
-            except Exception:
-                return None
-            return _try_parse_desk(fallback_path)
-        return None
+        return fallback_desk
     if target.is_file():
         target = target.parent
 
+    chain = [config for _, config in find_desks(target, include_root_desk=include_root_desk, boundary=boundary)]
+    cut = next((i for i, config in enumerate(chain) if config.inherit == "not"), None)
+    if cut is not None:
+        chain = chain[: cut + 1]  # "Inherit: not": nothing from further up
     if prefer_filter_desk:
         filter_desk = _resolve_filter_desk(target)
         if filter_desk is not None:
-            return filter_desk
+            chain.insert(0, filter_desk)
+    if not chain:
+        return fallback_desk
+    return _complete(chain[0], chain[1:] + [fallback_desk])
 
-    matches = find_desks(target, include_root_desk=include_root_desk, boundary=boundary)
-    if matches:
-        return matches[0][1]
 
-    if fallback:
-        try:
-            fallback_path = Path(fallback).expanduser().resolve()
-        except Exception:
-            return None
-        return _try_parse_desk(fallback_path)
-    return None
+def _parse_path(value: Union[str, Path]) -> Optional[DeskConfig]:
+    try:
+        path = Path(value).expanduser().resolve()
+    except Exception:
+        return None
+    return _try_parse_desk(path)
+
+
+# Settings a Desk.md may leave open; each one comes from the nearest desk above that has
+# it, at last from the fallback (the user's own desktop). Otherwise the value of the
+# project visited before would simply stay. ProjectIcon belongs to its project only.
+_INHERITED_FIELDS = ("theme_preset", "panel_theme", "dock_preset", "recent_policy")
+
+
+def _complete(desk: DeskConfig, ancestors: List[Optional[DeskConfig]]) -> DeskConfig:
+    """desk, with what it leaves open taken from ancestors (nearest first)."""
+    donors = [config for config in ancestors if config is not None]
+    values: Dict[str, Any] = {
+        name: getattr(desk, name) or next((getattr(d, name) for d in donors if getattr(d, name)), None)
+        for name in _INHERITED_FIELDS
+    }
+    if not (desk.wallpaper_preset or desk.wallpaper_path):
+        # Preset and path are one setting: a child's preset must not lose to a parent's path.
+        donor = next((d for d in donors if d.wallpaper_preset or d.wallpaper_path), None)
+        if donor is not None:
+            values["wallpaper_path"] = donor.wallpaper_path
+            values["wallpaper_preset"] = _portable_preset(donor)
+    raw: Dict[str, Any] = {}
+    for config in reversed(donors):
+        raw.update(config.raw)
+    raw.update(desk.raw)
+    return replace(desk, raw=raw, **values)
+
+
+def _portable_preset(donor: DeskConfig) -> Optional[str]:
+    """The donor's wallpaper preset, made absolute: relative presets belong to its folder."""
+    preset = str(donor.wallpaper_preset or "").strip()
+    if not preset or Path(preset).expanduser().is_absolute():
+        return preset or None
+    base_dir = donor.source_path.parent.resolve()
+    try:
+        resolved = (base_dir / preset).resolve()
+        # Security: same rule as the backend - a relative preset stays inside its desk folder.
+        resolved.relative_to(base_dir)
+    except (OSError, ValueError):
+        return None
+    return str(resolved)
 
 
 def _resolve_filter_desk(cwd: Path) -> Optional[DeskConfig]:

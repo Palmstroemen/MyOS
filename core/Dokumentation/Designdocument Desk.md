@@ -39,6 +39,8 @@ For each context change:
 3. Pick first matching candidate path. A `Desk.md` without values that says
    `Inherit: not` stops the search.
 4. If none is found, use the system default (the user's own desktop, section 12).
+5. Each setting the found `Desk.md` leaves open comes from the next `Desk.md` above that
+   has it, at last from the system default (see 4).
 
 This rule removes direction-specific logic (no separate "going up/down" behavior).
 Resolver implementation should remain generic (for example `find_config_in_parents(path, "Desk.md")`)
@@ -50,6 +52,14 @@ instead of introducing file-specific API methods.
 - No copy of `Desk.md` is required in each subproject.
 - Moving from a nested folder with local `Desk.md` to parent context activates the next ancestor profile.
 - Template-root desk files participate naturally if they are in the active upward path.
+- **Each setting is inherited on its own** (decided 2026-10-21): a `Desk.md` with only a
+  wallpaper still gets theme and panel theme from the desks above, at last from the system
+  default. Otherwise the value of the project visited before would simply stay (a blue
+  taskbar from Garten would stay blue in Haus).
+- `WallpaperPreset` and `WallpaperPath` count as one setting. An inherited relative
+  `WallpaperPreset` stays relative to its own `Desk.md` (and inside its folder).
+- `ProjectIcon` is not inherited: it belongs to its project.
+- `Inherit: not` takes nothing from the desks above, only from the system default.
 
 ## 5. MVP Config Schema
 
@@ -129,7 +139,8 @@ no quotes or control characters).
 
 - Missing `Desk.md`: no crash, continue with fallback/none.
 - Parse errors: skip invalid profile and continue upward/fallback.
-- `Inherit: not` in a local `Desk.md` without values stops the upward search (system default applies).
+- `Inherit: not` in a local `Desk.md` stops the upward search (system default applies,
+  also for the settings it leaves open).
 - Backend command failure: report structured error, keep app alive.
 - Partial apply failure: keep last successful profile marker unchanged.
 
