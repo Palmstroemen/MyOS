@@ -2072,11 +2072,21 @@ ApplicationWindow {
         moveReportDialog.open()
     }
 
+    /// Number of entries in the trash of the shown project (side panel button).
+    property int trashCount: 0
+
+    function refreshTrash() {
+        var path = currentFilesPath()
+        trashCount = (path.length > 0 && hasBackend() && typeof backend.trashEntries === "function")
+            ? (backend.trashEntries(path) || []).length : 0
+    }
+
     function updateFiles() {
         var targetPath = currentFilesPath()
         if (targetPath.length === 0) {
             return
         }
+        refreshTrash()
         if (hasBackend() && typeof backend.invalidateEntries === "function") {
             backend.invalidateEntries(targetPath)
         }
@@ -2786,6 +2796,11 @@ ApplicationWindow {
     MoveSelectedFoldersDialog { id: moveSelectedFoldersDialog; window: window }
 
     RenameEntryDialog { id: renameEntryDialog; window: window }
+    TrashDialog {
+        id: trashDialog
+        window: window
+        onTrashChanged: window.refreshAfterStructureChange()
+    }
     AclRoleDialog {
         id: aclRoleDialog
         window: window
@@ -3707,6 +3722,8 @@ ApplicationWindow {
             selectedAclPrincipal: window.selectedAclPrincipal
             onAclPrincipalToggled: function(id) { window.toggleAclPrincipal(id) }
             aclCanEdit: !!window.aclSummary.canEdit
+            trashCount: window.trashCount
+            onTrashRequested: trashDialog.openFor(window.currentFilesPath())
             onAclRoleEditRequested: function(roleKey, roleName, rights) {
                 aclRoleDialog.openFor(window.currentFilesPath(), roleKey, roleName, rights)
             }

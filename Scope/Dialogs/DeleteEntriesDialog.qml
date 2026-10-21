@@ -18,7 +18,7 @@ Dialog {
         border.width: 2
     }
     onOpened: {
-        window._setDialogButtonText(root, Dialog.Ok, qsTr("Apply"))
+        window._setDialogButtonText(root, Dialog.Ok, qsTr("Delete"))
         window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
     }
     onAccepted: {
@@ -29,9 +29,9 @@ Dialog {
     contentItem: Text {
         width: Math.max(120, root.width - 32)
         text: window.pendingDeleteHasFolders
-            ? qsTr("Entries to delete: %1. Folders are deleted with all their contents. This cannot be undone.")
+            ? qsTr("Entries to delete: %1. Folders go with all their contents. They are moved to the trash and can be restored from there.")
                 .arg(window.pendingDeletePaths.length)
-            : qsTr("Delete %1 files? This cannot be undone.").arg(window.pendingDeletePaths.length)
+            : qsTr("Move %1 files to the trash?").arg(window.pendingDeletePaths.length)
         wrapMode: Text.WordWrap
         color: window.dialogTextStrong
         font.pixelSize: window.baseFont

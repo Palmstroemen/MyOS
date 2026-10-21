@@ -178,6 +178,9 @@ Rectangle { // Files panel
     signal xrayClicked()
     /// Side panel button: switch between tiles and list.
     signal itemStyleToggleRequested()
+    /// Entries in the trash of the shown project (that the user may see); 0 hides the button.
+    property int trashCount: 0
+    signal trashRequested()
     /// Header context menu: new set of visible list columns (ids, see FormatUtils.LIST_COLUMNS).
     signal listColumnsChangeRequested(var columns)
     /// Header click: sort by this key ("name", "modified", "size"); main flips the direction.
@@ -918,6 +921,40 @@ Rectangle { // Files panel
                 }
             }
 
+            // Zeile 4: Papierkorb des Projekts – nur solange etwas darin liegt.
+            Row {
+                id: trashRow
+                visible: root.trashCount > 0
+                width: parent.width
+                spacing: root.sidePanelButtonSpacing
+
+                Rectangle {
+                    objectName: "trashButton"
+                    radius: root.chipRadiusMedium
+                    width: root.topRightButtonSize
+                    height: root.topRightButtonSize
+                    color: root.smallButtonBg
+                    border.color: root.smallButtonBorder
+                    Image {
+                        anchors.centerIn: parent
+                        source: "image://theme/user-trash-full"
+                        width: root.topRightIconSize
+                        height: root.topRightIconSize
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize.width: width
+                        sourceSize.height: height
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.trashRequested()
+                    }
+                    ToolTip.visible: trashButtonHover.hovered
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("Trash (entries: %1)").arg(root.trashCount)
+                    HoverHandler { id: trashButtonHover }
+                }
+            }
+
             Text {
                 id: folderSizeLabel
                 width: parent.width
@@ -951,7 +988,8 @@ Rectangle { // Files panel
             Rectangle {
                 width: parent.width
                 height: Math.max(80, parent.height - (3 * root.topRightButtonSize) - root.sidePanelButtonSpacing - (2 * root.sidePanelInnerMargin) - 20
-                    - folderSizeLabel.height - root.sidePanelInnerMargin)
+                    - folderSizeLabel.height - root.sidePanelInnerMargin
+                    - (trashRow.visible ? root.topRightButtonSize + root.sidePanelInnerMargin : 0))
                 radius: 0
                 border.width: 0
                 color: "transparent"

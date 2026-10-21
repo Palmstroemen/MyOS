@@ -205,13 +205,9 @@ Fehlgeschlagen: %3</translation>
     </message>
     <message>
         <location filename="../Dialogs/DeleteEntriesDialog.qml" line="7"/>
+        <location filename="../Dialogs/DeleteEntriesDialog.qml" line="21"/>
         <source>Delete</source>
         <translation>Löschen</translation>
-    </message>
-    <message>
-        <location filename="../Dialogs/DeleteEntriesDialog.qml" line="21"/>
-        <source>Apply</source>
-        <translation>Übernehmen</translation>
     </message>
     <message>
         <location filename="../Dialogs/DeleteEntriesDialog.qml" line="22"/>
@@ -220,20 +216,20 @@ Fehlgeschlagen: %3</translation>
     </message>
     <message>
         <location filename="../Dialogs/DeleteEntriesDialog.qml" line="32"/>
-        <source>Entries to delete: %1. Folders are deleted with all their contents. This cannot be undone.</source>
-        <translation>Zu löschende Einträge: %1. Ordner werden mit ihrem gesamten Inhalt gelöscht. Das kann nicht rückgängig gemacht werden.</translation>
+        <source>Entries to delete: %1. Folders go with all their contents. They are moved to the trash and can be restored from there.</source>
+        <translation>Zu löschende Einträge: %1. Ordner werden mit ihrem gesamten Inhalt gelöscht. Alles wandert in den Papierkorb und kann von dort wiederhergestellt werden.</translation>
     </message>
     <message>
         <location filename="../Dialogs/DeleteEntriesDialog.qml" line="34"/>
-        <source>Delete %1 files? This cannot be undone.</source>
-        <translation>Wirklich %1 Dateien löschen? Das kann nicht rückgängig gemacht werden.</translation>
+        <source>Move %1 files to the trash?</source>
+        <translation>%1 Dateien in den Papierkorb verschieben?</translation>
     </message>
 </context>
 <context>
     <name>FilesPanel</name>
     <message>
         <location filename="../FilesPanel.qml" line="147"/>
-        <location filename="../FilesPanel.qml" line="926"/>
+        <location filename="../FilesPanel.qml" line="963"/>
         <source>Size</source>
         <translation>Größe</translation>
     </message>
@@ -254,7 +250,7 @@ Fehlgeschlagen: %3</translation>
     </message>
     <message>
         <location filename="../FilesPanel.qml" line="151"/>
-        <location filename="../FilesPanel.qml" line="573"/>
+        <location filename="../FilesPanel.qml" line="576"/>
         <source>Access</source>
         <translation>Zugriff</translation>
     </message>
@@ -274,169 +270,174 @@ Fehlgeschlagen: %3</translation>
         <translation>Gruppe</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="475"/>
+        <location filename="../FilesPanel.qml" line="478"/>
         <source>Read</source>
         <translation>Lesen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="475"/>
+        <location filename="../FilesPanel.qml" line="478"/>
         <source>Write</source>
         <translation>Schreiben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="475"/>
+        <location filename="../FilesPanel.qml" line="478"/>
         <source>Execute</source>
         <translation>Ausführen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="475"/>
+        <location filename="../FilesPanel.qml" line="478"/>
         <source>Change rights</source>
         <translation>Rechte ändern</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="475"/>
-        <location filename="../FilesPanel.qml" line="1852"/>
+        <location filename="../FilesPanel.qml" line="478"/>
+        <location filename="../FilesPanel.qml" line="1890"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="486"/>
+        <location filename="../FilesPanel.qml" line="489"/>
         <source>No access to this folder, but to %1 of %2 entries</source>
         <translation>Kein Zugriff auf diesen Ordner, aber auf %1 von %2 Einträgen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="488"/>
+        <location filename="../FilesPanel.qml" line="491"/>
         <source>Access to this folder, but locked out of %1 of %2 entries</source>
         <translation>Zugriff auf diesen Ordner, aber gesperrt für %1 von %2 Einträgen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="490"/>
+        <location filename="../FilesPanel.qml" line="493"/>
         <source>Here: %1</source>
         <translation>Hier: %1</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="493"/>
+        <location filename="../FilesPanel.qml" line="496"/>
         <source>Right click: change the rights for this folder</source>
         <translation>Rechtsklick: Rechte für diesen Ordner ändern</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="574"/>
+        <location filename="../FilesPanel.qml" line="577"/>
         <source>Exceptions</source>
         <translation>Ausnahmen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="685"/>
+        <location filename="../FilesPanel.qml" line="688"/>
         <source>People get their rights through their groups.</source>
         <translation>Personen erhalten ihre Rechte über ihre Gruppen.</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="686"/>
+        <location filename="../FilesPanel.qml" line="689"/>
         <source>Right click a group to change rights.</source>
         <translation>Für Änderungen eine Gruppe rechts anklicken.</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="916"/>
+        <location filename="../FilesPanel.qml" line="919"/>
         <source>Add folder tag</source>
         <translation>Ordnertag vergeben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="979"/>
+        <location filename="../FilesPanel.qml" line="953"/>
+        <source>Trash (entries: %1)</source>
+        <translation>Papierkorb (Einträge: %1)</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="1017"/>
         <source>Folder tags</source>
         <translation>Ordnertags</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1102"/>
+        <location filename="../FilesPanel.qml" line="1140"/>
         <source>New folder tag ...</source>
         <translation>Neuer Ordnertag ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1232"/>
+        <location filename="../FilesPanel.qml" line="1270"/>
         <source>File tags</source>
         <translation>Filetags</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1323"/>
+        <location filename="../FilesPanel.qml" line="1361"/>
         <source>… parsing tags</source>
         <translation>… Tags werden gelesen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1395"/>
+        <location filename="../FilesPanel.qml" line="1433"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1802"/>
+        <location filename="../FilesPanel.qml" line="1840"/>
         <source>Create Note</source>
         <translation>Notiz erstellen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1806"/>
+        <location filename="../FilesPanel.qml" line="1844"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1812"/>
-        <location filename="../FilesPanel.qml" line="1859"/>
+        <location filename="../FilesPanel.qml" line="1850"/>
+        <location filename="../FilesPanel.qml" line="1897"/>
         <source>Move into New Folder</source>
         <translation>In neuen Ordner verschieben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1822"/>
+        <location filename="../FilesPanel.qml" line="1860"/>
         <source>Open</source>
         <translation>Öffnen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1827"/>
+        <location filename="../FilesPanel.qml" line="1865"/>
         <source>Open with ...</source>
         <translation>Öffnen mit ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1833"/>
+        <location filename="../FilesPanel.qml" line="1871"/>
         <source>Select all</source>
         <translation>Alle markieren</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1839"/>
+        <location filename="../FilesPanel.qml" line="1877"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1875"/>
+        <location filename="../FilesPanel.qml" line="1913"/>
         <source>Color: Red</source>
         <translation>Farbe: Rot</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1876"/>
+        <location filename="../FilesPanel.qml" line="1914"/>
         <source>Color: Orange</source>
         <translation>Farbe: Orange</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1877"/>
+        <location filename="../FilesPanel.qml" line="1915"/>
         <source>Color: Yellow</source>
         <translation>Farbe: Gelb</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1878"/>
+        <location filename="../FilesPanel.qml" line="1916"/>
         <source>Color: Green</source>
         <translation>Farbe: Grün</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1879"/>
+        <location filename="../FilesPanel.qml" line="1917"/>
         <source>Color: Cyan</source>
         <translation>Farbe: Cyan</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1880"/>
+        <location filename="../FilesPanel.qml" line="1918"/>
         <source>Color: Blue</source>
         <translation>Farbe: Blau</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1881"/>
+        <location filename="../FilesPanel.qml" line="1919"/>
         <source>Color: Violet</source>
         <translation>Farbe: Violett</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1882"/>
+        <location filename="../FilesPanel.qml" line="1920"/>
         <source>Color: Gray</source>
         <translation>Farbe: Grau</translation>
     </message>
@@ -708,6 +709,54 @@ Fehlgeschlagen: %3</translation>
     </message>
 </context>
 <context>
+    <name>TrashDialog</name>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="17"/>
+        <source>Trash</source>
+        <translation>Papierkorb</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="56"/>
+        <source>You may not change this entry.</source>
+        <translation>Du darfst diesen Eintrag nicht ändern.</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="57"/>
+        <source>This did not work.</source>
+        <translation>Das hat nicht geklappt.</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="65"/>
+        <source>Close</source>
+        <translation>Schließen</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="72"/>
+        <source>Deleted entries stay here for a while and can be restored.</source>
+        <translation>Gelöschte Einträge bleiben eine Weile hier und können wiederhergestellt werden.</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="115"/>
+        <source>from /%1 · %2 · %3</source>
+        <translation>aus /%1 · %2 · %3</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="132"/>
+        <source>Restore</source>
+        <translation>Wiederherstellen</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="138"/>
+        <source>Really delete?</source>
+        <translation>Wirklich löschen?</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="138"/>
+        <source>Delete for good</source>
+        <translation>Endgültig löschen</translation>
+    </message>
+</context>
+<context>
     <name>main</name>
     <message>
         <location filename="../main.qml" line="274"/>
@@ -827,144 +876,144 @@ Nicht gelöscht: %2 Datei(en)</translation>
         <translation>Filter konnte nicht gespeichert werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2745"/>
+        <location filename="../main.qml" line="2755"/>
         <source>Search      + deep    # all</source>
         <translation>Suchen      + tief    # alle</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2875"/>
+        <location filename="../main.qml" line="2890"/>
         <source>Scope ▼</source>
         <translation>Scope ▼</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2875"/>
+        <location filename="../main.qml" line="2890"/>
         <source>Scope ▲</source>
         <translation>Scope ▲</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2903"/>
+        <location filename="../main.qml" line="2918"/>
         <source>Light</source>
         <translation>Hell</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2903"/>
+        <location filename="../main.qml" line="2918"/>
         <source>Dark</source>
         <translation>Dunkel</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2945"/>
+        <location filename="../main.qml" line="2960"/>
         <source>Filter: Auto</source>
         <translation>Filter: Auto</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2949"/>
+        <location filename="../main.qml" line="2964"/>
         <source>Filter</source>
         <translation>Filter</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2965"/>
+        <location filename="../main.qml" line="2980"/>
         <source>Auto follow</source>
         <translation>Auto folgen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2969"/>
+        <location filename="../main.qml" line="2984"/>
         <source>Open active filter</source>
         <translation>Aktiven Filter öffnen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2974"/>
+        <location filename="../main.qml" line="2989"/>
         <source>Save filter ...</source>
         <translation>Filter speichern ...</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3010"/>
+        <location filename="../main.qml" line="3025"/>
         <source>Projects</source>
         <translation>Projekte</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3010"/>
-        <location filename="../main.qml" line="3030"/>
+        <location filename="../main.qml" line="3025"/>
+        <location filename="../main.qml" line="3045"/>
         <source>ON</source>
         <translation>AN</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3010"/>
-        <location filename="../main.qml" line="3030"/>
+        <location filename="../main.qml" line="3025"/>
+        <location filename="../main.qml" line="3045"/>
         <source>OFF</source>
         <translation>AUS</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3030"/>
+        <location filename="../main.qml" line="3045"/>
         <source>Templates</source>
         <translation>Vorlagen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3050"/>
+        <location filename="../main.qml" line="3065"/>
         <source>Files 50%</source>
         <translation>Dateien 50%</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3070"/>
+        <location filename="../main.qml" line="3085"/>
         <source>Narrow</source>
         <translation>Schmal</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3090"/>
+        <location filename="../main.qml" line="3105"/>
         <source>Edge dock</source>
         <translation>Edge-Dock</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3110"/>
+        <location filename="../main.qml" line="3125"/>
         <source>Give project a theme</source>
         <translation>Projekt mit Thema versehen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3122"/>
+        <location filename="../main.qml" line="3137"/>
         <source>Desk.md could not be created.</source>
         <translation>Desk.md konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3124"/>
+        <location filename="../main.qml" line="3139"/>
         <source>Desk.md is ready in the current project.</source>
         <translation>Desk.md ist bereit im aktuellen Projekt.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3141"/>
+        <location filename="../main.qml" line="3156"/>
         <source>Enable sorting</source>
         <translation>Ordnung aktivieren</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3153"/>
+        <location filename="../main.qml" line="3168"/>
         <source>Sort.md could not be created.</source>
         <translation>Sort.md konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3155"/>
+        <location filename="../main.qml" line="3170"/>
         <source>Sort.md is ready in the current project.</source>
         <translation>Sort.md ist bereit im aktuellen Projekt.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3172"/>
+        <location filename="../main.qml" line="3187"/>
         <source>Sort in now</source>
         <translation>Jetzt einsortieren</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3185"/>
+        <location filename="../main.qml" line="3200"/>
         <source>Sorting: %1 moved, %2 errors</source>
         <translation>Sortierung: %1 verschoben, %2 Fehler</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3289"/>
+        <location filename="../main.qml" line="3304"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3293"/>
+        <location filename="../main.qml" line="3308"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3310"/>
+        <location filename="../main.qml" line="3325"/>
         <source>Perspective OFF</source>
         <translation>Perspective OFF</translation>
     </message>

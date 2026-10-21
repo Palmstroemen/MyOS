@@ -628,6 +628,19 @@ class Backend(QObject):
         paths = [str(p or "") for p in (entryPaths or []) if str(p or "")]
         self._acl_pool.start(AclSummaryTask(self, str(path or ""), paths, self._acl_generation))
 
+    @Slot(str, result="QVariantList")
+    def trashEntries(self, path: str) -> list:
+        """Trash of the project path lies in (see ScopeApi.trash_entries)."""
+        return self._api.trash_entries(path)
+
+    @Slot(str, str, result="QVariantMap")
+    def trashRestore(self, path: str, name: str) -> dict:
+        return self._api.trash_restore(path, name)
+
+    @Slot(str, str, result="QVariantMap")
+    def trashDeleteFinally(self, path: str, name: str) -> dict:
+        return self._api.trash_delete_finally(path, name)
+
     @Slot(str, str, result=bool)
     def aclHasOwnRule(self, path: str, role: str) -> bool:
         return self._api.acl_has_own_rule(path, role)
