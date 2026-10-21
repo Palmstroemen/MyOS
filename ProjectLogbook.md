@@ -32,10 +32,13 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Scope UI verfeinern  
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
 [ ] PostFix UI verfeinern und Exporter bauen
-    [ ] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
+    [x] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
     [ ] ACL-Panel: Embryos wahlweise mit einbeziehen (Schalter); derzeit zählen sie nicht
+    [x] Personen-Chip: Gruppen einer Person ändern (`# Users`)
+    [ ] Person hinzufügen (neue Zeile in `# Users`)
     [x] Ordner umbenennen: passende Regeln in ACLs.md mitziehen (sonst greifen sie ins Leere)
 [x] Papierkorb pro Projekt (.MyOS/Trash/), siehe core/Dokumentation/Designdocument Trash.md
+[ ] Tests: ein einziger `pytest`-Lauf für alles (Scope-Tests legen `QGuiApplication` an, PostFix braucht `QApplication` – in einem Prozess bricht Qt ab; dazu Altlasten in `core/archive`)
 [ ] Distribution erstellen
 [ ] Demo virtualisieren (Remote-Desktop-Setup) zum Code-Schutz
 [ ] Vielsprachigkeit vorbereiten (i18n/L10n)

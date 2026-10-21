@@ -128,6 +128,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         # Center area (editor + sidebars)
         self.left_sidebar = ACLSidebar()
         self.left_sidebar.roleEditRequested.connect(self._open_role_editor)
+        self.left_sidebar.personEditRequested.connect(self._open_person_editor)
         # Obsidian embed is paused for now. Keep the code here for later.
         # self.editor = ObsidianEmbed(
         #     open_path=open_path,

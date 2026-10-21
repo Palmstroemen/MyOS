@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from core.acl_edit import ACLEditError, can_edit, own_rule, set_role_rights
+from core.acl_edit import ACLEditError, ACLSelfLockoutError, can_edit, own_rule, set_role_rights, set_user_roles
 from core.acl_view import RIGHTS_ORDER, ACLView
 
 
@@ -59,10 +59,30 @@ class WindowAclsMixin:
         path = getattr(self.editor, "current_path", None)
         if not path:
             return self.tr("No note is open.")
+        return self._acl_edit(lambda: set_role_rights(
+            path, role_key, None if rights is None else set(rights), editor=current_acl_user()))
+
+    def _user_groups(self, user_key: str):
+        """Groups of a person with what each may do with the open note (ACLView.user_groups)."""
+        path = getattr(self.editor, "current_path", None)
+        view = ACLView.for_path(path) if path else None
+        return view.user_groups(user_key, path) if view is not None else None
+
+    def _apply_user_groups(self, user_key: str, groups) -> str:
+        """Set a person's groups (whole project); "" on success, else a message."""
+        path = getattr(self.editor, "current_path", None)
+        if not path:
+            return self.tr("No note is open.")
+        return self._acl_edit(lambda: set_user_roles(path, user_key, set(groups), editor=current_acl_user()))
+
+    def _acl_edit(self, edit) -> str:
+        """Run an ACLs.md edit; "" on success (the sidebar shows the new state), else a message."""
         try:
-            set_role_rights(path, role_key, None if rights is None else set(rights), editor=current_acl_user())
+            edit()
         except PermissionError:
             return self.tr("You may not change the rights here.")
+        except ACLSelfLockoutError:
+            return self.tr("You would lose your own right to change the rights.")
         except (ACLEditError, OSError) as exc:
             return str(exc)
         self._reload_acl_context()
@@ -85,4 +105,25 @@ class WindowAclsMixin:
         if chip is not None:
             editor.move(chip.mapToGlobal(chip.rect().topRight()))
         self._acl_role_editor = editor  # keep it alive while open
+        editor.show()
+
+    def _open_person_editor(self, user_key: str, person_name: str, chip=None):
+        """Groups editor for one person, next to their chip (sidebar: personEditRequested)."""
+        try:
+            from .ui_panels import ACLPersonEditor
+        except ImportError:
+            from ui_panels import ACLPersonEditor
+        data = self._user_groups(user_key)
+        if not data:
+            return
+        editor = ACLPersonEditor(data["name"], data["groups"], parent=self)
+
+        def apply(chosen):
+            error = self._apply_user_groups(user_key, chosen)
+            editor.show_error(error) if error else editor.close()
+
+        editor.applyRequested.connect(apply)
+        if chip is not None:
+            editor.move(chip.mapToGlobal(chip.rect().topRight()))
+        self._acl_person_editor = editor  # keep it alive while open
         editor.show()

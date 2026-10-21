@@ -199,6 +199,28 @@ class ACLView:
             "count": int(count),
         }
 
+    def user_groups(self, user: str, path) -> Optional[dict]:
+        """
+        Groups of a person for the groups editor: {name, groups: [{key, name, member,
+        rights}]}, groups sorted by name, rights = what the group may at path (in
+        RIGHTS_ORDER). None for a person not listed in # Users.
+        """
+        user_key = str(user or "").strip().lower()
+        if user_key not in self.policy.users:
+            return None
+        member = self.policy.roles_for_user(user_key)
+        groups = [
+            {
+                "key": role,
+                "name": self.policy.display_name(role),
+                "member": role in member,
+                "rights": [r for r in RIGHTS_ORDER if r in self.rights_for_role(role, path)],
+            }
+            for role in self.policy.roles
+        ]
+        groups.sort(key=lambda g: g["name"].lower())
+        return {"name": self.policy.display_name(user_key), "groups": groups}
+
     def has_own_rules(self, path) -> bool:
         """
         True if some rule addresses exactly this path (it has rules of its own);

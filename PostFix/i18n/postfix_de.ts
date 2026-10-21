@@ -2,74 +2,147 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="de_DE">
 <context>
-    <name>ACLRoleEditor</name>
+    <name>ACLPersonEditor</name>
     <message>
-        <location filename="../ui_panels.py" line="427"/>
+        <location filename="../ui_panels.py" line="553"/>
         <source>read</source>
         <translation>lesen</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="428"/>
+        <location filename="../ui_panels.py" line="554"/>
         <source>write</source>
         <translation>schreiben</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="429"/>
+        <location filename="../ui_panels.py" line="555"/>
         <source>execute</source>
         <translation>ausführen</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="430"/>
+        <location filename="../ui_panels.py" line="556"/>
         <source>change rights</source>
         <translation>Rechte ändern</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="431"/>
+        <location filename="../ui_panels.py" line="557"/>
         <source>delete</source>
         <translation>löschen</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="436"/>
-        <source>Rights of %1 for this note</source>
-        <translation>Rechte von %1 für diese Notiz</translation>
+        <location filename="../ui_panels.py" line="563"/>
+        <source>Groups of %1</source>
+        <translation>Gruppen von %1</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="439"/>
-        <source>Control exactly what this group may do with this note.</source>
-        <translation>Hier steuern Sie genau, was diese Gruppe mit dieser Notiz machen darf.</translation>
+        <location filename="../ui_panels.py" line="567"/>
+        <source>People get their rights through their groups. Groups apply in the whole project, not only for this note.</source>
+        <translation>Personen bekommen ihre Rechte über ihre Gruppen. Gruppen gelten im ganzen Projekt, nicht nur für diese Notiz.</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="461"/>
-        <source>This note has a rule of its own.</source>
-        <translation>Für diese Notiz gilt eine eigene Regel.</translation>
+        <location filename="../ui_panels.py" line="594"/>
+        <source>Without groups %1 has no rights and is removed from the list.</source>
+        <translation>Ohne Gruppen hat %1 keine Rechte und wird aus der Liste entfernt.</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="462"/>
-        <source>These rights are inherited from the parent folder.</source>
-        <translation>Diese Rechte sind vom übergeordneten Ordner geerbt.</translation>
-    </message>
-    <message>
-        <location filename="../ui_panels.py" line="473"/>
+        <location filename="../ui_panels.py" line="605"/>
         <source>Apply</source>
         <translation>Übernehmen</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="474"/>
-        <source>Back to inherited</source>
-        <translation>Zurück auf geerbt</translation>
-    </message>
-    <message>
-        <location filename="../ui_panels.py" line="476"/>
+        <location filename="../ui_panels.py" line="606"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
+        <location filename="../ui_panels.py" line="617"/>
+        <source>here: no access</source>
+        <translation>hier: kein Zugriff</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="618"/>
+        <source>here: %1</source>
+        <translation>hier: %1</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="623"/>
+        <source>member</source>
+        <translation>Mitglied</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="623"/>
+        <source>not a member</source>
+        <translation>kein Mitglied</translation>
+    </message>
+</context>
+<context>
+    <name>ACLRoleEditor</name>
+    <message>
+        <location filename="../ui_panels.py" line="438"/>
+        <source>read</source>
+        <translation>lesen</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="439"/>
+        <source>write</source>
+        <translation>schreiben</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="440"/>
+        <source>execute</source>
+        <translation>ausführen</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="441"/>
+        <source>change rights</source>
+        <translation>Rechte ändern</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="442"/>
+        <source>delete</source>
+        <translation>löschen</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="447"/>
+        <source>Rights of %1 for this note</source>
+        <translation>Rechte von %1 für diese Notiz</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="450"/>
+        <source>Control exactly what this group may do with this note.</source>
+        <translation>Hier steuern Sie genau, was diese Gruppe mit dieser Notiz machen darf.</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="472"/>
+        <source>This note has a rule of its own.</source>
+        <translation>Für diese Notiz gilt eine eigene Regel.</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="473"/>
+        <source>These rights are inherited from the parent folder.</source>
+        <translation>Diese Rechte sind vom übergeordneten Ordner geerbt.</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="484"/>
+        <source>Apply</source>
+        <translation>Übernehmen</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="485"/>
+        <source>Back to inherited</source>
+        <translation>Zurück auf geerbt</translation>
+    </message>
+    <message>
         <location filename="../ui_panels.py" line="487"/>
+        <source>Cancel</source>
+        <translation>Abbrechen</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="498"/>
         <source>may %1</source>
         <translation>darf %1</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="490"/>
+        <location filename="../ui_panels.py" line="501"/>
         <source>may not %1</source>
         <translation>darf nicht %1</translation>
     </message>
@@ -77,47 +150,52 @@
 <context>
     <name>ACLSidebar</name>
     <message>
-        <location filename="../ui_panels.py" line="275"/>
+        <location filename="../ui_panels.py" line="278"/>
         <source>Read</source>
         <translation>Lesen</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="276"/>
+        <location filename="../ui_panels.py" line="279"/>
         <source>Write</source>
         <translation>Schreiben</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="277"/>
+        <location filename="../ui_panels.py" line="280"/>
         <source>Execute</source>
         <translation>Ausführen</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="278"/>
+        <location filename="../ui_panels.py" line="281"/>
         <source>Change rights</source>
         <translation>Rechte ändern</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="279"/>
+        <location filename="../ui_panels.py" line="282"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="358"/>
+        <location filename="../ui_panels.py" line="361"/>
         <source>Person</source>
         <translation>Person</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="358"/>
+        <location filename="../ui_panels.py" line="361"/>
         <source>Group</source>
         <translation>Gruppe</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="362"/>
+        <location filename="../ui_panels.py" line="364"/>
         <source>Click: change the rights for this note</source>
         <translation>Klick: Rechte für diese Notiz ändern</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="375"/>
+        <location filename="../ui_panels.py" line="373"/>
+        <source>Click: change the groups of this person</source>
+        <translation>Klick: Gruppen dieser Person ändern</translation>
+    </message>
+    <message>
+        <location filename="../ui_panels.py" line="386"/>
         <source>ACLs</source>
         <translation>ACLs</translation>
     </message>
@@ -125,37 +203,37 @@
 <context>
     <name>BottomToolbar</name>
     <message>
-        <location filename="../ui_panels.py" line="566"/>
+        <location filename="../ui_panels.py" line="701"/>
         <source>Send to</source>
         <translation>Senden an</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="567"/>
+        <location filename="../ui_panels.py" line="702"/>
         <source>Open in</source>
         <translation>Öffnen in</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="568"/>
+        <location filename="../ui_panels.py" line="703"/>
         <source>Print</source>
         <translation>Drucken</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="628"/>
+        <location filename="../ui_panels.py" line="763"/>
         <source>Printer</source>
         <translation>Drucker</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="632"/>
+        <location filename="../ui_panels.py" line="767"/>
         <source>Mail</source>
         <translation>Mail</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="640"/>
+        <location filename="../ui_panels.py" line="775"/>
         <source>LibreOffice Writer</source>
         <translation>LibreOffice Writer</translation>
     </message>
     <message>
-        <location filename="../ui_panels.py" line="641"/>
+        <location filename="../ui_panels.py" line="776"/>
         <source>LibreOffice Impress</source>
         <translation>LibreOffice Impress</translation>
     </message>
@@ -202,24 +280,24 @@
     <name>PostFixWindow</name>
     <message>
         <location filename="../main.py" line="94"/>
-        <location filename="../main.py" line="383"/>
+        <location filename="../main.py" line="384"/>
         <source>PostFix</source>
         <translation>PostFix</translation>
     </message>
     <message>
-        <location filename="../main.py" line="170"/>
-        <location filename="../main.py" line="404"/>
-        <location filename="../main.py" line="527"/>
+        <location filename="../main.py" line="171"/>
+        <location filename="../main.py" line="405"/>
+        <location filename="../main.py" line="529"/>
         <source>Focus mode</source>
         <translation>Fokusmodus</translation>
     </message>
     <message>
-        <location filename="../main.py" line="402"/>
+        <location filename="../main.py" line="403"/>
         <source>File name</source>
         <translation>Dateiname</translation>
     </message>
     <message>
-        <location filename="../main.py" line="647"/>
+        <location filename="../main.py" line="649"/>
         <source>Style: Auto</source>
         <translation>Stil: Auto</translation>
     </message>
@@ -261,13 +339,19 @@
     <name>WindowAclsMixin</name>
     <message>
         <location filename="../window_acls.py" line="61"/>
+        <location filename="../window_acls.py" line="75"/>
         <source>No note is open.</source>
         <translation>Keine Notiz geöffnet.</translation>
     </message>
     <message>
-        <location filename="../window_acls.py" line="65"/>
+        <location filename="../window_acls.py" line="83"/>
         <source>You may not change the rights here.</source>
         <translation>Du darfst die Rechte hier nicht ändern.</translation>
+    </message>
+    <message>
+        <location filename="../window_acls.py" line="85"/>
+        <source>You would lose your own right to change the rights.</source>
+        <translation>Damit würdest du dein eigenes Recht verlieren, Rechte zu ändern.</translation>
     </message>
 </context>
 <context>

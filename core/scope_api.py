@@ -18,11 +18,13 @@ from core.tags import read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root
 from core.acl_edit import (
     ACLEditError,
+    ACLSelfLockoutError,
     can_edit as acl_can_edit,
     check_move_rules,
     move_rules as move_acl_rules,
     own_rule as own_acl_rule,
     set_role_rights,
+    set_user_roles,
 )
 from core.acl_view import ACLView
 from core import trash
@@ -2343,18 +2345,25 @@ class ScopeApi:
         no ACLs.md. Read-only and without an audit event per entry (only the check
         below is audited), so it can run for large listings in a background task.
         """
-        view = ACLView.for_path(path)
+        view = self._visible_acl_view(path)
         if view is None:
-            return {"hasAcls": False}
-        # Security: the panel shows the content of ACLs.md (who may do what); with
-        # enforcement on, only a user who may read ACLs.md gets to see it.
-        probe = self._acl_probe("read", view.project_root / ".MyOS" / "ACLs.md")
-        if probe is not None and probe.enforced and not probe.allowed:
             return {"hasAcls": False}
         folder = Path(path).expanduser().resolve()
         summary = view.listing_summary(folder, [str(p) for p in entry_paths])
         can_edit = acl_can_edit(folder, self._acl_user)
         return {"hasAcls": True, "path": str(folder), "canEdit": can_edit, **summary}
+
+    def _visible_acl_view(self, path: str) -> Optional[ACLView]:
+        """ACLView for path, or None without ACLs.md or when the user may not see it."""
+        view = ACLView.for_path(path)
+        if view is None:
+            return None
+        # Security: the panels show the content of ACLs.md (who may do what); with
+        # enforcement on, only a user who may read ACLs.md gets to see it.
+        probe = self._acl_probe("read", view.project_root / ".MyOS" / "ACLs.md")
+        if probe is not None and probe.enforced and not probe.allowed:
+            return None
+        return view
 
     def trash_entries(self, path: str) -> List[Dict[str, Any]]:
         """
@@ -2420,13 +2429,37 @@ class ScopeApi:
         """
         Set role's rights at path in the governing ACLs.md (see acl_edit.set_role_rights):
         rights is the complete list, [] = locked out ("none"), None = back to inherited.
-        Returns {ok, reason}: reason "permission" (no change right) or "invalid" (with a
-        message). The editor is the user ACLs are checked for.
+        Returns {ok, reason} (see _acl_edit). The editor is the user ACLs are checked for.
         """
+        return self._acl_edit(lambda: set_role_rights(
+            path, role, None if rights is None else set(rights), editor=self._acl_user))
+
+    def acl_user_groups(self, path: str, user: str) -> Dict[str, Any]:
+        """
+        The groups dialog for one person: {name, groups: [{key, name, member, rights}]},
+        groups sorted by name, rights = what the group may at path (in RIGHTS_ORDER).
+        {} without visible ACLs or for a person not listed in # Users.
+        """
+        view = self._visible_acl_view(path)
+        return (view.user_groups(user, path) if view is not None else None) or {}
+
+    def acl_set_user_groups(self, path: str, user: str, groups: List[str]) -> Dict[str, Any]:
+        """
+        Set the groups of user (whole project) in the ACLs.md governing path (see
+        acl_edit.set_user_roles); [] removes the person. Returns {ok, reason} like
+        acl_set_role_rights.
+        """
+        return self._acl_edit(lambda: set_user_roles(path, user, set(groups), editor=self._acl_user))
+
+    def _acl_edit(self, edit: Callable[[], Any]) -> Dict[str, Any]:
+        """Run an ACLs.md edit; {ok, reason}: "permission" (no change right), "lockout"
+        (the editor would lose that right) or "invalid" (with a message)."""
         try:
-            set_role_rights(path, role, None if rights is None else set(rights), editor=self._acl_user)
+            edit()
         except PermissionError:
             return {"ok": False, "reason": "permission"}
+        except ACLSelfLockoutError:
+            return {"ok": False, "reason": "lockout"}
         except (ACLEditError, OSError) as exc:
             return {"ok": False, "reason": "invalid", "message": str(exc)}
         # Security: checks of this session follow the new rules at once. Only rebuilt when

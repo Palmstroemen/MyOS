@@ -127,3 +127,32 @@ def test_has_own_rule(tmp_path, monkeypatch):
 
     assert api.acl_has_own_rule(str(root / "finanz"), "Buchhalter") is True
     assert api.acl_has_own_rule(str(root / "privat"), "Buchhalter") is False
+
+
+def test_user_groups_with_their_rights_here(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+
+    result = ScopeApi(str(root)).acl_user_groups(str(root / "finanz"), "bertha")
+
+    assert result["name"] == "Bertha"
+    groups = {g["key"]: g for g in result["groups"]}
+    assert set(groups) == {"admin", "buchhalter", "finanz"}
+    assert groups["buchhalter"] == {"key": "buchhalter", "name": "Buchhalter", "member": True, "rights": ["read", "write"]}
+    assert groups["admin"]["member"] is False
+    assert groups["admin"]["rights"] == ["read", "write", "execute"]
+    assert [g["name"] for g in result["groups"]] == ["Admin", "Buchhalter", "finanz"]
+
+
+def test_set_user_groups(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    api = ScopeApi(str(root))
+
+    assert api.acl_set_user_groups(str(root / "finanz"), "bertha", ["buchhalter", "admin"]) == {"ok": True, "reason": ""}
+    assert "Bertha: Buchhalter, Admin\n" in (root / ".MyOS" / "ACLs.md").read_text()
+
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    assert ScopeApi(str(root)).acl_set_user_groups(str(root), "bertha", [])["reason"] == "lockout"
+    monkeypatch.setenv("MYOS_ACL_USER", "karl")
+    assert ScopeApi(str(root)).acl_set_user_groups(str(root), "bertha", []) == {"ok": False, "reason": "permission"}

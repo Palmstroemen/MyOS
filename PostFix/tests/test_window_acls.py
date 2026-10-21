@@ -277,3 +277,65 @@ def test_role_editor_says_in_words_what_is_allowed():
     assert editor.meaning["write"].text() == "✓ may write"
     assert "what this group may do with this note" in editor.intro.text()
     assert "inherited" in editor.origin.text()
+
+
+def test_person_chips_are_editable_too():
+    from PySide6.QtWidgets import QApplication, QPushButton
+    from PostFix.ui_panels import ACLSidebar
+
+    QApplication.instance() or QApplication([])
+    sidebar = ACLSidebar()
+    sidebar.set_principals([{"name": "Bertha", "kind": "user", "key": "bertha", "rights": ["read"]}])
+    asked = []
+    sidebar.personEditRequested.connect(lambda key, name, chip: asked.append((key, name)))
+
+    [chip] = [b for b in sidebar.findChildren(QPushButton) if b.property("aclName") == "Bertha"]
+    chip.click()
+    assert asked == []  # not editable: display only
+    sidebar.set_editable(True)
+    chip = [b for b in sidebar.findChildren(QPushButton) if b.property("aclName") == "Bertha"][-1]  # rebuilt
+    chip.click()
+
+    assert asked == [("bertha", "Bertha")]
+    assert "groups" in chip.toolTip()
+
+
+def test_apply_user_groups_writes_and_reloads(tmp_path, monkeypatch):
+    root = _project(tmp_path)
+    note = root / "finanz" / "plan.md"
+    note.write_text("x")
+    w = _Window()
+    w.editor.current_path = note
+    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    w._reload_acl_context()
+
+    groups = {g["key"]: g for g in w._user_groups("bertha")["groups"]}
+    assert groups["buchhaltung"]["member"] is True and groups["buchhaltung"]["rights"] == ["read", "write"]
+
+    assert w._apply_user_groups("bertha", {"buchhaltung", "admin"}) == ""
+    assert "Bertha: Buchhaltung, Admin\n" in (root / ".MyOS" / "ACLs.md").read_text()
+    assert w._apply_user_groups("oliver", set()) == "You would lose your own right to change the rights."
+    assert w._apply_user_groups("bertha", set()) == ""
+    assert "Bertha" not in (root / ".MyOS" / "ACLs.md").read_text()
+    assert "Bertha" not in [p["name"] for p in w.left_sidebar.principals]
+
+
+def test_person_editor_shows_groups_and_returns_the_choice():
+    from PySide6.QtWidgets import QApplication
+    from PostFix.ui_panels import ACLPersonEditor
+
+    QApplication.instance() or QApplication([])
+    groups = [
+        {"key": "admin", "name": "Admin", "member": False, "rights": ["read", "write", "execute"]},
+        {"key": "buchhaltung", "name": "Buchhaltung", "member": True, "rights": []},
+    ]
+    editor = ACLPersonEditor("Bertha", groups)
+
+    assert editor.chosen_groups() == {"buchhaltung"}
+    assert editor.meaning["admin"].text() == "✗ not a member · here: read, write, execute"
+    assert editor.meaning["buchhaltung"].text() == "✓ member · here: no access"
+    assert "whole project" in editor.intro.text()
+    assert editor.empty_note.isHidden()
+    editor.toggle("buchhaltung")
+    assert editor.chosen_groups() == set()
+    assert not editor.empty_note.isHidden()

@@ -61,6 +61,7 @@ Rectangle { // Files panel
     /// The user may change the ACLs here ("change" on ACLs.md): right click edits a group.
     property bool aclCanEdit: false
     signal aclRoleEditRequested(string roleKey, string roleName, var rights)
+    signal aclPersonEditRequested(string userKey)
     /// Size of the listed folder from the live measurement; < 0 while unknown.
     property real folderSizeBytes: -1
     property bool folderSizeComplete: false
@@ -504,6 +505,11 @@ Rectangle { // Files panel
         return id.indexOf("role:") === 0 ? id.slice(5) : ""
     }
 
+    function aclUserKey(p) {
+        var id = String(p.principal || p.id || "")
+        return id.indexOf("user:") === 0 ? id.slice(5) : ""
+    }
+
     /// Chips of a panel section. "Ausnahmen" (exception) also holds the locked-out
     /// principals (struck through), after those with access to some entries only.
     function aclSection(section) {
@@ -677,16 +683,18 @@ Rectangle { // Files panel
                                     cursorShape: Qt.PointingHandCursor
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     onClicked: function(mouse) {
-                                        // Left click filters; right click edits a group's rights
-                                        // (only for users who may change the ACLs).
+                                        // Left click filters; right click edits a group's rights or
+                                        // a person's groups (only for users who may change the ACLs).
                                         if (mouse.button === Qt.RightButton) {
                                             var key = root.aclRoleKey(modelData)
-                                            if (key.length === 0) {
+                                            var userKey = root.aclUserKey(modelData)
+                                            if (userKey.length > 0 && root.aclCanEdit) {
+                                                root.aclPersonEditRequested(userKey)
+                                            } else if (key.length === 0) {
                                                 // People have no rules of their own: say where
                                                 // their rights come from instead of doing nothing.
                                                 aclPersonHint.parent = aclChip
                                                 aclPersonHint.text = qsTr("People get their rights through their groups.")
-                                                    + (root.aclCanEdit ? "\n" + qsTr("Right click a group to change rights.") : "")
                                                 aclPersonHint.open()
                                             } else if (root.aclCanEdit) {
                                                 root.aclRoleEditRequested(key, modelData.name,

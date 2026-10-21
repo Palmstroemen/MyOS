@@ -74,6 +74,8 @@ Dialog {
         }
         errorText = result && result.reason === "permission"
             ? qsTr("You may not change the rights here.")
+            : result && result.reason === "lockout"
+            ? qsTr("You would lose your own right to change the rights.")
             : String((result && result.message) || qsTr("The rights could not be changed."))
     }
 

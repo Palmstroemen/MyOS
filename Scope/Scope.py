@@ -657,6 +657,17 @@ class Backend(QObject):
         values = None if rights is None else [str(r) for r in rights]
         return self._api.acl_set_role_rights(path, role, values)
 
+    @Slot(str, str, result="QVariantMap")
+    def aclUserGroups(self, path: str, user: str) -> dict:
+        return self._api.acl_user_groups(path, user)
+
+    @Slot(str, str, "QVariant", result="QVariantMap")
+    def aclSetUserGroups(self, path: str, user: str, groups) -> dict:
+        """groups: list of group keys, [] removes the person (see ScopeApi)."""
+        if hasattr(groups, "toVariant"):  # a JS array arrives as QJSValue
+            groups = groups.toVariant()
+        return self._api.acl_set_user_groups(path, user, [str(g) for g in (groups or [])])
+
     def _acl_task_current(self, generation: int) -> bool:
         return not self._shutting_down and generation == self._acl_generation
 

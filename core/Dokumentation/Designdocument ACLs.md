@@ -164,6 +164,13 @@ pictogram `◂` read, `▸` write, `x`, `c`, `d`), inherited rights shown as suc
   one role at exactly this path (`- /path/: read, write`); all rights off writes `none`,
   “back to inherited” removes the line. A person has no rules of their own: editing a
   person changes their role memberships (`# Users`).
+- **Groups of a person** (same gesture on a person's chip): one switch per group, and next
+  to it what the group may do here (“member · here: read, write”), so one sees where the
+  person's rights come from. Memberships hold in the **whole project**, the dialog says
+  so. Only the person's line changes (groups already written keep place and spelling);
+  without any group the line is removed (no rights, no chip). Groups written for the
+  person but unknown at this place (a template folder role of another subproject) stay.
+  Adding a person is a separate step (open). Losing one's own `change` right is refused.
 - **Template folder roles** (from `## Folder`) have no section; a section of their own
   replaces the folder rules. The first edit therefore copies the role's folder rules into
   its new section, so nothing else changes for it.

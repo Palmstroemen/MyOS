@@ -1,4 +1,5 @@
-# acl_edit.py - change ACLs.md from the GUI: one rule for one role at one path
+# acl_edit.py - change ACLs.md from the GUI: one rule for one role at one path, or the
+# groups of one person
 #
 # See "Designdocument ACLs.md", 5.3. Because the nearest rule wins (per role), an edit is
 # always the rule of one role at exactly one path. Only the affected lines change; the
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 from core.acl import ACLPolicy, _normalize_path, _normalize_role, find_acl_project_root
+from core.project import ProjectFinder
 
 # Rights an edit may grant, in the order they are written (ACL design document 2.2).
 EDITABLE_RIGHTS = ("read", "write", "execute", "change", "delete")
@@ -50,6 +52,10 @@ class ACLEditError(ValueError):
     """The edit is not possible (unknown role or right, invalid result, self lock-out)."""
 
 
+class ACLSelfLockoutError(ACLEditError):
+    """The editor would lose their own right to change the ACLs."""
+
+
 def set_role_rights(path, role: str, rights: Optional[Set[str]], editor: str) -> Optional[Path]:
     """
     Set the rights of role at path (absolute) in the governing ACLs.md.
@@ -81,19 +87,47 @@ def set_role_rights(path, role: str, rights: Optional[Set[str]], editor: str) ->
     rule_path = _rule_path_for(root, target)
     original = acl_file.read_text(encoding="utf-8")
     edited = _edit_text(original, policy, root, role_key, rule_path, rights)
-    if edited == original:
-        return None
+    return _replace_checked(acl_file, original, edited, editor,
+                            lambda draft: _check_draft(root, draft, role_key, rule_path, rights, editor))
 
-    draft = acl_file.with_name(".ACLs.md.draft")
-    draft.write_text(edited, encoding="utf-8")
-    try:
-        _check_draft(root, draft, role_key, rule_path, rights, editor)
-        kept = _keep_previous(acl_file, original, editor)
-        os.replace(draft, acl_file)  # atomic: never a half-written ACLs.md
-    finally:
-        if draft.exists():
-            draft.unlink()
-    return kept
+
+def set_user_roles(path, user: str, roles: Set[str], editor: str) -> Optional[Path]:
+    """
+    Set the groups (roles) of user in "# Users" of the ACLs.md governing path.
+
+    Memberships hold in the whole project, not only at path; path selects the ACLs.md
+    and the (sub)project whose template folder roles may be given. An empty set removes
+    the user's line (no groups, no rights). Only users already listed can be edited.
+    editor: the user making the change; needs "change" on /.MyOS/ACLs.md.
+    Returns the kept previous version (None when nothing had to change).
+    """
+    target = Path(path).expanduser().resolve()
+    root = find_acl_project_root(target)
+    if root is None:
+        raise ACLEditError(f"no ACLs.md governs {target}")
+    acl_file = root / ".MyOS" / "ACLs.md"
+    policy = ACLPolicy.from_project(root)
+
+    # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
+    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
+        raise PermissionError(f"{editor!r} may not change the ACLs of {root}")
+
+    user_key = str(user or "").strip().lower()
+    if user_key not in policy.users:
+        raise ACLEditError(f"unknown person {user!r}")
+    context = _context_policy(policy, root, target)
+    role_keys = {_normalize_role(r) for r in roles}
+    unknown = sorted(role_keys - context.roles)
+    if unknown:
+        raise ACLEditError(f"unknown groups: {', '.join(unknown)}")
+
+    # Groups written for the user but unknown here (e.g. a template folder role of another
+    # subproject) are not offered here, so they stay.
+    keep = {r for r in policy.users[user_key] if r not in context.roles}
+    original = acl_file.read_text(encoding="utf-8")
+    edited = _edit_user_line(original, user_key, [context.display_name(r) for r in sorted(role_keys)], keep)
+    return _replace_checked(acl_file, original, edited, editor,
+                            lambda draft: _check_user_draft(root, draft, user_key, role_keys | keep, editor))
 
 
 def can_edit(path, editor: str) -> bool:
@@ -333,6 +367,95 @@ def _insert_section(lines: List[str], policy: ACLPolicy, root: Path, role_key: s
     return lines + section
 
 
+def _context_policy(policy: ACLPolicy, root: Path, target: Path) -> ACLPolicy:
+    """policy as seen from the (sub)project target lies in (its template folder roles)."""
+    try:
+        context = ProjectFinder.find_nearest(target)
+    except OSError:
+        context = None
+    return policy.for_context(root, context.resolve() if context is not None else root)
+
+
+def _user_line_key(line: str) -> Optional[str]:
+    """Lower-case person of a "# Users" line ("Anna: Admin, Team"), None for other lines."""
+    stripped = line.strip()
+    if not stripped or stripped.startswith(("#", "- ", "* ")):
+        return None
+    name, sep, _ = stripped.partition(":")
+    return name.strip().lower() if sep and name.strip() else None
+
+
+def _edit_user_line(text: str, user_key: str, role_names: List[str], keep: Set[str]) -> str:
+    """text with the user's line in "# Users" listing role_names and the written groups
+    in keep (none at all: line removed). Groups already written keep their place and
+    spelling, new ones follow."""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    seen = _visible(lines)
+    start = end = None
+    for i, line in enumerate(seen):
+        match = _HEADING.match(line.rstrip("\n"))
+        if not match:
+            continue
+        if start is not None:
+            end = i
+            break
+        if len(match.group(1)) == 1 and match.group(2).strip().lower() == "users":
+            start = i
+    if start is None:
+        raise ACLEditError("ACLs.md has no # Users section")
+    hits = [i for i in range(start + 1, end or len(lines)) if _user_line_key(seen[i]) == user_key]
+    if not hits:
+        raise ACLEditError(f"person {user_key!r} not found in # Users")
+
+    written_name, _, rest = seen[hits[0]].strip().partition(":")
+    written = [n.strip() for n in rest.partition("#")[0].split(",") if n.strip()]
+    wanted = {_normalize_role(n): n for n in role_names}
+    names = [n for n in written if _normalize_role(n) in keep or wanted.pop(_normalize_role(n), None)]
+    names += list(wanted.values())
+    if names == written and len(hits) == 1:
+        return text  # nothing changes (a comment at the end of the line stays)
+
+    for i in reversed(hits[1:]):
+        del lines[i]
+    if names:
+        indent = lines[hits[0]][: len(lines[hits[0]]) - len(lines[hits[0]].lstrip())]
+        lines[hits[0]] = f"{indent}{written_name.strip()}: {', '.join(names)}\n"
+    else:
+        del lines[hits[0]]
+    return "".join(lines)
+
+
+def _replace_checked(acl_file: Path, original: str, edited: str, editor: str, check) -> Optional[Path]:
+    """Write edited over ACLs.md after check(draft) passed, keeping the previous version."""
+    if edited == original:
+        return None
+    draft = acl_file.with_name(".ACLs.md.draft")
+    draft.write_text(edited, encoding="utf-8")
+    try:
+        check(draft)
+        kept = _keep_previous(acl_file, original, editor)
+        os.replace(draft, acl_file)  # atomic: never a half-written ACLs.md
+    finally:
+        if draft.exists():
+            draft.unlink()
+    return kept
+
+
+def _check_user_draft(root: Path, draft: Path, user_key: str, role_keys: Set[str], editor: str) -> None:
+    try:
+        policy = ACLPolicy.from_project(root, acl_file=draft)
+    except Exception as exc:
+        raise ACLEditError(f"the edited ACLs.md is not valid: {exc}") from exc
+    got = policy.roles_for_user(user_key)
+    if got != role_keys:
+        raise ACLEditError(f"edit did not take effect ({sorted(got)} instead of {sorted(role_keys)})")
+    # Security: nobody locks themselves out of ACL management by accident.
+    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
+        raise ACLSelfLockoutError(f"{editor!r} would lose the right to change the ACLs")
+
+
 def _check_draft(root: Path, draft: Path, role_key: str, rule_path: str,
                  rights: Optional[Set[str]], editor: str) -> None:
     try:
@@ -346,7 +469,7 @@ def _check_draft(root: Path, draft: Path, role_key: str, rule_path: str,
             raise ACLEditError(f"edit did not take effect ({sorted(got)} instead of {sorted(wanted)})")
     # Security: nobody locks themselves out of ACL management by accident.
     if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
-        raise ACLEditError(f"{editor!r} would lose the right to change the ACLs")
+        raise ACLSelfLockoutError(f"{editor!r} would lose the right to change the ACLs")
 
 
 def _keep_previous(acl_file: Path, text: str, editor: str) -> Path:

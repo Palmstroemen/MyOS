@@ -2809,6 +2809,12 @@ ApplicationWindow {
         onRightsChanged: window.requestAclSummary()
     }
 
+    AclPersonDialog {
+        id: aclPersonDialog
+        window: window
+        onMembershipChanged: window.requestAclSummary()
+    }
+
     BatchRenameDialog { id: batchRenameDialog; window: window }
 
     DeleteEntriesDialog { id: deleteEntriesDialog; window: window }
@@ -3728,6 +3734,9 @@ ApplicationWindow {
             onTrashRequested: trashDialog.openFor(window.currentFilesPath())
             onAclRoleEditRequested: function(roleKey, roleName, rights) {
                 aclRoleDialog.openFor(window.currentFilesPath(), roleKey, roleName, rights)
+            }
+            onAclPersonEditRequested: function(userKey) {
+                aclPersonDialog.openFor(window.currentFilesPath(), userKey)
             }
             folderSizeBytes: window.currentFolderSizeBytes
             folderSizeComplete: window.currentFolderSizeComplete

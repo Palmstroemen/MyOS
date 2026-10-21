@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, Signal, QSize
-from PySide6.QtGui import QColor, QIcon, QCursor
+from PySide6.QtGui import QColor, QIcon, QCursor, QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -248,6 +248,8 @@ class ACLSidebar(SidebarWidget):
 
     # A group chip was clicked while editable: (role key, display name, rights, chip).
     roleEditRequested = Signal(str, str, list, object)
+    # A person chip was clicked while editable: (user key, display name, chip).
+    personEditRequested = Signal(str, str, object)
 
     def __init__(self):
         super().__init__("ACLs", "rgba(200, 220, 240, 60)")
@@ -257,7 +259,8 @@ class ACLSidebar(SidebarWidget):
         self.retranslate_ui()
 
     def set_editable(self, editable: bool):
-        """Group chips open the rights editor (only for users with "change" on ACLs.md)."""
+        """Group chips open the rights editor, person chips the groups editor (only for
+        users with "change" on ACLs.md)."""
         editable = bool(editable)
         if editable != self.editable:
             self.editable = editable
@@ -357,13 +360,21 @@ class ACLSidebar(SidebarWidget):
             row.addWidget(write_label)
             kind = self.tr("Person") if principal.get("kind") == "user" else self.tr("Group")
             tip = f"{kind}: {self._right_names(principal.get('rights', []))}"
-            # Groups only for now: a person's rights come from their roles.
             if self.editable and principal.get("kind") == "role":
                 tip += "\n" + self.tr("Click: change the rights for this note")
                 btn.setCursor(Qt.PointingHandCursor)
                 btn.clicked.connect(
                     lambda _checked=False, p=principal, b=btn: self.roleEditRequested.emit(
                         str(p.get("key", "")), str(p.get("name", "")), list(p.get("rights", [])), b
+                    )
+                )
+            elif self.editable and principal.get("kind") == "user":
+                # A person's rights come from their groups: the click edits those.
+                tip += "\n" + self.tr("Click: change the groups of this person")
+                btn.setCursor(Qt.PointingHandCursor)
+                btn.clicked.connect(
+                    lambda _checked=False, p=principal, b=btn: self.personEditRequested.emit(
+                        str(p.get("key", "")), str(p.get("name", "")), b
                     )
                 )
             btn.setToolTip(tip)
@@ -495,6 +506,130 @@ class ACLRoleEditor(QFrame):
 
     def toggle(self, right: str):
         switch = self.switches[right]
+        switch.setChecked(not switch.isChecked())
+
+    def show_error(self, message: str):
+        self.error_label.setText(message)
+        self.error_label.setVisible(bool(message))
+        self.adjustSize()
+
+
+class ACLPersonEditor(QFrame):
+    """
+    Small popup to set the groups of one person: one chip switch per group, and next to it
+    what the group may do with the open note. Groups apply in the whole project (they are
+    written in "# Users" of ACLs.md, see ACL design document 5.3).
+    """
+
+    applyRequested = Signal(object)  # set of group keys
+
+    def __init__(self, person_name: str, groups, parent=None):
+        super().__init__(parent, Qt.Popup)
+        self.setObjectName("aclPersonEditor")
+        # Same greys and chip switches as ACLRoleEditor.
+        self.setStyleSheet(
+            """
+            QFrame#aclPersonEditor { background: #cfcfcf; border: 1px solid #9a9a9a; border-radius: 6px; }
+            QLabel { color: #333333; background: transparent; border: none; }
+            QPushButton {
+                color: #333333;
+                background: #e4e4e4;
+                border: 1px solid rgba(0, 0, 0, 60);
+                border-radius: 4px;
+                padding: 3px 8px;
+            }
+            QPushButton:hover { border: 1px solid rgba(0, 0, 0, 110); }
+            QPushButton[aclSwitch="true"] {
+                border-top-left-radius: 2px;
+                border-bottom-left-radius: 2px;
+                /* Qt drops radii whose sum exceeds the height (~22 px here). */
+                border-top-right-radius: 9px;
+                border-bottom-right-radius: 9px;
+            }
+            QPushButton[aclSwitch="true"]:checked { background: #b5b5b5; font-weight: bold; }
+        """
+        )
+        self.right_words = {
+            "read": self.tr("read"),
+            "write": self.tr("write"),
+            "execute": self.tr("execute"),
+            "change": self.tr("change rights"),
+            "delete": self.tr("delete"),
+        }
+        self.groups = [dict(g) for g in groups or []]
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+        title = QLabel(self.tr("Groups of %1").replace("%1", person_name))
+        title.setStyleSheet("font-weight: bold;")
+        layout.addWidget(title)
+        self.intro = QLabel(self.tr(
+            "People get their rights through their groups. "
+            "Groups apply in the whole project, not only for this note."
+        ))
+        self.intro.setWordWrap(True)
+        layout.addWidget(self.intro)
+        self.switches = {}
+        self.meaning = {}
+        # All switches as wide as the longest name in bold (a switched-on group is drawn
+        # bold), so the explanations line up.
+        bold = QFont(self.font())
+        bold.setBold(True)
+        switch_width = max([90] + [QFontMetrics(bold).horizontalAdvance(g["name"]) + 28 for g in self.groups])
+        for group in self.groups:
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            switch = QPushButton(group["name"])
+            switch.setCheckable(True)
+            switch.setChecked(bool(group.get("member")))
+            switch.setProperty("aclSwitch", True)
+            switch.setFixedWidth(switch_width)
+            meaning = QLabel()
+            switch.toggled.connect(lambda _on, k=group["key"]: self._update(k))
+            row.addWidget(switch)
+            row.addWidget(meaning, 1)
+            layout.addLayout(row)
+            self.switches[group["key"]] = switch
+            self.meaning[group["key"]] = meaning
+        self.empty_note = QLabel(self.tr("Without groups %1 has no rights and is removed from the list.")
+                                 .replace("%1", person_name))
+        self.empty_note.setWordWrap(True)
+        self.empty_note.setStyleSheet("color: #555555;")
+        layout.addWidget(self.empty_note)
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: #b00020;")
+        self.error_label.setWordWrap(True)
+        self.error_label.hide()
+        layout.addWidget(self.error_label)
+        buttons = QHBoxLayout()
+        self.apply_button = QPushButton(self.tr("Apply"))
+        cancel = QPushButton(self.tr("Cancel"))
+        buttons.addWidget(self.apply_button)
+        buttons.addWidget(cancel)
+        layout.addLayout(buttons)
+        self.apply_button.clicked.connect(lambda: self.applyRequested.emit(self.chosen_groups()))
+        cancel.clicked.connect(self.close)
+        for group in self.groups:
+            self._update(group["key"])
+
+    def _here_text(self, rights) -> str:
+        if not rights:
+            return self.tr("here: no access")
+        return self.tr("here: %1").replace("%1", ", ".join(self.right_words.get(r, r) for r in rights))
+
+    def _update(self, key: str):
+        group = next(g for g in self.groups if g["key"] == key)
+        on = self.switches[key].isChecked()
+        member = "✓ " + self.tr("member") if on else "✗ " + self.tr("not a member")
+        self.meaning[key].setText(f"{member} · {self._here_text(group.get('rights', []))}")
+        self.meaning[key].setStyleSheet("color: #333333;" if on else "color: #777777;")
+        self.empty_note.setVisible(not self.chosen_groups())
+
+    def chosen_groups(self) -> set:
+        return {key for key, switch in self.switches.items() if switch.isChecked()}
+
+    def toggle(self, key: str):
+        switch = self.switches[key]
         switch.setChecked(not switch.isChecked())
 
     def show_error(self, message: str):
