@@ -1854,34 +1854,46 @@ class ScopeApi:
         return True
 
     def list_tag_buckets(self, path: str) -> Dict[str, Any]:
+        """
+        Tags of the tag bar for a listed folder: of the folder itself, of its subfolders
+        and of its files. Tags of the folder itself are not repeated in the other two;
+        subfolders and files may share a tag (Scope can hide the subfolders).
+        """
         target = self._resolve_dir(path)
         if target is None:
             return {
                 "folderTags": [],
+                "subfolderTags": [],
                 "fileTags": [],
                 "folderTagColors": {},
+                "subfolderTagColors": {},
                 "fileTagColors": {},
             }
         sidecar = self._read_folder_sidecar(target)
         folder_tags = sidecar["tags"]
-        folder_set = set(folder_tags)
         all_tag_colors = self._read_folder_tag_colors(target)
-        folder_tag_colors = {tag: all_tag_colors[tag] for tag in folder_tags if tag in all_tag_colors}
+        subfolder_bag: Dict[str, bool] = {}
         file_bag: Dict[str, bool] = {}
         for entry in self.list_entries(str(target)):
-            if entry.get("isDir"):
-                continue
+            bag = subfolder_bag if entry.get("isDir") else file_bag
             for raw in entry.get("tags") or []:
                 tag = str(raw or "").strip()
                 if tag:
-                    file_bag[tag] = True
-        file_tags = sorted([tag for tag in file_bag.keys() if tag not in folder_set], key=str.lower)
-        file_tag_colors = {tag: all_tag_colors[tag] for tag in file_tags if tag in all_tag_colors}
+                    bag[tag] = True
+        own = set(folder_tags)
+        subfolder_tags = sorted([tag for tag in subfolder_bag if tag not in own], key=str.lower)
+        file_tags = sorted([tag for tag in file_bag if tag not in own], key=str.lower)
+
+        def colors(tags: List[str]) -> Dict[str, str]:
+            return {tag: all_tag_colors[tag] for tag in tags if tag in all_tag_colors}
+
         return {
             "folderTags": folder_tags,
+            "subfolderTags": subfolder_tags,
             "fileTags": file_tags,
-            "folderTagColors": folder_tag_colors,
-            "fileTagColors": file_tag_colors,
+            "folderTagColors": colors(folder_tags),
+            "subfolderTagColors": colors(subfolder_tags),
+            "fileTagColors": colors(file_tags),
         }
 
     def set_folder_tag_color(self, path: str, tag: str, color: str) -> bool:

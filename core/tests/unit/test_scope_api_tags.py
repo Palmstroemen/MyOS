@@ -600,3 +600,25 @@ def test_list_project_tags_skips_markdown_headings(tmp_path):
     api = ScopeApi(str(project))
 
     assert api.list_project_tags(str(project)) == ["Dringend", "Wichtig"]
+
+
+def test_list_tag_buckets_lists_subfolder_tags_of_their_own(tmp_path):
+    root = tmp_path / "Garten"
+    root.mkdir()
+    (root / "Hecke").mkdir()
+    (root / "Zaun").mkdir()
+    (root / "plan.md").write_text("Body #Wichtig #Material\n", encoding="utf-8")
+
+    api = ScopeApi(str(root))
+    assert api.set_folder_tags(str(root), ["Garten"]) is True
+    assert api.set_folder_tags(str(root / "Hecke"), ["Idee", "Garten"]) is True
+    assert api.set_folder_tags(str(root / "Zaun"), ["Wichtig"]) is True
+
+    buckets = api.list_tag_buckets(str(root))
+
+    # Tags of the folder itself are not repeated below it. Subfolders and files may share
+    # a tag (Scope shows it once, under subfolders while they are shown).
+    assert buckets["folderTags"] == ["Garten"]
+    assert buckets["subfolderTags"] == ["Idee", "Wichtig"]
+    assert buckets["fileTags"] == ["Material", "Wichtig"]
+    assert buckets["subfolderTagColors"] == {}

@@ -34,8 +34,10 @@ Rectangle { // Files panel
     property bool showFolders: false
     property var availableTags: []
     property var folderTags: []
+    property var subfolderTags: []
     property var fileTags: []
     property var folderTagColors: ({})
+    property var subfolderTagColors: ({})
     property var fileTagColors: ({})
     property var tagSuggestions: []
     property var selectedTags: []
@@ -44,10 +46,11 @@ Rectangle { // Files panel
     /** Bindung an Fenster-Sprache, damit Tag-Beschriftungen bei Sprachumschaltung neu übersetzt werden. */
     property string uiLanguage: ""
     property bool isTagIndexing: false
-    /// Tags are shown once they are used (simple first): the listed folder or its files
-    /// have tags, or a tag filter is on. Otherwise only the "#" button, which opens the
+    /// Tags are shown once they are used (simple first): the listed folder, its subfolders
+    /// or its files have tags, or a tag filter is on. Otherwise only the "#" button, which opens the
     /// input for a first folder tag (tagEntryOpen, until the folder changes).
-    readonly property bool tagsInUse: (folderTags || []).length > 0 || (fileTags || []).length > 0
+    readonly property bool tagsInUse: (folderTags || []).length > 0 || (subfolderTags || []).length > 0
+        || (fileTags || []).length > 0
         || (selectedTags || []).length > 0
     property bool tagEntryOpen: false
     onCurrentPathChanged: tagEntryOpen = false
@@ -232,7 +235,7 @@ Rectangle { // Files panel
     readonly property int sidePanelDesiredWidth: sidePanelDesiredInnerWidth + (2 * sidePanelInnerMargin)
     readonly property string longestTagForMeasure: {
         var folder = root.folderTags || []
-        var file = root.fileTags || []
+        var file = (root.subfolderTags || []).concat(root.fileTags || [])
         var best = ""
         for (var i = 0; i < folder.length; i++) {
             var t = String(folder[i])
@@ -1022,7 +1025,7 @@ Rectangle { // Files panel
 
                             Text {
                                 width: parent.width
-                                text: (root.uiLanguage ? "" : "") + qsTr("Folder tags")
+                                text: (root.uiLanguage ? "" : "") + qsTr("This folder")
                                 color: root.smallButtonText
                                 font.pixelSize: root.tagSectionLabelPx
                                 elide: Text.ElideRight
@@ -1207,8 +1210,7 @@ Rectangle { // Files panel
                                                 radius: root.tagChipRightRadius
                                                 readonly property string tagValue: String(modelData || "")
                                                 readonly property color suggestionColor: {
-                                                    var f = root.fileTagColors || ({})
-                                                    var c = f[tagValue]
+                                                    var c = root.contentTagColor(tagValue)
                                                     if (c) return Qt.color(c)
                                                     var d = root.folderTagColors || ({})
                                                     c = d[tagValue]
@@ -1264,6 +1266,43 @@ Rectangle { // Files panel
                             }
 
                             Item {
+                                id: subfolderTagsSection
+                                width: parent.width
+                                // Room below for the highlight boxes of both sections.
+                                height: subfolderTagsColumn.height + 12
+                                visible: root.subfolderTags && root.subfolderTags.length > 0
+
+                                Column {
+                                    id: subfolderTagsColumn
+                                    width: parent.width
+                                    spacing: 4
+
+                                    Text {
+                                        width: parent.width
+                                        text: (root.uiLanguage ? "" : "") + qsTr("Subfolders")
+                                        color: root.smallButtonText
+                                        font.pixelSize: root.tagSectionLabelPx
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Repeater {
+                                        model: root.subfolderTags ? root.subfolderTags : []
+                                        delegate: contentTagChip
+                                    }
+                                }
+
+                                Rectangle {
+                                    x: -6
+                                    y: -6
+                                    width: parent.width + 12
+                                    height: subfolderTagsColumn.height + 12
+                                    color: Qt.rgba(1, 1, 1, 0.20)
+                                    radius: root.tagChipRadius
+                                    z: 6
+                                }
+                            }
+
+                            Item {
                                 id: fileTagsSection
                                 width: parent.width
                                 height: fileTagsSectionColumn.height
@@ -1294,54 +1333,7 @@ Rectangle { // Files panel
 
                                             Repeater {
                                                 model: root.fileTags ? root.fileTags : []
-                                                delegate: Rectangle {
-                                                    x: root.tagChipMargin
-                                                    width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
-                                                    height: root.tagChipHeightPx
-                                                    radius: root.tagChipRightRadius
-                                                    readonly property string tagValue: modelData
-                                                    readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
-                                                    readonly property bool dimmed: tagsColumn.hasSelectedTags && !selected
-                                                    readonly property color customTagColor: {
-                                                        var map = root.fileTagColors || ({})
-                                                        var raw = map[tagValue]
-                                                        return raw ? Qt.color(raw) : "transparent"
-                                                    }
-                                                    // A color never equals the string "transparent"; test its alpha instead.
-                                                    readonly property color baseTagColor: customTagColor.a > 0 ? customTagColor : Qt.color("#ffd54f")
-                                                    color: selected
-                                                        ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
-                                                        : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
-                                                    opacity: dimmed ? 0.75 : 1.0
-                                                    border.width: 1
-                                                    border.color: selected
-                                                        ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
-                                                        : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
-
-                                                    // Square left edge, rounded right edge.
-                                                    topLeftRadius: 0
-                                                    bottomLeftRadius: 0
-
-                                                    Text {
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        anchors.left: parent.left
-                                                        anchors.leftMargin: root.tagChipPadH
-                                                        anchors.right: parent.right
-                                                        anchors.rightMargin: root.tagChipPadH
-                                                        text: (selected ? "✓  " : "    ") + "#" + tagValue
-                                                        color: TagChipStyle.textColorForBg(parent.color)
-                                                        font.pixelSize: root.tagChipFontPx
-                                                        elide: Text.ElideNone
-                                                        horizontalAlignment: Text.AlignRight
-                                                    }
-                                                    MouseArea {
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        onEntered: parent.border.width = 2
-                                                        onExited: parent.border.width = 1
-                                                        onClicked: root.tagToggled(parent.tagValue)
-                                                    }
-                                                }
+                                                delegate: contentTagChip
                                             }
 
                                             Rectangle {
@@ -1400,6 +1392,65 @@ Rectangle { // Files panel
                 }
             }
         }
+    }
+
+    /// Chip of a tag of the listed folder's contents (subfolders and files): click filters.
+    Component {
+        id: contentTagChip
+        Rectangle {
+            x: root.tagChipMargin
+            width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
+            height: root.tagChipHeightPx
+            radius: root.tagChipRightRadius
+            readonly property string tagValue: modelData
+            readonly property bool selected: root.selectedTags && root.selectedTags.indexOf(tagValue) !== -1
+            readonly property bool dimmed: tagsColumn.hasSelectedTags && !selected
+            readonly property color customTagColor: {
+                var raw = root.contentTagColor(tagValue)
+                return raw ? Qt.color(raw) : "transparent"
+            }
+            // A color never equals the string "transparent"; test its alpha instead.
+            readonly property color baseTagColor: customTagColor.a > 0 ? customTagColor : Qt.color("#ffd54f")
+            color: selected
+                ? Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+                : Qt.rgba(baseTagColor.r, baseTagColor.g, baseTagColor.b, 1.0)
+            opacity: dimmed ? 0.75 : 1.0
+            border.width: 1
+            border.color: selected
+                ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
+                : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
+
+            // Square left edge, rounded right edge.
+            topLeftRadius: 0
+            bottomLeftRadius: 0
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: root.tagChipPadH
+                anchors.right: parent.right
+                anchors.rightMargin: root.tagChipPadH
+                text: (selected ? "✓  " : "    ") + "#" + tagValue
+                color: TagChipStyle.textColorForBg(parent.color)
+                font.pixelSize: root.tagChipFontPx
+                elide: Text.ElideNone
+                horizontalAlignment: Text.AlignRight
+            }
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                onEntered: parent.border.width = 2
+                onExited: parent.border.width = 1
+                onClicked: root.tagToggled(parent.tagValue)
+            }
+        }
+    }
+
+    /// Color of a content tag (registry), or "" for the default yellow.
+    function contentTagColor(tag) {
+        var file = root.fileTagColors || ({})
+        var sub = root.subfolderTagColors || ({})
+        return file[tag] || sub[tag] || ""
     }
 
     Rectangle {

@@ -73,4 +73,7 @@ Tags are text-first labels with optional color and icon hints. They remain reada
 ## **8. MVP Checkpoint**
 - File tags via xattr are the primary shipped behavior.
 - Folder-tag sidecar support (`/.MyOS/myTags.md`) is prepared but intentionally not pushed further for now.
+- Scope's tag bar has three sections, each tag shown once in the first that applies:
+  **This folder** (its own sidecar tags), **Subfolders** (tags of the listed subfolders,
+  only while folders are shown) and **File tags**. A click filters the listing (2026-10-21).
 - Reason: keep MVP focused and avoid premature divergence from Obsidian’s tag model (which is primarily note-centric, not native folder-tag-centric).

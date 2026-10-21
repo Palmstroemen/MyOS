@@ -173,8 +173,10 @@ ApplicationWindow {
     property string tagFilterSource: "visible" // legacy
     property var availableTags: []
     property var folderTags: []
+    property var subfolderTags: []
     property var fileTags: []
     property var folderTagColors: ({})
+    property var subfolderTagColors: ({})
     property var fileTagColors: ({})
     property var tagSuggestions: []
     property var selectedTags: []
@@ -1749,16 +1751,20 @@ ApplicationWindow {
         var targetPath = currentFilesPath()
         tagsIndexing = true
         var nextFolderTags = []
+        var nextSubfolderTags = []
         var nextFileTags = []
         var nextFolderTagColors = ({})
+        var nextSubfolderTagColors = ({})
         var nextFileTagColors = ({})
         var nextProjectTags = []
         if (hasBackend() && typeof backend.listTagBuckets === "function") {
             try {
                 var buckets = backend.listTagBuckets(targetPath) || {}
                 nextFolderTags = buckets.folderTags || []
+                nextSubfolderTags = buckets.subfolderTags || []
                 nextFileTags = buckets.fileTags || []
                 nextFolderTagColors = buckets.folderTagColors || ({})
+                nextSubfolderTagColors = buckets.subfolderTagColors || ({})
                 nextFileTagColors = buckets.fileTagColors || ({})
             } catch (e) {
                 nextFileTags = _fallbackFileTagsFromEntries()
@@ -1788,6 +1794,18 @@ ApplicationWindow {
                 folderBag[folderTag] = true
             }
         }
+        // Each tag once, in the first section it belongs to: this folder, subfolders
+        // (only while folders are shown in the listing), files.
+        var filteredSubfolderTags = []
+        if (filesPane.showFolders) {
+            for (var k = 0; k < nextSubfolderTags.length; k++) {
+                var subfolderTag = String(nextSubfolderTags[k] || "").trim()
+                if (subfolderTag.length > 0 && !folderBag[subfolderTag]) {
+                    filteredSubfolderTags.push(subfolderTag)
+                    folderBag[subfolderTag] = true
+                }
+            }
+        }
         var filteredFileTags = []
         for (var j = 0; j < nextFileTags.length; j++) {
             var fileTag = String(nextFileTags[j] || "").trim()
@@ -1797,10 +1815,12 @@ ApplicationWindow {
         }
 
         folderTags = nextFolderTags
+        subfolderTags = filteredSubfolderTags
         fileTags = filteredFileTags
         folderTagColors = nextFolderTagColors
+        subfolderTagColors = nextSubfolderTagColors
         fileTagColors = nextFileTagColors
-        availableTags = folderTags.concat(fileTags)
+        availableTags = folderTags.concat(subfolderTags, fileTags)
 
         var suggestionBag = {}
         for (var p = 0; p < nextProjectTags.length; p++) {
@@ -1809,8 +1829,9 @@ ApplicationWindow {
                 suggestionBag[projectTag] = true
             }
         }
-        for (var f = 0; f < filteredFileTags.length; f++) {
-            var fileTagSuggestion = String(filteredFileTags[f] || "").trim()
+        var contentTags = filteredSubfolderTags.concat(filteredFileTags)
+        for (var f = 0; f < contentTags.length; f++) {
+            var fileTagSuggestion = String(contentTags[f] || "").trim()
             if (fileTagSuggestion.length > 0 && !folderBag[fileTagSuggestion]) {
                 suggestionBag[fileTagSuggestion] = true
             }
@@ -3715,8 +3736,10 @@ ApplicationWindow {
             showLeaveMyosButton: window.isInsideMyosFolder
             availableTags: window.availableTags
             folderTags: window.folderTags
+            subfolderTags: window.subfolderTags
             fileTags: window.fileTags
             folderTagColors: window.folderTagColors
+            subfolderTagColors: window.subfolderTagColors
             fileTagColors: window.fileTagColors
             tagSuggestions: window.tagSuggestions
             selectedPaths: window.selectedEntryPaths
@@ -3744,7 +3767,10 @@ ApplicationWindow {
             folderSizesMeasuring: window.folderSizesMeasuring
             onFolderSizesRequested: window.activateFolderSizes()
             onRequestMore: appendNextChunk()
-            onFilterChanged: filterEntries()
+            onFilterChanged: {
+                filterEntries()
+                recomputeTagBuckets()  // subfolder tags only while folders are shown
+            }
             onItemActivated: function(path, ctrlPressed, shiftPressed) {
                 toggleEntrySelection(path, ctrlPressed, shiftPressed)
             }
