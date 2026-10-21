@@ -233,7 +233,7 @@ def test_kde_backend_accepts_relative_wallpaper_symlink_inside_profile(monkeypat
     except OSError:
         pytest.skip("Symlink creation not supported in this environment")
     backend = KdeDesktopBackend()
-    monkeypatch.setattr("core.desktop_backends.kde.shutil.which", lambda _name: "/usr/bin/plasma-apply-wallpaperimage")
+    monkeypatch.setattr("core.desktop_backends.command.shutil.which", lambda _name: "/usr/bin/plasma-apply-wallpaperimage")
     config = DeskConfig(
         source_path=source,
         theme_preset=None,
@@ -266,7 +266,7 @@ def test_kde_backend_allows_explicit_wallpaper_symlink_outside_profile(monkeypat
     except OSError:
         pytest.skip("Symlink creation not supported in this environment")
     backend = KdeDesktopBackend()
-    monkeypatch.setattr("core.desktop_backends.kde.shutil.which", lambda _name: "/usr/bin/plasma-apply-wallpaperimage")
+    monkeypatch.setattr("core.desktop_backends.command.shutil.which", lambda _name: "/usr/bin/plasma-apply-wallpaperimage")
     config = DeskConfig(
         source_path=source,
         theme_preset=None,
@@ -302,12 +302,12 @@ def test_kde_backend_dry_run_does_not_execute_subprocess(monkeypatch, tmp_path):
     )
     backend = KdeDesktopBackend()
 
-    monkeypatch.setattr("core.desktop_backends.kde.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
+    monkeypatch.setattr("core.desktop_backends.command.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
 
     def _boom(*_args, **_kwargs):
         raise AssertionError("subprocess.run should not be called in dry-run")
 
-    monkeypatch.setattr("core.desktop_backends.kde.subprocess.run", _boom)
+    monkeypatch.setattr("core.desktop_backends.command.subprocess.run", _boom)
 
     result = backend.apply_theme(config, dry_run=True)
 
@@ -315,7 +315,7 @@ def test_kde_backend_dry_run_does_not_execute_subprocess(monkeypatch, tmp_path):
     assert "dry-run" in result.message
 
 
-def test_kde_backend_preserves_argument_boundaries_against_injection(monkeypatch, tmp_path):
+def test_kde_backend_refuses_unsafe_theme_names_and_keeps_argument_boundaries(monkeypatch, tmp_path):
     source = tmp_path / "Project" / ".MyOS" / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
@@ -334,7 +334,7 @@ def test_kde_backend_preserves_argument_boundaries_against_injection(monkeypatch
     backend = KdeDesktopBackend()
     called = {}
 
-    monkeypatch.setattr("core.desktop_backends.kde.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
+    monkeypatch.setattr("core.desktop_backends.command.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
 
     class _Proc:
         returncode = 0
@@ -345,14 +345,17 @@ def test_kde_backend_preserves_argument_boundaries_against_injection(monkeypatch
         called["argv"] = list(argv)
         return _Proc()
 
-    monkeypatch.setattr("core.desktop_backends.kde.subprocess.run", _fake_run)
+    monkeypatch.setattr("core.desktop_backends.command.subprocess.run", _fake_run)
 
     result = backend.apply_theme(config, dry_run=False)
 
-    assert result.ok is True
-    assert called["argv"][0] == "lookandfeeltool"
-    assert called["argv"][1] == "-a"
-    assert called["argv"][2] == payload
+    # Rejected before any command runs (theme names are checked, see command.py).
+    assert result.ok is False
+    assert called == {}
+
+    safe = DeskConfig(**{**config.__dict__, "theme_preset": "org.kde.breezedark.desktop"})
+    assert backend.apply_theme(safe, dry_run=False).ok is True
+    assert called["argv"] == ["lookandfeeltool", "-a", "org.kde.breezedark.desktop"]
 
 
 def test_kde_backend_reports_timeout_without_throwing(monkeypatch, tmp_path):
@@ -371,12 +374,12 @@ def test_kde_backend_reports_timeout_without_throwing(monkeypatch, tmp_path):
         raw={},
     )
     backend = KdeDesktopBackend()
-    monkeypatch.setattr("core.desktop_backends.kde.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
+    monkeypatch.setattr("core.desktop_backends.command.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
 
     def _timeout(*_args, **_kwargs):
         raise subprocess.TimeoutExpired(cmd=["lookandfeeltool"], timeout=1)
 
-    monkeypatch.setattr("core.desktop_backends.kde.subprocess.run", _timeout)
+    monkeypatch.setattr("core.desktop_backends.command.subprocess.run", _timeout)
 
     result = backend.apply_theme(config, dry_run=False)
 
@@ -400,14 +403,41 @@ def test_kde_backend_handles_oserror_race_between_which_and_run(monkeypatch, tmp
         raw={},
     )
     backend = KdeDesktopBackend()
-    monkeypatch.setattr("core.desktop_backends.kde.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
+    monkeypatch.setattr("core.desktop_backends.command.shutil.which", lambda _name: "/usr/bin/lookandfeeltool")
 
     def _race(*_args, **_kwargs):
         raise OSError("binary disappeared")
 
-    monkeypatch.setattr("core.desktop_backends.kde.subprocess.run", _race)
+    monkeypatch.setattr("core.desktop_backends.command.subprocess.run", _race)
 
     result = backend.apply_theme(config, dry_run=False)
 
     assert result.ok is False
     assert "binary disappeared" in result.message
+
+
+def test_kde_capture_reads_theme_and_wallpaper_as_plain_path(monkeypatch, tmp_path):
+    from core.desktop_backends.base import DesktopState
+
+    config = tmp_path / ".config"
+    config.mkdir()
+    (config / "kdeglobals").write_text("[KDE]\nLookAndFeelPackage=org.kde.breezedark.desktop\n", encoding="utf-8")
+    (config / "plasma-org.kde.plasma.desktop-appletsrc").write_text(
+        "[Containments][1][Wallpaper][org.kde.image][General]\nImage=file:///home/u/Bilder/Mein%20Garten.jpg\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    assert KdeDesktopBackend().capture() == DesktopState(
+        theme="org.kde.breezedark.desktop", wallpaper="/home/u/Bilder/Mein Garten.jpg"
+    )
+
+
+def test_kde_capture_tolerates_broken_or_missing_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert KdeDesktopBackend().capture() is None  # no KDE config at all
+
+    config = tmp_path / ".config"
+    config.mkdir()
+    (config / "kdeglobals").write_text("[KDE]\nLookAndFeelPackage=a\nLookAndFeelPackage=b\n[[broken\n", encoding="utf-8")
+    assert KdeDesktopBackend().capture() is None

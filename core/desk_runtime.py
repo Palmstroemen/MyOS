@@ -31,10 +31,12 @@ class DeskRuntimeSettings:
 
     @classmethod
     def from_env(cls) -> "DeskRuntimeSettings":
+        # Always on for the running desktop (decided 2026-10-21); the variables only
+        # serve development and tests (MYOS_DESK_BACKEND=none: no desktop changes).
         return cls(
-            enabled=env_flag_is_true(os.environ.get("MYOS_DESK_ENABLE", "0")),
-            dry_run=env_flag_is_true(os.environ.get("MYOS_DESK_DRY_RUN", "1")),
-            backend_name=str(os.environ.get("MYOS_DESK_BACKEND", "none")).strip().lower() or "none",
+            enabled=env_flag_is_true(os.environ.get("MYOS_DESK_ENABLE", "1")),
+            dry_run=env_flag_is_true(os.environ.get("MYOS_DESK_DRY_RUN", "0")),
+            backend_name=str(os.environ.get("MYOS_DESK_BACKEND", "auto")).strip().lower() or "auto",
             include_root_desk=env_flag_is_true(os.environ.get("MYOS_DESK_INCLUDE_ROOT", "0")),
             prefer_filter_desk=not env_flag_is_true(os.environ.get("MYOS_DESK_DISABLE_FILTER", "0")),
             fallback_profile=(str(os.environ.get("MYOS_DESK_FALLBACK", "")).strip() or None),
@@ -68,6 +70,8 @@ class DeskRuntime:
         path: Union[str, Path],
         *,
         manual_desk: Optional[Union[str, Path]] = None,
+        boundary: Optional[Path] = None,
+        fallback: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Any]:
         # Security: reject malformed paths early so untrusted input cannot
         # crash context resolution.
@@ -88,9 +92,10 @@ class DeskRuntime:
         desk = resolve_active_desk(
             target,
             manual=manual_desk,
-            fallback=self.settings.fallback_profile,
+            fallback=fallback or self.settings.fallback_profile,
             include_root_desk=self.settings.include_root_desk,
             prefer_filter_desk=self.settings.prefer_filter_desk,
+            boundary=boundary,
         )
         if desk is None:
             logger.debug("desk.handle_context no profile target=%s", target)
@@ -157,6 +162,7 @@ class DeskRuntime:
     def _apply_profile(self, config: DeskConfig) -> list[Dict[str, Any]]:
         ordered_steps = [
             ("theme", self.backend.apply_theme),
+            ("panel_theme", self.backend.apply_panel_theme),
             ("wallpaper", self.backend.apply_wallpaper),
             ("dock", self.backend.apply_dock),
             ("recent_policy", self.backend.apply_recent_policy),
@@ -192,6 +198,7 @@ class DeskRuntime:
         payload = {
             "source": str(config.source_path),
             "theme_preset": config.theme_preset,
+            "panel_theme": config.panel_theme,
             "project_icon": config.project_icon,
             "wallpaper_preset": config.wallpaper_preset,
             "wallpaper_path": config.wallpaper_path,

@@ -315,20 +315,10 @@ class Backend(QObject):
         self._watch_refcount: dict[str, int] = {}
         self._thumb_refresh_timers: dict[str, QTimer] = {}
         self._thumb_refresh_retries: dict[str, int] = {}
-        self._desktop_watcher = QFileSystemWatcher(self)
-        self._desktop_watcher.fileChanged.connect(self._on_desktop_config_changed)
-        self._desktop_state_hash: str = ""
-        self._project_desktop_hash: dict[str, str] = {}
-        self._pending_config_prompt: dict = {}
         self._translator: QTranslator | None = None
         self._language = "de"
         self._i18n_dir = Path(__file__).with_name("i18n")
         self.entriesReady.connect(self._on_entries_ready_for_watcher)
-        self._register_desktop_config_watchers()
-        self._desktop_state_hash = self._capture_config_state_hash("Desk.md")
-        initial_root = self._api.get_project_root() or ""
-        if initial_root and self._desktop_state_hash:
-            self._project_desktop_hash[initial_root] = self._desktop_state_hash
         self._refresh_sort_watchers(self._api.get_start_path())
         self._daemon_client = None
         self._daemon_process = None
@@ -439,31 +429,9 @@ class Backend(QObject):
 
     @Slot(str)
     def setContext(self, path: str) -> None:
-        previous_root = self._api.get_project_root() or ""
-        current_hash = self._capture_config_state_hash("Desk.md")
-        if current_hash:
-            self._desktop_state_hash = current_hash
-        if previous_root and current_hash:
-            previous_hash = self._project_desktop_hash.get(previous_root, "")
-            changed = previous_hash != current_hash
-            if changed:
-                if self._api.has_local_config(previous_root, "Desk.md"):
-                    apply_result = self._api.apply_config_state_to_target(previous_root, "Desk.md", "current_project")
-                    if bool(apply_result.get("ok")):
-                        self._project_desktop_hash[previous_root] = current_hash
-                else:
-                    options = self._api.list_config_targets(previous_root, "Desk.md")
-                    self._pending_config_prompt = {
-                        "pending": True,
-                        "configName": "Desk.md",
-                        "contextPath": previous_root,
-                        "options": options,
-                    }
+        # The desktop follows (Desk.md) and changes are saved in the core (DeskService).
         self._api.update_context(path)
         self._refresh_sort_watchers(path)
-        next_root = self._api.get_project_root() or ""
-        if next_root and self._desktop_state_hash and next_root not in self._project_desktop_hash:
-            self._project_desktop_hash[next_root] = self._desktop_state_hash
 
     @Slot(str, str, result="QVariantMap")
     def ensureProjectConfig(self, path: str, configName: str):
@@ -553,30 +521,6 @@ class Backend(QObject):
     @Slot(str, result="QVariantMap")
     def applySortNow(self, rootPath: str):
         return self._api.apply_sort_now(rootPath)
-
-    @Slot(result="QVariantMap")
-    def configPromptState(self):
-        if not self._pending_config_prompt:
-            return {"pending": False}
-        return dict(self._pending_config_prompt)
-
-    @Slot(str, result="QVariantMap")
-    def resolveConfigPrompt(self, targetId: str):
-        pending = dict(self._pending_config_prompt or {})
-        if not pending:
-            return {"ok": False, "reason": "no_pending_prompt"}
-        self._pending_config_prompt = {}
-        context_path = str(pending.get("contextPath") or "").strip()
-        config_name = str(pending.get("configName") or "Desk.md").strip() or "Desk.md"
-        if not context_path:
-            return {"ok": False, "reason": "missing_context_path"}
-        result = self._api.apply_config_state_to_target(context_path, config_name, targetId)
-        if bool(result.get("ok")) and targetId != "discard":
-            latest_hash = self._capture_config_state_hash(config_name)
-            if latest_hash:
-                self._project_desktop_hash[context_path] = latest_hash
-                self._desktop_state_hash = latest_hash
-        return result
 
     def _invalidate_reabsorbed(self, result) -> None:
         # Reabsorbed folders vanished from disk: drop cached listings of them and their parents.
@@ -798,24 +742,6 @@ class Backend(QObject):
             self._watcher.addPath(changed_path)
 
     @Slot(str)
-    def _on_desktop_config_changed(self, changed_path: str) -> None:
-        self._desktop_state_hash = self._capture_config_state_hash("Desk.md")
-        if changed_path not in self._desktop_watcher.files() and Path(changed_path).exists():
-            self._desktop_watcher.addPath(changed_path)
-
-    def _register_desktop_config_watchers(self) -> None:
-        home = Path.home()
-        candidates = [
-            home / ".config" / "kdeglobals",
-            home / ".config" / "kwinrc",
-            home / ".config" / "plasmarc",
-            home / ".config" / "plasma-org.kde.plasma.desktop-appletsrc",
-        ]
-        paths = [str(p) for p in candidates if p.exists()]
-        if paths:
-            self._desktop_watcher.addPaths(paths)
-
-    @Slot(str)
     def _on_sort_root_changed(self, root_path: str) -> None:
         resolved = str(Path(root_path).expanduser().resolve())
         timer = self._sort_apply_timers.get(resolved)
@@ -840,12 +766,6 @@ class Backend(QObject):
             if existing:
                 self._sort_watcher.addPaths(existing)
         self._sort_watch_roots = set(roots)
-
-    def _capture_config_state_hash(self, config_name: str) -> str:
-        result = self._api.capture_config_state(config_name)
-        if not bool(result.get("ok")):
-            return ""
-        return str(result.get("stateHash") or "")
 
     def _schedule_thumbnail_refresh(self, full_path: str) -> None:
         timer = self._thumb_refresh_timers.get(full_path)

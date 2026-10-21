@@ -13,13 +13,13 @@ MyOS has moved beyond early prototyping. Core components are implemented and ite
 - **CLI tools** — myls, myproject, mytag, myedit, myimport, myexport, myfilter
 - **Blueprint layer** — Embryo materialization one level at a time (including nested embryos); unused born folders turn back into embryos
 - **Filters & Perspectives** — Filter runtime (include/exclude/flatten); flipped-perspective MVP with resolver, FUSE and a perspective daemon
-- **Desk** — Per-project desk profile (theme, wallpaper, dock, project icon)
+- **Desk** — The desktop follows the projects: per-project themes (apps, taskbar) and wallpaper (KDE, Cinnamon, GNOME), changes saved automatically; project icon. Taskbar programs not yet
 - **Sort** — `Sort.md` runtime for automatic project sorting
 - **Tagging** — Project-scoped tags, color registry, security-tested
 - **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`)
 - **ClipboardTool** — CopyQ integration that saves text clips as Markdown
 
-Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py Scope/tests/test_format_utils.py Scope/tests/test_scope_i18n.py` — 563 passing, 2 benchmarks deselected (2026-10-21; run them with `-m benchmark`). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
+Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py Scope/tests/test_format_utils.py Scope/tests/test_scope_i18n.py` — 600 passing, 2 benchmarks deselected (2026-10-21; run them with `-m benchmark`). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
 
 ## Current Priorities
 

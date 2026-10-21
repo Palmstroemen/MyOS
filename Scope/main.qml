@@ -287,9 +287,6 @@ ApplicationWindow {
     property string pendingOpenWithPath: ""
     property string pendingOpenWithCommand: "xdg-open"
     property var openWithQuickCommands: ["xdg-open", "code", "libreoffice"]
-    property var pendingConfigPrompt: ({ pending: false, options: [] })
-    property string pendingConfigPromptContext: ""
-    property string pendingConfigPromptName: "Desk.md"
     property var availableFilters: []
     property var activeFilter: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
     property var perspectiveState: ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
@@ -984,20 +981,6 @@ ApplicationWindow {
         if (button) {
             button.text = text
         }
-    }
-
-    function _openConfigPromptIfPending() {
-        if (!hasBackend() || typeof backend.configPromptState !== "function") {
-            return
-        }
-        var prompt = backend.configPromptState()
-        if (!prompt || !prompt.pending) {
-            return
-        }
-        pendingConfigPrompt = prompt
-        pendingConfigPromptContext = String(prompt.contextPath || "")
-        pendingConfigPromptName = String(prompt.configName || "Desk.md")
-        configPromptDialog.open()
     }
 
     function toggleUiLanguage() {
@@ -2257,7 +2240,6 @@ ApplicationWindow {
         updateSubProjects()
         if (hasBackend() && typeof backend.setContext === "function") {
             backend.setContext(cwp)
-            _openConfigPromptIfPending()
         }
         updateDefaultProjectTint()
         updateCurrentProjectTint()
@@ -2489,7 +2471,6 @@ ApplicationWindow {
             updateSubProjects()
             if (hasBackend() && typeof backend.setContext === "function") {
                 backend.setContext(cwp)
-                _openConfigPromptIfPending()
             }
             updateDefaultProjectTint()
             updateCurrentProjectTint()
@@ -2802,7 +2783,6 @@ ApplicationWindow {
         }
     }
 
-    ConfigPromptDialog { id: configPromptDialog; window: window }
 
     FolderMoveConfirmDialog { id: folderMoveConfirmDialog; window: window }
 

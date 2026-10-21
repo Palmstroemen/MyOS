@@ -5,11 +5,11 @@ desk.py - MyOS desk profile discovery and parsing.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from core.config.parser import MarkdownConfigParser
 from core.perspective import find_filters
 
 
@@ -28,12 +28,16 @@ class DeskConfig:
     recent_policy: Optional[str]
     inherit: str
     raw: Dict[str, Any]
+    panel_theme: Optional[str] = None  # theme of the taskbar / panels (Cinnamon "Desktop" theme)
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "DeskConfig":
         desk_path = Path(path).expanduser().resolve()
-        data = MarkdownConfigParser.parse_file(desk_path)
-        return cls.from_data(desk_path, data)
+        try:
+            text = desk_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:  # same as MarkdownConfigParser.parse_file
+            text = desk_path.read_text(encoding="latin-1")
+        return cls.from_data(desk_path, {"Desk": _desk_section(text)})
 
     @classmethod
     def from_data(cls, source_path: Path, data: Dict[str, Any]) -> "DeskConfig":
@@ -50,17 +54,47 @@ class DeskConfig:
             recent_policy=_first(normalized, "recentpolicy"),
             inherit=inherit,
             raw=dict(normalized),
+            panel_theme=_first(normalized, "paneltheme"),
         )
+
+
+def _desk_section(text: str) -> Dict[str, List[str]]:
+    """
+    "key: value" lines of the "# Desk" section. Unlike the general config parser, values
+    may contain spaces ("PanelTheme: Linux Mint", paths with spaces) and blank lines or
+    notes do not end the section (they would silently drop the settings below them);
+    <!-- comments --> and " # ..." at the end of a line are ignored.
+    """
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    values: Dict[str, List[str]] = {}
+    in_desk = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            heading = stripped.lstrip("#").strip()
+            if ": " not in heading:  # "#### inherit: not" is a property, not a heading
+                in_desk = heading.lower() == "desk"
+                continue
+            stripped = heading
+        if not in_desk:
+            continue
+        key, sep, value = stripped.partition(":")
+        value = re.split(r"\s#", value, maxsplit=1)[0].strip()
+        if sep and key.strip() and " " not in key.strip() and value:
+            values[key.strip()] = [value]
+    return values
 
 
 def find_desks(
     start_path: Union[str, Path],
     *,
     include_root_desk: bool = False,
+    boundary: Optional[Path] = None,
 ) -> List[Tuple[Path, DeskConfig]]:
     """
     Find desk configs from the given path upwards.
-    Order is most specific first.
+    Order is most specific first. With a boundary (the top project of the projects
+    tree) only folders inside it count: nothing outside, nothing above it.
     """
     try:
         target = Path(start_path).expanduser().resolve()
@@ -69,15 +103,33 @@ def find_desks(
     if target.is_file():
         target = target.parent
     results: List[Tuple[Path, DeskConfig]] = []
+    if boundary is not None:
+        boundary = Path(boundary).resolve()
+        if target != boundary and boundary not in target.parents:
+            return results
     for directory in _walk_up(target):
+        if boundary is not None and directory != boundary and boundary not in directory.parents:
+            break
         for candidate in _desk_candidates(directory, include_root_desk=include_root_desk):
             if not candidate.exists():
                 continue
             config = _try_parse_desk(candidate)
             if config is None:
+                if _blocks_inheritance(candidate):
+                    return results  # "Inherit: not": nothing from further up
                 continue
             results.append((candidate, config))
     return results
+
+
+def _blocks_inheritance(path: Path) -> bool:
+    """A Desk.md without own values that says "Inherit: not"."""
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        return DeskConfig.from_file(path).inherit == "not"
+    except Exception:
+        return False
 
 
 def resolve_active_desk(
@@ -87,6 +139,7 @@ def resolve_active_desk(
     fallback: Optional[Union[str, Path]] = None,
     include_root_desk: bool = False,
     prefer_filter_desk: bool = True,
+    boundary: Optional[Path] = None,
 ) -> Optional[DeskConfig]:
     """
     Resolve the active desk profile for a path.
@@ -125,7 +178,7 @@ def resolve_active_desk(
         if filter_desk is not None:
             return filter_desk
 
-    matches = find_desks(target, include_root_desk=include_root_desk)
+    matches = find_desks(target, include_root_desk=include_root_desk, boundary=boundary)
     if matches:
         return matches[0][1]
 
@@ -180,6 +233,7 @@ def _has_any_profile_value(config: DeskConfig) -> bool:
     return any(
         [
             config.theme_preset,
+            config.panel_theme,
             config.project_icon,
             config.wallpaper_preset,
             config.wallpaper_path,

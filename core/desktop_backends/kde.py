@@ -1,17 +1,16 @@
 from __future__ import annotations
 
+import configparser
 import os
-import shlex
-import shutil
-import subprocess
 from pathlib import Path
-from typing import Sequence
+from typing import Optional
 
 from core.desk import DeskConfig, env_flag_is_true
-from core.desktop_backends.base import BackendStepResult, DesktopBackend
+from core.desktop_backends.base import BackendStepResult, DesktopState
+from core.desktop_backends.command import CommandDesktopBackend, plain_path
 
 
-class KdeDesktopBackend(DesktopBackend):
+class KdeDesktopBackend(CommandDesktopBackend):
     """
     KDE adapter for Desk runtime operations.
 
@@ -20,18 +19,37 @@ class KdeDesktopBackend(DesktopBackend):
     """
 
     name = "kde"
+    timeout_env = "MYOS_DESK_KDE_TIMEOUT_S"
 
     def __init__(self) -> None:
+        super().__init__()
         self.enable_theme = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_THEME_ENABLE", "1"))
         self.enable_wallpaper = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_WALLPAPER_ENABLE", "1"))
         self.enable_dock = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_DOCK_ENABLE", "0"))
         self.enable_recent_policy = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_RECENT_ENABLE", "0"))
-        self.command_timeout_s = self._read_timeout_seconds()
+
+    def capture(self) -> Optional[DesktopState]:
+        """Look-and-feel (else color scheme) and wallpaper from the KDE config files."""
+        config_dir = Path.home() / ".config"
+        parser = configparser.ConfigParser(interpolation=None, strict=False)
+        parser.optionxform = str
+        try:
+            loaded = parser.read(
+                [str(config_dir / name) for name in ("kdeglobals", "plasmarc", "plasma-org.kde.plasma.desktop-appletsrc")],
+                encoding="utf-8",
+            )
+        except (configparser.Error, OSError, UnicodeDecodeError):
+            return None
+        if not loaded:
+            return None
+        theme = parser.get("KDE", "LookAndFeelPackage", fallback="") or parser.get("General", "ColorScheme", fallback="")
+        image = parser.get("Containments][1][Wallpaper][org.kde.image][General", "Image", fallback="")
+        return DesktopState(theme=theme.strip(), wallpaper=plain_path(image))
 
     def apply_theme(self, config: DeskConfig, *, dry_run: bool = True) -> BackendStepResult:
-        preset = str(config.theme_preset or "").strip()
-        if not preset:
-            return BackendStepResult(ok=True, message="theme skipped (no preset)")
+        preset, skipped = self._checked_theme(config)
+        if skipped is not None:
+            return skipped
         if not self.enable_theme:
             return BackendStepResult(ok=True, message="theme skipped (capability disabled)")
         return self._run_command(["lookandfeeltool", "-a", preset], dry_run=dry_run, label="theme")
@@ -73,78 +91,3 @@ class KdeDesktopBackend(DesktopBackend):
             return BackendStepResult(ok=True, message="rollback skipped (no applied steps)")
         return BackendStepResult(ok=True, message=f"rollback noop ({','.join(applied_steps)})")
 
-    def _resolve_wallpaper_path(self, config: DeskConfig) -> tuple[str, str]:
-        base_dir = config.source_path.parent.resolve()
-
-        def _validate(resolved: Path) -> tuple[str, str]:
-            if not resolved.exists() or not resolved.is_file():
-                return "", "wallpaper failed (invalid path)"
-            return str(resolved), ""
-
-        explicit = str(config.wallpaper_path or "").strip()
-        if explicit:
-            try:
-                resolved_explicit = Path(explicit).expanduser().resolve()
-            except Exception:
-                return "", "wallpaper failed (invalid path)"
-            # Security: explicit wallpaper paths are treated as trusted user
-            # intent and may point outside profile directories.
-            return _validate(resolved_explicit)
-
-        preset = str(config.wallpaper_preset or "").strip()
-        if not preset:
-            return "", ""
-
-        # Treat relative presets as paths relative to the desk file directory.
-        candidate = Path(preset).expanduser()
-        if candidate.is_absolute():
-            try:
-                resolved_abs = candidate.resolve()
-            except Exception:
-                return "", "wallpaper failed (invalid path)"
-            return _validate(resolved_abs)
-
-        try:
-            resolved_rel = (base_dir / candidate).resolve()
-        except Exception:
-            return "", "wallpaper failed (invalid path)"
-        # Security: keep relative wallpaper presets within profile directory.
-        try:
-            resolved_rel.relative_to(base_dir)
-        except ValueError:
-            return "", "wallpaper failed (preset escapes profile directory)"
-        return _validate(resolved_rel)
-
-    def _read_timeout_seconds(self) -> int:
-        raw = str(os.environ.get("MYOS_DESK_KDE_TIMEOUT_S", "15")).strip()
-        try:
-            timeout = int(raw or "15")
-        except Exception:
-            timeout = 15
-        # Security: clamp timeout to a sane range to prevent hangs/abuse.
-        return max(1, min(timeout, 120))
-
-    def _run_command(self, argv: Sequence[str], *, dry_run: bool, label: str) -> BackendStepResult:
-        binary = str(argv[0]).strip()
-        if not shutil.which(binary):
-            return BackendStepResult(ok=False, message=f"{label} failed (missing binary: {binary})")
-        if dry_run:
-            rendered = " ".join(shlex.quote(str(part)) for part in argv)
-            return BackendStepResult(ok=True, message=f"{label} dry-run: {rendered}")
-        try:
-            proc = subprocess.run(
-                [str(part) for part in argv],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=self.command_timeout_s,
-            )
-        except subprocess.TimeoutExpired:
-            # Security: explicit timeout handling prevents backend command hangs.
-            return BackendStepResult(ok=False, message=f"{label} failed (timeout)")
-        except OSError as exc:
-            return BackendStepResult(ok=False, message=f"{label} failed ({exc})")
-        if proc.returncode != 0:
-            stderr = (proc.stderr or proc.stdout or "").strip()
-            return BackendStepResult(ok=False, message=f"{label} failed ({proc.returncode}): {stderr}")
-        return BackendStepResult(ok=True, message=f"{label} applied")

@@ -1,13 +1,20 @@
 from pathlib import Path
 
+from core.desk_runtime import DeskRuntimeSettings
 from core.desk_service import DeskService
+from core.desktop_backends.base import DesktopBackend
 
 
 class _FakeRuntime:
     def __init__(self) -> None:
         self.calls = []
+        self.settings = DeskRuntimeSettings(
+            enabled=False, dry_run=True, backend_name="none",
+            include_root_desk=False, prefer_filter_desk=True, fallback_profile=None,
+        )
+        self.backend = DesktopBackend()
 
-    def handle_context(self, path, manual_desk=None):
+    def handle_context(self, path, manual_desk=None, **_kwargs):
         self.calls.append((str(path), str(manual_desk) if manual_desk else None))
         return {"ok": True, "applied": False, "reason": "fake", "source": None, "steps": []}
 

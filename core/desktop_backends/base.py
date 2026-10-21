@@ -12,11 +12,27 @@ class BackendStepResult:
     message: str = ""
 
 
+@dataclass(frozen=True)
+class DesktopState:
+    """What a Desk.md describes of the running desktop: themes and wallpaper path."""
+
+    theme: str = ""
+    wallpaper: str = ""
+    panel_theme: str = ""
+
+
 class DesktopBackend:
     name = "none"
 
+    def capture(self) -> Optional[DesktopState]:
+        """The desktop as it is now, None when this backend cannot read it."""
+        return None
+
     def apply_theme(self, config: DeskConfig, *, dry_run: bool = True) -> BackendStepResult:
         return BackendStepResult(ok=True, message="theme noop")
+
+    def apply_panel_theme(self, config: DeskConfig, *, dry_run: bool = True) -> BackendStepResult:
+        return BackendStepResult(ok=True, message="panel theme noop")
 
     def apply_wallpaper(self, config: DeskConfig, *, dry_run: bool = True) -> BackendStepResult:
         return BackendStepResult(ok=True, message="wallpaper noop")

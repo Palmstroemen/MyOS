@@ -4,7 +4,7 @@ import pytest
 import random
 import string
 
-from core.desk import find_desks, resolve_active_desk
+from core.desk import DeskConfig, find_desks, resolve_active_desk
 from core.desk_runtime import DeskRuntime, DeskRuntimeSettings
 from core.desktop_backends.base import BackendStepResult, DesktopBackend
 
@@ -276,9 +276,9 @@ def test_runtime_stops_on_first_failed_step_and_triggers_rollback(tmp_path):
 
     assert result["ok"] is False
     assert result["reason"] == "apply_failed"
-    assert [step["name"] for step in result["steps"]] == ["theme", "wallpaper", "dock", "rollback"]
+    assert [step["name"] for step in result["steps"]] == ["theme", "panel_theme", "wallpaper", "dock", "rollback"]
     assert backend.calls == ["theme", "wallpaper", "dock"]
-    assert backend.rollback_calls == [["theme", "wallpaper"]]
+    assert backend.rollback_calls == [["theme", "panel_theme", "wallpaper"]]
 
 
 def test_desk_config_from_data_handles_weird_types_without_crash(tmp_path):
@@ -405,3 +405,25 @@ def test_desk_config_fuzz_markdown_parse_is_stable(tmp_path):
         resolved = resolve_active_desk(root, manual=manual, fallback=fallback)
         assert resolved is not None
         assert resolved.inherit in {"dynamic", "fix", "not"}
+
+
+def test_desk_values_may_contain_spaces_and_blank_lines_do_not_end_the_section(tmp_path):
+    desk = tmp_path / ".MyOS" / "Desk.md"
+    desk.parent.mkdir(parents=True)
+    desk.write_text(
+        "# Desk\n"
+        "PanelTheme: Linux Mint\n"
+        "WallpaperPath: /home/u/Bilder/Mein Garten.jpg\n"
+        "\n"
+        "Eine Notiz zum Projekt\n"
+        "ThemePreset: Mint-L-Darker-Aqua\n"
+        "ProjectIcon: plant\n",
+        encoding="utf-8",
+    )
+
+    config = DeskConfig.from_file(desk)
+
+    assert config.panel_theme == "Linux Mint"
+    assert config.wallpaper_path == "/home/u/Bilder/Mein Garten.jpg"
+    assert config.theme_preset == "Mint-L-Darker-Aqua"
+    assert config.project_icon == "plant"

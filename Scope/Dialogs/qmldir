@@ -1,5 +1,4 @@
 module Dialogs
-ConfigPromptDialog 1.0 ConfigPromptDialog.qml
 FolderMoveConfirmDialog 1.0 FolderMoveConfirmDialog.qml
 MoveReportDialog 1.0 MoveReportDialog.qml
 OpenWithDialog 1.0 OpenWithDialog.qml

@@ -19,7 +19,7 @@ Diese Config.md werden in einer gewissen Weise von MyOS interpretiert:
 
 
 2. Einzelne Worte oder Listen von Keywords direkt nach Filebeginn oder nach einer BELIEBIGEN Überschrift werden als Properties oder Listen interpretiert. Eine Leerzeile, ein beliebiger Text bricht diese Interpretation.
-   Ausnahme: In `ACLs.md` brechen Leerzeilen, Notizen und `<!-- Kommentare -->` einen Abschnitt nicht ab – sonst würden Regeln stillschweigend wegfallen (siehe "Designdocument ACLs.md", 2.3).
+   Ausnahme: In `ACLs.md` und `Desk.md` brechen Leerzeilen, Notizen und `<!-- Kommentare -->` einen Abschnitt nicht ab – sonst würden Regeln bzw. Einstellungen stillschweigend wegfallen (siehe "Designdocument ACLs.md", 2.3, und "Designdocument Desk.md", 5). In `Desk.md` dürfen Werte außerdem Leerzeichen enthalten (`PanelTheme: Linux Mint`).
    
 # Templates
 Standard

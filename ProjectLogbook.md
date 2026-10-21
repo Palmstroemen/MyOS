@@ -26,6 +26,9 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] ACLs
 [ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)
+    [x] Desktop folgt den Projekten: Theme, Taskleisten-Theme (PanelTheme), Hintergrund; Änderungen werden automatisch gespeichert
+    [ ] Beim Umschalten des Taskleisten-Themes ordnet Cinnamon die Fenster in der Taskleiste neu an (beobachten)
+    [ ] Taskleisten-Programme pro Projekt (DockPreset)
 [ ] RecentFiles
 [ ] Learning MyOS weiter ausbauen
 [ ] Demodaten als Playground

@@ -1,17 +1,66 @@
 from __future__ import annotations
 
-import configparser
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from core.desk_runtime import DeskRuntime
+from core.desktop_backends.base import DesktopState
 from core.project import find_config_in_parents, find_next_parent_config
 
 _SAFE_CONFIG_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
 _MAX_CONFIG_NAME_LEN = 120
+
+
+def desk_home() -> Path:
+    """Where MyOS keeps the user's own desktop (Desk.md) and what it set last."""
+    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(config_home) / "MyOS"
+
+
+_DESK_KEYS = (("ThemePreset", "theme"), ("PanelTheme", "panel_theme"), ("WallpaperPath", "wallpaper"))
+
+
+def write_desk_values(desk_file: Path, state: DesktopState) -> None:
+    """
+    Put themes and wallpaper of state into desk_file ("# Desk"), keeping every other
+    line (ProjectIcon, comments, ...); creates the file. Written atomically.
+    """
+    # Security: never write through a symlink (the reader ignores symlinked desks).
+    if desk_file.is_symlink():
+        raise OSError(f"refusing to write symlinked {desk_file}")
+    lines = desk_file.read_text(encoding="utf-8").splitlines() if desk_file.exists() else []
+    values = {key: getattr(state, field) for key, field in _DESK_KEYS if getattr(state, field)}
+    start = next((i for i, line in enumerate(lines) if line.strip().lstrip("#").strip().lower() == "desk"
+                  and line.strip().startswith("#")), None)
+    if start is None:
+        lines = (lines + [""] if lines and lines[-1].strip() else lines) + ["# Desk"]
+        start = len(lines) - 1
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].strip().startswith("#")), len(lines))
+    for key, value in values.items():
+        hit = next((i for i in range(start + 1, end) if lines[i].split(":", 1)[0].strip().lower() == key.lower()), None)
+        if hit is not None:
+            lines[hit] = f"{key}: {value}"
+        else:
+            lines.insert(start + 1, f"{key}: {value}")
+            end += 1
+    desk_file.parent.mkdir(parents=True, exist_ok=True)
+    draft = desk_file.with_name("." + desk_file.name + ".draft")
+    draft.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.replace(draft, desk_file)
+
+
+def _project_roots(path: Path) -> tuple[Optional[Path], Optional[Path]]:
+    """(nearest, top) project containing path; (None, None) outside the projects tree."""
+    nearest = top = None
+    for candidate in [path, *path.parents]:
+        if (candidate / ".MyOS" / "Project.md").exists():
+            nearest = nearest or candidate
+            top = candidate
+    return nearest, top
 
 
 class DeskService:
@@ -20,13 +69,19 @@ class DeskService:
 
     This service keeps runtime handling and error normalization in one place so
     callers (Scope/PostFix/CLI) use the same behavior.
+
+    The desktop follows the projects ("Designdocument Desk.md", 12): inside the
+    projects tree the nearest Desk.md applies, elsewhere the user's own desktop (the
+    system default in desk_home()). What the user changes is saved, without asking,
+    where it was changed. Scope and PostFix share what MyOS set last (desk-state.json),
+    so neither takes the other's switch for a change by the user.
     """
 
     def __init__(self, runtime: Optional[DeskRuntime] = None) -> None:
         self._runtime = runtime or DeskRuntime()
         self._providers: Dict[str, Dict[str, Any]] = {
             "Desk.md": {
-                "capture": self._capture_kde_payload,
+                "capture": self._capture_desk_payload,
                 "render": self._render_desk_markdown,
                 "seed": "# Desk\nInherit: dynamic\n",
             },
@@ -52,7 +107,7 @@ class DeskService:
     ) -> Dict[str, Any]:
         target = Path(path).expanduser().resolve()
         try:
-            self._last_result = self._runtime.handle_context(target, manual_desk=manual_desk)
+            self._last_result = self._follow(target, manual_desk)
         except Exception:
             self._last_result = {
                 "ok": False,
@@ -62,6 +117,57 @@ class DeskService:
                 "steps": [],
             }
         return dict(self._last_result)
+
+    def _follow(self, target: Path, manual_desk: Optional[Union[str, Path]]) -> Dict[str, Any]:
+        runtime = self._runtime
+        context = target.parent if target.is_file() else target
+        nearest, top = _project_roots(context)
+        system_desk = desk_home() / "Desk.md"
+        current = runtime.backend.capture() if runtime.settings.enabled and not runtime.settings.dry_run else None
+        if current is None:  # no desktop to follow (no backend, disabled, dry run)
+            return runtime.handle_context(target, manual_desk=manual_desk, boundary=top)
+
+        shared = self._read_shared()
+        changed = shared.get("applied") is not None and current != shared["applied"]
+        if changed and shared.get("owner"):
+            # The user changed the desktop since MyOS set it: keep it where it was changed.
+            write_desk_values(Path(shared["owner"]), current)
+        if not system_desk.exists():
+            # Before MyOS changes anything: the user's own desktop, restored outside projects.
+            write_desk_values(system_desk, current)
+
+        # "Same profile as last time" only means "nothing to do" while the desktop is
+        # still as MyOS set it; after a change the profile is applied again.
+        last_applied = (None, None) if changed else (shared.get("source"), shared.get("hash"))
+        runtime.active_source, runtime.active_hash = last_applied
+        if top is None:  # outside the projects tree: the user's own desktop, no search
+            manual_desk = manual_desk or system_desk
+        result = runtime.handle_context(target, manual_desk=manual_desk, boundary=top, fallback=system_desk)
+        owner = nearest / ".MyOS" / "Desk.md" if nearest is not None else system_desk
+        self._write_shared(runtime.backend.capture() or current, owner, runtime.active_source, runtime.active_hash)
+        return result
+
+    def _read_shared(self) -> Dict[str, Any]:
+        try:
+            data = json.loads((desk_home() / "desk-state.json").read_text(encoding="utf-8"))
+            applied = data.get("applied")
+            data["applied"] = DesktopState(**applied) if isinstance(applied, dict) else None
+            return data
+        except (OSError, ValueError, TypeError):
+            return {}
+
+    def _write_shared(self, applied: DesktopState, owner: Path, source: Optional[str], profile_hash: Optional[str]) -> None:
+        state_file = desk_home() / "desk-state.json"
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "applied": {"theme": applied.theme, "wallpaper": applied.wallpaper, "panel_theme": applied.panel_theme},
+            "owner": str(owner),
+            "source": source,
+            "hash": profile_hash,
+        }
+        draft = state_file.with_name(".desk-state.json.draft")
+        draft.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        os.replace(draft, state_file)
 
     def get_active_profile(self) -> Dict[str, Optional[str]]:
         return self._runtime.get_active_profile()
@@ -253,35 +359,19 @@ class DeskService:
     def supports_config(self, config_name: str) -> bool:
         return self._has_provider(config_name)
 
-    def _capture_kde_payload(self) -> Dict[str, str]:
-        home = Path.home()
-        kdeglobals = home / ".config" / "kdeglobals"
-        plasmarc = home / ".config" / "plasmarc"
-        appletsrc = home / ".config" / "plasma-org.kde.plasma.desktop-appletsrc"
-        parser = configparser.ConfigParser(interpolation=None)
-        parser.optionxform = str
-        loaded = parser.read([str(kdeglobals), str(plasmarc), str(appletsrc)], encoding="utf-8")
-        payload: Dict[str, str] = {}
-        payload["kde_sources"] = ",".join(loaded)
-        payload["look_and_feel"] = parser.get("KDE", "LookAndFeelPackage", fallback="")
-        payload["color_scheme"] = parser.get("General", "ColorScheme", fallback="")
-        payload["font"] = parser.get("General", "font", fallback="")
-        payload["wallpaper_plugin"] = parser.get(
-            "Containments][1][Wallpaper][org.kde.image][General",
-            "Image",
-            fallback="",
-        )
-        return payload
+    def _capture_desk_payload(self) -> Dict[str, str]:
+        state = self._runtime.backend.capture()
+        return {"theme": state.theme, "panel_theme": state.panel_theme, "wallpaper": state.wallpaper} if state is not None else {}
 
     def _render_desk_markdown(self, state: Dict[str, Any]) -> str:
-        look_and_feel = str(state.get("look_and_feel") or "").strip()
-        color_scheme = str(state.get("color_scheme") or "").strip()
-        wallpaper = str(state.get("wallpaper_plugin") or "").strip()
+        theme = str(state.get("theme") or "").strip()
+        panel_theme = str(state.get("panel_theme") or "").strip()
+        wallpaper = str(state.get("wallpaper") or "").strip()
         lines = ["# Desk"]
-        if look_and_feel:
-            lines.append(f"ThemePreset: {look_and_feel}")
-        elif color_scheme:
-            lines.append(f"ThemePreset: {color_scheme}")
+        if theme:
+            lines.append(f"ThemePreset: {theme}")
+        if panel_theme:
+            lines.append(f"PanelTheme: {panel_theme}")
         if wallpaper:
             lines.append(f"WallpaperPath: {wallpaper}")
         lines.append("Inherit: dynamic")
