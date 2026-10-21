@@ -277,6 +277,8 @@ ApplicationWindow {
     property string pendingRenamePath: ""
     property string pendingRenameName: ""
     property var pendingDeletePaths: []
+    /// The pending deletion includes folders (deleted with their contents).
+    property bool pendingDeleteHasFolders: false
     property var pendingBatchRenamePaths: []
     property string pendingBatchReplaceFrom: ""
     property string pendingBatchReplaceTo: ""
@@ -1405,10 +1407,17 @@ ApplicationWindow {
             moveReportMessage = qsTr("Embryo folders were skipped when deleting: %1").arg(embryoBlocked.length)
             moveReportDialog.open()
         }
-        if (cleaned.length <= 3) {
+        // Folders go with all their contents and permanently: always ask then. A few
+        // files are deleted without asking, as before.
+        var hasFolders = false
+        for (var f = 0; f < cleaned.length; f++) {
+            if (typeof backend.isDir === "function" && backend.isDir(cleaned[f])) hasFolders = true
+        }
+        if (cleaned.length <= 3 && !hasFolders) {
             performDeleteEntries(cleaned)
             return
         }
+        pendingDeleteHasFolders = hasFolders
         pendingDeletePaths = cleaned
         deleteEntriesDialog.open()
     }

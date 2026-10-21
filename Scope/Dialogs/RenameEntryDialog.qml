@@ -5,7 +5,7 @@ import "../js/PathUtils.js" as PathUtils
 Dialog {
     id: root
     required property var window
-    title: qsTr("Rename File")
+    title: qsTr("Rename")
     modal: true
     focus: true
     standardButtons: Dialog.Cancel
@@ -50,7 +50,7 @@ Dialog {
     contentItem: Column {
         spacing: 8
         Text {
-            text: qsTr("Enter a new file name and press Return to apply.")
+            text: qsTr("Enter a new name and press Return to apply.")
             wrapMode: Text.WordWrap
             color: window.dialogTextStrong
             font.pixelSize: window.baseFont

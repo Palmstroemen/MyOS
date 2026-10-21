@@ -4,7 +4,7 @@ import QtQuick.Controls 2.15
 Dialog {
     id: root
     required property var window
-    title: qsTr("Delete Files")
+    title: window.pendingDeleteHasFolders ? qsTr("Delete") : qsTr("Delete Files")
     modal: true
     focus: true
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -28,8 +28,10 @@ Dialog {
     onRejected: window.pendingDeletePaths = []
     contentItem: Text {
         width: Math.max(120, root.width - 32)
-        text: qsTr("Delete %1 files? This cannot be undone.")
-            .arg(window.pendingDeletePaths.length)
+        text: window.pendingDeleteHasFolders
+            ? qsTr("Entries to delete: %1. Folders are deleted with all their contents. This cannot be undone.")
+                .arg(window.pendingDeletePaths.length)
+            : qsTr("Delete %1 files? This cannot be undone.").arg(window.pendingDeletePaths.length)
         wrapMode: Text.WordWrap
         color: window.dialogTextStrong
         font.pixelSize: window.baseFont

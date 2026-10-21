@@ -422,12 +422,31 @@ Rectangle { // Files panel
     property bool contextTargetIsDir: false
     property var contextTargetSelection: []
     property var contextTargetFileSelection: []
+    property bool contextTargetIsEmbryo: false
+    /// Selection without embryos (what can be renamed or deleted).
+    property var contextTargetRealSelection: []
+
+    function isPathEmbryo(path) {
+        if (!itemsModel || !path) return false
+        for (var i = 0; i < itemsModel.count; i++) {
+            var entry = itemsModel.get(i)
+            if (entry && String(entry.path || "") === path) return !!entry.isEmbryo
+        }
+        return false
+    }
 
     function openItemContextMenu(itemPath, itemIsDir, itemIsSelected, mouseX, mouseY) {
         contextTargetPath = itemPath || ""
         contextTargetIsDir = !!itemIsDir
+        contextTargetIsEmbryo = isPathEmbryo(contextTargetPath)
         contextTargetSelection = selectedPathsForContext(contextTargetPath, itemIsSelected)
         contextTargetFileSelection = fileOnlyPaths(contextTargetSelection)
+        // Embryos are not on disk yet: they can be neither renamed nor deleted.
+        var real = []
+        for (var r = 0; r < contextTargetSelection.length; r++) {
+            if (!isPathEmbryo(contextTargetSelection[r])) real.push(contextTargetSelection[r])
+        }
+        contextTargetRealSelection = real
         itemContextMenu.x = mouseX
         itemContextMenu.y = mouseY
         itemContextMenu.open()
@@ -521,6 +540,12 @@ Rectangle { // Files panel
         FontMetrics {
             id: aclArrowMetrics
             font.pixelSize: root.tagChipFontPx
+        }
+        ToolTip {
+            id: aclPersonHint
+            objectName: "aclPersonHint"
+            timeout: 4000
+            y: parent ? parent.height + 4 : 0
         }
         Text {
             id: measureAcl
@@ -653,7 +678,14 @@ Rectangle { // Files panel
                                         // (only for users who may change the ACLs).
                                         if (mouse.button === Qt.RightButton) {
                                             var key = root.aclRoleKey(modelData)
-                                            if (root.aclCanEdit && key.length > 0) {
+                                            if (key.length === 0) {
+                                                // People have no rules of their own: say where
+                                                // their rights come from instead of doing nothing.
+                                                aclPersonHint.parent = aclChip
+                                                aclPersonHint.text = qsTr("People get their rights through their groups.")
+                                                    + (root.aclCanEdit ? "\n" + qsTr("Right click a group to change rights.") : "")
+                                                aclPersonHint.open()
+                                            } else if (root.aclCanEdit) {
                                                 root.aclRoleEditRequested(key, modelData.name,
                                                     modelData.section === "folder" ? modelData.rights : [])
                                             }
@@ -1770,6 +1802,11 @@ Rectangle { // Files panel
             text: qsTr("Create Note")
             onTriggered: root.createNoteRequested()
         }
+        MenuItem {
+            text: qsTr("New Folder")
+            enabled: root.currentPath.length > 0
+            onTriggered: root.createFolderRequested(root.currentPath)
+        }
         MenuSeparator {}
         MenuItem {
             text: qsTr("Move into New Folder")
@@ -1800,7 +1837,8 @@ Rectangle { // Files panel
         MenuSeparator {}
         MenuItem {
             text: qsTr("Rename")
-            enabled: (!root.contextTargetIsDir && root.contextTargetSelection.length === 1)
+            // One file or folder; several files go to batch rename (files only).
+            enabled: (root.contextTargetSelection.length === 1 && !root.contextTargetIsEmbryo)
                      || (root.contextTargetFileSelection.length > 1)
             onTriggered: {
                 if (root.contextTargetFileSelection.length > 1) {
@@ -1812,8 +1850,9 @@ Rectangle { // Files panel
         }
         MenuItem {
             text: qsTr("Delete")
-            enabled: root.contextTargetFileSelection.length > 0
-            onTriggered: root.deleteRequested(root.contextTargetFileSelection)
+            // Files and folders (folders with their contents, always confirmed).
+            enabled: root.contextTargetRealSelection.length > 0
+            onTriggered: root.deleteRequested(root.contextTargetRealSelection)
         }
         MenuSeparator {}
         MenuItem {
