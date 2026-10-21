@@ -45,8 +45,8 @@ Dialog {
                 width: 460
                 text: String(modelData.label || modelData.id || "")
                 onClicked: {
-                    if (window.hasBackend() && typeof window.backend.resolveConfigPrompt === "function") {
-                        window.backend.resolveConfigPrompt(String(modelData.id || "discard"))
+                    if (window.hasBackend() && typeof backend.resolveConfigPrompt === "function") {
+                        backend.resolveConfigPrompt(String(modelData.id || "discard"))
                     }
                     root.close()
                 }

@@ -30,7 +30,7 @@ Dialog {
             window.pendingRenameName = ""
             return
         }
-        var renamed = window.backend.renameEntry(window.pendingRenamePath, nextName)
+        var renamed = backend.renameEntry(window.pendingRenamePath, nextName)
         if (!renamed || renamed.length === 0) {
             window.moveReportMessage = qsTr("Could not rename \"%1\".").arg(PathUtils.basename(window.pendingRenamePath))
             window.moveReportDialog.open()

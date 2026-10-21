@@ -35,7 +35,7 @@ Dialog {
             window.pendingBatchReplaceTo = ""
             return
         }
-        if (!window.hasBackend() || typeof window.backend.renameEntriesBatch !== "function") {
+        if (!window.hasBackend() || typeof backend.renameEntriesBatch !== "function") {
             window.moveReportMessage = qsTr("Batch rename is not available in this mode.")
             window.moveReportDialog.open()
             window.pendingBatchRenamePaths = []
@@ -43,7 +43,7 @@ Dialog {
             window.pendingBatchReplaceTo = ""
             return
         }
-        var report = window.backend.renameEntriesBatch(window.pendingBatchRenamePaths, fromText, toText) || {}
+        var report = backend.renameEntriesBatch(window.pendingBatchRenamePaths, fromText, toText) || {}
         var renamedPaths = (report.renamed && report.renamed.length) ? report.renamed : []
         var unchangedCount = Number(report.unchanged || 0)
         var failedCount = Number(report.failed || 0)

@@ -31,12 +31,12 @@ Dialog {
             window.pendingCreateFolderTargetPath = ""
             return
         }
-        if (!window.hasBackend() || typeof window.backend.createFolder !== "function") {
+        if (!window.hasBackend() || typeof backend.createFolder !== "function") {
             window.pendingCreateFolderName = qsTr("New Folder")
             window.pendingCreateFolderTargetPath = ""
             return
         }
-        var createdPath = window.backend.createFolder(targetPath, folderName)
+        var createdPath = backend.createFolder(targetPath, folderName)
         if (!createdPath || createdPath.length === 0) {
             window.moveReportMessage = qsTr("Could not create folder \"%1\".").arg(folderName)
             window.moveReportDialog.open()

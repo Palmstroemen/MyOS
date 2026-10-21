@@ -30,12 +30,12 @@ Dialog {
             window.pendingFolderBatchName = qsTr("New Folder")
             return
         }
-        if (!window.hasBackend() || typeof window.backend.createFolder !== "function") {
+        if (!window.hasBackend() || typeof backend.createFolder !== "function") {
             window.pendingFolderBatchSources = []
             window.pendingFolderBatchName = qsTr("New Folder")
             return
         }
-        var targetPath = window.backend.createFolder(window.cwp, folderName)
+        var targetPath = backend.createFolder(window.cwp, folderName)
         if (!targetPath || targetPath.length === 0) {
             window.moveReportMessage = qsTr("Could not create target folder \"%1\".").arg(folderName)
             window.moveReportDialog.open()
