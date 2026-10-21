@@ -210,3 +210,67 @@ def test_rules_waiting_at_the_new_path_block_the_move(tmp_path):
     with pytest.raises(ACLEditError):
         check_move_rules(root / "finanz", root / "Neu")
     check_move_rules(root / "work", root / "Anders")  # no rules at either place: fine
+
+
+COMMENTED = (
+    "<!--\n"
+    "- /finanz/archiv/: read, write, delete\n"
+    "- /Neu/: none\n"
+    "-->\n"
+)
+
+
+def test_commented_out_rules_are_not_edited(tmp_path):
+    from core.acl_edit import own_rule
+
+    root = _project(tmp_path)
+    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file.write_text(ACLS.replace("- /finanz/: read, write\n", "- /finanz/: read, write\n" + COMMENTED))
+
+    assert own_rule(root / "finanz" / "archiv", "Buchhalter") is None
+    set_role_rights(root / "finanz" / "archiv", "Buchhalter", {"read"}, editor="anna")
+
+    assert COMMENTED in _acls(root)
+    assert _rights(root, "buchhalter", root / "finanz" / "archiv") == {"read"}
+    assert own_rule(root / "finanz" / "archiv", "Buchhalter") == {"read"}
+
+
+def test_commented_out_rules_neither_follow_nor_block_a_move(tmp_path):
+    from core.acl_edit import check_move_rules, move_rules
+
+    root = _project(tmp_path)
+    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file.write_text(ACLS.replace("- /finanz/: read, write\n", "- /finanz/: read, write\n" + COMMENTED))
+
+    check_move_rules(root / "work", root / "Neu")  # only a commented rule waits there
+    (root / "finanz").rename(root / "Finanzen")
+    assert move_rules(root / "finanz", root / "Finanzen", editor="karl") is True
+
+    assert COMMENTED in _acls(root)
+    assert "- /Finanzen/: read, write\n" in _acls(root)
+
+
+def test_own_rule_ignores_an_inline_comment(tmp_path):
+    from core.acl_edit import own_rule
+
+    root = _project(tmp_path)
+    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file.write_text(ACLS.replace("- /finanz/: read, write\n",
+                                     "- /finanz/: read, write  # seit 2026\n- /finanz/archiv/: none # gesperrt\n"))
+
+    assert own_rule(root / "finanz", "Buchhalter") == {"read", "write"}
+    assert own_rule(root / "finanz" / "archiv", "Buchhalter") == set()
+
+
+def test_a_rule_with_a_trailing_comment_is_edited_like_any_rule(tmp_path):
+    from core.acl_edit import own_rule
+
+    root = _project(tmp_path)
+    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file.write_text(ACLS.replace("- /finanz/: read, write\n", "- /finanz/: read, write <!-- seit 2026 -->\n"))
+
+    assert own_rule(root / "finanz", "Buchhalter") == {"read", "write"}
+    set_role_rights(root / "finanz", "Buchhalter", {"read"}, editor="anna")
+
+    assert _rights(root, "buchhalter", root / "finanz") == {"read"}
+    assert _acls(root).count("/finanz/") == 1

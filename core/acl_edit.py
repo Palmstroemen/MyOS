@@ -23,6 +23,29 @@ HISTORY_DIR = "ACLs-history"
 _HEADING = re.compile(r"^(#{1,2})\s+(.*?)\s*$")
 
 
+def _visible(lines: List[str]) -> List[str]:
+    """Each line as the reader sees it: without <!-- comments --> (also over several lines),
+    so commented-out rules are neither edited nor moved, like in core.acl._acl_rule_text."""
+    inside, seen = False, []
+    for line in lines:
+        rest, kept = line, ""
+        while rest:
+            if inside:
+                end = rest.find("-->")
+                if end < 0:
+                    rest = ""
+                else:
+                    inside, rest = False, rest[end + 3:]
+            else:
+                start = rest.find("<!--")
+                if start < 0:
+                    kept, rest = kept + rest, ""
+                else:
+                    inside, kept, rest = True, kept + rest[:start], rest[start + 4:]
+        seen.append(kept)
+    return seen
+
+
 class ACLEditError(ValueError):
     """The edit is not possible (unknown role or right, invalid result, self lock-out)."""
 
@@ -105,9 +128,10 @@ def own_rule(path, role: str) -> Optional[Set[str]]:
     rule_path = _rule_path_for(root, target)
     wanted = {_normalize_path(rule_path), _normalize_path(rule_path.rstrip("/") + "/**")}
     found: Optional[Set[str]] = None
-    for line in lines[bounds[0] + 1:bounds[1]]:
+    for line in _visible(lines)[bounds[0] + 1:bounds[1]]:
         if _line_rule_path(line) in wanted:
-            rights = {r.strip().lower() for r in line.split(":", 1)[1].split(",") if r.strip()}
+            written = line.split(":", 1)[1].partition("#")[0]  # without an inline comment
+            rights = {r.strip().lower() for r in written.split(",") if r.strip()}
             found = (found or set()) | (rights - {"none"})
     return found
 
@@ -187,7 +211,7 @@ def _plain_rel(root: Path, path: Path) -> Optional[str]:
 def _rule_lines_under(lines: List[str], rel: str) -> List[int]:
     """Indices of rule lines whose path is rel or below it ({Folder} rules excluded)."""
     hits = []
-    for i, line in enumerate(lines):
+    for i, line in enumerate(_visible(lines)):
         stripped = line.strip()
         if not (stripped.startswith("- ") or stripped.startswith("* ")) or ":" not in stripped:
             continue
@@ -242,7 +266,7 @@ def _line_rule_path(line: str) -> Optional[str]:
 def _section_bounds(lines: List[str], role_key: str):
     """(header index, end index) of the role's "## Role" section, or None."""
     start = None
-    for i, line in enumerate(lines):
+    for i, line in enumerate(_visible(lines)):
         match = _HEADING.match(line.rstrip("\n"))
         if not match:
             continue
@@ -270,7 +294,8 @@ def _edit_text(text: str, policy: ACLPolicy, root: Path, role_key: str,
     start, end = bounds
     target = _normalize_path(rule_path)
     same_folder = {target, _normalize_path(rule_path.rstrip("/") + "/**")}
-    matches = [i for i in range(start + 1, end) if _line_rule_path(lines[i]) in same_folder]
+    seen = _visible(lines)
+    matches = [i for i in range(start + 1, end) if _line_rule_path(seen[i]) in same_folder]
     if matches:
         first = matches[0]
         for i in reversed(matches[1:]):
@@ -280,7 +305,7 @@ def _edit_text(text: str, policy: ACLPolicy, root: Path, role_key: str,
         else:
             lines[first] = _rule_line(rule_path, rights)
     elif rights is not None:
-        rule_lines = [i for i in range(start + 1, end) if _line_rule_path(lines[i]) is not None]
+        rule_lines = [i for i in range(start + 1, end) if _line_rule_path(seen[i]) is not None]
         insert_at = (rule_lines[-1] + 1) if rule_lines else start + 1
         lines.insert(insert_at, _rule_line(rule_path, rights))
     return "".join(lines)
@@ -299,7 +324,7 @@ def _insert_section(lines: List[str], policy: ACLPolicy, root: Path, role_key: s
         body.append(_rule_line(written, set(rule.rights)))
     section = [header] + body + ["\n"]
     # Before "# Users" (the end of the permissions), else at the end of the file.
-    for i, line in enumerate(lines):
+    for i, line in enumerate(_visible(lines)):
         match = _HEADING.match(line.rstrip("\n"))
         if match and len(match.group(1)) == 1 and match.group(2).strip().lower() == "users":
             return lines[:i] + section + lines[i:]

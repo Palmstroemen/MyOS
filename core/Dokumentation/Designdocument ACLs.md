@@ -8,7 +8,8 @@ should be adaptable via plugins.
 ---
 
 ## **2. ACLs.md Format (Draft)**
-`ACLs.md` lives in `.MyOS/` and follows the same parser rules as other config files.
+`ACLs.md` lives in `.MyOS/` and follows the same parser rules as other config files,
+with one exception for its layout (see 2.3).
 
 ### **2.1 Sections**
 Recommended sections:
@@ -69,6 +70,23 @@ Notes:
   `04_Finanz`, `/{Folder}/` also becomes `/Familie/04_Finanz/`). Roles with a section of
   their own are not repeated: their rules stay paths of the project holding `ACLs.md`.
 - If no `inherit` is defined, the default is **`dynamic`**.
+
+### **2.3 Layout: blank lines, notes and comments**
+Unlike other config files, a blank line or a line of free text does **not** end a section
+in `ACLs.md`. A rule line (`- /path: rights`) belongs to the nearest heading above it, a
+user line (`name: roles`) to `# Users` — whatever stands in between. So an `ACLs.md` may be
+structured with blank lines, notes and `<!-- comments -->`.
+
+Reason (security): in the general parser one blank line before `- /Arbeit/Geheim/: none`
+silently dropped that rule and opened the locked folder again (2026-10-21).
+
+- Lines in `<!-- … -->` are ignored, also over several lines: a commented-out rule does
+  not apply.
+- `# …` after a rule is an inline comment (`- /Geheim/: none  # since 2026`).
+- A line starting with `#` is a **heading**, never a comment: it starts a new section.
+- In role sections only list lines with a `:` are rules; other lines are notes.
+- Editing in the GUI and rules following a rename leave comments alone; a rule that is
+  rewritten loses a comment at the end of its line.
 
 ---
 

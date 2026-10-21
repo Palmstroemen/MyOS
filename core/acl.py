@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 import fnmatch
 import os
+import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -337,7 +338,11 @@ def _roles_from_acls(
     if not acl_file.exists():
         return set(), {}, {}, {}
 
-    data = MarkdownConfigParser.parse_file(acl_file)
+    try:
+        text = acl_file.read_text(encoding="utf-8")
+    except UnicodeDecodeError:  # same as MarkdownConfigParser.parse_file
+        text = acl_file.read_text(encoding="latin-1")
+    data = MarkdownConfigParser.parse(_acl_rule_text(text))
 
     roles: Set[str] = set()
     role_permissions: Dict[str, Dict[str, Set[str]]] = {}
@@ -367,6 +372,29 @@ def _roles_from_acls(
         role_permissions[section_key] = _normalize_rule_dict(section_data)
 
     return roles, role_permissions, folder_defaults, users
+
+
+def _acl_rule_text(text: str) -> str:
+    """ACLs.md reduced to headings and rule lines, for the general config parser."""
+    # Security: the general parser ends a section at a blank line or free text, which in
+    # ACLs.md would silently drop the rules below (a dropped `none` opens a locked folder).
+    # So a rule belongs to the heading above it, whatever stands in between: blank lines,
+    # notes and <!-- comments --> are removed here. Commented-out rules do not apply.
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    kept: List[str] = []
+    section: Optional[str] = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            section = stripped.lstrip("#").strip().lower()
+            kept.append(stripped)
+            continue
+        if section is None or ":" not in stripped.partition("#")[0]:
+            continue  # front matter, blank lines and notes
+        is_rule = stripped.startswith(("- ", "* "))
+        if is_rule or section == "users":
+            kept.append(stripped)
+    return "\n".join(kept) + "\n"
 
 
 def _normalize_roles(roles: Iterable[str]) -> Set[str]:
