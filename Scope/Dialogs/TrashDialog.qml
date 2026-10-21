@@ -10,6 +10,7 @@ Dialog {
     property string projectPath: ""
     property var entries: []
     property string confirmName: ""  // entry whose "delete for good" waits for a second click
+    property bool confirmEmpty: false  // "empty the trash" waits for a second click
     property string errorText: ""
     /// Emitted after restoring or deleting (listing and side panel button refresh).
     signal trashChanged()
@@ -32,6 +33,7 @@ Dialog {
     function openFor(path) {
         projectPath = path
         confirmName = ""
+        confirmEmpty = false
         errorText = ""
         reload()
         open()
@@ -62,17 +64,42 @@ Dialog {
         reload()
     }
 
+    function emptyTrash() {
+        var result = backend.trashEmpty(projectPath) || {}
+        confirmEmpty = false
+        errorText = (result.skipped || 0) > 0
+            ? qsTr("Entries kept (no permission): %1").arg(result.skipped)
+            : ""
+        trashChanged()
+        reload()
+    }
+
     onOpened: window._setDialogButtonText(root, Dialog.Close, qsTr("Close"))
 
     contentItem: Column {
         spacing: 8
 
-        Text {
+        Row {
             width: parent.width
-            text: qsTr("Deleted entries stay here for a while and can be restored.")
-            wrapMode: Text.WordWrap
-            color: root.window.dialogTextMuted
-            font.pixelSize: root.window.baseFont * 0.9
+            spacing: 8
+            Text {
+                width: parent.width - emptyButton.width - parent.spacing
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("Deleted entries stay here for a while and can be restored.")
+                wrapMode: Text.WordWrap
+                color: root.window.dialogTextMuted
+                font.pixelSize: root.window.baseFont * 0.9
+            }
+            Button {
+                id: emptyButton
+                objectName: "trashEmpty"
+                // Permanent for all entries: the first click asks, the second empties.
+                text: root.confirmEmpty ? qsTr("Really empty?") : qsTr("Empty trash")
+                onClicked: {
+                    if (root.confirmEmpty) root.emptyTrash()
+                    else root.confirmEmpty = true
+                }
+            }
         }
         Text {
             width: parent.width

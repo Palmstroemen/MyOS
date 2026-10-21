@@ -711,47 +711,62 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>TrashDialog</name>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="17"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="18"/>
         <source>Trash</source>
         <translation>Papierkorb</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="56"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="58"/>
         <source>You may not change this entry.</source>
         <translation>Du darfst diesen Eintrag nicht ändern.</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="57"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="59"/>
         <source>This did not work.</source>
         <translation>Das hat nicht geklappt.</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="65"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="71"/>
+        <source>Entries kept (no permission): %1</source>
+        <translation>Behalten (keine Berechtigung): %1</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="77"/>
         <source>Close</source>
         <translation>Schließen</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="72"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="88"/>
         <source>Deleted entries stay here for a while and can be restored.</source>
         <translation>Gelöschte Einträge bleiben eine Weile hier und können wiederhergestellt werden.</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="115"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="97"/>
+        <source>Really empty?</source>
+        <translation>Wirklich leeren?</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="97"/>
+        <source>Empty trash</source>
+        <translation>Papierkorb leeren</translation>
+    </message>
+    <message>
+        <location filename="../Dialogs/TrashDialog.qml" line="142"/>
         <source>from /%1 · %2 · %3</source>
         <translation>aus /%1 · %2 · %3</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="132"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="159"/>
         <source>Restore</source>
         <translation>Wiederherstellen</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="138"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="165"/>
         <source>Really delete?</source>
         <translation>Wirklich löschen?</translation>
     </message>
     <message>
-        <location filename="../Dialogs/TrashDialog.qml" line="138"/>
+        <location filename="../Dialogs/TrashDialog.qml" line="165"/>
         <source>Delete for good</source>
         <translation>Endgültig löschen</translation>
     </message>

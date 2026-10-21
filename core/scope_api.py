@@ -2374,6 +2374,17 @@ class ScopeApi:
         """Remove name from the trash of path's project for good; {ok, reason, path}."""
         return self._trash_op(path, name, restore=False)
 
+    def trash_empty(self, path: str) -> Dict[str, Any]:
+        """Delete for good what the user may delete in path's project trash; counts the rest."""
+        root = find_project_root(self._resolve_path(path))
+        deleted = skipped = 0
+        for entry in (trash.list_trash(root) if root else []):
+            if self._trash_op(path, entry.name, restore=False)["ok"]:
+                deleted += 1
+            else:
+                skipped += 1
+        return {"ok": True, "deleted": deleted, "skipped": skipped}
+
     def _trash_op(self, path: str, name: str, restore: bool) -> Dict[str, Any]:
         root = find_project_root(self._resolve_path(path))
         entry = next((e for e in trash.list_trash(root) if e.name == name), None) if root else None

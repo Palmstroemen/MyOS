@@ -115,3 +115,20 @@ def test_expired_entries_are_cleaned_up_when_the_project_is_opened(tmp_path):
     ScopeApi(str(root))  # opening the project
 
     assert trash.list_trash(root) == []
+
+
+def test_empty_removes_what_the_user_may_delete(tmp_path, monkeypatch):
+    root = _project(tmp_path)
+    (root / "Offen").mkdir()
+    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
+    ScopeApi(str(root)).delete_entries([str(root / "Ordner"), str(root / "Offen")])  # by anna
+
+    monkeypatch.setenv("MYOS_ACL_USER", "karl")
+    assert ScopeApi(str(root)).trash_empty(str(root)) == {"ok": True, "deleted": 1, "skipped": 1}
+    assert [e.name for e in trash.list_trash(root)] == ["Ordner"]
+
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    assert ScopeApi(str(root)).trash_empty(str(root)) == {"ok": True, "deleted": 1, "skipped": 0}
+    assert trash.list_trash(root) == []

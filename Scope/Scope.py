@@ -641,6 +641,10 @@ class Backend(QObject):
     def trashDeleteFinally(self, path: str, name: str) -> dict:
         return self._api.trash_delete_finally(path, name)
 
+    @Slot(str, result="QVariantMap")
+    def trashEmpty(self, path: str) -> dict:
+        return self._api.trash_empty(path)
+
     @Slot(str, str, result=bool)
     def aclHasOwnRule(self, path: str, role: str) -> bool:
         return self._api.acl_has_own_rule(path, role)

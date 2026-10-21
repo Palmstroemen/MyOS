@@ -66,6 +66,36 @@ def _tidy_project(path: str) -> int:
         return 1
 
 
+def _trash(args) -> int:
+    """List, restore or delete for good what is in a project's trash (via ScopeApi, so
+    the same rights apply as in Scope)."""
+    from core.scope_api import ScopeApi
+
+    folder = str(Path(args.path).expanduser().resolve())
+    api = ScopeApi(folder)
+    if args.trash_command == "list":
+        entries = api.trash_entries(folder)
+        for entry in entries:
+            kind = "folder" if entry["isDir"] else "file"
+            print(f"{entry['name']}\t/{entry['original']}\t{entry['deletedAt']}\t{entry['deletedBy']}\t{kind}")
+        if not entries:
+            print("The trash is empty.")
+        return 0
+    if args.trash_command == "empty":
+        if not args.yes:
+            print("Error: emptying the trash deletes for good; confirm with --yes", file=sys.stderr)
+            return 1
+        result = api.trash_empty(folder)
+        print(f"{result['deleted']} entries deleted for good, {result['skipped']} kept (no permission)")
+        return 0
+    result = api.trash_restore(folder, args.name) if args.trash_command == "restore" else api.trash_delete_finally(folder, args.name)
+    if not result["ok"]:
+        print(f"Error: {args.trash_command} {args.name!r} failed ({result['reason']})", file=sys.stderr)
+        return 1
+    print(f"Restored to {result['path']}" if args.trash_command == "restore" else f"Deleted {args.name} for good")
+    return 0
+
+
 def parse_args(args=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="MyOS project management",
@@ -86,6 +116,19 @@ def parse_args(args=None) -> argparse.Namespace:
     )
     tidy.add_argument("path", nargs="?", default=".", help="Any folder inside the project (default: .)")
 
+    trash = sub.add_parser("trash", help="The project's trash: list, restore, delete for good, empty")
+    trash_sub = trash.add_subparsers(dest="trash_command", required=True)
+    trash_list = trash_sub.add_parser("list", help="List the trash of the project containing path")
+    trash_list.add_argument("path", nargs="?", default=".", help="Any folder inside the project (default: .)")
+    for name, text in (("restore", "Restore an entry to where it was deleted"),
+                       ("delete", "Delete an entry of the trash for good")):
+        cmd = trash_sub.add_parser(name, help=text)
+        cmd.add_argument("name", help="Name in the trash (see: trash list)")
+        cmd.add_argument("--in", dest="path", default=".", help="Any folder inside the project (default: .)")
+    empty = trash_sub.add_parser("empty", help="Delete everything in the trash for good")
+    empty.add_argument("--in", dest="path", default=".", help="Any folder inside the project (default: .)")
+    empty.add_argument("--yes", action="store_true", help="Confirm: this cannot be undone")
+
     return parser.parse_args(args)
 
 
@@ -95,6 +138,8 @@ def main() -> None:
         sys.exit(_create_project(args.path, create_missing=args.new))
     if args.command == "tidy":
         sys.exit(_tidy_project(args.path))
+    if args.command == "trash":
+        sys.exit(_trash(args))
 
 
 if __name__ == "__main__":
