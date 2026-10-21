@@ -691,7 +691,10 @@ if __name__ == "__main__":
 
 class TestBlueprintPerformance:
     """Performance-Benchmarks für den Blueprint-Layer."""
-    
+
+    # Timing depends on the machine and its load: not part of the normal run
+    # (pytest -m benchmark, see docs/DEVELOPMENT.md).
+    @pytest.mark.benchmark
     def test_embryo_detection_performance(self, mount_haus):
         """Misst Performance der Embryo-Erkennung."""
         layer, root = mount_haus
@@ -732,32 +735,20 @@ class TestBlueprintPerformance:
         assert ops_per_second > 10_000, f"Only {ops_per_second:,.0f} ops/sec"
         print("✅ Performance acceptable!")
     
-    def test_cache_speedup(self, mount_haus):
-        """Misst Cache-Geschwindigkeitsvorteil."""
+    def test_embryo_answers_come_from_the_cache(self, mount_haus):
+        """A second is_embryo() for the same path does not walk the embryo tree again."""
         layer, root = mount_haus
-        
-        import time
-        
-        # Uncached (erstmaliger Aufruf)
-        start = time.perf_counter()
-        result1 = layer.is_embryo("admin")
-        uncached_time = time.perf_counter() - start
-        
-        # Cached (zweiter Aufruf)
-        start = time.perf_counter()
-        result2 = layer.is_embryo("admin")
-        cached_time = time.perf_counter() - start
-        
-        speedup = uncached_time / cached_time if cached_time > 0 else 0
-        
-        print(f"\nCACHE PERFORMANCE:")
-        print(f"Uncached: {uncached_time*1_000_000:.1f}μs")
-        print(f"Cached:   {cached_time*1_000_000:.1f}μs")
-        print(f"Speedup:  {speedup:.1f}x")
-        
-        assert speedup > 1.5, f"Cache speedup only {speedup:.1f}x"
-        print("✅ Cache effective!")
-    
+        # Earlier tests share the lab and give birth to some folders: take one still unborn.
+        embryo = next(name for name in layer.embryo_tree if not (root / name).exists())
+
+        assert layer.is_embryo(embryo) is True
+        assert layer.is_embryo("nonexistent") is False
+        layer.embryo_tree = {}  # a walk now would find nothing
+
+        assert layer.is_embryo(embryo) is True
+        assert layer.is_embryo("nonexistent") is False
+
+    @pytest.mark.benchmark
     def test_readdir_performance(self, mount_haus):
         """Misst readdir() Performance."""
         layer, root = mount_haus

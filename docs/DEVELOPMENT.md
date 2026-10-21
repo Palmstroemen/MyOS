@@ -45,6 +45,9 @@ python3 -m pytest cli/tests/
 
 # PostFix only
 python3 -m pytest PostFix/tests/
+
+# Benchmarks (timing, depends on the machine; not in the normal run)
+python3 -m pytest core/tests/unit -m benchmark
 ```
 
 ### Launch Applications
