@@ -10,3 +10,4 @@ MoveSelectedFoldersDialog 1.0 MoveSelectedFoldersDialog.qml
 RenameEntryDialog 1.0 RenameEntryDialog.qml
 BatchRenameDialog 1.0 BatchRenameDialog.qml
 DeleteEntriesDialog 1.0 DeleteEntriesDialog.qml
+AclRoleDialog 1.0 AclRoleDialog.qml

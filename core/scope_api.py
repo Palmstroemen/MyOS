@@ -16,6 +16,7 @@ import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root
+from core.acl_edit import ACLEditError, can_edit as acl_can_edit, own_rule as own_acl_rule, set_role_rights
 from core.acl_view import ACLView
 from core.project import find_config_in_parents
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
@@ -2327,7 +2328,32 @@ class ScopeApi:
             return {"hasAcls": False}
         folder = Path(path).expanduser().resolve()
         summary = view.listing_summary(folder, [str(p) for p in entry_paths])
-        return {"hasAcls": True, "path": str(folder), **summary}
+        can_edit = acl_can_edit(folder, self._acl_user)
+        return {"hasAcls": True, "path": str(folder), "canEdit": can_edit, **summary}
+
+    def acl_has_own_rule(self, path: str, role: str) -> bool:
+        """Whether role has a rule of its own at exactly path ("back to inherited" possible)."""
+        return own_acl_rule(path, role) is not None
+
+    def acl_set_role_rights(self, path: str, role: str, rights: Optional[List[str]]) -> Dict[str, Any]:
+        """
+        Set role's rights at path in the governing ACLs.md (see acl_edit.set_role_rights):
+        rights is the complete list, [] = locked out ("none"), None = back to inherited.
+        Returns {ok, reason}: reason "permission" (no change right) or "invalid" (with a
+        message). The editor is the user ACLs are checked for.
+        """
+        try:
+            set_role_rights(path, role, None if rights is None else set(rights), editor=self._acl_user)
+        except PermissionError:
+            return {"ok": False, "reason": "permission"}
+        except (ACLEditError, OSError) as exc:
+            return {"ok": False, "reason": "invalid", "message": str(exc)}
+        # Security: checks of this session follow the new rules at once. Only rebuilt when
+        # configured from the environment (a service set via set_acl_enforcement stays).
+        env_mode = str(os.environ.get("MYOS_ACL_MODE") or "off").strip().lower()
+        if self._acl_enforcement is not None and env_mode in {"monitor", "enforce"}:
+            self._configure_acl_from_env()
+        return {"ok": True, "reason": ""}
 
     # How often (in entries) a running measurement asks whether it should go on.
     _MEASURE_CHECK_EVERY = 256

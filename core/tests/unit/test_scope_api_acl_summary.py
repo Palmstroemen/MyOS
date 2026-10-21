@@ -62,3 +62,68 @@ def test_enforced_user_who_may_not_read_acls_sees_no_panel(tmp_path, monkeypatch
 
     monkeypatch.setenv("MYOS_ACL_USER", "anna")
     assert ScopeApi(str(root)).acl_summary(str(root / "finanz"), [])["hasAcls"] is True
+
+
+ADMIN_ACLS = (
+    "# Permissions\n\n"
+    "## Admin\n- /*: read, write, execute\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    "## Buchhalter\n- /finanz/: read, write\n\n"
+    "# Users\nAnna: Admin\nBertha: Buchhalter\n"
+)
+
+
+def test_summary_says_whether_the_user_may_edit(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    assert ScopeApi(str(root)).acl_summary(str(root), [])["canEdit"] is True
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    assert ScopeApi(str(root)).acl_summary(str(root), [])["canEdit"] is False
+
+
+def test_set_role_rights_through_the_api(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    api = ScopeApi(str(root))
+
+    result = api.acl_set_role_rights(str(root / "privat"), "Buchhalter", ["read"])
+
+    assert result == {"ok": True, "reason": ""}
+    assert "- /privat/: read\n" in (root / ".MyOS" / "ACLs.md").read_text()
+    access = api.acl_summary(str(root), [str(root / "privat")])["access"]
+    assert "role:buchhalter" in access[str(root / "privat")]
+
+    assert api.acl_set_role_rights(str(root / "privat"), "Buchhalter", None)["ok"] is True
+    assert (root / ".MyOS" / "ACLs.md").read_text() == ADMIN_ACLS
+
+
+def test_set_role_rights_refused_without_change_right(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+
+    result = ScopeApi(str(root)).acl_set_role_rights(str(root / "privat"), "Buchhalter", ["read"])
+
+    assert result == {"ok": False, "reason": "permission"}
+    assert (root / ".MyOS" / "ACLs.md").read_text() == ADMIN_ACLS
+
+
+def test_enforcement_follows_an_edit_at_once(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    api = ScopeApi(str(root))
+    assert api._acl_probe("read", root / "privat").allowed is True
+
+    api.acl_set_role_rights(str(root / "privat"), "Admin", [])
+
+    assert api._acl_probe("read", root / "privat").allowed is False
+
+
+def test_has_own_rule(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    api = ScopeApi(str(root))
+
+    assert api.acl_has_own_rule(str(root / "finanz"), "Buchhalter") is True
+    assert api.acl_has_own_rule(str(root / "privat"), "Buchhalter") is False

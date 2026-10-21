@@ -58,6 +58,9 @@ Rectangle { // Files panel
     property int aclEntryCount: 0
     property string selectedAclPrincipal: ""
     signal aclPrincipalToggled(string id)
+    /// The user may change the ACLs here ("change" on ACLs.md): right click edits a group.
+    property bool aclCanEdit: false
+    signal aclRoleEditRequested(string roleKey, string roleName, var rights)
     /// Size of the listed folder from the live measurement; < 0 while unknown.
     property real folderSizeBytes: -1
     property bool folderSizeComplete: false
@@ -459,13 +462,24 @@ Rectangle { // Files panel
     }
 
     function aclChipTip(p) {
+        var tip
         if (p.section === "exception") {
-            return qsTr("No access to this folder, but to %1 of %2 entries").arg(p.count).arg(aclEntryCount)
+            tip = qsTr("No access to this folder, but to %1 of %2 entries").arg(p.count).arg(aclEntryCount)
+        } else if (p.section === "locked") {
+            tip = qsTr("Access to this folder, but locked out of %1 of %2 entries").arg(p.count).arg(aclEntryCount)
+        } else {
+            tip = qsTr("Here: %1").arg(aclRightsNames(p.rights))
         }
-        if (p.section === "locked") {
-            return qsTr("Access to this folder, but locked out of %1 of %2 entries").arg(p.count).arg(aclEntryCount)
+        if (aclCanEdit && aclRoleKey(p).length > 0) {
+            tip += "\n" + qsTr("Right click: change the rights for this folder")
         }
-        return qsTr("Here: %1").arg(aclRightsNames(p.rights))
+        return tip
+    }
+
+    /// Role key of a group chip ("role:team", "locked:role:team" -> "team"); "" for people.
+    function aclRoleKey(p) {
+        var id = String(p.principal || p.id || "")
+        return id.indexOf("role:") === 0 ? id.slice(5) : ""
     }
 
     /// Chips of a panel section. "Ausnahmen" (exception) also holds the locked-out
@@ -633,7 +647,20 @@ Rectangle { // Files panel
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.aclPrincipalToggled(modelData.id)
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    onClicked: function(mouse) {
+                                        // Left click filters; right click edits a group's rights
+                                        // (only for users who may change the ACLs).
+                                        if (mouse.button === Qt.RightButton) {
+                                            var key = root.aclRoleKey(modelData)
+                                            if (root.aclCanEdit && key.length > 0) {
+                                                root.aclRoleEditRequested(key, modelData.name,
+                                                    modelData.section === "folder" ? modelData.rights : [])
+                                            }
+                                            return
+                                        }
+                                        root.aclPrincipalToggled(modelData.id)
+                                    }
                                 }
                                 ToolTip.visible: aclChipMouse.containsMouse
                                 ToolTip.delay: 600

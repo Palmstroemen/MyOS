@@ -628,6 +628,18 @@ class Backend(QObject):
         paths = [str(p or "") for p in (entryPaths or []) if str(p or "")]
         self._acl_pool.start(AclSummaryTask(self, str(path or ""), paths, self._acl_generation))
 
+    @Slot(str, str, result=bool)
+    def aclHasOwnRule(self, path: str, role: str) -> bool:
+        return self._api.acl_has_own_rule(path, role)
+
+    @Slot(str, str, "QVariant", result="QVariantMap")
+    def aclSetRoleRights(self, path: str, role: str, rights) -> dict:
+        """rights: list of rights, [] = none, null = back to inherited (see ScopeApi)."""
+        if hasattr(rights, "toVariant"):  # a JS array or null arrives as QJSValue
+            rights = None if rights.isNull() or rights.isUndefined() else rights.toVariant()
+        values = None if rights is None else [str(r) for r in rights]
+        return self._api.acl_set_role_rights(path, role, values)
+
     def _acl_task_current(self, generation: int) -> bool:
         return not self._shutting_down and generation == self._acl_generation
 

@@ -2777,6 +2777,11 @@ ApplicationWindow {
     MoveSelectedFoldersDialog { id: moveSelectedFoldersDialog; window: window }
 
     RenameEntryDialog { id: renameEntryDialog; window: window }
+    AclRoleDialog {
+        id: aclRoleDialog
+        window: window
+        onRightsChanged: window.requestAclSummary()
+    }
 
     BatchRenameDialog { id: batchRenameDialog; window: window }
 
@@ -3692,6 +3697,10 @@ ApplicationWindow {
             aclEntryCount: Object.keys(window.aclSummary.access || ({})).length
             selectedAclPrincipal: window.selectedAclPrincipal
             onAclPrincipalToggled: function(id) { window.toggleAclPrincipal(id) }
+            aclCanEdit: !!window.aclSummary.canEdit
+            onAclRoleEditRequested: function(roleKey, roleName, rights) {
+                aclRoleDialog.openFor(window.currentFilesPath(), roleKey, roleName, rights)
+            }
             folderSizeBytes: window.currentFolderSizeBytes
             folderSizeComplete: window.currentFolderSizeComplete
             folderSizesActive: window.folderSizesActive
