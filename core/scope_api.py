@@ -18,6 +18,7 @@ from core.tags import read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root
 from core.acl_edit import ACLEditError, can_edit as acl_can_edit, own_rule as own_acl_rule, set_role_rights
 from core.acl_view import ACLView
+from core import trash
 from core.project import find_config_in_parents
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
 from core.desk import DeskConfig
@@ -47,6 +48,17 @@ try:
 except Exception:  # pragma: no cover - optional for non-MyOS paths
     Blueprint = None
     notify_project_config_changed = None
+
+
+def _move_to_system_trash(path: Path) -> None:
+    """
+    Move path into the user's trash (freedesktop, via gio). Raises when that is not
+    possible: deleting outside projects must never fall back to deleting for good.
+    """
+    gio = shutil.which("gio")
+    if not gio:
+        raise OSError("no system trash available (gio not found)")
+    subprocess.run([gio, "trash", "--", str(path)], check=True, capture_output=True, timeout=30)
 
 
 def find_project_root(start_path: Path) -> Optional[Path]:
@@ -358,6 +370,12 @@ class ScopeApi:
         self._refresh_desk_context(self.start_path)
 
     def _set_project_root(self, root: Optional[Path]) -> None:
+        if root and root != getattr(self, "project_root", None):
+            # Opening a project removes what has been in its trash longer than trash_days.
+            try:
+                trash.cleanup(root)
+            except Exception:
+                pass
         self.project_root = root
         self.blueprint = None
         self._color_cache = {}
@@ -2331,6 +2349,51 @@ class ScopeApi:
         can_edit = acl_can_edit(folder, self._acl_user)
         return {"hasAcls": True, "path": str(folder), "canEdit": can_edit, **summary}
 
+    def trash_entries(self, path: str) -> List[Dict[str, Any]]:
+        """
+        Trash of the project path lies in (nearest project), newest first, as
+        {name, original, deletedAt (ISO), deletedBy, isDir}. Only entries the user could
+        have deleted at their original place are listed (see Designdocument Trash.md).
+        """
+        root = find_project_root(self._resolve_path(path))
+        if root is None:
+            return []
+        entries = [e for e in trash.list_trash(root) if self._may_delete(root / e.original)]
+        entries.sort(key=lambda e: e.deleted_at, reverse=True)
+        return [
+            {"name": e.name, "original": e.original, "deletedAt": e.deleted_at.isoformat(),
+             "deletedBy": e.deleted_by, "isDir": e.is_dir}
+            for e in entries
+        ]
+
+    def trash_restore(self, path: str, name: str) -> Dict[str, Any]:
+        """Restore name from the trash of path's project; {ok, reason, path}."""
+        return self._trash_op(path, name, restore=True)
+
+    def trash_delete_finally(self, path: str, name: str) -> Dict[str, Any]:
+        """Remove name from the trash of path's project for good; {ok, reason, path}."""
+        return self._trash_op(path, name, restore=False)
+
+    def _trash_op(self, path: str, name: str, restore: bool) -> Dict[str, Any]:
+        root = find_project_root(self._resolve_path(path))
+        entry = next((e for e in trash.list_trash(root) if e.name == name), None) if root else None
+        if entry is None:
+            return {"ok": False, "reason": "missing", "path": ""}
+        # Security: the trash keeps the rights of the original place (delete there).
+        if not self._may_delete(root / entry.original):
+            return {"ok": False, "reason": "permission", "path": ""}
+        try:
+            if restore:
+                return {"ok": True, "reason": "", "path": str(trash.restore(root, name))}
+            trash.delete_finally(root, name)
+        except (trash.TrashError, OSError):
+            return {"ok": False, "reason": "failed", "path": ""}
+        return {"ok": True, "reason": "", "path": ""}
+
+    def _may_delete(self, target: Path) -> bool:
+        probe = self._acl_probe("delete", target)
+        return not (probe and probe.enforced and not probe.allowed)
+
     def acl_has_own_rule(self, path: str, role: str) -> bool:
         """Whether role has a rule of its own at exactly path ("back to inherited" possible)."""
         return own_acl_rule(path, role) is not None
@@ -2814,11 +2877,13 @@ class ScopeApi:
             if not source.exists():
                 result["errors"].append({"source": key, "reason": "missing"})
                 continue
+            # Deleting is undoable: into the project's trash (.MyOS/Trash), outside
+            # projects into the system trash. Nothing is removed for good here.
             try:
-                if source.is_dir():
-                    shutil.rmtree(source)
+                if trash.project_trash_root(source) is not None:
+                    trash.move_to_trash(source, deleted_by=self._acl_user)
                 else:
-                    source.unlink()
+                    _move_to_system_trash(source)
                 result["deleted"].append(key)
                 emptied.append(source.parent)
             except Exception:

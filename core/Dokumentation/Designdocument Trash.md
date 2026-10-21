@@ -36,11 +36,11 @@ least always confirmed. This document describes the trash that replaces that.
 freedesktop trash does. A `.trashinfo` is the freedesktop format plus one MyOS key:
 ```
 [Trash Info]
-Path=/Familie/Ich/Steuer        (project-relative, as in ACLs.md)
+Path=Familie/Ich/Steuer         (project-relative, URL-encoded, no leading / as in the freedesktop spec)
 DeletionDate=2026-10-21T09:15:00
 DeletedBy=oliver
 ```
-So tools that know the freedesktop trash can read it, and the path matches the ACL paths.
+So tools that know the freedesktop trash can read it; the path is the ACL path without its leading `/`.
 
 ---
 
