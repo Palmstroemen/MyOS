@@ -333,226 +333,241 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>FilesPanel</name>
     <message>
-        <location filename="../FilesPanel.qml" line="152"/>
-        <location filename="../FilesPanel.qml" line="997"/>
+        <location filename="../FilesPanel.qml" line="157"/>
+        <location filename="../FilesPanel.qml" line="1041"/>
         <source>Size</source>
         <translation>Größe</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="153"/>
+        <location filename="../FilesPanel.qml" line="158"/>
         <source>Modified</source>
         <translation>Geändert</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="154"/>
+        <location filename="../FilesPanel.qml" line="159"/>
         <source>Type</source>
         <translation>Typ</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="155"/>
+        <location filename="../FilesPanel.qml" line="160"/>
         <source>Tags</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="156"/>
-        <location filename="../FilesPanel.qml" line="586"/>
+        <location filename="../FilesPanel.qml" line="161"/>
+        <location filename="../FilesPanel.qml" line="591"/>
         <source>Access</source>
         <translation>Zugriff</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="157"/>
+        <location filename="../FilesPanel.qml" line="162"/>
         <source>Permissions</source>
         <translation>Berechtigungen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="158"/>
+        <location filename="../FilesPanel.qml" line="163"/>
         <source>Owner</source>
         <translation>Besitzer</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="159"/>
+        <location filename="../FilesPanel.qml" line="164"/>
         <source>Group</source>
         <translation>Gruppe</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="483"/>
+        <location filename="../FilesPanel.qml" line="488"/>
         <source>Read</source>
         <translation>Lesen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="483"/>
+        <location filename="../FilesPanel.qml" line="488"/>
         <source>Write</source>
         <translation>Schreiben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="483"/>
+        <location filename="../FilesPanel.qml" line="488"/>
         <source>Execute</source>
         <translation>Ausführen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="483"/>
+        <location filename="../FilesPanel.qml" line="488"/>
         <source>Change rights</source>
         <translation>Rechte ändern</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="483"/>
-        <location filename="../FilesPanel.qml" line="1972"/>
+        <location filename="../FilesPanel.qml" line="488"/>
+        <location filename="../FilesPanel.qml" line="2016"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="494"/>
+        <location filename="../FilesPanel.qml" line="499"/>
         <source>No access to this folder, but to %1 of %2 entries</source>
         <translation>Kein Zugriff auf diesen Ordner, aber auf %1 von %2 Einträgen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="496"/>
+        <location filename="../FilesPanel.qml" line="501"/>
         <source>Access to this folder, but locked out of %1 of %2 entries</source>
         <translation>Zugriff auf diesen Ordner, aber gesperrt für %1 von %2 Einträgen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="498"/>
+        <location filename="../FilesPanel.qml" line="503"/>
         <source>Here: %1</source>
         <translation>Hier: %1</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="501"/>
+        <location filename="../FilesPanel.qml" line="506"/>
         <source>Right click: change the rights for this folder</source>
         <translation>Rechtsklick: Rechte für diesen Ordner ändern</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="587"/>
+        <location filename="../FilesPanel.qml" line="592"/>
         <source>Exceptions</source>
         <translation>Ausnahmen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="701"/>
+        <location filename="../FilesPanel.qml" line="706"/>
         <source>People get their rights through their groups.</source>
         <translation>Personen erhalten ihre Rechte über ihre Gruppen.</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="726"/>
+        <location filename="../FilesPanel.qml" line="731"/>
         <source>Person</source>
         <translation>Person</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="739"/>
+        <location filename="../FilesPanel.qml" line="744"/>
         <source>Add a person and choose their groups</source>
         <translation>Eine Person hinzufügen und ihre Gruppen wählen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="953"/>
+        <location filename="../FilesPanel.qml" line="757"/>
+        <source>You are not listed in this project.</source>
+        <translation>Du bist in diesem Projekt nicht eingetragen.</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="763"/>
+        <source>People who may change the rights add their name to ~/.config/MyOS/Identity.md themselves.</source>
+        <translation>Wer die Rechte ändern darf, trägt seinen Namen selbst in ~/.config/MyOS/Identity.md ein.</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="774"/>
+        <source>Who are you?</source>
+        <translation>Wer bist du?</translation>
+    </message>
+    <message>
+        <location filename="../FilesPanel.qml" line="997"/>
         <source>Add folder tag</source>
         <translation>Ordnertag vergeben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="987"/>
+        <location filename="../FilesPanel.qml" line="1031"/>
         <source>Trash (entries: %1)</source>
         <translation>Papierkorb (Einträge: %1)</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1051"/>
+        <location filename="../FilesPanel.qml" line="1095"/>
         <source>This folder</source>
         <translation>Dieser Ordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1174"/>
+        <location filename="../FilesPanel.qml" line="1218"/>
         <source>New folder tag ...</source>
         <translation>Neuer Ordnertag ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1305"/>
+        <location filename="../FilesPanel.qml" line="1349"/>
         <source>Subfolders</source>
         <translation>Unterordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1340"/>
+        <location filename="../FilesPanel.qml" line="1384"/>
         <source>File tags</source>
         <translation>Filetags</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1384"/>
+        <location filename="../FilesPanel.qml" line="1428"/>
         <source>… parsing tags</source>
         <translation>… Tags werden gelesen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1515"/>
+        <location filename="../FilesPanel.qml" line="1559"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1922"/>
+        <location filename="../FilesPanel.qml" line="1966"/>
         <source>Create Note</source>
         <translation>Notiz erstellen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1926"/>
+        <location filename="../FilesPanel.qml" line="1970"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1932"/>
-        <location filename="../FilesPanel.qml" line="1979"/>
+        <location filename="../FilesPanel.qml" line="1976"/>
+        <location filename="../FilesPanel.qml" line="2023"/>
         <source>Move into New Folder</source>
         <translation>In neuen Ordner verschieben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1942"/>
+        <location filename="../FilesPanel.qml" line="1986"/>
         <source>Open</source>
         <translation>Öffnen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1947"/>
+        <location filename="../FilesPanel.qml" line="1991"/>
         <source>Open with ...</source>
         <translation>Öffnen mit ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1953"/>
+        <location filename="../FilesPanel.qml" line="1997"/>
         <source>Select all</source>
         <translation>Alle markieren</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1959"/>
+        <location filename="../FilesPanel.qml" line="2003"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1995"/>
+        <location filename="../FilesPanel.qml" line="2039"/>
         <source>Color: Red</source>
         <translation>Farbe: Rot</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1996"/>
+        <location filename="../FilesPanel.qml" line="2040"/>
         <source>Color: Orange</source>
         <translation>Farbe: Orange</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1997"/>
+        <location filename="../FilesPanel.qml" line="2041"/>
         <source>Color: Yellow</source>
         <translation>Farbe: Gelb</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1998"/>
+        <location filename="../FilesPanel.qml" line="2042"/>
         <source>Color: Green</source>
         <translation>Farbe: Grün</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1999"/>
+        <location filename="../FilesPanel.qml" line="2043"/>
         <source>Color: Cyan</source>
         <translation>Farbe: Cyan</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2000"/>
+        <location filename="../FilesPanel.qml" line="2044"/>
         <source>Color: Blue</source>
         <translation>Farbe: Blau</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2001"/>
+        <location filename="../FilesPanel.qml" line="2045"/>
         <source>Color: Violet</source>
         <translation>Farbe: Violett</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2002"/>
+        <location filename="../FilesPanel.qml" line="2046"/>
         <source>Color: Gray</source>
         <translation>Farbe: Grau</translation>
     </message>

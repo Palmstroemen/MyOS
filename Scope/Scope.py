@@ -612,6 +612,11 @@ class Backend(QObject):
             groups = groups.toVariant()
         return self._api.acl_set_user_groups(path, user, [str(g) for g in (groups or [])])
 
+    @Slot(str, str, result="QVariantMap")
+    def aclClaimIdentity(self, path: str, name: str) -> dict:
+        """Remember on this computer that the user is the person name (see core.identity)."""
+        return self._api.acl_claim_identity(path, name)
+
     @Slot(str, result="QVariantMap")
     def aclGroupChoices(self, path: str) -> dict:
         return self._api.acl_group_choices(path)

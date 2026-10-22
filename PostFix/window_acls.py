@@ -5,11 +5,7 @@ from pathlib import Path
 
 from core.acl_edit import ACLEditError, ACLSelfLockoutError, can_edit, own_rule, set_role_rights, set_user_roles
 from core.acl_view import RIGHTS_ORDER, ACLView
-
-
-def current_acl_user() -> str:
-    """The user ACLs are checked for, as in ScopeApi (MYOS_ACL_USER, else $USER, else "local")."""
-    return str(os.environ.get("MYOS_ACL_USER") or os.environ.get("USER") or "local").strip().lower()
+from core.identity import acl_user_for
 
 
 def acl_principals_for_document(path: Path | None) -> list[dict]:
@@ -26,7 +22,7 @@ def acl_principals_for_document(path: Path | None) -> list[dict]:
     # Security: with enforcement on, only a user who may read ACLs.md sees its content
     # (same rule as Scope's ACL panel).
     mode = str(os.environ.get("MYOS_ACL_MODE") or "off").strip().lower()
-    viewer = current_acl_user() if mode == "enforce" else None
+    viewer = acl_user_for(path) if mode == "enforce" else None
     if not view.may_view(viewer):
         return []
     return [
@@ -42,7 +38,7 @@ class WindowAclsMixin:
         self.left_sidebar.set_principals(principals)
         # Security: chips only become editable for users with "change" on ACLs.md; the
         # core checks it again when writing.
-        self.left_sidebar.set_editable(bool(principals) and can_edit(path, current_acl_user()))
+        self.left_sidebar.set_editable(bool(principals) and can_edit(path, acl_user_for(path)))
         # Shown only when ACLs are in use for this note (simple first, power when used).
         self.acl_host.setVisible(bool(principals))
         self.acl_host.setFixedWidth(self.left_sidebar.preferred_width() if principals else 0)
@@ -60,7 +56,7 @@ class WindowAclsMixin:
         if not path:
             return self.tr("No note is open.")
         return self._acl_edit(lambda: set_role_rights(
-            path, role_key, None if rights is None else set(rights), editor=current_acl_user()))
+            path, role_key, None if rights is None else set(rights), editor=acl_user_for(path)))
 
     def _user_groups(self, user_key: str):
         """Groups of a person with what each may do with the open note (ACLView.user_groups)."""
@@ -73,7 +69,7 @@ class WindowAclsMixin:
         path = getattr(self.editor, "current_path", None)
         if not path:
             return self.tr("No note is open.")
-        return self._acl_edit(lambda: set_user_roles(path, user_key, set(groups), editor=current_acl_user()))
+        return self._acl_edit(lambda: set_user_roles(path, user_key, set(groups), editor=acl_user_for(path)))
 
     def _acl_edit(self, edit) -> str:
         """Run an ACLs.md edit; "" on success (the sidebar shows the new state), else a message."""

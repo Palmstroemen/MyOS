@@ -3742,6 +3742,12 @@ ApplicationWindow {
                 aclPersonDialog.openFor(window.currentFilesPath(), userKey)
             }
             onAclPersonAddRequested: aclPersonDialog.openForNew(window.currentFilesPath())
+            aclListed: window.aclSummary.listed !== false
+            aclWhoChoices: window.aclSummary.whoChoices || []
+            onAclIdentityChosen: function(name) {
+                if (window.hasBackend()) backend.aclClaimIdentity(window.currentFilesPath(), name)
+                window.requestAclSummary()
+            }
             folderSizeBytes: window.currentFolderSizeBytes
             folderSizeComplete: window.currentFolderSizeComplete
             folderSizesActive: window.folderSizesActive

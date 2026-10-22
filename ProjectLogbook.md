@@ -44,7 +44,7 @@ Kompakter Überblick: `docs/STATUS.md`.
         Damit sieht und bearbeitet man die Rechte der Vorlagenordner in den Templates selbst.
     [x] Personen-Chip: Gruppen einer Person ändern (`# Users`)
     [x] Person hinzufügen (neue Zeile in `# Users`; freier Name, Personen des Projekts statt Logins)
-    [ ] Wer bin ich hier? Lokale Zuordnung pro Rechner (~/.config/MyOS) statt nur Login-Name
+    [x] Wer bin ich hier? Eigene Namen pro Rechner in ~/.config/MyOS/Identity.md (core/identity.py)
     [ ] Personen in 00_Admin / 02_Team mit `# Users` verknüpfen (Personenkarten)
     [ ] Authentifizierung; Export in Formate ohne Rechte: Warnung, Verschlüsselung, signierte ACLs.md
     [ ] Person hinzufügen auch in PostFix

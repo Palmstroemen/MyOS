@@ -10,12 +10,12 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 from fuse import FUSE, FuseOSError, Operations
 from core.project import ProjectConfig
 from core.acl import ACLPolicy
+from core.identity import person_in
 from core.sort import SortRule, resolve_effective_sort_rules
 from core.sort_runtime import SortRuntime
 
 import filecmp
 import shutil
-import getpass
 
 class BirthClinic:
     """Handles the birth process from embryos to physical folders."""
@@ -346,8 +346,8 @@ class Blueprint(Operations):
         if not self.acl_policy.users:
             return set()
 
-        user = getpass.getuser()
-        return self.acl_policy.roles_for_user(user)
+        # Who the user is in this project: own names on this computer, else the login.
+        return self.acl_policy.roles_for_user(person_in(self.acl_policy.users))
 
     def _can_write_embryo(self, rel_path: str) -> bool:
         """

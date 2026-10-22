@@ -66,6 +66,11 @@ Rectangle { // Files panel
     signal aclRoleEditRequested(string roleKey, string roleName, var rights)
     signal aclPersonEditRequested(string userKey)
     signal aclPersonAddRequested()
+    /// The user is not one of the people of this project (e.g. on another computer);
+    /// aclWhoChoices: whom they may say they are (admins only by hand, in Identity.md).
+    property bool aclListed: true
+    property var aclWhoChoices: []
+    signal aclIdentityChosen(string name)
     /// Size of the listed folder from the live measurement; < 0 while unknown.
     property real folderSizeBytes: -1
     property bool folderSizeComplete: false
@@ -737,6 +742,45 @@ Rectangle { // Files panel
                     ToolTip.visible: aclAddPersonMouse.containsMouse
                     ToolTip.delay: 600
                     ToolTip.text: qsTr("Add a person and choose their groups")
+                }
+
+                // Not one of the people here: a quiet hint, no dialog in the way.
+                Column {
+                    objectName: "aclNotListed"
+                    visible: !root.aclListed
+                    x: root.tagChipMargin
+                    width: aclColumn.width - 2 * root.tagChipMargin
+                    topPadding: 6
+                    spacing: 2
+                    Text {
+                        width: parent.width
+                        text: qsTr("You are not listed in this project.")
+                        color: root.smallButtonText
+                        font.pixelSize: root.tagSectionLabelPx
+                        wrapMode: Text.WordWrap
+                        ToolTip.visible: aclNotListedMouse.containsMouse
+                        ToolTip.delay: 600
+                        ToolTip.text: qsTr("People who may change the rights add their name to ~/.config/MyOS/Identity.md themselves.")
+                        MouseArea {
+                            id: aclNotListedMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton
+                        }
+                    }
+                    Text {
+                        objectName: "aclWhoAreYou"
+                        visible: (root.aclWhoChoices || []).length > 0
+                        text: qsTr("Who are you?")
+                        color: root.smallButtonText
+                        font.pixelSize: root.tagSectionLabelPx
+                        font.underline: true
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: aclWhoMenu.popup()
+                        }
+                    }
                 }
             }
         }
@@ -2000,6 +2044,18 @@ Rectangle { // Files panel
         MenuItem { text: qsTr("Color: Blue"); onTriggered: folderTagColorMenu.applyColor("#4c72d9") }
         MenuItem { text: qsTr("Color: Violet"); onTriggered: folderTagColorMenu.applyColor("#8a58cf") }
         MenuItem { text: qsTr("Color: Gray"); onTriggered: folderTagColorMenu.applyColor("#7b7f89") }
+    }
+
+    Menu {
+        id: aclWhoMenu
+        objectName: "aclWhoMenu"
+        Repeater {
+            model: root.aclWhoChoices
+            delegate: MenuItem {
+                text: modelData
+                onTriggered: root.aclIdentityChosen(modelData)
+            }
+        }
     }
 
     Shortcut {

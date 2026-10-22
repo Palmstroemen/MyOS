@@ -200,10 +200,24 @@ pictogram `◂` read, `▸` write, `x`, `c`, `d`), inherited rights shown as suc
 - **People are people of the project, not login names** (decided 2026-10-22). Projects
   travel (cloud, USB stick) to computers where not every person has an account, and that
   must be easy. So a name in `# Users` is free (`Anna Huber`), and the people listed
-  simply travel along. Today the current user is matched by login name (`MYOS_ACL_USER`,
-  else `$USER`); next step: each computer keeps locally who the user is there (e.g.
-  `~/.config/MyOS`, “Name: Oliver”), with a quiet hint in the ACL panel when the login
-  matches nobody.
+  simply travel along.
+- **Who am I here?** (`core/identity.py`, decided 2026-10-22) Each computer keeps the
+  user's names locally in `~/.config/MyOS/Identity.md` (`# Identity` / `Names: Oliver,
+  Oliver Rafelsberger`), not in the project. In a project the user is the first of these
+  names the project lists in `# Users`, else (as before) the login name; `MYOS_ACL_USER`
+  overrides it (development, tests). Several names because a customer's project may list
+  you differently than your own; this works wherever the stick is mounted. Scope, PostFix
+  and the embryo layer all ask `core.identity`, per project.
+- **Not listed:** the ACL panel shows a quiet hint “You are not listed in this project.
+  Who are you?”; a click lists the people of the project, and the chosen name is added
+  to `Identity.md`. Security: people who may change the rights are not offered there
+  (checked again in the core); an admin writes their name into `Identity.md` by hand.
+  A small hurdle against a casual “I am the admin” until there is real authentication.
+- **Where sign-in will live** (idea, 2026-10-22): a slim Scope instance always running,
+  probably at the top edge of the screen, showing only the active project at its slimmest;
+  on mouse-over other projects (downwards) and the current subfolders and embryos (to the
+  right). Sign-in and “who am I” belong there; the top row of today's Scope is the
+  prototype for it.
 - **Vision: `00_Admin` and `02_Team`** list the people of a project (person cards, e.g.
   `02_Team/Mitarbeiter/Anna Huber.md`); who is not there should in the end have no
   access. `# Users` stays the one place for the groups (checked, with history); the cards

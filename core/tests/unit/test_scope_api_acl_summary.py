@@ -180,3 +180,44 @@ def test_add_user(tmp_path, monkeypatch):
     assert api.acl_add_user(str(root), "a:b", ["admin"])["reason"] == "invalid"
     monkeypatch.setenv("MYOS_ACL_USER", "karl")
     assert ScopeApi(str(root)).acl_add_user(str(root), "Dora", ["admin"]) == {"ok": False, "reason": "permission"}
+
+
+@pytest.fixture
+def identity_home(monkeypatch, tmp_path):
+    # Security: Identity.md decides who the user is; never the real one.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("LOGNAME", "orafelsberger")
+    monkeypatch.setenv("USER", "orafelsberger")
+
+
+def test_summary_says_who_the_user_may_be_when_not_listed(tmp_path, identity_home):
+    root = _project(tmp_path, ADMIN_ACLS)
+
+    summary = ScopeApi(str(root)).acl_summary(str(root), [])
+
+    assert summary["listed"] is False
+    assert summary["whoChoices"] == ["Bertha"]  # Anna may change the rights: not offered
+    assert summary["canEdit"] is False
+
+
+def test_claiming_a_person_makes_the_user_that_person(tmp_path, identity_home):
+    root = _project(tmp_path, ADMIN_ACLS)
+    api = ScopeApi(str(root))
+
+    assert api.acl_claim_identity(str(root), "Anna")["reason"] == "invalid"
+    assert api.acl_claim_identity(str(root / "finanz"), "bertha") == {"ok": True, "reason": ""}
+
+    summary = api.acl_summary(str(root), [])
+    assert (summary["listed"], summary["whoChoices"]) == (True, [])
+
+
+def test_a_name_written_by_hand_counts_in_every_check(tmp_path, identity_home):
+    from core.identity import add_own_name
+
+    root = _project(tmp_path, ADMIN_ACLS)
+    add_own_name("Anna")  # admins write their name into Identity.md themselves
+    api = ScopeApi(str(root))
+
+    assert api.acl_summary(str(root), [])["canEdit"] is True
+    assert api.acl_add_user(str(root), "Clara", ["buchhalter"]) == {"ok": True, "reason": ""}
+    assert "anna" in "".join(p.name for p in (root / ".MyOS" / "ACLs-history").iterdir())

@@ -29,6 +29,7 @@ from core.acl_edit import (
     set_user_roles,
 )
 from core.acl_view import ACLView
+from core.identity import acl_user_for, claim_person, claimable_people
 from core import trash
 from core.project import find_config_in_parents
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
@@ -367,7 +368,8 @@ class ScopeApi:
         self._acl_enforcement: Optional[ACLEnforcementService] = None
         # Project the ACL rules were loaded from: their paths are relative to it.
         self._acl_root: Optional[Path] = None
-        self._acl_user: str = str(os.environ.get("MYOS_ACL_USER") or os.environ.get("USER") or "local").strip().lower()
+        # Who the user is depends on the project (core.identity); set_acl_enforcement may fix it.
+        self._acl_user_override: Optional[str] = None
         self._acl_audit_events: List[Dict[str, Any]] = []
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
@@ -1392,7 +1394,11 @@ class ScopeApi:
         self._acl_enforcement = service
         self._acl_root = Path(root).expanduser().resolve() if root else (self.project_root or self.start_path)
         if user is not None and str(user).strip():
-            self._acl_user = str(user).strip().lower()
+            self._acl_user_override = str(user).strip().lower()
+
+    def _acl_user_at(self, path) -> str:
+        """The user ACLs are checked for at path (see core.identity)."""
+        return self._acl_user_override or acl_user_for(path)
 
     def _acl_resource_path(self, resource: Path) -> str:
         """
@@ -1512,17 +1518,18 @@ class ScopeApi:
             "move": "write",
             "delete": "delete",
         }.get(str(action or "").strip().lower(), str(action or "read").strip().lower() or "read")
+        user = self._acl_user_at(self._acl_root or resource)
         try:
             result = self._acl_enforcement.check(
                 ACLCheckRequest(
-                    user=self._acl_user,
+                    user=user,
                     action=acl_action,
                     resource=self._acl_resource_path(resource),
                 )
             )
             self._on_acl_audit_event(
                 {
-                    "user": self._acl_user,
+                    "user": user,
                     "action": str(action or "read"),
                     "resource": str(resource),
                     "mode": result.mode,
@@ -2364,8 +2371,19 @@ class ScopeApi:
             return {"hasAcls": False}
         folder = Path(path).expanduser().resolve()
         summary = view.listing_summary(folder, [str(p) for p in entry_paths])
-        can_edit = acl_can_edit(folder, self._acl_user)
-        return {"hasAcls": True, "path": str(folder), "canEdit": can_edit, **summary}
+        me = self._acl_user_at(folder)
+        can_edit = acl_can_edit(folder, me)
+        # Not one of the people of this project (e.g. on another computer): say so, and
+        # whom the user may say they are (core.identity; admins only by hand).
+        listed = not view.policy.users or me in view.policy.users
+        choices = claimable_people(folder) if not listed and self._acl_user_override is None else []
+        return {"hasAcls": True, "path": str(folder), "canEdit": can_edit, "listed": listed,
+                "whoChoices": choices, **summary}
+
+    def acl_claim_identity(self, path: str, name: str) -> Dict[str, Any]:
+        """Remember on this computer that the user is the person name of path's project
+        (core.identity.claim_person). Returns {ok, reason} like acl_set_role_rights."""
+        return self._acl_edit(lambda: claim_person(path, name))
 
     def _visible_acl_view(self, path: str) -> Optional[ACLView]:
         """ACLView for path, or None without ACLs.md or when the user may not see it."""
@@ -2446,7 +2464,7 @@ class ScopeApi:
         Returns {ok, reason} (see _acl_edit). The editor is the user ACLs are checked for.
         """
         return self._acl_edit(lambda: set_role_rights(
-            path, role, None if rights is None else set(rights), editor=self._acl_user))
+            path, role, None if rights is None else set(rights), editor=self._acl_user_at(path)))
 
     def acl_user_groups(self, path: str, user: str) -> Dict[str, Any]:
         """
@@ -2463,7 +2481,7 @@ class ScopeApi:
         acl_edit.set_user_roles); [] removes the person. Returns {ok, reason} like
         acl_set_role_rights.
         """
-        return self._acl_edit(lambda: set_user_roles(path, user, set(groups), editor=self._acl_user))
+        return self._acl_edit(lambda: set_user_roles(path, user, set(groups), editor=self._acl_user_at(path)))
 
     def acl_group_choices(self, path: str) -> Dict[str, Any]:
         """The groups dialog for a person still to be added: {groups: [{key, name, member,
@@ -2477,7 +2495,7 @@ class ScopeApi:
         acl_edit.add_user). Returns {ok, reason} like acl_set_role_rights, and "exists"
         when a person of that name is listed already.
         """
-        return self._acl_edit(lambda: add_user(path, name, set(groups), editor=self._acl_user))
+        return self._acl_edit(lambda: add_user(path, name, set(groups), editor=self._acl_user_at(path)))
 
     def _acl_edit(self, edit: Callable[[], Any]) -> Dict[str, Any]:
         """Run an ACLs.md edit; {ok, reason}: "permission" (no change right), "lockout"
@@ -2849,7 +2867,7 @@ class ScopeApi:
     def _acl_rules_follow(self, old: Path, new: Path) -> None:
         """Rewrite ACL rules of old to new after a rename or move (rights unchanged)."""
         try:
-            move_acl_rules(old, new, editor=self._acl_user)
+            move_acl_rules(old, new, editor=self._acl_user_at(old))
         except (ACLEditError, OSError):
             pass
 
@@ -2993,7 +3011,7 @@ class ScopeApi:
             # projects into the system trash. Nothing is removed for good here.
             try:
                 if trash.project_trash_root(source) is not None:
-                    trash.move_to_trash(source, deleted_by=self._acl_user)
+                    trash.move_to_trash(source, deleted_by=self._acl_user_at(source))
                 else:
                     _move_to_system_trash(source)
                 result["deleted"].append(key)

@@ -161,7 +161,7 @@ def add_user(path, name: str, roles: Set[str], editor: str) -> Optional[Path]:
 
     written_name = str(name or "").strip()
     user_key = written_name.lower()
-    if not _PERSON_NAME.match(written_name):
+    if not is_person_name(written_name):
         raise ACLEditError(f"not a usable name: {written_name!r}")
     if user_key in policy.users:
         raise ACLPersonExistsError(f"{written_name!r} is already listed")
@@ -308,6 +308,16 @@ def _rule_lines_under(lines: List[str], rel: str) -> List[int]:
         if written.rstrip("/") == rel or written.startswith(rel + "/"):
             hits.append(i)
     return hits
+
+
+def is_person_name(name: str) -> bool:
+    """Whether name can stand as a person in "# Users" (see _PERSON_NAME)."""
+    return bool(_PERSON_NAME.match(str(name or "").strip()))
+
+
+def may_change_acls(policy: ACLPolicy, user: str) -> bool:
+    """Whether user has "change" on the project's ACLs.md (may change the rights)."""
+    return "change" in _user_rights(policy, user, ACL_FILE_REL)
 
 
 def _user_rights(policy: ACLPolicy, user: str, rel: str) -> Set[str]:
