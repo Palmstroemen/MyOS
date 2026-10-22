@@ -71,10 +71,14 @@ ThemePreset: BreezeDark
 PanelTheme: Mint-Y-Dark-Teal
 WallpaperPreset: finance_clean_01
 WallpaperPath: /absolute/or/project/relative/path.png
-DockPreset: finance_tools
 RecentPolicy: project-first
 ProjectIcon: plant
 Inherit: dynamic
+
+## Taskbar
+- nemo.desktop
+- firefox.desktop
+- md.obsidian.Obsidian.desktop:flatpak
 ```
 
 Notes:
@@ -88,7 +92,12 @@ Notes:
 - `WallpaperPreset`: a picture relative to the `Desk.md` (must stay inside its folder) or
   an absolute path; symbolic names are not implemented.
 - `WallpaperPath`: optional direct override (plain path; MyOS writes this one).
-- `DockPreset`: optional dock favorites preset key (not implemented yet).
+- `## Taskbar`: the programs pinned to the taskbar, a list of `.desktop` ids (Cinnamon
+  adds `:flatpak` for Flatpak apps), in this order. Running programs are not touched.
+  A heading without items means "nothing pinned"; no heading means "inherited" (see 4).
+  Replaces the earlier `DockPreset` idea (a preset name would need a list elsewhere).
+  Plain `.desktop` ids are not pretty; Scope can show the program names later.
+- Subheadings stay inside `# Desk`; a heading of the same or a higher level ends it.
 - `ProjectIcon`: icon of the project in Scope (theme icon name, path or URL).
 - `RecentPolicy`: optional UI-level recents display hint.
 - `Inherit`: recognized values `dynamic | fix | not` (default `dynamic`).
@@ -111,9 +120,10 @@ If both root `Desk.md` and `/.MyOS/Desk.md` are enabled for one directory, `/.My
 - Skip apply when identity is unchanged.
 - Apply in stable order:
   1) theme,
-  2) wallpaper,
-  3) dock,
-  4) optional recents policy handoff.
+  2) panel theme,
+  3) wallpaper,
+  4) taskbar (step "dock"),
+  5) optional recents policy handoff.
 
 ## 8. Backend Model
 
@@ -130,7 +140,19 @@ Backends (`core/desktop_backends/`), chosen from `XDG_CURRENT_DESKTOP`:
   `org.gnome.desktop.*` — wallpaper `picture-uri` (GNOME also `picture-uri-dark`),
   theme = application theme `gtk-theme`, panel theme = `org.cinnamon.theme name`
   (Cinnamon only).
-- Every backend can also `capture()` the desktop as it is (theme, wallpaper).
+- **Taskbar**: GNOME `org.gnome.shell favorite-apps`. Cinnamon keeps the pinned programs
+  in the settings file of its window list applet,
+  `~/.config/cinnamon/spices/grouped-window-list@cinnamon.org/<instance>.json`
+  (`pinned-apps`; the instance from `org.cinnamon enabled-applets`, the first window
+  list only). MyOS changes only `pinned-apps.value` there (atomically; everything else,
+  `__md5__` included, stays). The applet does not react to the file by itself
+  (Cinnamon 6.0: no callback for `pinned-apps`), so MyOS then calls over D-Bus
+  `org.Cinnamon.updateSetting` (reload the file) and `org.Cinnamon.activateCallback
+  updateFavorites` (the applet reloads its pinned programs). If that fails, the file is
+  written and Cinnamon shows it at its next start. KDE (launchers in
+  `plasma-org.kde.plasma.desktop-appletsrc`, changed through Plasma scripting) is not
+  built yet.
+- Every backend can also `capture()` the desktop as it is (themes, wallpaper, taskbar).
 Other desktop environments can be added later without changing `Desk.md` schema.
 Security: commands are argv lists (no shell); theme names are checked (no leading `-`,
 no quotes or control characters).
@@ -169,7 +191,7 @@ development and tests:
   settings once MyOS changed them, so MyOS saves the user's desktop there once, before it
   changes anything.
 - **Changes by the user are kept, without asking**: when the desktop differs from what
-  MyOS set last, MyOS writes themes and wallpaper into the `.MyOS/Desk.md` of the project
+  MyOS set last, MyOS writes themes, wallpaper and taskbar into the `.MyOS/Desk.md` of the project
   where the user was (creating it), keeping every other line (`ProjectIcon`, …).
   Outside projects the change goes into the system default. There is no "where to save"
   question: where it lands is not the user's concern.
@@ -177,8 +199,11 @@ development and tests:
   share what MyOS set last in `~/.config/MyOS/desk-state.json`, so neither takes the
   other's switch for a change by the user.
 - Open: projects shared by several people (sync, team) would get the personal desktop
-  of whoever changed it; belongs to the sharing model. Taskbar programs (`DockPreset`)
-  are a next step.
+  of whoever changed it; belongs to the sharing model.
+- A setting MyOS has never set (e.g. the taskbar, which older versions did not read) is
+  the user's own: when the system default lacks it, MyOS adds it there.
+- **Closing Scope** (or PostFix) keeps the look last used; MyOS does not restore the
+  user's own desktop then (decided 2026-10-22).
 - Observed (2026-10-21): switching the panel theme makes Cinnamon reload its theme, and
   the order of the windows in the taskbar changed. MyOS only switches when the profile
   differs; keep an eye on it.

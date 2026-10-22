@@ -24,11 +24,13 @@ class DeskConfig:
     project_icon: Optional[str]
     wallpaper_preset: Optional[str]
     wallpaper_path: Optional[str]
-    dock_preset: Optional[str]
     recent_policy: Optional[str]
     inherit: str
     raw: Dict[str, Any]
     panel_theme: Optional[str] = None  # theme of the taskbar / panels (Cinnamon "Desktop" theme)
+    # Programs pinned to the taskbar (.desktop ids, "## Taskbar" list); None: not set here,
+    # () : none pinned.
+    taskbar: Optional[Tuple[str, ...]] = None
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "DeskConfig":
@@ -50,33 +52,50 @@ class DeskConfig:
             project_icon=_first(normalized, "projecticon"),
             wallpaper_preset=_first(normalized, "wallpaperpreset"),
             wallpaper_path=_first(normalized, "wallpaperpath"),
-            dock_preset=_first(normalized, "dockpreset"),
             recent_policy=_first(normalized, "recentpolicy"),
             inherit=inherit,
             raw=dict(normalized),
             panel_theme=_first(normalized, "paneltheme"),
+            taskbar=tuple(normalized["taskbar"]) if "taskbar" in normalized else None,
         )
 
 
 def _desk_section(text: str) -> Dict[str, List[str]]:
     """
-    "key: value" lines of the "# Desk" section. Unlike the general config parser, values
-    may contain spaces ("PanelTheme: Linux Mint", paths with spaces) and blank lines or
-    notes do not end the section (they would silently drop the settings below them);
-    <!-- comments --> and " # ..." at the end of a line are ignored.
+    "key: value" lines of the "# Desk" section, and the "- item" list under its
+    "## Taskbar" subheading (as "Taskbar"; an empty list when the heading has no items).
+    Unlike the general config parser, values may contain spaces ("PanelTheme: Linux
+    Mint", paths with spaces) and blank lines or notes do not end the section (they would
+    silently drop the settings below them); <!-- comments --> and " # ..." at the end of
+    a line are ignored. Subheadings stay inside the section, a heading of the same or a
+    higher level ends it.
     """
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     values: Dict[str, List[str]] = {}
-    in_desk = False
+    desk_level: Optional[int] = None  # heading level of "# Desk" while inside it
+    in_taskbar = False
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):
             heading = stripped.lstrip("#").strip()
             if ": " not in heading:  # "#### inherit: not" is a property, not a heading
-                in_desk = heading.lower() == "desk"
+                level = len(stripped) - len(stripped.lstrip("#"))
+                if heading.lower() == "desk":
+                    desk_level, in_taskbar = level, False
+                elif desk_level is not None and level > desk_level:
+                    in_taskbar = heading.lower() == "taskbar"
+                    if in_taskbar:
+                        values["Taskbar"] = []
+                else:
+                    desk_level, in_taskbar = None, False
                 continue
             stripped = heading
-        if not in_desk:
+        if desk_level is None:
+            continue
+        if in_taskbar and stripped[:2] in ("- ", "* "):
+            item = re.split(r"\s#", stripped[2:], maxsplit=1)[0].strip()
+            if item:
+                values["Taskbar"].append(item)
             continue
         key, sep, value = stripped.partition(":")
         value = re.split(r"\s#", value, maxsplit=1)[0].strip()
@@ -188,16 +207,16 @@ def _parse_path(value: Union[str, Path]) -> Optional[DeskConfig]:
 # Settings a Desk.md may leave open; each one comes from the nearest desk above that has
 # it, at last from the fallback (the user's own desktop). Otherwise the value of the
 # project visited before would simply stay. ProjectIcon belongs to its project only.
-_INHERITED_FIELDS = ("theme_preset", "panel_theme", "dock_preset", "recent_policy")
+_INHERITED_FIELDS = ("theme_preset", "panel_theme", "taskbar", "recent_policy")
 
 
 def _complete(desk: DeskConfig, ancestors: List[Optional[DeskConfig]]) -> DeskConfig:
     """desk, with what it leaves open taken from ancestors (nearest first)."""
     donors = [config for config in ancestors if config is not None]
-    values: Dict[str, Any] = {
-        name: getattr(desk, name) or next((getattr(d, name) for d in donors if getattr(d, name)), None)
-        for name in _INHERITED_FIELDS
-    }
+    values: Dict[str, Any] = {}
+    for name in _INHERITED_FIELDS:
+        # "is not None": an empty taskbar is a setting (nothing pinned), not a gap.
+        values[name] = next((getattr(d, name) for d in [desk, *donors] if getattr(d, name) is not None), None)
     if not (desk.wallpaper_preset or desk.wallpaper_path):
         # Preset and path are one setting: a child's preset must not lose to a parent's path.
         donor = next((d for d in donors if d.wallpaper_preset or d.wallpaper_path), None)
@@ -272,7 +291,7 @@ def _has_any_profile_value(config: DeskConfig) -> bool:
             config.project_icon,
             config.wallpaper_preset,
             config.wallpaper_path,
-            config.dock_preset,
+            config.taskbar is not None,
             config.recent_policy,
         ]
     )

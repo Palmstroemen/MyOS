@@ -28,7 +28,8 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Rooms-Konzept (projektabhängige Desktops)
     [x] Desktop folgt den Projekten: Theme, Taskleisten-Theme (PanelTheme), Hintergrund; Änderungen werden automatisch gespeichert
     [ ] Beim Umschalten des Taskleisten-Themes ordnet Cinnamon die Fenster in der Taskleiste neu an (beobachten)
-    [ ] Taskleisten-Programme pro Projekt (DockPreset)
+    [x] Taskleisten-Programme pro Projekt (`## Taskbar`; Cinnamon, GNOME)
+    [ ] Taskleiste unter KDE; Programmnamen statt .desktop-Kennungen in Scope
 [ ] RecentFiles
 [ ] Learning MyOS weiter ausbauen
 [ ] Demodaten als Playground

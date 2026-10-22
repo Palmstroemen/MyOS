@@ -25,7 +25,6 @@ class KdeDesktopBackend(CommandDesktopBackend):
         super().__init__()
         self.enable_theme = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_THEME_ENABLE", "1"))
         self.enable_wallpaper = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_WALLPAPER_ENABLE", "1"))
-        self.enable_dock = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_DOCK_ENABLE", "0"))
         self.enable_recent_policy = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_RECENT_ENABLE", "0"))
 
     def capture(self) -> Optional[DesktopState]:
@@ -65,12 +64,11 @@ class KdeDesktopBackend(CommandDesktopBackend):
         return self._run_command(["plasma-apply-wallpaperimage", wallpaper], dry_run=dry_run, label="wallpaper")
 
     def apply_dock(self, config: DeskConfig, *, dry_run: bool = True) -> BackendStepResult:
-        preset = str(config.dock_preset or "").strip()
-        if not preset:
-            return BackendStepResult(ok=True, message="dock skipped (no preset)")
-        if not self.enable_dock:
-            return BackendStepResult(ok=True, message="dock skipped (capability disabled)")
-        return BackendStepResult(ok=True, message=f"dock hook acknowledged ({preset})")
+        if config.taskbar is None:
+            return BackendStepResult(ok=True, message="taskbar skipped (none set)")
+        # Plasma keeps its launchers in plasma-org.kde.plasma.desktop-appletsrc and takes
+        # changes only through its scripting API; not built yet (no KDE to try it on).
+        return BackendStepResult(ok=True, message="taskbar skipped (not supported on kde yet)")
 
     def apply_recent_policy(self, config: DeskConfig, *, dry_run: bool = True) -> BackendStepResult:
         policy = str(config.recent_policy or "").strip()

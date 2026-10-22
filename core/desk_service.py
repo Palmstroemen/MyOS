@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from core.desk import DeskConfig
 from core.desk_runtime import DeskRuntime
 from core.desktop_backends.base import DesktopState
 from core.project import find_config_in_parents, find_next_parent_config
@@ -22,24 +23,35 @@ def desk_home() -> Path:
 
 
 _DESK_KEYS = (("ThemePreset", "theme"), ("PanelTheme", "panel_theme"), ("WallpaperPath", "wallpaper"))
+_STATE_FIELDS = ("theme", "panel_theme", "wallpaper", "taskbar")
+
+
+def _heading(line: str) -> Optional[tuple[int, str]]:
+    """(level, lower-case name) of a Markdown heading line, None for other lines."""
+    stripped = line.strip()
+    if not stripped.startswith("#"):
+        return None
+    return len(stripped) - len(stripped.lstrip("#")), stripped.lstrip("#").strip().lower()
 
 
 def write_desk_values(desk_file: Path, state: DesktopState) -> None:
     """
-    Put themes and wallpaper of state into desk_file ("# Desk"), keeping every other
-    line (ProjectIcon, comments, ...); creates the file. Written atomically.
+    Put themes, wallpaper and taskbar of state into desk_file ("# Desk", the taskbar as
+    "## Taskbar" list), keeping every other line (ProjectIcon, comments, ...); creates
+    the file. Written atomically.
     """
     # Security: never write through a symlink (the reader ignores symlinked desks).
     if desk_file.is_symlink():
         raise OSError(f"refusing to write symlinked {desk_file}")
     lines = desk_file.read_text(encoding="utf-8").splitlines() if desk_file.exists() else []
     values = {key: getattr(state, field) for key, field in _DESK_KEYS if getattr(state, field)}
-    start = next((i for i, line in enumerate(lines) if line.strip().lstrip("#").strip().lower() == "desk"
-                  and line.strip().startswith("#")), None)
+    start = next((i for i, line in enumerate(lines) if (_heading(line) or (0, ""))[1] == "desk"), None)
     if start is None:
         lines = (lines + [""] if lines and lines[-1].strip() else lines) + ["# Desk"]
         start = len(lines) - 1
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].strip().startswith("#")), len(lines))
+    level = _heading(lines[start])[0]
+    # The section ends at a heading of the same or a higher level; "## Taskbar" is inside.
+    end = next((i for i in range(start + 1, len(lines)) if (_heading(lines[i]) or (99, ""))[0] <= level), len(lines))
     for key, value in values.items():
         hit = next((i for i in range(start + 1, end) if lines[i].split(":", 1)[0].strip().lower() == key.lower()), None)
         if hit is not None:
@@ -47,10 +59,30 @@ def write_desk_values(desk_file: Path, state: DesktopState) -> None:
         else:
             lines.insert(start + 1, f"{key}: {value}")
             end += 1
+    if state.taskbar is not None:
+        _put_taskbar(lines, start, end, state.taskbar)
     desk_file.parent.mkdir(parents=True, exist_ok=True)
     draft = desk_file.with_name("." + desk_file.name + ".draft")
     draft.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.replace(draft, desk_file)
+
+
+def _put_taskbar(lines: List[str], start: int, end: int, apps: tuple[str, ...]) -> None:
+    """Replace the items of "## Taskbar" in lines[start:end] (or add the list at its end)."""
+    items = [f"- {app}" for app in apps]
+    heading = next((i for i in range(start + 1, end) if (_heading(lines[i]) or (0, ""))[1] == "taskbar"), None)
+    if heading is None:
+        at = end
+        while at > start + 1 and not lines[at - 1].strip():
+            at -= 1
+        lines[at:at] = ["", "## Taskbar", *items]
+        return
+    old_end = heading + 1  # the old items, and the blank lines between them
+    while old_end < end and (not lines[old_end].strip() or lines[old_end].strip()[:2] in ("- ", "* ")):
+        old_end += 1
+    while old_end > heading + 1 and not lines[old_end - 1].strip():
+        old_end -= 1  # blank lines after the list stay
+    lines[heading + 1:old_end] = items
 
 
 def _project_roots(path: Path) -> tuple[Optional[Path], Optional[Path]]:
@@ -61,6 +93,32 @@ def _project_roots(path: Path) -> tuple[Optional[Path], Optional[Path]]:
             nearest = nearest or candidate
             top = candidate
     return nearest, top
+
+
+def _never_set_by_myos(current: DesktopState, applied: Optional[DesktopState]) -> Dict[str, Any]:
+    """Settings of current that MyOS has not set yet (nothing applied, or it could not read them)."""
+    unknown = (None, "")
+    return {
+        field: getattr(current, field)
+        for field in _STATE_FIELDS
+        if getattr(current, field) not in unknown and (applied is None or getattr(applied, field) in unknown)
+    }
+
+
+def _desk_has(desk_file: Path, field: str) -> bool:
+    """Whether desk_file sets the DesktopState field."""
+    try:
+        config = DeskConfig.from_file(desk_file) if desk_file.is_file() else None
+    except Exception:
+        return False
+    if config is None:
+        return False
+    return {
+        "theme": config.theme_preset is not None,
+        "panel_theme": config.panel_theme is not None,
+        "wallpaper": bool(config.wallpaper_path or config.wallpaper_preset),
+        "taskbar": config.taskbar is not None,
+    }[field]
 
 
 class DeskService:
@@ -128,13 +186,19 @@ class DeskService:
             return runtime.handle_context(target, manual_desk=manual_desk, boundary=top)
 
         shared = self._read_shared()
-        changed = shared.get("applied") is not None and current != shared["applied"]
+        applied = shared.get("applied")
+        own = _never_set_by_myos(current, applied)
+        missing = DesktopState(**{f: v for f, v in own.items() if not _desk_has(system_desk, f)})
+        if missing != DesktopState():
+            # Before MyOS changes anything: the user's own desktop, restored outside projects.
+            # Also for settings MyOS learned to read later (an older system default).
+            write_desk_values(system_desk, missing)
+        changed = applied is not None and any(
+            getattr(applied, f) is not None and getattr(current, f) != getattr(applied, f) for f in _STATE_FIELDS
+        )
         if changed and shared.get("owner"):
             # The user changed the desktop since MyOS set it: keep it where it was changed.
             write_desk_values(Path(shared["owner"]), current)
-        if not system_desk.exists():
-            # Before MyOS changes anything: the user's own desktop, restored outside projects.
-            write_desk_values(system_desk, current)
 
         # "Same profile as last time" only means "nothing to do" while the desktop is
         # still as MyOS set it; after a change the profile is applied again.
@@ -151,6 +215,8 @@ class DeskService:
         try:
             data = json.loads((desk_home() / "desk-state.json").read_text(encoding="utf-8"))
             applied = data.get("applied")
+            if isinstance(applied, dict) and isinstance(applied.get("taskbar"), list):
+                applied["taskbar"] = tuple(applied["taskbar"])
             data["applied"] = DesktopState(**applied) if isinstance(applied, dict) else None
             return data
         except (OSError, ValueError, TypeError):
@@ -160,7 +226,12 @@ class DeskService:
         state_file = desk_home() / "desk-state.json"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "applied": {"theme": applied.theme, "wallpaper": applied.wallpaper, "panel_theme": applied.panel_theme},
+            "applied": {
+                "theme": applied.theme,
+                "wallpaper": applied.wallpaper,
+                "panel_theme": applied.panel_theme,
+                "taskbar": list(applied.taskbar) if applied.taskbar is not None else None,
+            },
             "owner": str(owner),
             "source": source,
             "hash": profile_hash,

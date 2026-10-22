@@ -2,6 +2,7 @@
 
 subprocess is always faked: tests must never change the real desktop."""
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -142,3 +143,94 @@ def test_panel_theme_names_are_checked_and_gnome_skips_it(gsettings, tmp_path):
     result = build_backend("gnome").apply_panel_theme(_config(tmp_path, paneltheme="Mint-Y"), dry_run=False)
     assert result.ok is True and "not supported" in result.message
     assert gsettings.calls == []
+
+
+def test_gnome_sets_and_reads_the_taskbar(gsettings, tmp_path):
+    backend = build_backend("gnome")
+
+    config = _config(tmp_path)
+    config = DeskConfig.from_data(config.source_path, {"Desk": {"Taskbar": ["org.gnome.Nautilus.desktop", "firefox.desktop"]}})
+    assert backend.apply_dock(config, dry_run=False).ok
+    assert gsettings.calls == [["gsettings", "set", "org.gnome.shell", "favorite-apps",
+                                "['org.gnome.Nautilus.desktop', 'firefox.desktop']"]]
+
+    gsettings.values[("org.gnome.shell", "favorite-apps")] = "['a.desktop', 'b.desktop']\n"
+    assert backend.capture().taskbar == ("a.desktop", "b.desktop")
+    gsettings.values[("org.gnome.shell", "favorite-apps")] = "@as []\n"
+    assert backend.capture().taskbar == ()
+
+
+def _taskbar(tmp_path: Path, apps) -> DeskConfig:
+    return DeskConfig.from_data(tmp_path / ".MyOS" / "Desk.md", {"Desk": {"Taskbar": list(apps)}})
+
+
+@pytest.mark.parametrize("app", ["-a.desktop", "a b.desktop", "x'.desktop", "../x.desktop", "firefox", "a\n.desktop"])
+def test_unsafe_program_names_are_refused_without_running_anything(gsettings, tmp_path, app):
+    assert build_backend("gnome").apply_dock(_taskbar(tmp_path, ["nemo.desktop", app]), dry_run=False).ok is False
+    assert gsettings.calls == []
+
+
+@pytest.fixture
+def cinnamon_applet(gsettings, monkeypatch, tmp_path):
+    """The grouped window list (instance 79) of a Cinnamon panel, its settings in tmp_path."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    gsettings.values[("org.cinnamon", "enabled-applets")] = (
+        "['panel1:left:0:menu@cinnamon.org:0', 'panel1:left:2:grouped-window-list@cinnamon.org:79']\n"
+    )
+    settings = tmp_path / "config" / "cinnamon" / "spices" / "grouped-window-list@cinnamon.org" / "79.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(json.dumps({
+        "group-apps": {"type": "switch", "default": True, "value": True},
+        "pinned-apps": {"type": "generic", "default": ["nemo.desktop"], "value": ["nemo.desktop", "firefox.desktop"]},
+        "__md5__": "abc",
+    }, indent=4))
+    return settings
+
+
+def test_cinnamon_reads_the_pinned_programs_of_its_window_list(gsettings, cinnamon_applet):
+    assert build_backend("cinnamon").capture().taskbar == ("nemo.desktop", "firefox.desktop")
+
+
+def test_cinnamon_writes_only_the_pinned_programs_and_tells_the_window_list(gsettings, cinnamon_applet, tmp_path):
+    before = json.loads(cinnamon_applet.read_text())
+
+    result = build_backend("cinnamon").apply_dock(_taskbar(tmp_path, ["gimp.desktop", "x.desktop:flatpak"]), dry_run=False)
+
+    assert result.ok, result.message
+    after = json.loads(cinnamon_applet.read_text())
+    before["pinned-apps"]["value"] = ["gimp.desktop", "x.desktop:flatpak"]
+    assert after == before
+    gdbus = [c for c in gsettings.calls if c[0] == "gdbus"]
+    assert [c[-4:] for c in gdbus] == [
+        ["'grouped-window-list@cinnamon.org'", "'79'", "'pinned-apps'", "'[\"gimp.desktop\", \"x.desktop:flatpak\"]'"],
+        ["org.Cinnamon.activateCallback", "'updateFavorites'", "'grouped-window-list@cinnamon.org'", "'79'"],
+    ]
+    assert gdbus[0][:9] == ["gdbus", "call", "--session", "--dest", "org.Cinnamon", "--object-path", "/org/Cinnamon",
+                            "--method", "org.Cinnamon.updateSetting"]
+
+
+def test_cinnamon_taskbar_dry_run_and_symlinks_change_nothing(gsettings, cinnamon_applet, tmp_path):
+    original = cinnamon_applet.read_text()
+    backend = build_backend("cinnamon")
+
+    assert backend.apply_dock(_taskbar(tmp_path, ["gimp.desktop"]), dry_run=True).ok
+    assert cinnamon_applet.read_text() == original
+
+    elsewhere = tmp_path / "elsewhere.json"
+    elsewhere.write_text(original)
+    cinnamon_applet.unlink()
+    cinnamon_applet.symlink_to(elsewhere)
+    assert backend.apply_dock(_taskbar(tmp_path, ["gimp.desktop"]), dry_run=False).ok is False
+    assert elsewhere.read_text() == original
+    assert not [c for c in gsettings.calls if c[0] == "gdbus"]
+
+
+def test_cinnamon_without_a_grouped_window_list_skips_the_taskbar(gsettings, monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    gsettings.values[("org.cinnamon", "enabled-applets")] = "['panel1:left:0:menu@cinnamon.org:0']\n"
+    gsettings.values[("org.cinnamon.desktop.interface", "gtk-theme")] = "'Mint-Y'\n"
+    backend = build_backend("cinnamon")
+
+    assert backend.capture().taskbar is None
+    result = backend.apply_dock(_taskbar(tmp_path, ["gimp.desktop"]), dry_run=False)
+    assert result.ok and "skipped" in result.message

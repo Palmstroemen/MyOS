@@ -28,6 +28,15 @@ def is_safe_theme_name(name: str) -> bool:
     return bool(_THEME_NAME_RE.match(str(name or "")))
 
 
+# Programs in the taskbar: .desktop ids, Cinnamon adds ":flatpak" for Flatpak apps.
+# Security: no leading "-", no path separators, quotes, spaces or control characters.
+_APP_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,150}\.desktop(:[a-z]{1,20})?$")
+
+
+def is_safe_app_id(app: str) -> bool:
+    return bool(_APP_ID_RE.match(str(app or "")))
+
+
 def plain_path(value: str) -> str:
     """A wallpaper as a plain path: KDE and GNOME store file:// URIs."""
     text = str(value or "").strip()

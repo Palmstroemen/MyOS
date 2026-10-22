@@ -288,7 +288,7 @@ def test_desk_config_from_data_handles_weird_types_without_crash(tmp_path):
         "Desk": [
             {"ThemePreset": 123},
             {"WallpaperPreset": ["a.png", None, ""]},
-            {"DockPreset": {"nested": "value"}},
+            {"Taskbar": {"nested": "value"}},
             {"RecentPolicy": False},
             {"Inherit": ["invalid-value"]},
         ]
@@ -303,7 +303,7 @@ def test_desk_config_from_data_handles_weird_types_without_crash(tmp_path):
 
     assert cfg.theme_preset == "123"
     assert cfg.wallpaper_preset == "a.png"
-    assert cfg.dock_preset == "{'nested': 'value'}"
+    assert cfg.taskbar == ("{'nested': 'value'}",)
     assert cfg.recent_policy == "False"
     assert cfg.inherit == "dynamic"
 
@@ -499,3 +499,35 @@ def test_an_inherited_wallpaper_preset_may_not_escape_its_desk_folder(tmp_path):
     resolved = resolve_active_desk(root / "Child")
 
     assert resolved.wallpaper_preset is None and resolved.theme_preset == "ChildTheme"
+
+
+def test_the_taskbar_is_a_list_under_its_own_heading(tmp_path):
+    desk = _desk_file(
+        tmp_path,
+        "ThemePreset: Mint-Y\n"
+        "\n"
+        "## Taskbar\n"
+        "- nemo.desktop\n"
+        "\n"
+        "- md.obsidian.Obsidian.desktop:flatpak  # notes\n"
+        "<!-- - firefox.desktop -->\n"
+        "PanelTheme: Linux Mint\n"
+        "\n"
+        "# Andere\n"
+        "- nicht.desktop\n",
+    )
+
+    config = DeskConfig.from_file(desk)
+
+    assert config.taskbar == ("nemo.desktop", "md.obsidian.Obsidian.desktop:flatpak")
+    assert (config.theme_preset, config.panel_theme) == ("Mint-Y", "Linux Mint")
+
+
+def test_an_empty_taskbar_heading_means_no_programs_and_no_heading_means_inherit(tmp_path):
+    root = tmp_path / "Project"
+    _desk_file(root, "## Taskbar\n- nemo.desktop\n")
+    _desk_file(root / "Leer", "ThemePreset: X\n## Taskbar\n")
+    _desk_file(root / "Erbt", "ThemePreset: Y\n")
+
+    assert resolve_active_desk(root / "Leer").taskbar == ()
+    assert resolve_active_desk(root / "Erbt").taskbar == ("nemo.desktop",)

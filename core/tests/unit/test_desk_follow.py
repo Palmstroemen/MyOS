@@ -31,8 +31,9 @@ class FakeDesktop(DesktopBackend):
 
     name = "fake"
 
-    def __init__(self, theme="Mint-Y", wallpaper="/usr/share/backgrounds/default.jpg", panel_theme="Linux Mint"):
-        self.state = DesktopState(theme=theme, wallpaper=wallpaper, panel_theme=panel_theme)
+    def __init__(self, theme="Mint-Y", wallpaper="/usr/share/backgrounds/default.jpg", panel_theme="Linux Mint",
+                 taskbar=("nemo.desktop",)):
+        self.state = DesktopState(theme=theme, wallpaper=wallpaper, panel_theme=panel_theme, taskbar=taskbar)
         self.applied = 0
 
     def capture(self) -> Optional[DesktopState]:
@@ -55,11 +56,17 @@ class FakeDesktop(DesktopBackend):
             self.applied += 1
         return BackendStepResult(ok=True)
 
-    def user_changes(self, theme=None, wallpaper=None, panel_theme=None):
+    def apply_dock(self, config, *, dry_run=True):
+        if config.taskbar is not None and not dry_run:
+            self.state = replace(self.state, taskbar=config.taskbar)
+        return BackendStepResult(ok=True)
+
+    def user_changes(self, theme=None, wallpaper=None, panel_theme=None, taskbar=None):
         self.state = DesktopState(
             theme=theme or self.state.theme,
             wallpaper=wallpaper or self.state.wallpaper,
             panel_theme=panel_theme or self.state.panel_theme,
+            taskbar=self.state.taskbar if taskbar is None else taskbar,
         )
 
 
@@ -294,4 +301,58 @@ def test_what_a_desk_leaves_open_does_not_stay_from_the_previous_project(tree):
 
     service.refresh_context(tree["haus"])
 
-    assert desktop.state == DesktopState(theme="Projekte-Theme", wallpaper="/bg/haus.jpg", panel_theme="Linux Mint")
+    assert desktop.state == DesktopState(theme="Projekte-Theme", wallpaper="/bg/haus.jpg", panel_theme="Linux Mint",
+                                         taskbar=("nemo.desktop",))
+
+
+def test_the_taskbar_follows_the_projects(tree):
+    (tree["garten"] / ".MyOS" / "Desk.md").write_text(
+        "# Desk\nThemePreset: Garten-Theme\n\n## Taskbar\n- nemo.desktop\n- gimp.desktop\n"
+    )
+    desktop = FakeDesktop(taskbar=("nemo.desktop", "firefox.desktop"))
+    service = _service(desktop)
+
+    service.refresh_context(tree["hecke"])
+    assert desktop.state.taskbar == ("nemo.desktop", "gimp.desktop")
+
+    desktop.user_changes(taskbar=("gimp.desktop", "inkscape.desktop"))  # pinned in the taskbar
+    service.refresh_context(tree["outside"])
+
+    assert desktop.state.taskbar == ("nemo.desktop", "firefox.desktop")
+    assert _desk(tree["garten"]).endswith("## Taskbar\n- gimp.desktop\n- inkscape.desktop\n")
+    service.refresh_context(tree["garten"])
+    assert desktop.state.taskbar == ("gimp.desktop", "inkscape.desktop")
+
+
+def test_an_existing_system_default_learns_the_own_taskbar(tree):
+    # Before MyOS knew the taskbar the system default was saved without it; MyOS never
+    # changed the taskbar, so what is pinned now is the user's own.
+    desktop = FakeDesktop(taskbar=None)
+    service = _service(desktop)
+    service.refresh_context(tree["outside"])
+    assert "Taskbar" not in (desk_home() / "Desk.md").read_text()
+    (tree["garten"] / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Garten-Theme\n## Taskbar\n- gimp.desktop\n")
+
+    desktop.state = replace(desktop.state, taskbar=("nemo.desktop", "firefox.desktop"))  # MyOS now reads it
+    service.refresh_context(tree["garten"])
+    assert desktop.state.taskbar == ("gimp.desktop",)
+    service.refresh_context(tree["outside"])
+
+    assert desktop.state.taskbar == ("nemo.desktop", "firefox.desktop")
+    assert "## Taskbar\n- nemo.desktop\n- firefox.desktop\n" in (desk_home() / "Desk.md").read_text()
+    assert "nemo.desktop" not in _desk(tree["garten"])
+
+
+def test_writing_the_taskbar_replaces_only_its_list(tmp_path):
+    from core.desk_service import write_desk_values
+
+    desk = tmp_path / "Desk.md"
+    desk.write_text("# Desk\nThemePreset: Alt\n\n## Taskbar\n- alt.desktop\n\nNotiz\n\n# Andere\nx: 1\n")
+    write_desk_values(desk, DesktopState(theme="Neu", taskbar=("a.desktop", "b.desktop:flatpak")))
+    assert desk.read_text() == (
+        "# Desk\nThemePreset: Neu\n\n## Taskbar\n- a.desktop\n- b.desktop:flatpak\n\nNotiz\n\n# Andere\nx: 1\n"
+    )
+
+    desk.write_text("# Desk\nThemePreset: Alt\n\n# Andere\nx: 1\n")
+    write_desk_values(desk, DesktopState(taskbar=()))
+    assert desk.read_text() == "# Desk\nThemePreset: Alt\n\n## Taskbar\n\n# Andere\nx: 1\n"

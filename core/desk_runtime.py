@@ -202,7 +202,7 @@ class DeskRuntime:
             "project_icon": config.project_icon,
             "wallpaper_preset": config.wallpaper_preset,
             "wallpaper_path": config.wallpaper_path,
-            "dock_preset": config.dock_preset,
+            "taskbar": list(config.taskbar) if config.taskbar is not None else None,
             "recent_policy": config.recent_policy,
             "inherit": config.inherit,
             "raw": config.raw,

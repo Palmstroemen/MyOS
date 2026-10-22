@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 from core.desk import DeskConfig
 
@@ -14,11 +14,12 @@ class BackendStepResult:
 
 @dataclass(frozen=True)
 class DesktopState:
-    """What a Desk.md describes of the running desktop: themes and wallpaper path."""
+    """What a Desk.md describes of the running desktop: themes, wallpaper path, taskbar."""
 
     theme: str = ""
     wallpaper: str = ""
     panel_theme: str = ""
+    taskbar: Optional[Tuple[str, ...]] = None  # pinned programs; None: this desktop cannot tell
 
 
 class DesktopBackend:
