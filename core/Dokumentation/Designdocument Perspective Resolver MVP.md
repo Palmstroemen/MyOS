@@ -94,6 +94,11 @@ department folder without a lens does not change the Desk.
   as") write into `/04_Finanz/Projekte/Job` and the file lands in `Projekte/Job/04_Finanz`.
   The drive always shows the **whole turned tree** of the projects root -
   `/<department>/Projekte/<project>/...` - independent of the lens Scope shows.
+- **Where:** a visible folder `Perspektiven` next to `Projekte` (decided 2026-10-22):
+  `.../Perspektiven/04_Finanz/Projekte/Job`. Its top level shows the departments
+  (`00_Admin` ... `08_Dokumentation`), each with `Projekte` below. It is not mounted over
+  `Projekte`: programs (file managers, backups, git, Scope) keep seeing the real projects,
+  and the daemon reads them without reading itself.
 - A filter may put on a lens (`## Perspective`, see "Designdocument Perspectives.md"):
   activating it puts the lens on through the session, like the gesture.
 
@@ -121,9 +126,6 @@ GUIs show it. No CPD building in QML (Scope, SunTree).
 
 ## A9. Open
 
-- Where the drive appears and its name (today a hidden runtime folder; e.g. "Meine
-  Struktur" or `~/MyOS Ansichten`).
-- The drive's top level: only the departments, or `Projekte` (the normal view) too.
 - The default of the fallback: with or without folders (A4).
 
 # Part B - Resolver Contract (v1, MVP)
