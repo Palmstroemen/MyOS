@@ -1,4 +1,133 @@
-# MyOS Perspective Resolver v1 (MVP Contract)
+# MyOS Perspective - The Lens (Behaviour) and the Resolver Contract
+
+Part A describes how the perspective behaves for the user (decided 2026-10-22). Part B is
+the resolver contract it is built on (v1/v1.1, February/March 2026). Section A8 lists what
+changes against what was built before.
+
+# Part A - The Lens
+
+## A1. The Picture
+
+A perspective is a **lens**: one looks at the projects from a department's point of view.
+Normally one looks from a project: `/Projekte/Job/04_Finanz/Rechnungen`. Wearing the lens
+of the finance department, the path is turned round: `/04_Finanz/Projekte/Job/Rechnungen`.
+Below `/04_Finanz` one sees only finances, but those of all projects ("the shelf",
+`/04_Finanz/Projekte`). See "Vision/Brillen und die runde Halle.md".
+
+Example. Two passions: making music and travelling, so two projects, `/Musikstudio` and
+`/Reisen`.
+
+1. I am in the music studio: top left in my slim Scope, `/Musikstudio` is the CWD; dark
+   theme, Ableton and MuseScore in the taskbar (Desk).
+2. An invoice for the studio comes in. Mouse up: I see the studio's MyOS folders and drop
+   it onto `/04_Finanz` (embryo or born; an embryo is born by that). No lens needed.
+3. An invoice for the travels comes in. I do not want to go to `/Reisen`. I hover through
+   `/04_Finanz` → `/Ausgangsrechnungen` → `/2026` and double-click `2026`: I now wear the
+   `/04_Finanz/Ausgangsrechnungen/2026` lens. The desktop turns into the finance one
+   (light theme, spreadsheet and accounting in the taskbar).
+4. Below the lens folder a project menu lets me go to `/Reisen`: I am at once in
+   `Reisen/04_Finanz/Ausgangsrechnungen/2026` and drop the invoice there. (If `2026` does
+   not exist there yet, the folder is born or sorting by date files it into its year.)
+5. Back to the studio: `/Musikstudio` still stands top left. A double click on it (or
+   "End perspective") takes the lens off - I am in the studio again, with its desktop.
+
+## A2. Terms
+
+- **CWD** - where I am: the project shown top left. Its Desk applies without a lens.
+- **CTD** - where I look and drop (see "Vision/GUI Filebrowser.md"). With a lens on, the
+  lens is the CTD: it can point into another project than the CWD.
+- **Lens (CPD)** - the turned path, e.g. `/04_Finanz/Ausgangsrechnungen/2026/Projekte/Reisen`
+  in the resolver's form: the department path (template side), the project, and a tail.
+  A lens may sit at any depth of the department (`/04_Finanz`, `/04_Finanz/Ausgangsrechnungen/2026`).
+- **Department** - a template folder (`00_Admin` ... `08_Dokumentation`).
+
+## A3. Gestures
+
+1. **Put on a lens:** double click on a department folder - or any folder below it, at
+   any depth - in the CWD's MyOS folders (hover menu / template row). The lens starts at
+   the CWD's project (`/04_Finanz/Projekte/Musikstudio`), not at the shelf. The CWD stays.
+2. **Two menus, one meaning each:**
+   - **Left menu (CWD):** always changes the project one is in - with or without a lens.
+     With a lens on, the lens follows the new CWD (it looks from where one is); a project
+     chosen before in the right menu is forgotten. Taking the lens off then leaves one in
+     the new CWD.
+   - **Right menu (below the lens folder, the CTD):** moves only the lens to another
+     project. The CWD stays; taking the lens off brings one back to it.
+3. **Keep the depth:** moving the lens to another project keeps the whole department path
+   and tail (`.../Ausgangsrechnungen/2026`).
+4. **The shelf:** going up to `/04_Finanz/Projekte` shows all projects as the
+   department's folders - real projects only (no `Clipboard`, no plain folders).
+5. **Change the lens:** a double click on another department folder while wearing one.
+6. **Take the lens off:** a double click on the CWD, or "End perspective". The lens is
+   really off (no special "OFF" path); one is in the CWD again, with its Desk.
+7. **Without a lens:** a single click on a department folder opens that folder *of the
+   CWD's project* (born or embryo) - not the real `Templates` folder.
+
+## A4. What the Lens Shows
+
+- The FilesPanel shows the lens' content, not the real folder of the CWD. Opening,
+  dragging, deleting, renaming act on the real files.
+- **Department folder not born in a project:** the nearest existing parent of the same
+  project is shown (v1.1 fallback, B15), with its folders - e.g. a few invoices lying at
+  the project's top. Scope's switch to hide folders lets the user see only the files; we
+  try out which is better and make one variant the default later.
+- Dropping into the lens creates the canonical target (department folder born on the way,
+  B6/B15); sorting by date (core/filing.py) and the x-ray view apply as everywhere.
+- ACLs apply to the real paths, identically in Scope, CLI and FUSE.
+
+## A5. Desk With a Lens
+
+While a lens is on, the department's Desk applies (the nearest `Desk.md` up the
+department path: `2026` → `Ausgangsrechnungen` → `04_Finanz`, prepared in the template, e.g.
+`Templates/Standard/04_Finanz/.MyOS/Desk.md`), wherever the lens or the CWD is moved.
+Taking the lens off brings back the CWD project's Desk. Dropping something into a
+department folder without a lens does not change the Desk.
+
+## A6. One Session: Daemon and FUSE
+
+- The lens' state (off, or on with its CPD and the CWD it looks from) lives in **one place:
+  the perspective daemon**. Scope, SunTree and the CLI only ask it; they build no CPDs
+  themselves. The daemon uses the same core as `ScopeApi` (no logic of its own).
+- Scope starts *its* daemon for its projects root when none runs, and does not attach to a
+  daemon serving another root.
+- The **FUSE drive** is why the daemon exists: third-party programs (LibreOffice "Save
+  as") write into `/04_Finanz/Projekte/Job` and the file lands in `Projekte/Job/04_Finanz`.
+  The drive always shows the **whole turned tree** of the projects root -
+  `/<department>/Projekte/<project>/...` - independent of the lens Scope shows.
+- A filter may put on a lens (`## Perspective`, see "Designdocument Perspectives.md"):
+  activating it puts the lens on through the session, like the gesture.
+
+## A7. Built In Core
+
+The gesture rules live in the core as a perspective session (actions such as put on,
+move to project, go, take off; the lens' listing), tested there; the daemon serves it, the
+GUIs show it. No CPD building in QML (Scope, SunTree).
+
+## A8. Changed Against What Was Built Before
+
+- **"Off" is off.** Before, "Perspective OFF" set the CPD `/Templates` (canonical OFF
+  anchor); the perspective stayed active, the OFF button and pin stayed visible.
+- **The drive does not follow Scope's lens.** Before, the FUSE context came from the
+  session's current state.
+- **One state.** Before, the state lived in ScopeApi, in the daemon (with its own,
+  diverging `set_cpd`: no OFF anchor, no fallback, other CPD form, "ok" with the old CPD on
+  failure), in Scope's QML (display path and CPD cache), in SunTree's QML, and in filters
+  (changing ScopeApi past the daemon). Scope attached to any running daemon and sent some
+  calls to it, others to its local ScopeApi.
+- **Single click on a department folder** opened the real `Templates` folder.
+- **Unchanged:** the resolver contract (Part B), the directory fallback with folders
+  (A4), double click on the CWD ends the perspective, a template double click sets only the
+  lens.
+
+## A9. Open
+
+- Where the drive appears and its name (today a hidden runtime folder; e.g. "Meine
+  Struktur" or `~/MyOS Ansichten`).
+- The drive's top level: only the departments, or `Projekte` (the normal view) too.
+- The default of the fallback: with or without folders (A4).
+
+# Part B - Resolver Contract (v1, MVP)
+
 
 ## 1. Goal
 

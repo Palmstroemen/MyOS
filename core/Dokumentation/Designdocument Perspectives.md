@@ -149,6 +149,7 @@ Filters provide user‑friendly, powerful views over MyOS data:
 ## **14. Next Step: Perspective Runtime Contract**
 The upcoming flipped path-space Perspective runtime uses a separate contract document:
 
-- `core/Dokumentation/Designdocument Perspective Resolver MVP.md`
+- `core/Dokumentation/Designdocument Perspective Resolver MVP.md` (Part A: how the lens behaves for
+  the user, decided 2026-10-22; Part B: the resolver contract)
 
 This split keeps current Filter behavior stable while defining CPD/CWD resolver semantics for the new Perspective model.

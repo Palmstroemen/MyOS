@@ -27,7 +27,8 @@ Kompakter Überblick: `docs/STATUS.md`.
     Regel im Ordner selbst, flach → virtuell → echt ab NewLevelFrom, Ablage durch Nachholen statt Beobachter, echtes EXIF
     [ ] Regel bequem einrichten (heute: Knopf "Enable sorting" im aktuellen Ordner oder von Hand); myls zeigt virtuelle Ebenen noch nicht
 [ ] SunTree
-[ ] Perspektiven (siehe unten)
+[ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
+    Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
 [ ] ACLs
 [ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)
