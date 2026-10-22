@@ -37,7 +37,11 @@ Kompakter Überblick: `docs/STATUS.md`.
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
 [ ] PostFix UI verfeinern und Exporter bauen
     [x] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
-    [ ] ACL-Panel: Embryos wahlweise mit einbeziehen (Schalter); derzeit zählen sie nicht
+    [x] ACL-Panel: Embryos zählen nicht mit (ein Schalter dafür wird nicht gebraucht)
+    [ ] Templates mit eigenen ACLs: Rechte stehen direkt im Template und werden in neue Projekte übernommen.
+        Änderungen werden nicht automatisch ausgerollt; Abfrage "Sollen diese neuen Rechte auf alle
+        existierenden Projekte angewendet werden?" (z. B. wenn ein Mitarbeiter gekündigt wurde).
+        Damit sieht und bearbeitet man die Rechte der Vorlagenordner in den Templates selbst.
     [x] Personen-Chip: Gruppen einer Person ändern (`# Users`)
     [ ] Person hinzufügen (neue Zeile in `# Users`)
     [x] Ordner umbenennen: passende Regeln in ACLs.md mitziehen (sonst greifen sie ins Leere)

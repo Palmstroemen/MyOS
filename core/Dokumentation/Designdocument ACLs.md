@@ -295,6 +295,11 @@ Define a small, stable interface for ACL backends:
 - Do we ever need a dedicated `mychmod` command, or is ACL editing sufficient?
 - How should role inheritance be expressed?
 - Should template roles auto‑generate users/groups?
+- **Templates with their own ACLs** (decided 2026-10-22, not built yet): a template can
+  carry rights for its folders; they are copied into new projects. Changing them later is
+  not rolled out by itself; MyOS may ask "Apply these new rights to all existing
+  projects?" (e.g. after an employee left). Until then the rights of template folders live
+  only in each project's `ACLs.md`, and embryos do not count in the ACL panel.
 - ~~How is auditing handled (who changed ACLs, when)?~~ No audit system in the MVP: GUI
   edits keep the previous `ACLs.md` (see 5.3). Access logging exists in the enforcement
   layer but is off by default.
