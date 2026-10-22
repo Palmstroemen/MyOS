@@ -2661,6 +2661,9 @@ ApplicationWindow {
         function onAclSummaryReady(listingPath, summary) {
             applyAclSummary(listingPath, summary)
         }
+        function onFilingDone() {
+            updateFiles()
+        }
         function onEntriesReady(path, entries) {
             if (path === cwp) {
                 applyEntries(entries)
@@ -3233,7 +3236,7 @@ ApplicationWindow {
                     }
                 }
 
-                Rectangle { // Ensure Sort.md in current project
+                Rectangle { // Give the folder shown a sort rule (core/filing.py)
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
                     color: "transparent"
@@ -3250,46 +3253,18 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            if (!hasBackend() || typeof backend.ensureProjectConfig !== "function") {
+                            if (!hasBackend() || typeof backend.enableSorting !== "function") {
                                 return
                             }
-                            var result = backend.ensureProjectConfig(cwp, "Sort.md")
-                            if (!result || !result.ok) {
-                                moveReportMessage = qsTr("Sort.md could not be created.")
-                            } else {
-                                moveReportMessage = qsTr("Sort.md is ready in the current project.")
-                            }
-                            moveReportDialog.open()
-                        }
-                    }
-                }
-
-                Rectangle { // Manual apply sort
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: "transparent"
-                    border.width: 0
-                    implicitWidth: sortNowLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: sortNowLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Sort in now")
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            if (!hasBackend() || typeof backend.applySortNow !== "function") {
-                                return
-                            }
-                            var report = backend.applySortNow(cwp)
-                            var movedCount = (report && report.moved) ? report.moved.length : 0
-                            var errorCount = (report && report.errors) ? report.errors.length : 0
-                            moveReportMessage = qsTr("Sorting: %1 moved, %2 errors")
-                                .arg(movedCount)
-                                .arg(errorCount)
+                            var folder = currentFilesPath()
+                            var result = backend.enableSorting(folder) || ({})
+                            moveReportMessage = result.ok
+                                ? qsTr("\"%1\" now sorts by date into years and months, once it holds more than 20 files (rule: .MyOS/Sort.md).").arg(PathUtils.basename(folder))
+                                : result.reason === "exists"
+                                ? qsTr("\"%1\" already has a sort rule (.MyOS/Sort.md).").arg(PathUtils.basename(folder))
+                                : result.reason === "no_project"
+                                ? qsTr("Sorting works only inside projects.")
+                                : qsTr("The sort rule could not be created.")
                             moveReportDialog.open()
                             updateFiles()
                         }

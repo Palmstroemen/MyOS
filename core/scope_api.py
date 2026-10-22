@@ -43,8 +43,7 @@ from core.perspective import (
     find_filters_layers,
     resolve_effective_filter,
 )
-from core.sort import SortRule, iter_sort_rule_roots, resolve_effective_sort_rules
-from core.sort_runtime import SortRuntime
+from core.filing import destination_for, file_due, sorted_folder_for, sorted_folders, virtual_groups, virtual_listing
 from core.perspective_resolver import (
     PerspectiveContext,
     ResolveResult as PerspectiveResolveResult,
@@ -73,6 +72,15 @@ def _move_to_system_trash(path: Path) -> None:
     if not gio:
         raise OSError("no system trash available (gio not found)")
     subprocess.run([gio, "trash", "--", str(path)], check=True, capture_output=True, timeout=30)
+
+
+# The rule "Enable sorting" gives a folder (see "Designdocument Sort.md").
+SORT_RULE_SEED = (
+    "# Sort\n"
+    "Pattern: {{YYYY}}/{{MM}}\n"
+    "DateSource: exif, filename, frontmatter, modified\n"
+    "NewLevelFrom: 20\n"
+)
 
 
 def find_project_root(start_path: Path) -> Optional[Path]:
@@ -378,7 +386,6 @@ class ScopeApi:
         self._desk_service = DeskService()
         self._manual_filter_path: Optional[Path] = None
         self._perspective_ctx: Optional[PerspectiveContext] = None
-        self._sort_runtime = SortRuntime()
         self.myos_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
         self._configure_acl_from_env()
@@ -1137,55 +1144,72 @@ class ScopeApi:
             return {"ok": False, "reason": "write_failed", "path": ""}
         return {"ok": True, "reason": "written", "path": str(destination)}
 
-    def preview_sort_target(self, file_path: str) -> Dict[str, Any]:
-        try:
-            target = self._resolve_path(file_path)
-        except Exception:
-            return {"ok": False, "reason": "invalid_path", "target": ""}
-        if not target.exists() or not target.is_file():
-            return {"ok": False, "reason": "missing_file", "target": ""}
-        rules = self._resolve_sort_rules_for_target(target)
-        resolved = self._sort_runtime.preview_target(target, rules, event="move")
-        return {"ok": resolved.get("ok") == "1", "reason": resolved.get("reason"), "target": resolved.get("target", "")}
-
     def preview_sort_target_for_move(self, source_path: str, target_dir: str) -> Dict[str, Any]:
+        """Where a file moved into target_dir would be filed (core.filing); ok only when it
+        does not stay in target_dir."""
         try:
             source = self._resolve_path(source_path)
             target = self._resolve_path(target_dir)
         except Exception:
             return {"ok": False, "reason": "invalid_path", "target": ""}
-        if not source.exists() or not source.is_file():
+        if not source.is_file():
             return {"ok": False, "reason": "missing_file", "target": ""}
-        simulated = target / source.name
-        rules = self._resolve_sort_rules_for_target(target)
-        resolved = self._sort_runtime.preview_target(simulated, rules, event="move")
-        return {"ok": resolved.get("ok") == "1", "reason": resolved.get("reason"), "target": resolved.get("target", "")}
+        destination = destination_for(source, target)
+        if destination == target.resolve():
+            return {"ok": False, "reason": "stays", "target": ""}
+        return {"ok": True, "reason": "filed", "target": str(destination)}
 
-    def apply_sort_now(self, root_path: str) -> Dict[str, Any]:
+    def catch_up_filing(self, path: str) -> Dict[str, Any]:
+        """File what is due in the sorted folder path belongs to (core.filing): whenever a
+        folder is looked at. {ok, moved: [{source, destination}], skipped}."""
         try:
-            root = self._resolve_path(root_path)
+            folder = sorted_folder_for(self._resolve_path(path))
         except Exception:
-            return {"ok": False, "reason": "invalid_path", "moved": [], "errors": []}
-        rules = self._resolve_sort_rules_for_target(root)
-        return self._sort_runtime.apply_root(root, rules, event="move")
+            folder = None
+        return self._file_due([folder] if folder is not None else [])
 
-    def list_sort_watch_roots(self, path: str) -> List[str]:
+    def catch_up_filing_all(self, path: str) -> Dict[str, Any]:
+        """File what is due in every sorted folder of the project tree path lies in (at
+        Scope's start and once a day)."""
         try:
-            target = self._resolve_path(path)
+            root = find_top_project_root(self._resolve_path(path))
         except Exception:
-            return []
-        rules = self._resolve_sort_rules_for_target(target)
-        roots = [str(root) for root in iter_sort_rule_roots(rules)]
-        return sorted(set(roots))
+            root = None
+        return self._file_due(sorted_folders(root) if root is not None else [])
 
-    def _resolve_sort_rules_for_target(self, target: Path) -> List[SortRule]:
-        template_root = self._resolve_template_root_for_target(target)
-        return resolve_effective_sort_rules(
-            target,
-            template_root=template_root,
-            global_root=self.myos_root,
-            config_name="Sort.md",
-        )
+    def enable_sorting(self, path: str) -> Dict[str, Any]:
+        """Give the folder path a sort rule (.MyOS/Sort.md, years and months by date);
+        {ok, reason, path}: "exists", "no_project" (rules only inside projects)."""
+        try:
+            folder = self._resolve_path(path)
+        except Exception:
+            return {"ok": False, "reason": "invalid_path", "path": ""}
+        rule_file = folder / ".MyOS" / "Sort.md"
+        if not folder.is_dir() or find_project_root(folder) is None:
+            return {"ok": False, "reason": "no_project", "path": ""}
+        if rule_file.exists() or rule_file.is_symlink():
+            return {"ok": False, "reason": "exists", "path": str(rule_file)}
+        probe = self._acl_probe("write_dir", folder)
+        if probe and probe.enforced and not probe.allowed:
+            return {"ok": False, "reason": "permission", "path": ""}
+        rule_file.parent.mkdir(exist_ok=True)
+        rule_file.write_text(SORT_RULE_SEED, encoding="utf-8")
+        return {"ok": True, "reason": "created", "path": str(rule_file)}
+
+    def _file_due(self, folders: List[Path]) -> Dict[str, Any]:
+        def may_write(path: Path) -> bool:
+            # Security: filing moves files; only where the user may write.
+            probe = self._acl_probe("write", path)
+            return not (probe and probe.enforced and not probe.allowed)
+
+        moved, skipped = [], []
+        for folder in folders:
+            report = file_due(folder, may_write=may_write)
+            for source, destination in report.moved:
+                self._acl_rules_follow(source, destination)
+                moved.append({"source": str(source), "destination": str(destination)})
+            skipped.extend({"source": str(source), "reason": reason} for source, reason in report.skipped)
+        return {"ok": not skipped, "moved": moved, "skipped": skipped}
 
     def _resolve_filter_roots_for_target(self, target: Path) -> Dict[str, Optional[Path]]:
         template_root = self._resolve_template_root_for_target(target)
@@ -1703,7 +1727,9 @@ class ScopeApi:
             target = Path(path).expanduser().resolve()
         except Exception:
             return []
-        if not target.exists() or not target.is_dir():
+        if not target.exists():
+            return self._list_virtual(path)  # inside a virtual folder (core.filing)
+        if not target.is_dir():
             return []
         entries: List[FileEntryWithOptionalEmbryo] = []
         try:
@@ -1727,13 +1753,15 @@ class ScopeApi:
         except Exception:
             return []
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
-        return entries
+        groups = virtual_groups(target)  # as the full listing shows them, without a flicker
+        return self._with_virtual_folders(target, entries, groups) if groups else entries
 
     def list_entries(self, path: str) -> List[FileEntryWithOptionalEmbryo]:
         target = self._resolve_dir(path)
         if target is None:
-            return []
+            return self._list_virtual(path)  # inside a virtual folder of a sorted folder
         self._acl_probe("read_dir", target)
+        self.catch_up_filing(str(target))  # a sorted folder is filed when it is looked at
         effective_filter = self._resolve_effective_filter_for_target(target)
         project_root = find_project_root(target)
         entries: List[FileEntryWithOptionalEmbryo] = []
@@ -1803,6 +1831,9 @@ class ScopeApi:
                     entries.append(entry)
         # File-browser style order: folders first, then files, both alphabetic.
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
+        groups = virtual_groups(target)
+        if groups:
+            entries = self._with_virtual_folders(target, entries, groups)
         self._prune_markdown_tag_cache(md_tag_cache, seen_md_files)
         self._save_markdown_tag_cache(target, md_tag_cache)
         if effective_filter and effective_filter.config.flatten:
@@ -1813,6 +1844,39 @@ class ScopeApi:
             filter_state=effective_filter,
             project_root=project_root,
         )
+        return entries
+
+    def _with_virtual_folders(self, target: Path, entries: List[FileEntryWithOptionalEmbryo],
+                              groups: Dict[str, List[Path]]) -> List[FileEntryWithOptionalEmbryo]:
+        """entries with the loose files of a sorted folder grouped into virtual folders
+        (core.filing: too few files for real ones yet; nothing moves)."""
+        grouped = {str(f) for files in groups.values() for f in files}
+        result = [e for e in entries if e.get("path") not in grouped]
+        for name in groups:
+            result.append({"name": name, "isDir": True, "path": str(target / name), "tags": [], "isVirtual": True})
+        result.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
+        return result
+
+    def _list_virtual(self, path: str) -> List[FileEntryWithOptionalEmbryo]:
+        """The content of a virtual folder: its virtual subfolders, or at the last level the
+        files that would lie there (they really lie loose in the sorted folder)."""
+        try:
+            view = virtual_listing(self._resolve_path(path))
+        except Exception:
+            view = None
+        if view is None:
+            return []
+        base = self._resolve_path(path)
+        entries: List[FileEntryWithOptionalEmbryo] = [
+            {"name": name, "isDir": True, "path": str(base / name), "tags": [], "isVirtual": True}
+            for name in sorted(view.groups)
+        ]
+        for file in view.files:
+            probe = self._acl_probe("read_dir", file)
+            if probe and probe.enforced and not probe.allowed:
+                continue
+            entries.append(self._build_file_entry(name=file.name, is_dir=False, path=str(file),
+                                                  tags=self._read_entry_tags(file, None)))
         return entries
 
     def list_entries_xray(self, path: str, budget: int, folders_shown: bool) -> List[FileEntryWithOptionalEmbryo]:
@@ -1833,16 +1897,24 @@ class ScopeApi:
             probe = self._acl_probe("read_dir", folder)
             return not (probe and probe.enforced and not probe.allowed)
 
+        virtual = virtual_groups(target)
         try:
             plan = xray_listing(target, int(budget), extra=embryos, may_read=may_read,
-                                folders_shown=bool(folders_shown))
+                                folders_shown=bool(folders_shown), virtual=virtual)
         except OSError:
             return entries
         seen_through = [e for e in plan if e.via]
         opened = {e.via.split("/")[0] for e in seen_through}
-        if not opened:
+        # Virtual folders seen through: their files simply show where they lie (loose here).
+        opened_virtual = set(virtual) - {e.path.name for e in plan if e.virtual}
+        if not opened and not opened_virtual:
             return entries
-        result = [e for e in entries if not (e.get("isDir") and not e.get("isEmbryo") and e.get("name") in opened)]
+        result = [e for e in entries if not (e.get("isDir") and not e.get("isEmbryo") and e.get("name") in opened)
+                  and not (e.get("isVirtual") and e.get("name") in opened_virtual)]
+        for name in opened_virtual:
+            for file in virtual[name]:
+                result.append(self._build_file_entry(name=file.name, is_dir=False, path=str(file),
+                                                     tags=self._read_entry_tags(file, None)))
         for item in seen_through:
             entry = self._build_file_entry(
                 name=item.path.name,
@@ -2969,13 +3041,6 @@ class ScopeApi:
             return False
         return False
 
-    def _follow_sort_move(self, moved: Path, sorted_result) -> None:
-        """Sort.md may move an entry on after a move: its rules follow that step too."""
-        if (sorted_result or {}).get("ok") == "1" and sorted_result.get("reason") == "moved":
-            target = str(sorted_result.get("destination") or "")
-            if target:
-                self._acl_rules_follow(moved, Path(target))
-
     def _acl_rules_follow(self, old: Path, new: Path) -> None:
         """Rewrite ACL rules of old to new after a rename or move (rights unchanged)."""
         try:
@@ -3182,9 +3247,7 @@ class ScopeApi:
         try:
             shutil.move(str(src), str(destination))
             self._acl_rules_follow(src, destination)
-            rules = self._resolve_sort_rules_for_target(destination.parent)
-            sorted_result = self._sort_runtime.apply_file(destination, rules, event="move")
-            self._follow_sort_move(destination, sorted_result)
+            self.catch_up_filing(str(destination.parent))
             self._reabsorb_emptied_folders([src.parent])
             return True
         except Exception:
@@ -3249,16 +3312,10 @@ class ScopeApi:
                 self._acl_rules_follow(src, destination)
                 result["moved"].append({"source": src_key, "destination": str(destination)})
                 emptied.append(src.parent)
-                rules = self._resolve_sort_rules_for_target(destination.parent)
-                sorted_result = self._sort_runtime.apply_file(destination, rules, event="move")
-                self._follow_sort_move(destination, sorted_result)
-                if sorted_result.get("ok") == "1" and sorted_result.get("reason") == "moved":
-                    result.setdefault("sorted", []).append(
-                        {
-                            "source": str(sorted_result.get("source") or ""),
-                            "destination": str(sorted_result.get("destination") or ""),
-                        }
-                    )
+                filed = self.catch_up_filing(str(destination.parent))
+                for item in filed["moved"]:
+                    if item["source"] == str(destination):
+                        result.setdefault("sorted", []).append(item)
             except Exception:
                 result["errors"].append({"source": src_key, "reason": "move_failed"})
 

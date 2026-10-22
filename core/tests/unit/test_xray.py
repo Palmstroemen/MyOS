@@ -102,3 +102,15 @@ def test_a_folder_with_one_file_opens_even_when_the_listing_is_just_full(tmp_pat
     _files(tmp_path, "a.txt", "Eins/e.txt")
 
     assert _shown(xray_listing(tmp_path, budget=2)) == [("a.txt", ""), ("e.txt", "Eins")]
+
+
+def test_virtual_folders_are_seen_through_like_real_ones(tmp_path):
+    # Files lying loose in the folder, shown grouped into virtual year folders.
+    _files(tmp_path, "a 2024.pdf", "b 2024.pdf", "c 2025.pdf", "d 2025.pdf", "e 2025.pdf", "x.txt")
+    virtual = {"2024": [tmp_path / "a 2024.pdf", tmp_path / "b 2024.pdf"],
+               "2025": [tmp_path / "c 2025.pdf", tmp_path / "d 2025.pdf", tmp_path / "e 2025.pdf"]}
+
+    # x.txt + two virtual folders = 3 entries; 2024 (2 files) fits a budget of 4
+    shown = [(e.path.name, e.via, e.virtual) for e in xray_listing(tmp_path, budget=4, virtual=virtual)]
+
+    assert sorted(shown) == [("2025", "", True), ("a 2024.pdf", "", False), ("b 2024.pdf", "", False), ("x.txt", "", False)]

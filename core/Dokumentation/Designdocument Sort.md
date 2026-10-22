@@ -7,8 +7,7 @@ work off them: a folder can carry a sort rule, and MyOS files what lands in it b
 only as far as a structure actually helps. A project with two invoices keeps them flat in
 `/Rechnungen`; everybody finds them there.
 
-Sections 2-9 are the concept decided on 2026-10-22 (not built yet). Section 10 describes
-the implementation as it is today and what changes.
+Sections 2-9: the concept decided on 2026-10-22, built the same day (section 10).
 
 ## 2. The Folder Carries Its Rule
 
@@ -104,18 +103,23 @@ decided, the rule goes into the template; from then on new projects file by them
   at the top while there are few, so it is left out for now.
 - `myls`: show virtual levels (e.g. `2024/ (virtual)`).
 
-## 10. Implementation Today and What Changes
+## 10. Implementation
 
-Today (`core/sort.py`, `core/sort_runtime.py`, Scope's sort watcher):
-- Rules live in the project's `.MyOS/Sort.md` with `Root:`; a rule in a folder's own
-  `.MyOS` is not read.
-- A file dropped into `Root` is moved at once into `Pattern` (folders created on use);
-  no thresholds, no virtual stage.
-- Scope watches the rule roots of the current project only; a debounce of 0.75 s can
-  leave a second file unsorted until the next change (reproduced 2026-10-22).
-- `exif_created` only reads a date from the file name; real EXIF is not read.
-- Scope has a button that creates an example `Sort.md` (`Root: /Pictures`).
-
-To change: folder-level rules (2), the three stages with `NewLevelFrom` (3), catch-up
-filing instead of the watcher (4), real EXIF and the source names of (5), virtual folders
-in Scope and their x-ray (3, 7).
+- `core/filing.py`: the rule (`read_rule`), dates (`date_of`: EXIF with Pillow, file name,
+  front matter, modification time), the stages (`file_due` files what is due,
+  `virtual_groups` / `virtual_listing` give the virtual folders), and helpers for Scope
+  (`sorted_folder_for`, `sorted_folders`, `destination_for`).
+- `ScopeApi`: a sorted folder (or one of its level folders) is filed when it is listed;
+  `catch_up_filing_all` files a whole project tree (Scope: 3 s after the start and once a
+  day, in the background; the listing is refreshed afterwards). After a move the target
+  is filed at once; the move preview says where a file will go. Filing moves only where
+  the ACLs allow writing; ACL rules follow filed files. `enable_sorting` gives the folder
+  shown a rule ("Enable sorting").
+- Listings show virtual folders (`isVirtual`, faint); one can open them (their content
+  comes from `virtual_listing`), not drop into them, rename or delete them. The x-ray view
+  sees through small virtual folders: their files then show where they really lie.
+- The FUSE layer (`localBlueprintLayer`) shows the virtual level folders too; writing
+  into one creates it.
+- Removed: `core/sort.py`, `core/sort_runtime.py` (rules with `Root:` in the project's
+  `Sort.md`, the watcher with its debounce, the name-only "EXIF"), the project-level
+  `Sort.md` of the Desk service, and the "Sort in now" button.

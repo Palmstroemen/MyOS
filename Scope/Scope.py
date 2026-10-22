@@ -272,6 +272,8 @@ class Backend(QObject):
     folderSizesReady = Signal(str, "QVariantList")
     # (listingPath, summary) for the ACL filter panel, see ScopeApi.acl_summary.
     aclSummaryReady = Signal(str, "QVariantMap")
+    # Filing by date moved files (catch-up at start and once a day): listings may be stale.
+    filingDone = Signal()
     # FilesPanel views: tiles and list.
     FILES_VIEW_STYLES = ("largeIcon", "smallIcon")
     # List view columns right of the name (ids as in Scope/js/FormatUtils.js).
@@ -311,10 +313,6 @@ class Backend(QObject):
         self._acl_generation = 0
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._on_watched_file_changed)
-        self._sort_watcher = QFileSystemWatcher(self)
-        self._sort_watcher.directoryChanged.connect(self._on_sort_root_changed)
-        self._sort_watch_roots: set[str] = set()
-        self._sort_apply_timers: dict[str, QTimer] = {}
         self._watched_markdown_by_dir: dict[str, set[str]] = {}
         self._watch_refcount: dict[str, int] = {}
         self._thumb_refresh_timers: dict[str, QTimer] = {}
@@ -323,7 +321,15 @@ class Backend(QObject):
         self._language = "de"
         self._i18n_dir = Path(__file__).with_name("i18n")
         self.entriesReady.connect(self._on_entries_ready_for_watcher)
-        self._refresh_sort_watchers(self._api.get_start_path())
+        # Filing by date (core/filing.py) catches up instead of watching: a sorted folder
+        # is filed when looked at (ScopeApi.list_entries), the whole project at the start
+        # (a moment later, the window first) and once a day.
+        self._filing_pool = QThreadPool(self)
+        self._filing_pool.setMaxThreadCount(1)
+        self._filing_timer = QTimer(self)
+        self._filing_timer.timeout.connect(self._catch_up_filing)
+        QTimer.singleShot(3000, self._catch_up_filing)
+        self._filing_timer.start(24 * 60 * 60 * 1000)
         self._daemon_client = None
         self._daemon_process = None
         if connect_daemon is not None:
@@ -435,7 +441,6 @@ class Backend(QObject):
     def setContext(self, path: str) -> None:
         # The desktop follows (Desk.md) and changes are saved in the core (DeskService).
         self._api.update_context(path)
-        self._refresh_sort_watchers(path)
 
     @Slot(str, str, result="QVariantMap")
     def ensureProjectConfig(self, path: str, configName: str):
@@ -514,17 +519,18 @@ class Backend(QObject):
             return bool(r.get("ok"))
         return self._api.perspective_clear()
 
-    @Slot(str, result="QVariantMap")
-    def previewSortTarget(self, filePath: str):
-        return self._api.preview_sort_target(filePath)
-
     @Slot(str, str, result="QVariantMap")
     def previewSortTargetForMove(self, sourcePath: str, targetDir: str):
         return self._api.preview_sort_target_for_move(sourcePath, targetDir)
 
     @Slot(str, result="QVariantMap")
-    def applySortNow(self, rootPath: str):
-        return self._api.apply_sort_now(rootPath)
+    def enableSorting(self, path: str):
+        """Give the folder a sort rule (years and months by date; see ScopeApi)."""
+        return self._api.enable_sorting(path)
+
+    def _catch_up_filing(self) -> None:
+        if not self._shutting_down:
+            self._filing_pool.start(FilingTask(self, self._api.get_start_path()))
 
     def _invalidate_reabsorbed(self, result) -> None:
         # Reabsorbed folders vanished from disk: drop cached listings of them and their parents.
@@ -787,32 +793,6 @@ class Backend(QObject):
         if changed_path not in self._watcher.files():
             self._watcher.addPath(changed_path)
 
-    @Slot(str)
-    def _on_sort_root_changed(self, root_path: str) -> None:
-        resolved = str(Path(root_path).expanduser().resolve())
-        timer = self._sort_apply_timers.get(resolved)
-        if timer is None:
-            timer = QTimer(self)
-            timer.setSingleShot(True)
-            timer.timeout.connect(lambda p=resolved: self._api.apply_sort_now(p))
-            self._sort_apply_timers[resolved] = timer
-        timer.start(250)
-        if resolved not in self._sort_watcher.directories() and Path(resolved).exists():
-            self._sort_watcher.addPath(resolved)
-
-    def _refresh_sort_watchers(self, path: str) -> None:
-        roots = set(self._api.list_sort_watch_roots(path))
-        current = set(self._sort_watcher.directories())
-        remove_paths = sorted(current - roots)
-        add_paths = sorted(roots - current)
-        if remove_paths:
-            self._sort_watcher.removePaths(remove_paths)
-        if add_paths:
-            existing = [p for p in add_paths if Path(p).exists()]
-            if existing:
-                self._sort_watcher.addPaths(existing)
-        self._sort_watch_roots = set(roots)
-
     def _schedule_thumbnail_refresh(self, full_path: str) -> None:
         timer = self._thumb_refresh_timers.get(full_path)
         if timer is None:
@@ -1045,6 +1025,8 @@ class Backend(QObject):
         self._acl_generation += 1
         self._acl_pool.clear()
         self._acl_pool.waitForDone(1000)
+        self._filing_timer.stop()
+        self._filing_pool.waitForDone(3000)  # a move in progress finishes
         if self._daemon_process is not None:
             if self._daemon_client is not None:
                 try:
@@ -1067,6 +1049,25 @@ class Backend(QObject):
             timer.stop()
         self._thumb_refresh_timers.clear()
         self._thumbnailer.shutdown()
+
+
+class FilingTask(QRunnable):
+    """Catch up filing by date in the project tree of path (core/filing.py)."""
+
+    def __init__(self, owner: Backend, path: str) -> None:
+        super().__init__()
+        self._owner = owner
+        self._path = path
+
+    def run(self) -> None:
+        try:
+            report = self._owner._api.catch_up_filing_all(self._path)
+        except Exception:
+            return
+        if report.get("moved") and not self._owner._shutting_down:
+            with self._owner._entries_lock:
+                self._owner._entries_cache.clear()
+            self._owner.filingDone.emit()
 
 
 class EntriesTask(QRunnable):

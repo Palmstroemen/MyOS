@@ -14,12 +14,12 @@ def test_blueprint_projects_virtual_sort_level(monkeypatch, tmp_path):
     templates = tmp_path / "Templates"
     templates.mkdir(parents=True)
     _create_project(project)
-    (project / ".MyOS" / "Sort.md").write_text(
-        "# Sort\nRoot: /Pictures\nPattern: {{YYYY}}/{{MM}}\nDateSource: fs_mtime\n",
+    pictures = project / "Pictures"
+    (pictures / ".MyOS").mkdir(parents=True)
+    (pictures / ".MyOS" / "Sort.md").write_text(
+        "# Sort\nPattern: {{YYYY}}/{{MM}}\nDateSource: modified\n",
         encoding="utf-8",
     )
-    pictures = project / "Pictures"
-    pictures.mkdir(parents=True)
     (pictures / "a.txt").write_text("A", encoding="utf-8")
     monkeypatch.setenv("MYOS_TEMPLATES_DIR", str(templates))
 
@@ -34,11 +34,11 @@ def test_blueprint_create_materializes_sort_virtual_parents(monkeypatch, tmp_pat
     templates = tmp_path / "Templates"
     templates.mkdir(parents=True)
     _create_project(project)
-    (project / ".MyOS" / "Sort.md").write_text(
-        "# Sort\nRoot: /Pictures\nPattern: {{YYYY}}/{{MM}}/{{DD}}\nDateSource: fs_mtime\n",
+    (project / "Pictures" / ".MyOS").mkdir(parents=True)
+    (project / "Pictures" / ".MyOS" / "Sort.md").write_text(
+        "# Sort\nPattern: {{YYYY}}/{{MM}}/{{DD}}\nDateSource: modified\n",
         encoding="utf-8",
     )
-    (project / "Pictures").mkdir(parents=True)
     monkeypatch.setenv("MYOS_TEMPLATES_DIR", str(templates))
 
     layer = Blueprint(project)

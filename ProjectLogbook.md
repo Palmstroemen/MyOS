@@ -23,8 +23,9 @@ Kompakter Überblick: `docs/STATUS.md`.
 
 ## 🚀 Aktuelle Prioritäten (Roadmap)
 
-[ ] Jahresfilter: /Jahr/Monat/-Ablage automatisieren. Konzept steht (Designdocument Sort.md, 2026-10-22):
+[x] Jahresfilter: /Jahr/Monat/-Ablage automatisch (core/filing.py, Designdocument Sort.md):
     Regel im Ordner selbst, flach → virtuell → echt ab NewLevelFrom, Ablage durch Nachholen statt Beobachter, echtes EXIF
+    [ ] Regel bequem einrichten (heute: Knopf "Enable sorting" im aktuellen Ordner oder von Hand); myls zeigt virtuelle Ebenen noch nicht
 [ ] SunTree
 [ ] Perspektiven (siehe unten)
 [ ] ACLs
@@ -39,6 +40,7 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Demodaten als Playground
 [ ] Scope UI verfeinern  
     [x] Röntgenblick (X-Ray): kleine Ordner durchsichtig, solange die Liste ohne Scrollbalken passt; Standard an; auch `myls --roentgen`
+    [ ] Röntgenblick: besseres Icon für den Button
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
     [x] P-Button: macht den angewählten Ordner, sonst (ohne Auswahl) den angezeigten zum Projekt; durchgestrichenes P macht ein Projekt wieder zum Ordner; P-Badge auf Projektordnern
     [x] Umbenennen in der Ordnerleiste: Feld zeigt den alten Namen (war leer); F2 benennt die Auswahl im FilesPanel um

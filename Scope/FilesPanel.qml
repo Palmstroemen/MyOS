@@ -457,7 +457,8 @@ Rectangle { // Files panel
         if (!itemsModel || !path) return false
         for (var i = 0; i < itemsModel.count; i++) {
             var entry = itemsModel.get(i)
-            if (entry && String(entry.path || "") === path) return !!entry.isEmbryo
+            // Virtual folders (sorting by date, core/filing.py) are not on disk either.
+            if (entry && String(entry.path || "") === path) return !!entry.isEmbryo || !!entry.isVirtual
         }
         return false
     }
@@ -468,7 +469,7 @@ Rectangle { // Files panel
         contextTargetIsEmbryo = isPathEmbryo(contextTargetPath)
         contextTargetSelection = selectedPathsForContext(contextTargetPath, itemIsSelected)
         contextTargetFileSelection = fileOnlyPaths(contextTargetSelection)
-        // Embryos are not on disk yet: they can be neither renamed nor deleted.
+        // Embryos and virtual folders are not on disk: they can be neither renamed nor deleted.
         var real = []
         for (var r = 0; r < contextTargetSelection.length; r++) {
             if (!isPathEmbryo(contextTargetSelection[r])) real.push(contextTargetSelection[r])
@@ -1741,6 +1742,8 @@ Rectangle { // Files panel
                 fillColor: selected ? Qt.rgba(0.58, 0.60, 0.64, 0.34) : root.itemFillColor
                 strokeColor: selected ? Qt.rgba(0.74, 0.76, 0.80, 0.92) : root.itemBorderColor
                 textColor: root.text
+                // A virtual folder (files grouped by date, nothing on disk): faint.
+                opacity: model.isVirtual ? 0.55 : 1.0
                 textSize: root.baseFont
                 detailColumns: {
                     if (root.itemStyle === "largeIcon") return []
@@ -1760,6 +1763,7 @@ Rectangle { // Files panel
                 dragEnabled: false
                 readonly property bool canDrag: root.allowDrags
                     && (!model.isEmbryo)
+                    && (!model.isVirtual)
                     && itemPath.length > 0
                 onActivate: function(ctrlPressed, shiftPressed) {
                     root.itemActivated(itemPath, ctrlPressed, shiftPressed)
@@ -1786,8 +1790,9 @@ Rectangle { // Files panel
                 }
                 DropArea {
                     anchors.fill: parent
-                    // Embryos accept drops too; the backend births them on move.
-                    enabled: model.isDir
+                    // Embryos accept drops too; the backend births them on move. Virtual
+                    // folders do not: putting something there must not create them.
+                    enabled: model.isDir && !model.isVirtual
                     onDropped: function(drop) {
                         var payload = DropUtils.payloadText(drop)
                         if (payload.length === 0 || itemPath.length === 0) return

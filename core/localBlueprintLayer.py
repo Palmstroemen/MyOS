@@ -11,8 +11,7 @@ from fuse import FUSE, FuseOSError, Operations
 from core.project import ProjectConfig
 from core.acl import ACLPolicy
 from core.identity import person_in
-from core.sort import SortRule, resolve_effective_sort_rules
-from core.sort_runtime import SortRuntime
+from core.filing import sorted_folder_for, virtual_groups
 
 import filecmp
 import shutil
@@ -286,8 +285,6 @@ class Blueprint(Operations):
         
         self.template_names = self.config.get_effective_templates()
         self.embryo_tree = self._load_embryo_tree()
-        self.sort_rules: List[SortRule] = resolve_effective_sort_rules(self.project_root, config_name="Sort.md")
-        self.sort_runtime = SortRuntime()
         self.mount_time = time.time()
         
         # Cache for embryo status (path -> True/False)
@@ -741,46 +738,17 @@ class Blueprint(Operations):
         return os.open(physical, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
 
     def _sort_virtual_entries(self, path: str) -> List[str]:
-        if not self.sort_rules:
-            return []
-        physical = self._physical_path(path)
-        names: set[str] = set()
-        for rule in self.sort_rules:
-            root = rule.root_path
-            if physical.resolve() != root.resolve():
-                continue
-            try:
-                for item in root.iterdir():
-                    if not item.is_file():
-                        continue
-                    preview = self.sort_runtime.preview_target(item, [rule], event="move")
-                    if preview.get("ok") != "1":
-                        continue
-                    target = str(preview.get("target") or "").strip()
-                    if not target:
-                        continue
-                    resolved_target = Path(target).resolve()
-                    try:
-                        first_segment = resolved_target.relative_to(root).parts[0]
-                    except Exception:
-                        continue
-                    if first_segment and not first_segment.startswith("."):
-                        names.add(first_segment)
-            except Exception:
-                continue
-        return sorted(names)
+        """Virtual level folders of a sorted folder (core.filing: few files, not yet real)."""
+        return sorted(virtual_groups(self._physical_path(path)))
 
     def _materialize_sort_virtual_path(self, path: str) -> None:
+        """Writing into a virtual level folder creates it (and its virtual parents)."""
         physical = self._physical_path(path)
-        for rule in self.sort_rules:
-            root = rule.root_path
-            try:
-                physical.relative_to(root)
-            except ValueError:
-                continue
-            # Create missing parent chain when writing into projected sort nodes.
+        existing = physical.parent
+        while not existing.exists() and existing != existing.parent:
+            existing = existing.parent
+        if existing != physical.parent and sorted_folder_for(existing) is not None:
             physical.parent.mkdir(parents=True, exist_ok=True)
-            return
 
     def write(self, path: str, data: bytes, offset: int, fh: Any) -> int:
         return os.pwrite(fh, data, offset)
