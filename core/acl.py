@@ -58,10 +58,13 @@ class ACLPolicy:
         """Policy of project_root; acl_file replaces its .MyOS/ACLs.md (to check a draft)."""
         project_root = Path(project_root)
         config = ProjectConfig(project_root)
-        if not config.is_valid():
+        if config.is_valid():
+            template_roles = _roles_from_templates(project_root, config.get_effective_templates())
+        elif is_template_root(project_root):
+            # A template's rights: its own folders are the template folder roles.
+            template_roles = _template_folder_names(project_root)
+        else:
             raise ValueError(f"Not a valid MyOS project: {project_root}")
-
-        template_roles = _roles_from_templates(project_root, config.get_effective_templates())
         acl_roles, role_permissions, folder_defaults, users = _roles_from_acls(project_root, acl_file)
         normalized_defaults = _normalize_permissions({"folder": folder_defaults}).get("folder", {})
         normalized_sections = _normalize_permissions(role_permissions)
@@ -211,9 +214,18 @@ def find_acl_project_root(path) -> Optional[Path]:
     """
     try:
         acl_file = find_config_in_parents(Path(path).expanduser(), "ACLs.md", honor_inherit_not=False)
+        found = acl_file.parent.parent.resolve() if acl_file is not None else None
+        # A template (no project) governs its own folders with its ACLs.md, unless a
+        # project with ACLs.md lies nearer.
+        start = Path(path).expanduser().resolve()
+        for candidate in [start, *start.parents]:
+            if found is not None and candidate == found:
+                break
+            if (candidate / ".MyOS" / "ACLs.md").is_file() and is_template_root(candidate):
+                return candidate
     except OSError:
         return None
-    return acl_file.parent.parent.resolve() if acl_file is not None else None
+    return found
 
 
 def _path_matches(rule_path: str, target_path: str) -> bool:
@@ -316,12 +328,24 @@ def _roles_from_templates(project_root: Path, template_names: Iterable[str]) -> 
         return roles
     for template in template_names:
         template_dir = templates_root / template
-        if not template_dir.exists():
-            continue
-        for child in template_dir.iterdir():
-            if child.is_dir():
-                roles.add(child.name)
+        if template_dir.exists():
+            roles |= _template_folder_names(template_dir)
     return roles
+
+
+def _template_folder_names(template_dir: Path) -> Set[str]:
+    # .MyOS (the template's own settings) and other hidden folders are no roles.
+    return {child.name for child in template_dir.iterdir() if child.is_dir() and not child.name.startswith(".")}
+
+
+def is_template_root(path) -> bool:
+    """Whether path is a template (Templates/<name>): no project, its rights take effect
+    in the projects made from it."""
+    path = Path(path).expanduser().resolve()
+    if (path / ".MyOS" / "Project.md").exists():
+        return False
+    templates_dir = _resolve_templates_dir(path)
+    return templates_dir is not None and path.parent == templates_dir.resolve()
 
 
 def _resolve_templates_dir(project_root: Path) -> Optional[Path]:

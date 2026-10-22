@@ -380,7 +380,8 @@ class Blueprint(Operations):
         """Load recursive tree from a single template directory."""
         tree = {}
         for item in template_dir.iterdir():
-            if item.is_dir():
+            # .MyOS holds settings (copied at birth), hidden folders are no embryos.
+            if item.is_dir() and not item.name.startswith("."):
                 # Kein %-Suffix mehr - nur der reine Name
                 name = item.name
                 tree[name] = self._load_embryo_tree_sub(item)
@@ -389,7 +390,7 @@ class Blueprint(Operations):
     def _load_embryo_tree_sub(self, dir_path: Path) -> Dict[str, Any]:
         sub_tree = {}
         for item in dir_path.iterdir():
-            if item.is_dir():
+            if item.is_dir() and not item.name.startswith("."):
                 name = item.name
                 sub_tree[name] = self._load_embryo_tree_sub(item)
         return sub_tree

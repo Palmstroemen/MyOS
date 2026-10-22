@@ -38,10 +38,11 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] PostFix UI verfeinern und Exporter bauen
     [x] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
     [x] ACL-Panel: Embryos zählen nicht mit (ein Schalter dafür wird nicht gebraucht)
-    [ ] Templates mit eigenen ACLs: Rechte stehen direkt im Template und werden in neue Projekte übernommen.
-        Änderungen werden nicht automatisch ausgerollt; Abfrage "Sollen diese neuen Rechte auf alle
-        existierenden Projekte angewendet werden?" (z. B. wenn ein Mitarbeiter gekündigt wurde).
-        Damit sieht und bearbeitet man die Rechte der Vorlagenordner in den Templates selbst.
+    [x] Templates mit eigenen ACLs: `.MyOS` der Template-Wurzel (ACLs.md, Desk.md, …) wird in neue Projekte
+        kopiert; Rechte der Templates im ACL-Panel sehen und bearbeiten
+    [ ] Template-Rechte ausrollen: Abfrage "Sollen diese neuen Rechte auf alle existierenden Projekte
+        angewendet werden?" (z. B. wenn ein Mitarbeiter gekündigt wurde)
+    [ ] Rechte erstmals einführen (Projekt/Template ohne ACLs.md): heute nur von Hand
     [x] Personen-Chip: Gruppen einer Person ändern (`# Users`)
     [x] Person hinzufügen (neue Zeile in `# Users`; freier Name, Personen des Projekts statt Logins)
     [x] Wer bin ich hier? Eigene Namen pro Rechner in ~/.config/MyOS/Identity.md (core/identity.py)

@@ -15,7 +15,7 @@ import json
 import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
-from core.acl import ACLAuthorizer, find_acl_project_root
+from core.acl import ACLAuthorizer, find_acl_project_root, is_template_root
 from core.acl_edit import (
     ACLEditError,
     ACLPersonExistsError,
@@ -2375,7 +2375,8 @@ class ScopeApi:
         can_edit = acl_can_edit(folder, me)
         # Not one of the people of this project (e.g. on another computer): say so, and
         # whom the user may say they are (core.identity; admins only by hand).
-        listed = not view.policy.users or me in view.policy.users
+        # In a template the people are those of future projects: no hint there.
+        listed = not view.policy.users or me in view.policy.users or is_template_root(view.project_root)
         choices = claimable_people(folder) if not listed and self._acl_user_override is None else []
         return {"hasAcls": True, "path": str(folder), "canEdit": can_edit, "listed": listed,
                 "whoChoices": choices, **summary}

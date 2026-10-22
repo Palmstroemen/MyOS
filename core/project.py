@@ -562,7 +562,8 @@ class ProjectConfig:
     @classmethod
     def create(cls, dir_path: Union[str, Path]) -> 'ProjectConfig':
         """
-        Create a new project marker without copying dynamic config files.
+        Create a new project marker. The parent's config files are not copied (they are
+        inherited); the templates' root .MyOS files are (core.template_seed).
         """
         dir_path = Path(dir_path)
         
@@ -577,6 +578,12 @@ class ProjectConfig:
         project_marker = target_myos / "Project.md"
         if not project_marker.exists():
             project_marker.write_text("# MyOS Project\n")
+            # A new project gets what its templates' root .MyOS holds (ACLs.md, Desk.md, ...).
+            from core.template_seed import seed_from_templates  # late: template_seed imports this module
+            try:
+                seed_from_templates(dir_path)
+            except Exception:  # the project exists; a template problem must not undo that
+                logger.exception("could not copy the template settings into %s", dir_path)
 
         # Return fresh ProjectConfig.
         project = cls(dir_path)
@@ -743,7 +750,7 @@ class ProjectConfig:
             # Create directory if it doesn't exist
             path.mkdir(parents=True, exist_ok=True)
             
-            # Create project config (copies .MyOS from parent)
+            # Create project config (with the templates' .MyOS files)
             config = ProjectConfig.create(path)
             return config.is_valid()
             

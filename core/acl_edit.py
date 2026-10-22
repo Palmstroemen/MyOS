@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
 
-from core.acl import ACLPolicy, _normalize_path, _normalize_role, find_acl_project_root
+from core.acl import ACLPolicy, _normalize_path, _normalize_role, find_acl_project_root, is_template_root
 from core.project import ProjectFinder
 
 # Rights an edit may grant, in the order they are written (ACL design document 2.2).
@@ -82,9 +82,7 @@ def set_role_rights(path, role: str, rights: Optional[Set[str]], editor: str) ->
     acl_file = root / ".MyOS" / "ACLs.md"
     policy = ACLPolicy.from_project(root)
 
-    # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
-    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
-        raise PermissionError(f"{editor!r} may not change the ACLs of {root}")
+    _require_change_right(policy, root, editor)
 
     role_key = _normalize_role(role)
     if role_key not in policy.roles:
@@ -118,9 +116,7 @@ def set_user_roles(path, user: str, roles: Set[str], editor: str) -> Optional[Pa
     acl_file = root / ".MyOS" / "ACLs.md"
     policy = ACLPolicy.from_project(root)
 
-    # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
-    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
-        raise PermissionError(f"{editor!r} may not change the ACLs of {root}")
+    _require_change_right(policy, root, editor)
 
     user_key = str(user or "").strip().lower()
     if user_key not in policy.users:
@@ -155,9 +151,7 @@ def add_user(path, name: str, roles: Set[str], editor: str) -> Optional[Path]:
     acl_file = root / ".MyOS" / "ACLs.md"
     policy = ACLPolicy.from_project(root)
 
-    # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
-    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
-        raise PermissionError(f"{editor!r} may not change the ACLs of {root}")
+    _require_change_right(policy, root, editor)
 
     written_name = str(name or "").strip()
     user_key = written_name.lower()
@@ -189,9 +183,10 @@ def can_edit(path, editor: str) -> bool:
         return False
     try:
         policy = ACLPolicy.from_project(root)
+        _require_change_right(policy, root, editor)
     except Exception:
         return False
-    return "change" in _user_rights(policy, editor, ACL_FILE_REL)
+    return True
 
 
 def own_rule(path, role: str) -> Optional[Set[str]]:
@@ -308,6 +303,20 @@ def _rule_lines_under(lines: List[str], rel: str) -> List[int]:
         if written.rstrip("/") == rel or written.startswith(rel + "/"):
             hits.append(i)
     return hits
+
+
+def _require_change_right(policy: ACLPolicy, root: Path, editor: str) -> None:
+    """Raise PermissionError unless editor may edit the ACLs.md of root."""
+    if is_template_root(root):
+        # A template's rights take effect only in the projects made from it, and its
+        # "# Users" are the people of those projects: whoever may write the template may
+        # edit them, like any other file of it.
+        if not os.access(root / ".MyOS" / "ACLs.md", os.W_OK):
+            raise PermissionError(f"{editor!r} may not write the template {root}")
+        return
+    # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
+    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
+        raise PermissionError(f"{editor!r} may not change the ACLs of {root}")
 
 
 def is_person_name(name: str) -> bool:
@@ -482,6 +491,109 @@ def _edit_user_line(text: str, user_key: str, role_names: List[str], keep: Set[s
     return "".join(lines)
 
 
+def complete_people(acl_file: Path, previous_acl_file: Path, creator: str) -> None:
+    """
+    After acl_file came from a template into a new project: without a "# Users" of its
+    own it takes the people of previous_acl_file (the ACLs that governed the project so
+    far), so nobody loses their place; with people of its own, the creator is added with
+    their groups so far when missing. Groups of the creator the template does not define
+    come along from previous_acl_file (e.g. "## Admin"), so the creator can still manage
+    the new project.
+    """
+    text = acl_file.read_text(encoding="utf-8")
+    previous_text = previous_acl_file.read_text(encoding="utf-8")
+    previous = ACLPolicy.from_project(previous_acl_file.parent.parent)
+    edited = text
+    if _users_lines(text) is None:
+        people = _users_lines(previous_text) or []
+        if people:
+            edited = text.rstrip("\n") + "\n\n# Users\n" + "".join(people)
+    else:
+        listed = {_user_line_key(line) for line in _visible(_users_lines(text))}
+        groups = sorted(previous.roles_for_user(creator))
+        if creator not in listed and groups:
+            names = ", ".join(previous.display_name(g) for g in groups)
+            edited = _insert_user_line(text, f"{previous.display_name(creator)}: {names}\n")
+    if creator in {_user_line_key(line) for line in _visible(_users_lines(edited) or [])}:
+        defined = _section_keys(edited)
+        for group in sorted(previous.roles_for_user(creator)):
+            if group in previous.own_sections and group not in defined:
+                edited = _insert_before_users(edited, _section_lines(previous_text, group))
+    if edited == text:
+        return
+    draft = acl_file.with_name(".ACLs.md.draft")
+    draft.write_text(edited, encoding="utf-8")
+    os.replace(draft, acl_file)
+
+
+def _section_keys(text: str) -> Set[str]:
+    """Role keys of the "## <role>" sections in text."""
+    keys = set()
+    for line in _visible(text.splitlines(keepends=True)):
+        match = _HEADING.match(line.rstrip("\n"))
+        if match and len(match.group(1)) == 2:
+            keys.add(_normalize_role(match.group(2)))
+    return keys
+
+
+def _section_lines(text: str, role_key: str) -> List[str]:
+    """The "## <role>" section of text as written (heading and rules), [] if missing."""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    seen = _visible(lines)
+    start = None
+    for i, visible in enumerate(seen):
+        match = _HEADING.match(visible.rstrip("\n"))
+        if not match:
+            continue
+        if start is not None:
+            block = lines[start:i]
+            break
+        if len(match.group(1)) == 2 and _normalize_role(match.group(2)) == role_key:
+            start = i
+    else:
+        block = lines[start:] if start is not None else []
+    while block and not block[-1].strip():
+        block.pop()
+    return block
+
+
+def _insert_before_users(text: str, block: List[str]) -> str:
+    """text with block (a "## <role>" section) before "# Users", else at the end."""
+    if not block:
+        return text
+    lines = text.splitlines(keepends=True)
+    for i, visible in enumerate(_visible(lines)):
+        match = _HEADING.match(visible.rstrip("\n"))
+        if match and len(match.group(1)) == 1 and match.group(2).strip().lower() == "users":
+            before = lines[:i]
+            if before and before[-1].strip():
+                before.append("\n")
+            return "".join(before + block + ["\n"] + lines[i:])
+    return text.rstrip("\n") + "\n\n" + "".join(block)
+
+
+def _users_lines(text: str) -> Optional[List[str]]:
+    """The person lines of "# Users" as written (comments kept); None without the section."""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    seen = _visible(lines)
+    start = None
+    for i, visible in enumerate(seen):
+        match = _HEADING.match(visible.rstrip("\n"))
+        if not match:
+            continue
+        if start is not None:
+            return [lines[j] for j in range(start + 1, i) if _user_line_key(seen[j]) is not None]
+        if len(match.group(1)) == 1 and match.group(2).strip().lower() == "users":
+            start = i
+    if start is None:
+        return None
+    return [lines[j] for j in range(start + 1, len(lines)) if _user_line_key(seen[j]) is not None]
+
+
 def _insert_user_line(text: str, line: str) -> str:
     """text with line after the last person in "# Users" (or right after the heading)."""
     lines = text.splitlines(keepends=True)
@@ -499,7 +611,8 @@ def _insert_user_line(text: str, line: str) -> str:
         if len(match.group(1)) == 1 and match.group(2).strip().lower() == "users":
             start = i
     if start is None:
-        raise ACLEditError("ACLs.md has no # Users section")
+        # Only reachable where nobody needs to be listed to edit: a template.
+        return text.rstrip("\n") + "\n\n# Users\n" + line
     people = [i for i in range(start + 1, end or len(lines)) if _user_line_key(seen[i]) is not None]
     at = (people[-1] + 1) if people else start + 1
     return "".join(lines[:at] + [line] + lines[at:])
@@ -529,8 +642,9 @@ def _check_user_draft(root: Path, draft: Path, user_key: str, role_keys: Set[str
     got = policy.roles_for_user(user_key)
     if got != role_keys:
         raise ACLEditError(f"edit did not take effect ({sorted(got)} instead of {sorted(role_keys)})")
-    # Security: nobody locks themselves out of ACL management by accident.
-    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
+    # Security: nobody locks themselves out of ACL management by accident (templates have
+    # no such right, see _require_change_right).
+    if not is_template_root(root) and "change" not in _user_rights(policy, editor, ACL_FILE_REL):
         raise ACLSelfLockoutError(f"{editor!r} would lose the right to change the ACLs")
 
 
@@ -545,8 +659,9 @@ def _check_draft(root: Path, draft: Path, role_key: str, rule_path: str,
         got = policy.rights_for(role_key, _normalize_path(rule_path))
         if got != wanted and not ("*" in got and set(rights) >= set(EDITABLE_RIGHTS)):
             raise ACLEditError(f"edit did not take effect ({sorted(got)} instead of {sorted(wanted)})")
-    # Security: nobody locks themselves out of ACL management by accident.
-    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
+    # Security: nobody locks themselves out of ACL management by accident (templates have
+    # no such right, see _require_change_right).
+    if not is_template_root(root) and "change" not in _user_rights(policy, editor, ACL_FILE_REL):
         raise ACLSelfLockoutError(f"{editor!r} would lose the right to change the ACLs")
 
 

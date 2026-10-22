@@ -332,11 +332,23 @@ Define a small, stable interface for ACL backends:
 - Do we ever need a dedicated `mychmod` command, or is ACL editing sufficient?
 - How should role inheritance be expressed?
 - Should template roles auto‑generate users/groups?
-- **Templates with their own ACLs** (decided 2026-10-22, not built yet): a template can
-  carry rights for its folders; they are copied into new projects. Changing them later is
-  not rolled out by itself; MyOS may ask "Apply these new rights to all existing
-  projects?" (e.g. after an employee left). Until then the rights of template folders live
-  only in each project's `ACLs.md`, and embryos do not count in the ACL panel.
+- **Templates with their own ACLs** (decided and built 2026-10-22): templates are ordinary
+  folder structures; whatever lies in `Templates/<name>/.MyOS` (`ACLs.md`, `Desk.md`,
+  `Color.md`, …) is copied into a new project's `.MyOS` when it is created (P-Button,
+  `myproject create`; `core/template_seed.py`). Nothing already there is overwritten; with
+  several templates the first one with a file wins; only plain files (no symlinks, no
+  `ACLs-history`, no drafts). Give the Buchhalter `/04_Finanz/` once in the template and
+  every new project has it.
+  - The new project's own `ACLs.md` governs it from then on (not the parent's). So nobody
+    loses their place: a template without `# Users` takes the people of the ACLs that
+    governed the place so far; a template with people gets the creator added (with their
+    groups so far) when missing.
+  - In the template's folders the ACL panel shows and edits the template's rights. A
+    template is no project: its `# Users` are the people of future projects, so whoever
+    may write the template may edit them (no lock-out check, no “who are you?” hint).
+  - `.MyOS` and other hidden folders of a template are neither embryos nor roles.
+  - Open: changing them later is not rolled out by itself; MyOS may ask "Apply these new
+    rights to all existing projects?" (e.g. after an employee left).
 - ~~How is auditing handled (who changed ACLs, when)?~~ No audit system in the MVP: GUI
   edits keep the previous `ACLs.md` (see 5.3). Access logging exists in the enforcement
   layer but is off by default.
