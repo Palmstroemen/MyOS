@@ -196,7 +196,13 @@ Rectangle { // Files panel
     /// Header click: sort by this key ("name", "modified", "size"); main flips the direction.
     signal sortRequested(string key)
     property bool showLeaveMyosButton: false
-    property bool hasProjectInCwp: false
+    /// Folder the P-Button turns into a project ("" = button off), chosen by the window.
+    property string projectCreateTarget: ""
+    readonly property bool canCreateProject: projectCreateTarget.length > 0
+    /// Project the button turns back into a folder (crossed-out P); "" = not offered.
+    property string projectRemoveTarget: ""
+    readonly property bool canRemoveProject: !canCreateProject && projectRemoveTarget.length > 0
+    signal removeProject()
     property bool hasMyosDirInCwp: false
     /** Farbe für den P-Button wenn CWD nicht in einem Projekt liegt (Wurzelprojekt-Farbe). */
     property color pButtonActiveColor: "#7b5bd6"
@@ -818,26 +824,52 @@ Rectangle { // Files panel
                 width: parent.width
                 spacing: root.sidePanelButtonSpacing
 
-                // P-Button: immer sichtbar, ausgegraut wenn bereits Projektordner; sonst stark in Projektfarbe
+                // P-Button: always visible; strong in the project colour when a folder can become
+                // a project (the one selected, else the one shown), greyed out otherwise.
                 Rectangle {
+                    objectName: "pButton"
                     radius: root.chipRadiusMedium
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: root.hasProjectInCwp ? root.smallButtonBg : root.pButtonActiveColor
-                    border.color: root.hasProjectInCwp ? root.smallButtonBorder : root.pButtonActiveColor
-                    opacity: root.hasProjectInCwp ? 0.5 : 1
+                    color: root.canCreateProject ? root.pButtonActiveColor : root.smallButtonBg
+                    border.color: root.canCreateProject ? root.pButtonActiveColor : root.smallButtonBorder
+                    opacity: root.canCreateProject || root.canRemoveProject ? 1 : 0.5
                     Text {
                         anchors.centerIn: parent
                         text: "P"
-                        color: root.hasProjectInCwp ? root.smallButtonText : "#ffffff"
+                        color: root.canCreateProject ? "#ffffff" : root.smallButtonText
                         font.pixelSize: Math.round(root.baseFont * 0.9)
                         font.bold: true
                     }
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: !root.hasProjectInCwp
-                        onClicked: root.createProject()
+                    // Crossed out: the project can become an ordinary folder again. A drawn
+                    // stroke, the font's strikeout line was hardly visible.
+                    Rectangle {
+                        visible: root.canRemoveProject
+                        anchors.centerIn: parent
+                        width: parent.width * 1.05
+                        height: Math.max(2, Math.round(parent.height * 0.1))
+                        radius: height / 2
+                        rotation: -45
+                        color: "#d64f4f"
                     }
+                    MouseArea {
+                        id: pButtonMouse
+                        objectName: "pButtonMouse"
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: root.canCreateProject || root.canRemoveProject ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: {
+                            if (root.canCreateProject) root.createProject()
+                            else if (root.canRemoveProject) root.removeProject()
+                        }
+                    }
+                    ToolTip.visible: pButtonMouse.containsMouse
+                    ToolTip.delay: 600
+                    ToolTip.text: root.canCreateProject
+                        ? qsTr("Make “%1” a project").arg(root.projectCreateTarget.split("/").pop())
+                        : root.canRemoveProject
+                        ? qsTr("Make “%1” an ordinary folder again").arg(root.projectRemoveTarget.split("/").pop())
+                        : qsTr("Select a folder, or open one, that is not a project yet")
                 }
 
                 // Edit-Button / Exit-Button: immer sichtbar, halbtransparent wenn kein .MyOS
@@ -1684,6 +1716,8 @@ Rectangle { // Files panel
                     ? (root.iconFolder || "image://theme/folder-open")
                     : ("image://theme/" + (model.iconName ? model.iconName : "text-x-generic") + "#active")
                 batchSource: model.isDir && model.batch ? model.batch : ""
+                projectBadge: model.isDir && !!model.isProject
+                labelBackground: model.isDir && model.projectColor ? model.projectColor : "transparent"
                 batchText: model.isDir && model.batchText ? model.batchText : ""
                 thumbnailSource: model.thumb ? model.thumb : ""
                 fillColor: selected ? Qt.rgba(0.58, 0.60, 0.64, 0.34) : root.itemFillColor

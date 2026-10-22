@@ -169,7 +169,12 @@ ApplicationWindow {
     property int fileItemsOffset: 0
     property int fileItemsChunk: 160
     property bool hasMyosInCwp: false
-    property bool hasProjectInCwp: false
+    /// Folder the P-Button turns into a project: the one folder selected in the FilesPanel,
+    /// else the folder it shows; "" when neither can become one (see updateProjectCreateTarget).
+    property string projectCreateTarget: ""
+    /// Project the crossed-out P-Button turns back into an ordinary folder (same choice:
+    /// the one entry selected, else the folder shown); "" when none.
+    property string projectRemoveTarget: ""
     property string tagFilterSource: "visible" // legacy
     property var availableTags: []
     property var folderTags: []
@@ -339,6 +344,50 @@ ApplicationWindow {
             }
         }
     }
+
+    function updateProjectCreateTarget() {
+        var create = ""
+        var remove = ""
+        if (hasBackend() && typeof backend.canCreateProject === "function") {
+            var selected = selectedEntryPaths || []
+            // Something selected: only that. Falling back to the folder shown would make the
+            // button switch its target silently (a second click hit the parent folder).
+            var candidate = selected.length === 1 ? selected[0] : (selected.length === 0 ? currentFilesPath() : "")
+            if (candidate.length > 0) {
+                if (backend.canCreateProject(candidate)) create = candidate
+                else if (typeof backend.canRemoveProject === "function" && backend.canRemoveProject(candidate)) remove = candidate
+            }
+        }
+        projectCreateTarget = create
+        projectRemoveTarget = remove
+    }
+
+    /// Turn projectRemoveTarget back into an ordinary folder; with settings of its own,
+    /// ask first (projectRemoveDialog), then they go into the parent project's trash.
+    function removeProjectAt(target, keepOwn) {
+        if (target.length === 0 || !hasBackend() || typeof backend.removeProject !== "function") return
+        var result = backend.removeProject(target, keepOwn) || ({})
+        if (result.reason === "own") {
+            projectRemoveDialog.openFor(target, result.own || [])
+            return
+        }
+        if (!result.ok) {
+            moveReportMessage = result.reason === "permission"
+                ? qsTr("You may not turn \"%1\" back into a folder: it has rights of its own that you may not change.").arg(PathUtils.basename(target))
+                : qsTr("\"%1\" could not be turned back into a folder.").arg(PathUtils.basename(target))
+            moveReportDialog.open()
+            return
+        }
+        // The selection stays on the folder: the button now offers to make it a project again.
+        updateSubProjects()
+        if (typeof backend.setContext === "function") backend.setContext(cwp)
+        updateFiles()
+        updateTemplates()
+        standardFolders = listTemplates(templatesListingPath())
+        updateStandardFolders()
+    }
+
+    onSelectedEntryPathsChanged: updateProjectCreateTarget()
 
     function setCwp(path, reason) {
         var nextPath = PathUtils.normalizeFsPath(path)
@@ -2106,13 +2155,12 @@ ApplicationWindow {
         if (hasBackend()) {
             hasMyosInCwp = backend.hasMyosDir(cwp)
             if (typeof backend.isProject === "function") {
-                hasProjectInCwp = backend.isProject(cwp)
                 hasProjectInFilesPath = backend.isProject(targetPath)
             } else {
-                hasProjectInCwp = false
                 hasProjectInFilesPath = false
             }
         }
+        updateProjectCreateTarget()
         updateClipboardState()
         refreshFilters(targetPath)
     }
@@ -2372,14 +2420,26 @@ ApplicationWindow {
         return parents.slice(Math.max(0, parents.length - maxVerticalParents))
     }
 
+    // F2 renames the entries selected in the FilesPanel (folders in the browser rows: hold
+    // the mouse button, or right click).
+    Shortcut {
+        sequences: ["F2"]
+        enabled: !renameActive && !renameEntryDialog.visible
+        onActivated: {
+            if ((selectedEntryPaths || []).length > 0) requestRenameEntries(selectedEntryPaths)
+        }
+    }
+
     function beginRename(path) {
         renameActive = true
         renameTargetPath = path
         var parts = path.split("/").filter(function(p){ return p.length > 0 })
         renameDraft = parts.length > 0 ? parts[parts.length - 1] : ""
         if (projectsBrowser) {
-            projectsBrowser.renameTargetPath = renameTargetPath
+            // Draft first: setting the target switches the field on, which takes the draft
+            // at that moment (otherwise the field opens empty).
             projectsBrowser.renameDraft = renameDraft
+            projectsBrowser.renameTargetPath = renameTargetPath
         }
     }
 
@@ -2799,6 +2859,7 @@ ApplicationWindow {
     MoveSelectedFoldersDialog { id: moveSelectedFoldersDialog; window: window }
 
     RenameEntryDialog { id: renameEntryDialog; window: window }
+    ProjectRemoveDialog { id: projectRemoveDialog; window: window }
     TrashDialog {
         id: trashDialog
         window: window
@@ -3711,7 +3772,9 @@ ApplicationWindow {
             uPanelTintColor: window.filesPanelTintColor
             uPanelTintMix: 0.65
             projectTintOpacity: 0.75
-            hasProjectInCwp: window.hasProjectInCwp
+            projectCreateTarget: window.projectCreateTarget
+            projectRemoveTarget: window.projectRemoveTarget
+            onRemoveProject: window.removeProjectAt(window.projectRemoveTarget, false)
             hasMyosDirInCwp: window.hasMyosInCwp
             showLeaveMyosButton: window.isInsideMyosFolder
             availableTags: window.availableTags
@@ -3839,9 +3902,17 @@ ApplicationWindow {
                 clearSearchAfterNavigate()
             }
             onCreateProject: {
-                if (hasBackend() && typeof backend.createProject === "function") {
-                    var ok = backend.createProject(cwp)
+                var target = window.projectCreateTarget
+                if (target.length > 0 && hasBackend() && typeof backend.createProject === "function") {
+                    var shownFolder = target === currentFilesPath()
+                    var ok = backend.createProject(target)
                     if (ok) {
+                        // The folder shown became a project: be in it, like after a double click.
+                        if (shownFolder) {
+                            setCwp(target, "filesPane.createProject")
+                            commitCTD(target)
+                        }
+                        updateSubProjects()
                         if (typeof backend.setContext === "function") {
                             backend.setContext(cwp)
                         }

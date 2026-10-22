@@ -15,7 +15,7 @@ import json
 import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, TypedDict
 from core.tags import read_tags
-from core.acl import ACLAuthorizer, find_acl_project_root, is_template_root
+from core.acl import ACLAuthorizer, _resolve_templates_dir, find_acl_project_root, is_template_root
 from core.acl_edit import (
     ACLEditError,
     ACLPersonExistsError,
@@ -30,6 +30,7 @@ from core.acl_edit import (
 )
 from core.acl_view import ACLView
 from core.identity import acl_user_for, claim_person, claimable_people
+from core.project_unmake import ProjectHasOwnSettings, can_unmake, unmake_project
 from core import trash
 from core.project import find_config_in_parents
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
@@ -2357,6 +2358,11 @@ class ScopeApi:
         entry["group"] = _group_name(info.st_gid)
         if not is_dir:
             entry["sizeBytes"] = int(info.st_size)
+        elif os.path.isfile(os.path.join(path, ".MyOS", "Project.md")):
+            entry["isProject"] = True  # the P badge on the folder
+            color = self._resolve_effective_project_color(Path(path))
+            if color:
+                entry["projectColor"] = color  # behind the folder's name
         return entry
 
     def acl_summary(self, path: str, entry_paths: Iterable[str]) -> Dict[str, Any]:
@@ -2754,7 +2760,71 @@ class ScopeApi:
         
         return None
 
+    def can_create_project(self, path: str) -> bool:
+        """
+        Whether path may become a project (P-Button): an existing folder below a .MyOS
+        (inside the projects tree), no project yet, no template folder and no .MyOS folder.
+        """
+        try:
+            target = Path(path).expanduser().resolve()
+        except (OSError, RuntimeError):
+            return False
+        if not target.is_dir() or (target / ".MyOS" / "Project.md").exists() or ".MyOS" in target.parts:
+            return False
+        if ProjectConfig._find_parent_myos(target) is None:
+            return False  # creating needs a .MyOS above (ProjectConfig.create)
+        templates_dir = _resolve_templates_dir(target)
+        if templates_dir is not None:
+            templates_dir = templates_dir.resolve()
+            if target == templates_dir or templates_dir in target.parents:
+                return False  # templates are folder structures, not projects
+        probe = self._acl_probe("write_dir", target)
+        return not (probe and probe.enforced and not probe.allowed)
+
+    def can_remove_project(self, path: str) -> bool:
+        """Whether path is a project that can become an ordinary folder again (crossed-out
+        P-Button; core.project_unmake): not the top project, not in a template."""
+        try:
+            target = Path(path).expanduser().resolve()
+        except (OSError, RuntimeError):
+            return False
+        return can_unmake(target) and self._may_remove_project(target)
+
+    def remove_project(self, path: str, keep_own: bool) -> Dict[str, Any]:
+        """
+        Make the project at path an ordinary folder again. {ok, reason, own}: reason "own"
+        lists its settings of its own (ask, then call again with keep_own: they go into
+        the parent project's trash), "permission", or "invalid".
+        """
+        try:
+            target = Path(path).expanduser().resolve()
+        except (OSError, RuntimeError):
+            return {"ok": False, "reason": "invalid", "own": []}
+        if not can_unmake(target):
+            return {"ok": False, "reason": "invalid", "own": []}
+        if not self._may_remove_project(target):
+            return {"ok": False, "reason": "permission", "own": []}
+        try:
+            unmake_project(target, self._acl_user_at(target), keep_own=bool(keep_own))
+        except ProjectHasOwnSettings as exc:
+            return {"ok": False, "reason": "own", "own": exc.names}
+        except (OSError, ValueError, trash.TrashError):
+            return {"ok": False, "reason": "invalid", "own": []}
+        return {"ok": True, "reason": "", "own": []}
+
+    def _may_remove_project(self, target: Path) -> bool:
+        # Security: a project with its own ACLs.md stops governing its folders when it goes;
+        # that is a change of rights, for those who may change them. Otherwise it is a
+        # change to the folder, like creating the project.
+        if (target / ".MyOS" / "ACLs.md").is_file():
+            return acl_can_edit(target, self._acl_user_at(target))
+        probe = self._acl_probe("write_dir", target)
+        return not (probe and probe.enforced and not probe.allowed)
+
     def create_project(self, path: str) -> bool:
+        # Security: the same checks as for the button, whatever the GUI shows.
+        if not self.can_create_project(path):
+            return False
         target = Path(path).expanduser().resolve()
         return ProjectConfig.make_project(target)
 

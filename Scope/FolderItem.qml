@@ -4,6 +4,19 @@ import "js/DropUtils.js" as DropUtils
 import "Theme/tag_chips.js" as TagChips
 
 Rectangle {
+    // An italic "P" in the style of the text badges, top right, for projects that already
+    // carry an image badge (projects without one show the "P" as their text badge).
+    component ProjectBadge: Text {
+        visible: root.projectBadge && root.batchSource !== ""
+        anchors.right: parent.right
+        anchors.top: parent.top
+        text: "P"
+        color: "#000000"
+        font.bold: true
+        font.italic: true
+        font.pixelSize: Math.max(8, Math.round(parent.height * 0.32))
+    }
+
     id: root
     property string label: ""
     property string style: "text" // text | smallIcon | largeIcon
@@ -17,6 +30,21 @@ Rectangle {
     property string thumbnailSource: ""
     property string batchSource: ""
     property string batchText: ""
+    /// The folder is a project: a small "P" at the top right of its icon.
+    property bool projectBadge: false
+    /// The text badge drawn: the folder's own, else "P" for a project without a badge.
+    readonly property string shownBatchText: batchText || (projectBadge && !batchSource ? "P" : "")
+    readonly property bool shownBatchIsProjectP: !batchText && projectBadge && !batchSource
+    /// Behind the name (e.g. the project's colour in the FilesPanel); transparent: none.
+    property color labelBackground: "transparent"
+    component LabelBackground: Rectangle {
+        z: -1
+        visible: root.labelBackground.a > 0
+        color: Qt.rgba(root.labelBackground.r, root.labelBackground.g, root.labelBackground.b, 0.45)
+        radius: 3
+        height: parent.contentHeight + 2
+        y: (parent.height - height) / 2
+    }
     property color fillColor: "#3b476b"
     property color strokeColor: "#58648a"
     // Nur bei bewusst halbtransparentem Fill (0 < a < 1) Icons mitschattieren; bei transparent (a=0) oder opak (a=1) Icons voll sichtbar
@@ -276,7 +304,7 @@ Rectangle {
         Item {
             width: iconSmall
             height: iconSmall
-            readonly property bool hasBatch: Boolean(batchSource || batchText)
+            readonly property bool hasBatch: Boolean(batchSource || shownBatchText)
             // Small icon: when batch exists, show only batch at full icon size (no folder + overlay).
             Image {
                 id: smallIconImage
@@ -305,9 +333,9 @@ Rectangle {
                     sourceSize.height: height
                 }
                 Text {
-                    visible: batchText && !batchSource
+                    visible: shownBatchText && !batchSource
                     anchors.centerIn: parent
-                    text: batchText
+                    text: shownBatchText
                     color: "#000000"
                     font.bold: true
                     font.italic: true
@@ -316,6 +344,7 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                 }
             }
+            ProjectBadge {}
         }
         Text {
             id: smallIconLabel
@@ -331,6 +360,10 @@ Rectangle {
                 ? Math.min(implicitWidth, Math.max(0, root.nameColumnWidth - iconSmall - 18))
                 : implicitWidth
             elide: Text.ElideRight
+            LabelBackground {
+                x: -4
+                width: parent.width + 8
+            }
         }
     }
 
@@ -384,7 +417,7 @@ Rectangle {
                 sourceSize.height: height
             }
             Item {
-                visible: batchSource || batchText
+                visible: batchSource || shownBatchText
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: parent.width
                 height: parent.height * TagChips.BATCH_HEIGHT_FRAC
@@ -402,9 +435,11 @@ Rectangle {
                     fillMode: Image.PreserveAspectFit
                 }
                 Text {
-                    visible: batchText && !batchSource
+                    visible: shownBatchText && !batchSource
                     anchors.centerIn: parent
-                    text: batchText
+                    // The project's P sits a little right of centre.
+                    anchors.horizontalCenterOffset: root.shownBatchIsProjectP ? parent.width * 0.18 : 0
+                    text: shownBatchText
                     color: "#000000"
                     font.bold: true
                     font.italic: true
@@ -413,6 +448,7 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                 }
             }
+            ProjectBadge {}
         }
         Text {
             id: largeIconLabel
@@ -425,6 +461,10 @@ Rectangle {
             visible: !renaming
             wrapMode: Text.NoWrap
             y: textYOffset
+            LabelBackground {
+                width: Math.min(parent.width, parent.contentWidth + 8)
+                x: root.largeIconAlignLeft ? -4 : (parent.width - width) / 2
+            }
         }
     }
 

@@ -861,6 +861,19 @@ class Backend(QObject):
         return self._api.is_dir(path)
 
     @Slot(str, result=bool)
+    def canCreateProject(self, path: str) -> bool:
+        return self._api.can_create_project(path)
+
+    @Slot(str, result=bool)
+    def canRemoveProject(self, path: str) -> bool:
+        return self._api.can_remove_project(path)
+
+    @Slot(str, bool, result="QVariantMap")
+    def removeProject(self, path: str, keep_own: bool) -> dict:
+        """{ok, reason, own}; reason "own": ask, then call again with keep_own (ScopeApi)."""
+        return self._api.remove_project(path, keep_own)
+
+    @Slot(str, result=bool)
     def createProject(self, path: str) -> bool:
         return self._api.create_project(path)
 

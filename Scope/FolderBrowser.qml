@@ -3043,6 +3043,7 @@ Item { // ROOT
                                 iconSource: iconSourceForPath(fullPath, false, modelData)
                                 iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
@@ -3508,6 +3509,7 @@ Item { // ROOT
                                     iconSource: iconSourceForPath(fullPath, false, modelData)
                                     iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                    projectBadge: !!(modelData && modelData.isProject)
                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                     fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
@@ -3937,6 +3939,7 @@ Item { // ROOT
                                                     iconSource: iconSourceForPath(fullPath, false, modelData)
                                                     iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
                                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                                    projectBadge: !!(modelData && modelData.isProject)
                                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                                     fillColor: folderFillColorForPath(modelData, previewLevel, fullPath)
                                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel, fullPath)
@@ -4027,6 +4030,7 @@ Item { // ROOT
                                 iconSource: iconSourceForPath(fullPath, false, modelData)
                                 iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
@@ -4214,6 +4218,7 @@ Item { // ROOT
                                     iconSource: iconSourceForPath(fullPath, false, modelData)
                                     iconSourceHover: iconSourceHoverForPath(fullPath, modelData)
                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                    projectBadge: !!(modelData && modelData.isProject)
                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                     fillColor: folderFillColorForPath(modelData, previewLevel + 1, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel + 1, fullPath)
@@ -4349,6 +4354,7 @@ Item { // ROOT
                                 iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                 iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 textLeftInset: root.effectiveStyle() === "text" ? 8 : 0
                                 fillColor: customColors ? (root._toColorString(customColors.fill) || root.pathButtonFill) : root.pathButtonFill
@@ -4486,6 +4492,7 @@ Item { // ROOT
                                     iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                     iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                    projectBadge: !!(modelData && modelData.isProject)
                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                     fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
@@ -4605,6 +4612,7 @@ Item { // ROOT
                                 iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                 iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
@@ -4736,6 +4744,7 @@ Item { // ROOT
                                 iconSource: root.iconSourceForPath(fullPath, false, modelData)
                                 iconSourceHover: root.iconSourceHoverForPath(fullPath, modelData)
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
+                                projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)

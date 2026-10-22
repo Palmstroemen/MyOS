@@ -580,10 +580,13 @@ class ProjectConfig:
             project_marker.write_text("# MyOS Project\n")
             # A new project gets what its templates' root .MyOS holds (ACLs.md, Desk.md, ...).
             from core.template_seed import seed_from_templates  # late: template_seed imports this module
+            from core.project_unmake import record_created
             try:
                 seed_from_templates(dir_path)
             except Exception:  # the project exists; a template problem must not undo that
                 logger.exception("could not copy the template settings into %s", dir_path)
+            # What creating wrote: turning the project back removes it without asking.
+            record_created(dir_path)
 
         # Return fresh ProjectConfig.
         project = cls(dir_path)

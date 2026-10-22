@@ -6,6 +6,8 @@ QML-based file browser for MyOS: project and template navigation, tags, and file
 
 - **Two browser rows:** Templates (standard folders / embryos) and Projects (CWP and subprojects). Each row can show a path breadcrumb and folder list; Templates can run in perspective or plain CTD mode.
 - **Concepts:** CWD/CWP (current working directory/project) and CTD (current target directory) for preview and file list. See [Vision/GUI Filebrowser.md](../Vision/GUI%20Filebrowser.md) for definitions and [main.qml](main.qml) comment block for code mapping.
+- **Rename:** F2 renames the entries selected in the FilesPanel; folders in the browser rows: hold the mouse button, or right click → Rename.
+- **P-Button:** works on the one entry selected in the FilesPanel, else (nothing selected) on the folder it shows; it never switches to another folder on its own. A folder that can become a project: strong “P” (the new project gets its templates' `.MyOS` files). A project that can become an ordinary folder again: crossed-out “P” (not the top project; with settings of its own Scope asks, and they go into the parent project's trash as “MyOS settings”, see `core/project_unmake.py`). Greyed out otherwise (outside the projects tree, templates, embryos, several entries). The tooltip names the folder. Project folders carry a small “P” badge.
 - **Files area:** File list with tag filter, multi-selection, drag & drop, context menu. Optional side panel with folder/file tags; Leave button to step out of `.MyOS` when in config view.
 - **Dialogs:** All dialogs are in `Scope/Dialogs/` (e.g. move, rename, create folder, filter save, config prompt). Main window only instantiates them.
 
