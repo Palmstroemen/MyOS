@@ -66,7 +66,7 @@ myls mirror/
 myls mirror/ --recent=5
 
 # Intelligent flattening (1-level depth)
-myls mirror/ --roentgen         # Shows: project/../test.txt
+myls mirror/ --roentgen         # Shows: test.txt   (in project)
 
 # Combined overview
 myls mirror/ --all
@@ -145,7 +145,7 @@ bash
 
 myls [PATH]                    # Normal directory listing
 myls [PATH] --recent[=N]       # N newest files (default: 10)
-myls [PATH] --roentgen[=N]     # Intelligent flattened view
+myls [PATH] --roentgen[=N]     # X-ray: small folders seen through while N lines suffice (default: terminal height)
 myls [PATH] --flat             # Force flattening (1-level)
 myls [PATH] --all              # Combined overview
 myls [PATH] --potential        # Show potential folders only

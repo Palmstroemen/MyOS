@@ -31,6 +31,7 @@ from core.acl_edit import (
 from core.acl_view import ACLView
 from core.identity import acl_user_for, claim_person, claimable_people
 from core.project_unmake import ProjectHasOwnSettings, can_unmake, unmake_project
+from core.xray import xray_listing
 from core import trash
 from core.project import find_config_in_parents
 from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
@@ -1813,6 +1814,46 @@ class ScopeApi:
             project_root=project_root,
         )
         return entries
+
+    def list_entries_xray(self, path: str, budget: int, folders_shown: bool) -> List[FileEntryWithOptionalEmbryo]:
+        """
+        list_entries with small folders seen through (core.xray) while the listing fits
+        budget entries (what the FilesPanel shows without scrolling). Their files take the
+        folder's place and carry xrayVia, the folder they lie in ("Rechnungen/2024").
+        folders_shown: whether the panel shows folders (else only files take room).
+        """
+        entries = self.list_entries(path)
+        target = self._resolve_dir(path)
+        if target is None or int(budget) <= 0:
+            return entries
+        embryos = sum(1 for e in entries if e.get("isEmbryo")) if folders_shown else 0
+
+        def may_read(folder: Path) -> bool:
+            # Security: x-ray never shows what the user may not read.
+            probe = self._acl_probe("read_dir", folder)
+            return not (probe and probe.enforced and not probe.allowed)
+
+        try:
+            plan = xray_listing(target, int(budget), extra=embryos, may_read=may_read,
+                                folders_shown=bool(folders_shown))
+        except OSError:
+            return entries
+        seen_through = [e for e in plan if e.via]
+        opened = {e.via.split("/")[0] for e in seen_through}
+        if not opened:
+            return entries
+        result = [e for e in entries if not (e.get("isDir") and not e.get("isEmbryo") and e.get("name") in opened)]
+        for item in seen_through:
+            entry = self._build_file_entry(
+                name=item.path.name,
+                is_dir=False,
+                path=str(item.path),
+                tags=self._read_entry_tags(item.path, None),
+            )
+            entry["xrayVia"] = item.via
+            result.append(entry)
+        result.sort(key=lambda e: (not bool(e.get("isDir")), str(e.get("name", "")).lower()))
+        return result
 
     def list_entries_filtered(
         self, path: str, tags: List[str], match_all: bool = False

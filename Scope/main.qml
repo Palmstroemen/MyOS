@@ -175,6 +175,23 @@ ApplicationWindow {
     /// Project the crossed-out P-Button turns back into an ordinary folder (same choice:
     /// the one entry selected, else the folder shown); "" when none.
     property string projectRemoveTarget: ""
+    /// X-ray view (core/xray.py): small folders seen through while the list fits the
+    /// FilesPanel without scrolling. On by default; remembered.
+    property bool xrayEnabled: true
+
+    function applyXrayView() {
+        if (!hasBackend() || typeof backend.setXrayView !== "function") return
+        backend.setXrayView(xrayEnabled ? filesPane.visibleCapacity : 0, filesPane.showFolders)
+        updateFiles()
+    }
+
+    // Recomputed when the size has settled, not while dragging the window edge.
+    Timer {
+        id: xrayLayoutTimer
+        interval: 400
+        repeat: false
+        onTriggered: window.applyXrayView()
+    }
     property string tagFilterSource: "visible" // legacy
     property var availableTags: []
     property var folderTags: []
@@ -2503,6 +2520,9 @@ ApplicationWindow {
         if (hasBackend() && typeof backend.filesViewStyle === "function") {
             filesItemStyle = backend.filesViewStyle()
         }
+        if (hasBackend() && typeof backend.filesXray === "function") {
+            xrayEnabled = backend.filesXray()
+        }
         if (hasBackend() && typeof backend.filesListColumns === "function") {
             filesListColumns = backend.filesListColumns()
         }
@@ -3893,9 +3913,14 @@ ApplicationWindow {
                     updateFiles()
                 }
             }
+            xrayActive: window.xrayEnabled
             onXrayClicked: {
-                // X-Ray-Darstellung: Platzhalter für spätere Implementierung
+                window.xrayEnabled = !window.xrayEnabled
+                if (hasBackend() && typeof backend.setFilesXray === "function") backend.setFilesXray(window.xrayEnabled)
+                window.applyXrayView()
             }
+            onVisibleCapacityChanged: if (window.xrayEnabled) xrayLayoutTimer.restart()
+            onShowFoldersChanged: if (window.xrayEnabled) window.applyXrayView()
             onLeaveMyosFolder: {
                 var parent = parentOfPath(currentFilesPath())
                 commitCTD(parent)

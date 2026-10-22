@@ -185,3 +185,29 @@ class TestMyOSListerBasic(unittest.TestCase):
 if __name__ == '__main__':
     # For unittest only (without pytest)
     unittest.main()
+
+
+def test_roentgen_shows_the_files_of_small_folders_and_where_they_lie(tmp_path, capsys):
+    (tmp_path / "Rechnungen" / "2024").mkdir(parents=True)
+    (tmp_path / "Rechnungen" / "2024" / "r1.pdf").write_text("r")
+    (tmp_path / "Fotos").mkdir()
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        (tmp_path / "Fotos" / name).write_text(name)
+    (tmp_path / "notiz.md").write_text("n")
+
+    MyOSLister(str(tmp_path)).list_roentgen(limit=3)
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines == ["📁 Fotos/", "📄 notiz.md", "📄 r1.pdf   (in Rechnungen/2024)"]
+
+
+def test_roentgen_without_a_number_fills_the_terminal(tmp_path, capsys, monkeypatch):
+    import os as _os
+    (tmp_path / "Fotos").mkdir()
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        (tmp_path / "Fotos" / name).write_text(name)
+    monkeypatch.setattr("cli.myls.shutil.get_terminal_size", lambda *a, **k: _os.terminal_size((80, 6)))
+
+    MyOSLister(str(tmp_path)).list_roentgen()
+
+    assert "📄 a.jpg   (in Fotos)" in capsys.readouterr().out

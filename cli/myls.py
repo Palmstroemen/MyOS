@@ -6,6 +6,7 @@ myls - MyOS Intelligent File Lister
 """
 
 import os
+import shutil
 import sys
 import argparse
 import time
@@ -18,6 +19,7 @@ try:
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from core.localBlueprintLayer import Blueprint
     from core.tags import read_tags
+    from core.xray import xray_listing
     HAS_MYOS = True
 except ImportError:
     HAS_MYOS = False
@@ -163,9 +165,22 @@ class MyOSLister:
         # ... existing implementation
         pass
     
-    def list_roentgen(self, limit: int = 10) -> None:
-        # ... existing implementation
-        pass
+    def list_roentgen(self, limit: Optional[int] = None) -> None:
+        """
+        X-ray view (core.xray): small folders are seen through while the listing fits
+        limit lines - by default the terminal's height, like a window without scrollbar.
+        Files seen through say where they lie.
+        """
+        budget = limit if limit else shutil.get_terminal_size().lines - 1  # one line for the prompt
+        entries = xray_listing(self.root, budget)
+        entries.sort(key=lambda e: (not e.path.is_dir() or bool(e.via), e.path.name.lower()))
+        for entry in entries:
+            if entry.via:
+                print(f"📄 {entry.path.name}   (in {entry.via})")
+            elif entry.path.is_dir():
+                print(f"📁 {entry.path.name}/")
+            else:
+                print(f"📄 {entry.path.name}")
     
     def list_all(self) -> None:
         print("=" * 60)
@@ -227,10 +242,10 @@ def parse_arguments(args=None) -> argparse.Namespace:
     parser.add_argument(
         '--roentgen',
         nargs='?',
-        const=10,
+        const=0,
         type=int,
         metavar='N',
-        help='Show Roentgen view with N files (default: 10)'
+        help='X-ray view: see through small folders while N lines suffice (default: terminal height)'
     )
     
     parser.add_argument(

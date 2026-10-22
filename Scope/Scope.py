@@ -294,6 +294,10 @@ class Backend(QObject):
         app.aboutToQuit.connect(self._on_about_to_quit)
         self._entries_lock = Lock()
         self._entries_cache: dict[str, list] = {}
+        # X-ray view (core.xray): how many entries the FilesPanel shows without scrolling
+        # (0: off) and whether it shows folders. Set by the window, used for every listing.
+        self._xray_budget = 0
+        self._xray_folders_shown = True
         self._entries_pending: set[str] = set()
         # Folder sizes: measured on demand (hover/click on the size column), one task at a
         # time; a new request or cancel bumps the generation so older measurements stop.
@@ -527,6 +531,32 @@ class Backend(QObject):
         for raw in (result or {}).get("reabsorbed") or []:
             self.invalidateEntries(raw)
             self.invalidateEntries(str(Path(raw).parent))
+
+    @Slot(result=bool)
+    def filesXray(self) -> bool:
+        """X-ray view on or off; on by default."""
+        return str(self._settings.value("filesXray", "true")).lower() not in ("false", "0")
+
+    @Slot(bool)
+    def setFilesXray(self, enabled: bool) -> None:
+        self._settings.setValue("filesXray", bool(enabled))
+
+    @Slot(int, bool)
+    def setXrayView(self, budget: int, folders_shown: bool) -> None:
+        """Entries the FilesPanel shows without scrolling (0: x-ray off) and whether it shows
+        folders; cached listings no longer match then."""
+        budget = max(0, int(budget))
+        if (budget, bool(folders_shown)) == (self._xray_budget, self._xray_folders_shown):
+            return
+        self._xray_budget, self._xray_folders_shown = budget, bool(folders_shown)
+        with self._entries_lock:
+            self._entries_cache.clear()
+            self._entries_pending.clear()
+
+    def _list_for_view(self, path: str) -> list:
+        if self._xray_budget > 0:
+            return self._api.list_entries_xray(path, self._xray_budget, self._xray_folders_shown)
+        return self._api.list_entries(path)
 
     @Slot(str)
     def invalidateEntries(self, path: str) -> None:
@@ -1047,7 +1077,7 @@ class EntriesTask(QRunnable):
 
     def run(self) -> None:
         try:
-            entries = self._owner._api.list_entries(self._path)
+            entries = self._owner._list_for_view(self._path)
             self._owner._enrich_entries(entries, self._path)
             self._owner._store_entries(self._path, entries)
             self._owner.entriesReady.emit(self._path, entries)

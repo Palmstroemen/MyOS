@@ -186,6 +186,14 @@ Rectangle { // Files panel
     signal createProject()
     signal createMyosAndEnter()
     signal xrayClicked()
+    /// X-ray view on (button highlighted); see visibleCapacity.
+    property bool xrayActive: false
+    /// Entries the list shows without a scrollbar: the x-ray view's budget (core/xray.py).
+    readonly property int visibleCapacity: {
+        if (filesGrid.width <= 0 || filesGrid.height <= 0) return 0
+        var columns = itemStyle === "largeIcon" ? Math.max(1, Math.floor(filesGrid.width / filesGrid.cellWidth)) : 1
+        return columns * Math.max(1, Math.floor(filesGrid.height / filesGrid.cellHeight))
+    }
     /// Side panel button: switch between tiles and list.
     signal itemStyleToggleRequested()
     /// Entries in the trash of the shown project (that the user may see); 0 hides the button.
@@ -952,11 +960,17 @@ Rectangle { // Files panel
                 }
 
                 Rectangle {
+                    objectName: "xrayButton"
                     radius: root.chipRadiusMedium
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: root.smallButtonBg
-                    border.color: root.smallButtonBorder
+                    color: root.xrayActive ? root.smallButtonActiveBg : root.smallButtonBg
+                    border.color: root.xrayActive ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    ToolTip.visible: xrayMouse.containsMouse
+                    ToolTip.delay: 600
+                    ToolTip.text: root.xrayActive
+                        ? qsTr("X-ray on: files of small folders are shown while the list fits without scrolling")
+                        : qsTr("X-ray off")
                     Image {
                         anchors.centerIn: parent
                         source: root.iconFolderXray || root.iconFolderOff
@@ -967,7 +981,9 @@ Rectangle { // Files panel
                         sourceSize.height: height
                     }
                     MouseArea {
+                        id: xrayMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         onClicked: root.xrayClicked()
                     }
                 }
@@ -1717,6 +1733,8 @@ Rectangle { // Files panel
                     : ("image://theme/" + (model.iconName ? model.iconName : "text-x-generic") + "#active")
                 batchSource: model.isDir && model.batch ? model.batch : ""
                 projectBadge: model.isDir && !!model.isProject
+                xrayVia: model.xrayVia ? model.xrayVia : ""
+                xrayFolderSource: root.iconFolder
                 labelBackground: model.isDir && model.projectColor ? model.projectColor : "transparent"
                 batchText: model.isDir && model.batchText ? model.batchText : ""
                 thumbnailSource: model.thumb ? model.thumb : ""

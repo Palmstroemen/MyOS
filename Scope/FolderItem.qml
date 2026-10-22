@@ -35,6 +35,27 @@ Rectangle {
     /// The text badge drawn: the folder's own, else "P" for a project without a badge.
     readonly property string shownBatchText: batchText || (projectBadge && !batchSource ? "P" : "")
     readonly property bool shownBatchIsProjectP: !batchText && projectBadge && !batchSource
+    /// X-ray view: the folder this file is seen through ("Rechnungen/2024"); a large, faint
+    /// folder (xrayFolderSource) lies behind the file's icon, without a name.
+    property string xrayVia: ""
+    property string xrayFolderSource: ""
+    component XrayFolder: Image {
+        visible: root.xrayVia !== "" && root.xrayFolderSource !== ""
+        z: -1
+        anchors.centerIn: parent
+        // A little higher: clear of the name below, clearly above the file's icon.
+        anchors.verticalCenterOffset: -Math.round(height * 0.05)
+        width: parent.width * 1.6
+        height: parent.height * 1.6
+        source: root.xrayFolderSource
+        opacity: 0.3
+        fillMode: Image.PreserveAspectFit
+        sourceSize.width: width
+        sourceSize.height: height
+    }
+    ToolTip.visible: xrayVia !== "" && hitArea.containsMouse
+    ToolTip.delay: 600
+    ToolTip.text: qsTr("in %1").arg(xrayVia)
     /// Behind the name (e.g. the project's colour in the FilesPanel); transparent: none.
     property color labelBackground: "transparent"
     component LabelBackground: Rectangle {
@@ -305,6 +326,7 @@ Rectangle {
             width: iconSmall
             height: iconSmall
             readonly property bool hasBatch: Boolean(batchSource || shownBatchText)
+            XrayFolder {}
             // Small icon: when batch exists, show only batch at full icon size (no folder + overlay).
             Image {
                 id: smallIconImage
@@ -407,6 +429,7 @@ Rectangle {
             anchors.left: largeIconAlignLeft ? parent.left : undefined
             anchors.leftMargin: largeIconAlignLeft ? 6 : 0
             anchors.horizontalCenter: largeIconAlignLeft ? undefined : parent.horizontalCenter
+            XrayFolder {}
             Image {
                 id: largeIconImage
                 anchors.fill: parent

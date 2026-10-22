@@ -7,7 +7,7 @@ Examples:
 - `myls .`
 - `myls --extended`
 - `myls --tags`
-- `myls --roentgen 10`
+- `myls --roentgen` (x-ray: files of small folders, while the terminal's height suffices; `--roentgen 10`: 10 lines). Files seen through show where they lie: `r1.pdf   (in Rechnungen/2024)`
 
 ---
 

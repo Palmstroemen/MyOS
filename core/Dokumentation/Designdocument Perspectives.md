@@ -90,7 +90,11 @@ Flattening shows items in a single view while preserving origin:
 - provide quick navigation back to original location
 
 Flattening is a core USP for MyOS.
-Flattening is already prototyped in the myls command via `--roentgen`.
+A limited form is the x-ray view (`core/xray.py`, Scope's X-ray button, on by default, and
+`myls --roentgen`): small folders are seen through, smallest first and each completely or
+not at all, while the listing fits without scrolling. Projects, empty, hidden and unreadable
+folders stay folders. Files seen through carry the folder they lie in (Scope: a large, faint
+folder behind the icon and a tooltip; myls: `(in Rechnungen/2024)`).
 
 ---
 
