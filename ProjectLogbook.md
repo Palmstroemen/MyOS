@@ -23,6 +23,10 @@ Kompakter Überblick: `docs/STATUS.md`.
 
 ## 🚀 Aktuelle Prioritäten (Roadmap)
 
+[ ] Jahresfilter: /Jahr/Monat/-Ablage automatisieren. Konzept steht (Designdocument Sort.md, 2026-10-22):
+    Regel im Ordner selbst, flach → virtuell → echt ab NewLevelFrom, Ablage durch Nachholen statt Beobachter, echtes EXIF
+[ ] SunTree
+[ ] Perspektiven (siehe unten)
 [ ] ACLs
 [ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)
@@ -45,7 +49,10 @@ Kompakter Überblick: `docs/STATUS.md`.
         kopiert; Rechte der Templates im ACL-Panel sehen und bearbeiten
     [ ] Template-Rechte ausrollen: Abfrage "Sollen diese neuen Rechte auf alle existierenden Projekte
         angewendet werden?" (z. B. wenn ein Mitarbeiter gekündigt wurde)
-    [ ] Rechte erstmals einführen (Projekt/Template ohne ACLs.md): heute nur von Hand
+    [ ] Zugriffsrechte einrichten: als Tutorial/Assistent in 00_Admin (Template-Datei, kommt bei der Geburt mit).
+        Nur der Admin richtet Rechte ein; Scope bietet das sonst nirgends an.
+        Dafür: Embryos zeigen innen die Dateien ihrer Vorlage blass; eine öffnen = Ordner gebären ("ergreifen").
+        Offen: wo das ausgelieferte Standard-Template liegt (Templates/ im Repo ist leer).
     [x] Personen-Chip: Gruppen einer Person ändern (`# Users`)
     [x] Person hinzufügen (neue Zeile in `# Users`; freier Name, Personen des Projekts statt Logins)
     [x] Wer bin ich hier? Eigene Namen pro Rechner in ~/.config/MyOS/Identity.md (core/identity.py)
