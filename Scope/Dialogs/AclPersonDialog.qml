@@ -5,6 +5,7 @@ import QtQuick.Controls 2.15
 // own: their rights come from their groups, written in "# Users" of ACLs.md and valid in
 // the whole project. Next to each group: what it may do in the folder shown, so one sees
 // where the person's rights here come from. See "Designdocument ACLs.md", 5.3.
+// Also adds a person ("+ Person" in the ACL panel): a name of the project, not a login.
 Dialog {
     id: root
     required property var window
@@ -14,6 +15,8 @@ Dialog {
     property var groups: []
     property var chosen: ({})
     property string errorText: ""
+    /// A person still to be added (name field, no groups yet).
+    property bool adding: false
     // All switches as wide as the longest name in bold (a switched-on group is drawn
     // bold), so the explanations line up.
     property real switchWidth: 90
@@ -58,8 +61,33 @@ Dialog {
         }
         switchWidth = Math.max(90, Math.ceil(widest) + 24)
         errorText = ""
+        adding = false
         open()
     }
+
+    function openForNew(path) {
+        var data = window.hasBackend() ? backend.aclGroupChoices(path) : null
+        if (!data || !data.groups) return
+        folderPath = path
+        userKey = ""
+        userName = ""
+        groups = data.groups
+        chosen = ({})
+        var widest = 0
+        for (var j = 0; j < groups.length; j++) {
+            boldMetrics.text = groups[j].name
+            widest = Math.max(widest, boldMetrics.advanceWidth)
+        }
+        switchWidth = Math.max(90, Math.ceil(widest) + 24)
+        errorText = ""
+        nameField.text = ""
+        adding = true
+        open()
+        nameField.forceActiveFocus()
+    }
+
+    readonly property bool canApply: !adding
+        || (nameField.text.trim().length > 0 && chosenList().length > 0)
 
     TextMetrics {
         id: boldMetrics
@@ -90,7 +118,10 @@ Dialog {
     }
 
     function apply() {
-        var result = backend.aclSetUserGroups(folderPath, userKey, chosenList())
+        if (!canApply) return
+        var result = adding
+            ? backend.aclAddUser(folderPath, nameField.text.trim(), chosenList())
+            : backend.aclSetUserGroups(folderPath, userKey, chosenList())
         if (result && result.ok) {
             close()
             membershipChanged()
@@ -100,6 +131,10 @@ Dialog {
             ? qsTr("You may not change the rights here.")
             : result && result.reason === "lockout"
             ? qsTr("You would lose your own right to change the rights.")
+            : result && result.reason === "exists"
+            ? qsTr("%1 is already listed. Right click their chip to change their groups.").arg(nameField.text.trim())
+            : adding && result && result.reason === "invalid"
+            ? qsTr("This name cannot be used: at most 60 characters, no : , or #, and not the name of a group.")
             : String((result && result.message) || qsTr("The groups could not be changed."))
     }
 
@@ -108,11 +143,22 @@ Dialog {
 
         Text {
             width: parent.width
-            text: qsTr("Groups of %1").arg(root.userName)
+            text: root.adding ? qsTr("Add a person") : qsTr("Groups of %1").arg(root.userName)
             font.bold: true
             font.pixelSize: root.window.baseFont
             color: "#333333"
             wrapMode: Text.WordWrap
+        }
+        TextField {
+            id: nameField
+            objectName: "aclNewPersonName"
+            visible: root.adding
+            width: parent.width
+            maximumLength: 60
+            placeholderText: qsTr("Name")
+            font.pixelSize: root.window.baseFont * 0.9
+            onAccepted: root.apply()
+            onTextEdited: root.errorText = ""
         }
         Text {
             width: parent.width
@@ -186,7 +232,9 @@ Dialog {
         Text {
             width: parent.width
             visible: root.chosenList().length === 0
-            text: qsTr("Without groups %1 has no rights and is removed from the list.").arg(root.userName)
+            text: root.adding
+                ? qsTr("Choose at least one group.")
+                : qsTr("Without groups %1 has no rights and is removed from the list.").arg(root.userName)
             color: "#555555"
             font.pixelSize: root.window.baseFont * 0.85
             wrapMode: Text.WordWrap
@@ -204,7 +252,8 @@ Dialog {
             spacing: 6
             Button {
                 objectName: "aclGroupsApply"
-                text: qsTr("Apply")
+                text: root.adding ? qsTr("Add") : qsTr("Apply")
+                enabled: root.canApply
                 onClicked: root.apply()
             }
             Button {

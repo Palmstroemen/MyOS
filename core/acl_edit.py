@@ -56,6 +56,16 @@ class ACLSelfLockoutError(ACLEditError):
     """The editor would lose their own right to change the ACLs."""
 
 
+class ACLPersonExistsError(ACLEditError):
+    """A person of that name is already listed in # Users."""
+
+
+# Names of people in "# Users": people of the project, not login names, so spaces, accents,
+# "-", "." and "'" are fine. Security: nothing that would break or change the line ("Name:
+# groups"): no ":", ",", "#", line breaks, comment or list markers; letter or digit first.
+_PERSON_NAME = re.compile(r"^[^\W_][\w .'-]{0,59}$")
+
+
 def set_role_rights(path, role: str, rights: Optional[Set[str]], editor: str) -> Optional[Path]:
     """
     Set the rights of role at path (absolute) in the governing ACLs.md.
@@ -128,6 +138,48 @@ def set_user_roles(path, user: str, roles: Set[str], editor: str) -> Optional[Pa
     edited = _edit_user_line(original, user_key, [context.display_name(r) for r in sorted(role_keys)], keep)
     return _replace_checked(acl_file, original, edited, editor,
                             lambda draft: _check_user_draft(root, draft, user_key, role_keys | keep, editor))
+
+
+def add_user(path, name: str, roles: Set[str], editor: str) -> Optional[Path]:
+    """
+    Add a person with their groups (roles) to "# Users" of the ACLs.md governing path, as
+    a new line after the people listed. name is free (a person of the project, see
+    "Designdocument ACLs.md", 5.3); at least one known group is needed.
+    editor: the user making the change; needs "change" on /.MyOS/ACLs.md.
+    Returns the kept previous version.
+    """
+    target = Path(path).expanduser().resolve()
+    root = find_acl_project_root(target)
+    if root is None:
+        raise ACLEditError(f"no ACLs.md governs {target}")
+    acl_file = root / ".MyOS" / "ACLs.md"
+    policy = ACLPolicy.from_project(root)
+
+    # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
+    if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
+        raise PermissionError(f"{editor!r} may not change the ACLs of {root}")
+
+    written_name = str(name or "").strip()
+    user_key = written_name.lower()
+    if not _PERSON_NAME.match(written_name):
+        raise ACLEditError(f"not a usable name: {written_name!r}")
+    if user_key in policy.users:
+        raise ACLPersonExistsError(f"{written_name!r} is already listed")
+    context = _context_policy(policy, root, target)
+    if _normalize_role(written_name) in policy.roles | context.roles:
+        raise ACLEditError(f"{written_name!r} is the name of a group")
+    role_keys = {_normalize_role(r) for r in roles}
+    if not role_keys:
+        raise ACLEditError("a person needs at least one group")
+    unknown = sorted(role_keys - context.roles)
+    if unknown:
+        raise ACLEditError(f"unknown groups: {', '.join(unknown)}")
+
+    original = acl_file.read_text(encoding="utf-8")
+    line = f"{written_name}: {', '.join(context.display_name(r) for r in sorted(role_keys))}\n"
+    edited = _insert_user_line(original, line)
+    return _replace_checked(acl_file, original, edited, editor,
+                            lambda draft: _check_user_draft(root, draft, user_key, role_keys, editor))
 
 
 def can_edit(path, editor: str) -> bool:
@@ -418,6 +470,29 @@ def _edit_user_line(text: str, user_key: str, role_names: List[str], keep: Set[s
     else:
         del lines[hits[0]]
     return "".join(lines)
+
+
+def _insert_user_line(text: str, line: str) -> str:
+    """text with line after the last person in "# Users" (or right after the heading)."""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    seen = _visible(lines)
+    start = end = None
+    for i, visible in enumerate(seen):
+        match = _HEADING.match(visible.rstrip("\n"))
+        if not match:
+            continue
+        if start is not None:
+            end = i
+            break
+        if len(match.group(1)) == 1 and match.group(2).strip().lower() == "users":
+            start = i
+    if start is None:
+        raise ACLEditError("ACLs.md has no # Users section")
+    people = [i for i in range(start + 1, end or len(lines)) if _user_line_key(seen[i]) is not None]
+    at = (people[-1] + 1) if people else start + 1
+    return "".join(lines[:at] + [line] + lines[at:])
 
 
 def _replace_checked(acl_file: Path, original: str, edited: str, editor: str, check) -> Optional[Path]:

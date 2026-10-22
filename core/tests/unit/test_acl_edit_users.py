@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from core.acl_edit import ACLEditError, set_user_roles
+from core.acl_edit import ACLEditError, ACLPersonExistsError, add_user, set_user_roles
 from core.acl_view import ACLView
 
 
@@ -142,3 +142,68 @@ def test_groups_unknown_here_are_kept(tmp_path):
 
     assert "Mia: Kind, Buchhalter\n" in _acls(root)
     assert _roles(root, "mia") == {"kind", "buchhalter"}
+
+
+def test_a_person_is_added_with_a_free_name_after_the_others(tmp_path):
+    # People are people of the project, not login names: any name, spaces and accents too.
+    root = _project(tmp_path)
+
+    kept = add_user(root / "work", "Anna Huber-Müller", {"Team", "buchhalter"}, editor="anna")
+
+    assert _acls(root) == ACLS + "Anna Huber-Müller: Buchhalter, Team\n"
+    assert _roles(root, "anna huber-müller") == {"buchhalter", "team"}
+    assert kept is not None and kept.read_text() == ACLS
+
+
+def test_without_a_users_section_nobody_may_add_people(tmp_path):
+    # Only people in "# Users" can have the right to change the ACLs.
+    root = _project(tmp_path)
+    (root / ".MyOS" / "ACLs.md").write_text(ACLS[: ACLS.index("# Users")])
+
+    with pytest.raises(PermissionError):
+        add_user(root, "Zoe", {"Team"}, editor="anna")
+
+
+def test_a_person_lands_in_the_users_section_even_with_text_after_it(tmp_path):
+    root = _project(tmp_path)
+    (root / ".MyOS" / "ACLs.md").write_text(ACLS + "\n# Notizen\nIrgendwas\n")
+
+    add_user(root, "Zoe", {"info"}, editor="anna")
+
+    assert _acls(root) == ACLS + "Zoe: info\n\n# Notizen\nIrgendwas\n"
+    assert _roles(root, "zoe") == {"info"}
+
+
+def test_only_users_with_change_may_add_people(tmp_path):
+    root = _project(tmp_path)
+
+    with pytest.raises(PermissionError):
+        add_user(root, "Zoe", {"Team"}, editor="karl")
+    assert _acls(root) == ACLS
+
+
+def test_a_person_who_exists_is_not_added_twice(tmp_path):
+    root = _project(tmp_path)
+
+    with pytest.raises(ACLPersonExistsError):
+        add_user(root, " mia ", {"Admin"}, editor="anna")
+    assert _acls(root) == ACLS
+
+
+@pytest.mark.parametrize("name", ["", "  ", "Team", "info", "a:b", "a,b", "#x", "- x", "* x", "<!--x", "a\nb", "x" * 61, "_x"])
+def test_names_that_would_break_the_line_or_confuse_are_refused(tmp_path, name):
+    root = _project(tmp_path)
+
+    with pytest.raises(ACLEditError):
+        add_user(root, name, {"Team"}, editor="anna")
+    assert _acls(root) == ACLS
+
+
+def test_a_new_person_needs_known_groups(tmp_path):
+    root = _project(tmp_path)
+
+    with pytest.raises(ACLEditError):
+        add_user(root, "Zoe", set(), editor="anna")  # without groups: no rights, no person
+    with pytest.raises(ACLEditError):
+        add_user(root, "Zoe", {"Gibtsnicht"}, editor="anna")
+    assert _acls(root) == ACLS

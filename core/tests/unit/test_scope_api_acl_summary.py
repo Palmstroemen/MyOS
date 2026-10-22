@@ -156,3 +156,27 @@ def test_set_user_groups(tmp_path, monkeypatch):
     assert ScopeApi(str(root)).acl_set_user_groups(str(root), "bertha", [])["reason"] == "lockout"
     monkeypatch.setenv("MYOS_ACL_USER", "karl")
     assert ScopeApi(str(root)).acl_set_user_groups(str(root), "bertha", []) == {"ok": False, "reason": "permission"}
+
+
+def test_group_choices_for_a_new_person(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+
+    result = ScopeApi(str(root)).acl_group_choices(str(root / "finanz"))
+
+    assert [g["name"] for g in result["groups"]] == ["Admin", "Buchhalter", "finanz"]
+    assert not any(g["member"] for g in result["groups"])
+    assert result["groups"][1]["rights"] == ["read", "write"]
+
+
+def test_add_user(tmp_path, monkeypatch):
+    root = _project(tmp_path, ADMIN_ACLS)
+    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    api = ScopeApi(str(root))
+
+    assert api.acl_add_user(str(root / "finanz"), "Clara Berg", ["buchhalter"]) == {"ok": True, "reason": ""}
+    assert "Clara Berg: Buchhalter\n" in (root / ".MyOS" / "ACLs.md").read_text()
+    assert api.acl_add_user(str(root), "clara berg", ["admin"])["reason"] == "exists"
+    assert api.acl_add_user(str(root), "a:b", ["admin"])["reason"] == "invalid"
+    monkeypatch.setenv("MYOS_ACL_USER", "karl")
+    assert ScopeApi(str(root)).acl_add_user(str(root), "Dora", ["admin"]) == {"ok": False, "reason": "permission"}

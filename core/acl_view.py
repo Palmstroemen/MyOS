@@ -208,7 +208,12 @@ class ACLView:
         user_key = str(user or "").strip().lower()
         if user_key not in self.policy.users:
             return None
-        member = self.policy.roles_for_user(user_key)
+        return {"name": self.policy.display_name(user_key), "groups": self.group_choices(path, user_key)}
+
+    def group_choices(self, path, user_key: str = "") -> List[dict]:
+        """All groups for the groups editor, sorted by name: [{key, name, member, rights}];
+        member for user_key (none for a person still to be added)."""
+        member = self.policy.roles_for_user(user_key) if user_key else set()
         groups = [
             {
                 "key": role,
@@ -219,7 +224,7 @@ class ACLView:
             for role in self.policy.roles
         ]
         groups.sort(key=lambda g: g["name"].lower())
-        return {"name": self.policy.display_name(user_key), "groups": groups}
+        return groups
 
     def has_own_rules(self, path) -> bool:
         """

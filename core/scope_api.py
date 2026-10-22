@@ -18,7 +18,9 @@ from core.tags import read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root
 from core.acl_edit import (
     ACLEditError,
+    ACLPersonExistsError,
     ACLSelfLockoutError,
+    add_user,
     can_edit as acl_can_edit,
     check_move_rules,
     move_rules as move_acl_rules,
@@ -2463,15 +2465,32 @@ class ScopeApi:
         """
         return self._acl_edit(lambda: set_user_roles(path, user, set(groups), editor=self._acl_user))
 
+    def acl_group_choices(self, path: str) -> Dict[str, Any]:
+        """The groups dialog for a person still to be added: {groups: [{key, name, member,
+        rights}]} like acl_user_groups, nobody a member. {} without visible ACLs."""
+        view = self._visible_acl_view(path)
+        return {"groups": view.group_choices(path)} if view is not None else {}
+
+    def acl_add_user(self, path: str, name: str, groups: List[str]) -> Dict[str, Any]:
+        """
+        Add a person with their groups to # Users of the ACLs.md governing path (see
+        acl_edit.add_user). Returns {ok, reason} like acl_set_role_rights, and "exists"
+        when a person of that name is listed already.
+        """
+        return self._acl_edit(lambda: add_user(path, name, set(groups), editor=self._acl_user))
+
     def _acl_edit(self, edit: Callable[[], Any]) -> Dict[str, Any]:
         """Run an ACLs.md edit; {ok, reason}: "permission" (no change right), "lockout"
-        (the editor would lose that right) or "invalid" (with a message)."""
+        (the editor would lose that right), "exists" (person listed already) or "invalid"
+        (with a message)."""
         try:
             edit()
         except PermissionError:
             return {"ok": False, "reason": "permission"}
         except ACLSelfLockoutError:
             return {"ok": False, "reason": "lockout"}
+        except ACLPersonExistsError:
+            return {"ok": False, "reason": "exists"}
         except (ACLEditError, OSError) as exc:
             return {"ok": False, "reason": "invalid", "message": str(exc)}
         # Security: checks of this session follow the new rules at once. Only rebuilt when

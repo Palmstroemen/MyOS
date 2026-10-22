@@ -65,6 +65,7 @@ Rectangle { // Files panel
     property bool aclCanEdit: false
     signal aclRoleEditRequested(string roleKey, string roleName, var rights)
     signal aclPersonEditRequested(string userKey)
+    signal aclPersonAddRequested()
     /// Size of the listed folder from the live measurement; < 0 while unknown.
     property real folderSizeBytes: -1
     property bool folderSizeComplete: false
@@ -714,6 +715,28 @@ Rectangle { // Files panel
                             }
                         }
                     }
+                }
+
+                // Add a person to "# Users" (only for users who may change the ACLs).
+                Text {
+                    objectName: "aclAddPerson"
+                    visible: root.aclCanEdit
+                    x: root.tagChipMargin
+                    topPadding: 6
+                    text: "+ " + qsTr("Person")
+                    color: root.smallButtonText
+                    font.pixelSize: root.tagSectionLabelPx
+                    font.underline: aclAddPersonMouse.containsMouse
+                    MouseArea {
+                        id: aclAddPersonMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.aclPersonAddRequested()
+                    }
+                    ToolTip.visible: aclAddPersonMouse.containsMouse
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("Add a person and choose their groups")
                 }
             }
         }

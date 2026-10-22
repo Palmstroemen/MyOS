@@ -612,6 +612,17 @@ class Backend(QObject):
             groups = groups.toVariant()
         return self._api.acl_set_user_groups(path, user, [str(g) for g in (groups or [])])
 
+    @Slot(str, result="QVariantMap")
+    def aclGroupChoices(self, path: str) -> dict:
+        return self._api.acl_group_choices(path)
+
+    @Slot(str, str, "QVariant", result="QVariantMap")
+    def aclAddUser(self, path: str, name: str, groups) -> dict:
+        """groups: list of group keys, at least one (see ScopeApi.acl_add_user)."""
+        if hasattr(groups, "toVariant"):  # a JS array arrives as QJSValue
+            groups = groups.toVariant()
+        return self._api.acl_add_user(path, name, [str(g) for g in (groups or [])])
+
     def _acl_task_current(self, generation: int) -> bool:
         return not self._shutting_down and generation == self._acl_generation
 

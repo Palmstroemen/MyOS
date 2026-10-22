@@ -191,7 +191,30 @@ pictogram `◂` read, `▸` write, `x`, `c`, `d`), inherited rights shown as suc
   so. Only the person's line changes (groups already written keep place and spelling);
   without any group the line is removed (no rights, no chip). Groups written for the
   person but unknown at this place (a template folder role of another subproject) stay.
-  Adding a person is a separate step (open). Losing one's own `change` right is refused.
+  Losing one's own `change` right is refused.
+- **Adding a person** (“+ Person” at the bottom of the ACL panel, for users with
+  `change`): the same dialog with a name field; at least one group is needed. The person
+  is added as a new line after the others in `# Users`. Refused: a name already listed, the
+  name of a group, and names that would break the line (`:` `,` `#`, line breaks, a
+  leading `-`/`*`, more than 60 characters).
+- **People are people of the project, not login names** (decided 2026-10-22). Projects
+  travel (cloud, USB stick) to computers where not every person has an account, and that
+  must be easy. So a name in `# Users` is free (`Anna Huber`), and the people listed
+  simply travel along. Today the current user is matched by login name (`MYOS_ACL_USER`,
+  else `$USER`); next step: each computer keeps locally who the user is there (e.g.
+  `~/.config/MyOS`, “Name: Oliver”), with a quiet hint in the ACL panel when the login
+  matches nobody.
+- **Vision: `00_Admin` and `02_Team`** list the people of a project (person cards, e.g.
+  `02_Team/Mitarbeiter/Anna Huber.md`); who is not there should in the end have no
+  access. `# Users` stays the one place for the groups (checked, with history); the cards
+  are the human view of it. Later MyOS links both and shows where they disagree (a card
+  without a line in `# Users` or the other way round); adding a person can then also
+  create the card.
+- **Protection, honestly:** on a foreign computer anyone could claim to be someone, and a
+  USB stick (FAT32) has no rights at all: MyOS ACLs say who *should* do what and prevent
+  mistakes; they do not stop intent there. Open: authentication, and when exporting to a
+  format without rights, a warning and protection on offer (encryption, e.g. per group;
+  signed `ACLs.md` so a secret change shows).
 - **Template folder roles** (from `## Folder`) have no section at first; the first edit
   creates one with just that explicit entry. The folder rules stay inherited (2.4), so
   nothing else changes for the role, also not in subprojects.

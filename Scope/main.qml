@@ -3741,6 +3741,7 @@ ApplicationWindow {
             onAclPersonEditRequested: function(userKey) {
                 aclPersonDialog.openFor(window.currentFilesPath(), userKey)
             }
+            onAclPersonAddRequested: aclPersonDialog.openForNew(window.currentFilesPath())
             folderSizeBytes: window.currentFolderSizeBytes
             folderSizeComplete: window.currentFolderSizeComplete
             folderSizesActive: window.folderSizesActive

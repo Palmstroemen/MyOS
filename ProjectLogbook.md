@@ -43,7 +43,11 @@ Kompakter Überblick: `docs/STATUS.md`.
         existierenden Projekte angewendet werden?" (z. B. wenn ein Mitarbeiter gekündigt wurde).
         Damit sieht und bearbeitet man die Rechte der Vorlagenordner in den Templates selbst.
     [x] Personen-Chip: Gruppen einer Person ändern (`# Users`)
-    [ ] Person hinzufügen (neue Zeile in `# Users`)
+    [x] Person hinzufügen (neue Zeile in `# Users`; freier Name, Personen des Projekts statt Logins)
+    [ ] Wer bin ich hier? Lokale Zuordnung pro Rechner (~/.config/MyOS) statt nur Login-Name
+    [ ] Personen in 00_Admin / 02_Team mit `# Users` verknüpfen (Personenkarten)
+    [ ] Authentifizierung; Export in Formate ohne Rechte: Warnung, Verschlüsselung, signierte ACLs.md
+    [ ] Person hinzufügen auch in PostFix
     [x] Ordner umbenennen: passende Regeln in ACLs.md mitziehen (sonst greifen sie ins Leere)
 [x] Papierkorb pro Projekt (.MyOS/Trash/), siehe core/Dokumentation/Designdocument Trash.md
 [ ] Tests: ein einziger `pytest`-Lauf für alles (Scope-Tests legen `QGuiApplication` an, PostFix braucht `QApplication` – in einem Prozess bricht Qt ab; dazu Altlasten in `core/archive`)
