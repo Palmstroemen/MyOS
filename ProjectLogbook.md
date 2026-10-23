@@ -30,6 +30,10 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
     Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
     [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [ ] E3 Scope  [ ] E4 rechtes Menü  [ ] E5 SunTree  [ ] E6 Filter
+    [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein
+        Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
+        Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:
+        Nemo, Déjà Dup, Suchindex mit dem Symlink. Entscheiden: vor E3?
 [ ] ACLs
 [ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)

@@ -161,9 +161,71 @@ Built (2026-10-22):
   (A4), double click on the CWD ends the perspective, a template double click sets only the
   lens.
 
-## A9. Open
+## A9. The Drive Belongs to MyOS (Concept, 2026-10-23)
+
+Not built yet; to be decided whether before E3.
+
+**A MyOS service, not a Scope feature.** LibreOffice, the command line (`cd
+Perspektiven/04_Finanz/Projekte`) and every other program use the drive without Scope. So
+the daemon lives with the login session, not with a Scope window:
+
+- "Starting MyOS" is logging in: a systemd user service (`systemctl --user`) starts the
+  daemon at login and ends it at logout (SIGTERM; the ending of A7 - busy drive waits,
+  never killed - already holds). `myos start`, `myos stop` and `myos status` as plain
+  commands.
+- Scope only connects; it neither starts nor stops the daemon (at most it starts a missing
+  one). Closing Scope does not end MyOS; the small Scope instance (top left) may offer
+  "Quit MyOS".
+- Service and small Scope stay separate (invisible base / user interface) but start
+  together (autostart).
+- More may move into the service later: catching up on filing (Designdocument Sort.md,
+  section 4), the Desk and taskbar switching, SunTree.
+
+**Mounted like a network drive.** A drive always mounted next to `Projekte` would show
+every project file twice: backups (Déjà Dup, rsync), search indexes, `du ~` and `find ~`
+would see and store everything twice. Mounting over `Projekte` instead (either/or) was
+weighed and rejected: the daemon needs the real tree it would hide; a crashed daemon would
+make all projects seem gone (dead mount point), not only the view; shells, open documents
+and backups inside `Projekte` would suddenly see the turned tree. Instead, as gvfs does
+for network drives (`/run/user/<uid>/gvfs`):
+
+- The drive is mounted outside the home folder: `/run/user/<uid>/myos/Perspektiven`
+  (one per projects root).
+- Next to `Projekte` lies only a symlink `Perspektiven` to it. In file managers, in
+  LibreOffice and on the command line it behaves like a folder; tools walking the home
+  folder from above do not follow symlinks by default (`find`, `rsync`, `du`; to be
+  checked for Nemo, Déjà Dup and the search indexes on the real desktop before deciding).
+- Without MyOS running, the symlink points nowhere - more honest than an empty folder one
+  could save into by mistake.
+
+**Searching in the perspective.** The perspectives are where one searches most: "Where is
+the invoice from FirmaX from two weeks ago? In which project was it?"
+
+- Global search (desktop search, indexes) finds the real file once, under
+  `Projekte/Job/04_Finanz/...`; the path names the project. Without the symlink every hit
+  would appear twice.
+- A search started *inside* the perspective (the file manager's search in
+  `Perspektiven/04_Finanz/Projekte`, `find . -iname '*FirmaX*' -mtime -14` there) walks
+  the drive and finds everything; the first part of the path is the project.
+- Scope answers the same question faster on the real tree, since it knows the mapping:
+  with the lens `04_Finanz` on, a search for "FirmaX", last two weeks, looks only into the
+  `04_Finanz` folders of all projects and lists the hits with a "Project" column. This
+  belongs to E6 (a filter puts on a lens); the dates come from the sort rules' date
+  sources (Designdocument Sort.md, section 5), right even when copying changed the
+  modification time.
+- Energy: such a search touches only the department's folders, not the whole disk or the
+  whole home folder. For one person this is irrelevant; across many users and data
+  centres it may be a real argument for MyOS. Claim (Oliver): about one hundredth of the
+  energy for such searches. To be measured - it depends on the share of files in the
+  department's folders, and against a search that already uses an index the gain is
+  smaller than against a full scan.
+
+## A10. Open
 
 - The default of the fallback: with or without folders (A4).
+- The MyOS service (A9): which projects roots it serves (a small configuration: the real
+  one, `MyOS_Test`); autostart of the small Scope; how Nemo, Déjà Dup and the search
+  indexes treat the `Perspektiven` symlink on the real desktop.
 
 # Part B - Resolver Contract (v1, MVP)
 
