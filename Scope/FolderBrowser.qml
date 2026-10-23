@@ -89,8 +89,6 @@ Item { // ROOT
     property color pathButtonBorder: pillBorder
     property color folderButtonFill: pill
     property color folderButtonBorder: pillBorder
-    property bool isPerspective: false
-    readonly property bool is_perspective: isPerspective
     property bool showPerspectivePin: false
     property string iconPin: ""
     property bool tintPathAsProject: false

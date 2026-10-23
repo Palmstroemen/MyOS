@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from daemon.perspective_daemon import socket_path_for
+from daemon.api import decode_response
+from daemon.perspective_daemon import DaemonState, _handle_request, socket_path_for
 
 
 def _send_request(socket_path: str, method: str, params: Optional[Dict[str, Any]] = None,
@@ -56,6 +57,17 @@ class DaemonClient:
     def request_shutdown(self, timeout: float = 1.0) -> bool:
         """Ask the daemon to end (it unmounts its drive)."""
         return bool(_send_request(self.socket_path, "shutdown", timeout=timeout).get("ok"))
+
+
+class LocalSession:
+    """The same answers as a daemon, from a session in this process: for when none runs
+    (tests; no drive then). Other programs do not see this lens."""
+
+    def __init__(self, projects_root: Union[str, Path]) -> None:
+        self._state = DaemonState(projects_root=str(Path(projects_root).expanduser().resolve()))
+
+    def call(self, method: str, **params: Any) -> Dict[str, Any]:
+        return decode_response(_handle_request(self._state, {"method": method, "params": params}))
 
 
 def connect(projects_root: Union[str, Path]) -> Optional[DaemonClient]:

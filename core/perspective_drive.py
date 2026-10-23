@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 
-from core.perspective_session import children, departments, holds_project, is_project, template_dirs
+from core.perspective_session import bear_folder, children, departments, holds_project, is_project, template_dirs
 
 PROJECTS = "Projekte"
 Parts = Tuple[str, ...]
@@ -108,7 +108,7 @@ class PerspectiveDrive:
         if not self._may(target, "write"):
             raise PermissionError(path)
         if parent.fallback is not None and not parent.rest:
-            folder = self._materialize(parent)
+            folder = bear_folder(self.projects_root.joinpath(*parent.project), parent.lens)
         return folder / parts[-1]
 
     def may(self, real: Path, action: str) -> bool:
@@ -134,18 +134,6 @@ class PerspectiveDrive:
 
     def _department_folder(self, node: DriveNode) -> Path:
         return self.projects_root.joinpath(*node.project, *node.lens)
-
-    def _materialize(self, node: DriveNode) -> Path:
-        """Create the department folder of node's project (embryos born with their content)."""
-        from core.localBlueprintLayer import Blueprint  # late: heavy, only for writes
-
-        project_dir = self.projects_root.joinpath(*node.project)
-        try:
-            return Blueprint(project_dir).materialize_dir("/".join(node.lens))
-        except ValueError:  # no blueprint for this project: plain folders
-            folder = self._department_folder(node)
-            folder.mkdir(parents=True, exist_ok=True)
-            return folder
 
 
 def _parts(path: str) -> Optional[Parts]:

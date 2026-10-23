@@ -135,14 +135,18 @@ class DaemonState:
     def _describe(self) -> Dict[str, Any]:
         session = self.session
         target, desk = session.target, session.desk_file()
+        shown, fallback = session.shown() if session.active else (None, False)
         return {
             "active": session.active,
             "cwd": str(session.cwd) if session.cwd else "",
             "cpd": session.cpd,
             "lens": list(session.lens),
             "project": list(session.project) if session.project is not None else None,
+            "project_dir": str(session.projects_root.joinpath(*session.project)) if session.project is not None else "",
             "target": str(target) if target else "",
             "desk": str(desk) if desk else "",
+            "shown": str(shown) if shown else "",
+            "fallback": fallback,
         }
 
 
@@ -150,11 +154,13 @@ class DaemonState:
 _ACTIONS: Dict[str, Callable[[PerspectiveSession, Dict[str, Any]], Any]] = {
     "set_cwd": lambda s, p: s.set_cwd(str(p.get("path", ""))),
     "put_on": lambda s, p: s.put_on(list(p.get("lens") or [])),
+    "look_at": lambda s, p: s.look_at(str(p.get("path", ""))),
     "move_to_project": lambda s, p: s.move_to_project(list(p.get("project") or [])),
     "go_into": lambda s, p: s.go_into(str(p.get("name", ""))),
     "to_shelf": lambda s, p: s.to_shelf(),
     "into_shelf": lambda s, p: s.into_shelf(str(p.get("name", ""))),
     "take_off": lambda s, p: s.take_off(),
+    "bear": lambda s, p: s.bear(),
 }
 
 

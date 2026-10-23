@@ -147,18 +147,12 @@ ApplicationWindow {
 
     property string cwp: "/Projekte/Haus/Dach"
     property var subProjects: []
-    property string templatesRootPath: ""
     property string standardPath: "/"
-    property string templatesPerspectivePath: "/Templates"
-    property var templatesPerspectiveCpdByDisplayPath: ({})
     property string templatesCtdPath: ""
     property string previewCTDPath: ""
     property string committedCTDPath: ""
     property string clipboardPath: ""
     property bool clipboardHasItems: false
-    // Controls whether TemplatesBrowser acts as perspective selector (CPD semantics)
-    // or as plain embryo browser (CTD semantics).
-    property bool templatesUsePerspective: true
     property var standardFolders: []
     property var standardFoldersFiltered: []
     property var userFolders: ["myFolder", "myOtherFolder"]
@@ -311,10 +305,11 @@ ApplicationWindow {
     property var openWithQuickCommands: ["xdg-open", "code", "libreoffice"]
     property var availableFilters: []
     property var activeFilter: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
-    property var perspectiveState: ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
-    property bool perspectiveModeEnabled: false
-    property string lastSyncedPerspectiveCpd: ""
-    property bool lastSyncedPerspectiveActive: false
+    // The lens as the session describes it (see lensRequest); off: { active: false }.
+    property var lensState: ({ active: false })
+    readonly property bool lensOn: !!(lensState && lensState.active)
+    // The lens looks into a project (not on the shelf, which comes with the right menu, E4).
+    readonly property bool lensInProject: lensOn && !!lensState.project
     property string manualFilterPath: ""
     property string filterSaveSourcePath: ""
     property var filterSaveTargets: []
@@ -560,87 +555,77 @@ ApplicationWindow {
         return resolved.length > 0 ? resolved : iconProjectFallback
     }
 
-    function refreshPerspectiveState() {
-        if (!hasBackend() || typeof backend.perspectiveState !== "function") {
-            perspectiveState = ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
-            perspectiveModeEnabled = false
-            lastSyncedPerspectiveCpd = ""
-            lastSyncedPerspectiveActive = false
-            return
+    // --- The lens (Designdocument Perspective Resolver MVP.md, Part A) -------------------
+    // The lens lives in one session (the perspective daemon); Scope only asks it and shows
+    // what it answers - it builds no lens paths. With a lens on, the MyOS-folder row shows
+    // the lens' folder in its project, and the FilesPanel what the lens shows.
+
+    /// Ask the session (put_on, look_at, take_off, ...) and show the lens afterwards.
+    function lensRequest(method, params) {
+        if (!hasBackend() || typeof backend.lens !== "function") return false
+        var reply = backend.lens(method, params || ({}))
+        if (!reply || !reply.ok) {
+            console.log("lens", method, "failed:", reply ? reply.error : "no reply")
+            return false
         }
-        var next = backend.perspectiveState() || ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
-        var nextActive = !!next.active
-        var nextCpd = String(next.cpd || "")
-        var stateChanged = (nextActive !== lastSyncedPerspectiveActive) || (nextCpd !== lastSyncedPerspectiveCpd)
-        perspectiveState = next
-        perspectiveModeEnabled = nextActive
-        var desiredTemplatesPath = nextActive
-            ? templatesDisplayPathFromPerspectiveCpd(nextCpd)
-            : templatesDisplayPathFromPerspectiveCpd("/Templates")
-        var displayChanged = desiredTemplatesPath !== String(templatesPerspectivePath || "")
-        if (displayChanged) {
-            templatesPerspectivePath = desiredTemplatesPath
+        showLens(reply.result)
+        return true
+    }
+
+    /// Show the lens as the session describes it (active, target, shown, fallback, ...).
+    function showLens(state) {
+        var wasOn = lensOn
+        lensState = state || ({ active: false })
+        if (lensOn || wasOn) {
+            commitCTD(filesPathWithLens())  // taken off: back in the CWD
         }
-        if (stateChanged || (templatesUsePerspective && displayChanged)) {
-            lastSyncedPerspectiveActive = nextActive
-            lastSyncedPerspectiveCpd = nextCpd
-            var listingPath = templatesPerspectiveActive() ? templatesPerspectivePath : standardPath
-            standardFolders = listTemplates(listingPath)
-            updateStandardFolders()
+        standardFolders = listTemplates(templatesListingPath())
+        updateStandardFolders()
+    }
+
+    /// What the FilesPanel shows: what the lens shows - in a project. On the shelf (the CWD
+    /// is a folder of projects) the CWD for now; the shelf itself comes with the right menu.
+    function filesPathWithLens() {
+        return lensInProject ? String(lensState.shown || "") : cwp
+    }
+
+    /// The CWD changed (left menu): a lens on follows into the new CWD's project (A3).
+    function lensSetCwd() {
+        if (!hasBackend() || typeof backend.lens !== "function") return
+        var reply = backend.lens("set_cwd", { "path": cwp })
+        if (reply && reply.ok) {
+            lensState = reply.result
+        } else if (lensOn) {
+            lensState = ({ active: false })  // outside the projects there is no lens
         }
     }
 
-    function templatesPerspectiveActive() {
-        return !!templatesUsePerspective && !!perspectiveModeEnabled
+    /// Where something new in the shown folder goes: with the lens' folder missing in its
+    /// project (the fallback shows a parent), the lens' folder - born now.
+    function filesCreateTarget(path) {
+        var p = String(path || "")
+        if (!lensOn || !lensState.fallback
+                || PathUtils.normalizeFsPath(p) !== PathUtils.normalizeFsPath(lensState.shown)) {
+            return p
+        }
+        var born = backend.lensBear()
+        if (!born || !born.ok) {
+            console.log("lens: could not bear", lensState.target, born ? born.error : "")
+            return ""
+        }
+        showLens(born.result)
+        return String(born.result.target || "")
     }
 
     function templatesListingPath() {
-        return templatesPerspectiveActive() ? templatesPerspectivePath : standardPath
-    }
-
-    function parsePerspectiveCpd(cpd) {
-        var raw = String(cpd || "").trim()
-        var parts = raw.split("/").filter(function(p) { return p.length > 0 })
-        var idx = -1
-        for (var i = 0; i < parts.length; i++) {
-            if (parts[i] === "Projekte") {
-                idx = i
-                break
-            }
-        }
-        if (idx < 0 || idx + 1 >= parts.length) {
-            return { valid: false, templateParts: [], projectName: "", tailParts: [] }
-        }
-        return {
-            valid: true,
-            templateParts: parts.slice(0, idx),
-            projectName: String(parts[idx + 1] || ""),
-            tailParts: parts.slice(idx + 2)
-        }
-    }
-
-    function buildPerspectiveCpd(templateParts, projectName, tailParts) {
-        var out = []
-        for (var i = 0; i < (templateParts || []).length; i++) {
-            out.push(String(templateParts[i] || ""))
-        }
-        out.push("Projekte")
-        out.push(String(projectName || ""))
-        for (var j = 0; j < (tailParts || []).length; j++) {
-            out.push(String(tailParts[j] || ""))
-        }
-        return "/" + out.filter(function(p) { return p.length > 0 }).join("/")
+        return lensInProject ? String(lensState.target || "") : standardPath
     }
 
     function resolveProjectRootPath() {
         if (hasBackend() && typeof backend.getProjectRoot === "function") {
-            var root = String(backend.getProjectRoot() || "")
-            if (root.length > 0) {
-                return PathUtils.trimTrailingSlash(root)
-            }
+            return PathUtils.trimTrailingSlash(String(backend.getProjectRoot() || ""))
         }
-        var perspectiveRoot = String((perspectiveState && perspectiveState.projectRoot) ? perspectiveState.projectRoot : "")
-        return PathUtils.trimTrailingSlash(perspectiveRoot)
+        return ""
     }
 
     function resolveTemplatesRootPathFromProjectRoot(projectRoot) {
@@ -670,52 +655,6 @@ ApplicationWindow {
         return base + "/Templates"
     }
 
-    function projectNameFromCwp() {
-        var root = resolveProjectRootPath()
-        var prefix = root.length > 0 ? (PathUtils.trimTrailingSlash(root) + "/") : ""
-        if (prefix.length > 0 && String(cwp || "").indexOf(prefix) === 0) {
-            var rel = String(cwp || "").slice(prefix.length)
-            var first = rel.split("/").filter(function(p) { return p.length > 0 })[0]
-            if (first && first.length > 0) {
-                return first
-            }
-        }
-        var parsed = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
-        return parsed.valid ? String(parsed.projectName || "") : ""
-    }
-
-    function templatePartsFromTemplatesPath(path) {
-        var root = PathUtils.trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
-        var target = PathUtils.trimTrailingSlash(path)
-        if (root.length === 0 || target.length === 0) return []
-        if (target === root) return []
-        if (target.indexOf(root + "/") !== 0) return []
-        return target.slice(root.length + 1).split("/").filter(function(p) { return p.length > 0 })
-    }
-
-    function perspectiveCpdFromTemplatePath(path) {
-        var raw = String(path || "").trim()
-        if (raw === "/Templates" || raw === "/Templates/") {
-            return "/Templates"
-        }
-        if (templatesPerspectiveCpdByDisplayPath && templatesPerspectiveCpdByDisplayPath[raw]) {
-            return String(templatesPerspectiveCpdByDisplayPath[raw] || "")
-        }
-        var templateParts = raw.indexOf("/Templates/") === 0
-            ? raw.slice("/Templates/".length).split("/").filter(function(p) { return p.length > 0 })
-            : templatePartsFromTemplatesPath(path)
-        var projectName = projectNameFromCwp()
-        if (projectName.length === 0) return ""
-        if (templateParts.length === 0) {
-            return "/Templates"
-        }
-        var parsedState = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
-        var hint = parsedState.valid && parsedState.templateParts.length > 0
-            ? String(parsedState.templateParts[0] || "")
-            : String((perspectiveState && perspectiveState.templateRoot) ? perspectiveState.templateRoot : "")
-        return buildPerspectiveCpd(hint.length > 0 ? [hint] : [], projectName, templateParts)
-    }
-
     function folderTypeFromMeta(folderMeta) {
         if (folderMeta && folderMeta.folderType !== undefined) {
             var parsed = Number(folderMeta.folderType)
@@ -729,177 +668,15 @@ ApplicationWindow {
         return 0
     }
 
-    function shouldApplyPerspectiveForFolderType(folderMeta) {
+    /// A MyOS folder (born or embryo): a double click on it puts on its lens.
+    function isMyosFolder(folderMeta) {
         return folderTypeFromMeta(folderMeta) > 0
     }
 
-    function templatesDisplayPathFromPerspectiveCpd(cpd) {
-        var root = PathUtils.trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
-        var parsed = parsePerspectiveCpd(cpd)
-        if (!parsed.valid) {
-            return root.length > 0 ? root : "/Templates"
-        }
-        var tail = parsed.templateParts.slice(1).concat(parsed.tailParts)
-        if (root.length === 0) {
-            return tail.length > 0 ? ("/Templates/" + tail.join("/")) : "/Templates"
-        }
-        return tail.length > 0 ? (root + "/" + tail.join("/")) : root
-    }
-
-    function resolveTemplateDisplayPathToReal(path) {
-        var raw = String(path || "").trim()
-        if (raw.length === 0) {
-            return ""
-        }
-        if (!(raw === "/Templates" || raw === "/Templates/" || raw.indexOf("/Templates/") === 0)) {
-            return raw
-        }
-        var root = PathUtils.trimTrailingSlash(templatesRootPath.length > 0 ? templatesRootPath : resolveTemplatesRootPath())
-        if (root.length === 0) {
-            return raw
-        }
-        if (raw === "/Templates" || raw === "/Templates/") {
-            return root
-        }
-        return root + raw.slice("/Templates".length)
-    }
-
-    function disablePerspectiveMode() {
-        if (!hasBackend() || typeof backend.perspectiveSetCpd !== "function") {
-            return false
-        }
-        backend.perspectiveSetCpd("/Templates")
-        refreshPerspectiveState()
-        templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd("/Templates")
-        templatesPerspectiveCpdByDisplayPath = ({})
-        var listingPath = templatesListingPath()
-        standardFolders = listTemplates(listingPath)
-        updateStandardFolders()
-        return true
-    }
-
     function onCwdDoubleActivated() {
-        if (perspectiveModeEnabled) {
-            disablePerspectiveMode()
+        if (lensOn) {
+            lensRequest("take_off")
         }
-    }
-
-    function ensurePerspectiveOpen() {
-        // onCwpChanged already refreshes perspective state before updateTemplates().
-        // Avoid a redundant second refresh on startup/path changes.
-        if (!hasBackend() || typeof backend.perspectiveOpen !== "function") {
-            return false
-        }
-        if (perspectiveState.active) {
-            return true
-        }
-        var opened = backend.perspectiveOpen(cwp, "flipped") || ({ active: false })
-        console.log("ensurePerspectiveOpen:", !!opened.active, opened)
-        refreshPerspectiveState()
-        return !!opened.active || !!perspectiveState.active
-    }
-
-    function ensurePerspectiveOpenForTemplates() {
-        return ensurePerspectiveOpen()
-    }
-
-    function applyPerspectiveForRealPath(realPath) {
-        var target = String(realPath || "").trim()
-        if (target.length === 0) {
-            return false
-        }
-        if (!ensurePerspectiveOpen()) {
-            return false
-        }
-        if (!hasBackend() || typeof backend.perspectiveResolveReal !== "function") {
-            return false
-        }
-        var resolved = backend.perspectiveResolveReal(target) || ({ ok: false })
-        var nextCpd = String(resolved.cpd || "").trim()
-        if (nextCpd.length === 0) {
-            return false
-        }
-        return applyPerspectiveCpd(nextCpd)
-    }
-
-    function applyPerspectiveCpd(targetCpd) {
-        var next = String(targetCpd || "").trim()
-        if (next.length === 0 || next === "/") {
-            return disablePerspectiveMode()
-        }
-        if (!hasBackend() || typeof backend.perspectiveSetCpd !== "function") {
-            return false
-        }
-        var isTemplatesAnchor = (next === "/Templates" || next === "/Templates/")
-        var parsed = parsePerspectiveCpd(next)
-        if (!isTemplatesAnchor && !parsed.valid) {
-            return false
-        }
-        var result = backend.perspectiveSetCpd(next) || ({ ok: false })
-        console.log("perspectiveSetCpd result:", result)
-        refreshPerspectiveState()
-        console.log("Perspektive aktiviert auf: CPD", (perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "(leer)", "active:", perspectiveModeEnabled)
-        if (!result.ok) {
-            return false
-        }
-        templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(
-            String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : next)
-        )
-        var listingPath = templatesListingPath()
-        standardFolders = listTemplates(listingPath)
-        updateStandardFolders()
-        return true
-    }
-
-    function listPerspectiveTemplates(cpd, displayPath) {
-        if (!hasBackend()) {
-            return []
-        }
-        var rows = []
-        if (typeof backend.perspectiveListTemplates === "function") {
-            rows = backend.perspectiveListTemplates(cpd || "", projectsShowHiddenFolders)
-        } else if (typeof backend.perspectiveListDir === "function") {
-            rows = backend.perspectiveListDir(cpd || "", projectsShowHiddenFolders)
-        } else {
-            return []
-        }
-        var out = []
-        var displayBase = String(displayPath || templatesPerspectivePath || "/Templates")
-        var nextMap = {}
-        if (templatesPerspectiveCpdByDisplayPath) {
-            for (var key in templatesPerspectiveCpdByDisplayPath) {
-                nextMap[key] = templatesPerspectiveCpdByDisplayPath[key]
-            }
-        }
-        for (var i = 0; i < rows.length; i++) {
-            var nodeType = String((rows[i] && rows[i].nodeType) ? rows[i].nodeType : "")
-            if (nodeType === "dir") {
-                var name = String((rows[i] && rows[i].name) ? rows[i].name : "")
-                if (name.length === 0) {
-                    continue
-                }
-                var base = displayBase.length > 1 && displayBase.endsWith("/")
-                    ? displayBase.slice(0, -1)
-                    : displayBase
-                var displayPath = (base === "/" ? "" : base) + "/" + name
-                nextMap[displayPath] = String((rows[i] && rows[i].cpd) ? rows[i].cpd : "")
-                var rowFolderType = (rows[i] && rows[i].folderType !== undefined)
-                    ? Number(rows[i].folderType)
-                    : 2
-                if (isNaN(rowFolderType)) {
-                    rowFolderType = 2
-                }
-                out.push({
-                    "name": name,
-                    "isEmbryo": true,
-                    "folderType": rowFolderType,
-                    "color": String((rows[i] && rows[i].color) ? rows[i].color : ""),
-                    "cpd": String((rows[i] && rows[i].cpd) ? rows[i].cpd : "")
-                })
-            }
-        }
-        templatesPerspectiveCpdByDisplayPath = nextMap
-        return out
     }
 
     function _isMyOSFolderTrace(pathOrName) {
@@ -928,10 +705,6 @@ ApplicationWindow {
     }
 
     function listTemplates(path) {
-        if (templatesUsePerspective && perspectiveModeEnabled && hasBackend()) {
-            var queryCpd = perspectiveCpdFromTemplatePath(path)
-            return listPerspectiveTemplates(queryCpd, path)
-        }
         if (hasBackend() && typeof backend.listTemplates === "function") {
             return backend.listTemplates(path, templatesShowEmbryos, projectsShowHiddenFolders)
         }
@@ -1208,7 +981,8 @@ ApplicationWindow {
         if (!hasBackend() || typeof backend.createNote !== "function") {
             return
         }
-        var targetDir = currentFilesPath()
+        var targetDir = filesCreateTarget(currentFilesPath())
+        if (targetDir.length === 0) return
         var createdPath = backend.createNote(targetDir, "New Note")
         if (!createdPath || createdPath.length === 0) {
             moveReportMessage = qsTr("Could not create a note in this folder.")
@@ -2183,23 +1957,9 @@ ApplicationWindow {
     }
 
     function updateTemplates() {
-        var root = PathUtils.trimTrailingSlash(resolveTemplatesRootPath())
-        templatesRootPath = root
-        // APD follows CWD whenever perspective is inactive.
+        // The MyOS-folder row follows the CWD (with a lens on: the lens' folder).
         standardPath = cwp
-        if (templatesUsePerspective && perspectiveModeEnabled) {
-            if (perspectiveState.active) {
-                templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd(
-                    String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "/Templates")
-                )
-            } else {
-                templatesPerspectivePath = templatesDisplayPathFromPerspectiveCpd("/Templates")
-            }
-        } else {
-            templatesPerspectiveCpdByDisplayPath = ({})
-        }
-        var listingPath = templatesListingPath()
-        standardFolders = listTemplates(listingPath)
+        standardFolders = listTemplates(templatesListingPath())
         updateStandardFolders()
     }
 
@@ -2301,15 +2061,15 @@ ApplicationWindow {
     onCwpChanged: {
         selectedEntryPaths = []
         selectedTags = []
-        refreshPerspectiveState()
+        lensSetCwd()
         updateSubProjects()
         if (hasBackend() && typeof backend.setContext === "function") {
             backend.setContext(cwp)
         }
         updateDefaultProjectTint()
         updateCurrentProjectTint()
-        // Keep FilesPanel in sync whenever CWD changes.
-        commitCTD(cwp)
+        // Keep FilesPanel in sync whenever CWD changes (with a lens on: what it shows).
+        commitCTD(filesPathWithLens())
         updateTemplates()
     }
     onCommittedCTDPathChanged: {
@@ -2331,23 +2091,6 @@ ApplicationWindow {
             backend.cancelFolderSizes()
         }
         updateFiles()
-    }
-    onStandardPathChanged: {
-        if (templatesUsePerspective) {
-            return
-        }
-        if (hasBackend() && typeof backend.invalidateEntries === "function") {
-            backend.invalidateEntries(standardPath)
-        }
-        standardFolders = listTemplates(standardPath)
-        updateStandardFolders()
-    }
-    onTemplatesPerspectivePathChanged: {
-        if (!templatesPerspectiveActive()) {
-            return
-        }
-        standardFolders = listTemplates(templatesPerspectivePath)
-        updateStandardFolders()
     }
 
     function updateSubProjects() {
@@ -2547,7 +2290,7 @@ ApplicationWindow {
         if (String(cwp || "") === cwpBeforeInit) {
             selectedEntryPaths = []
             selectedTags = []
-            refreshPerspectiveState()
+            lensSetCwd()
             updateSubProjects()
             if (hasBackend() && typeof backend.setContext === "function") {
                 backend.setContext(cwp)
@@ -3381,13 +3124,11 @@ ApplicationWindow {
             parent: floatingPool
             visible: templatesBrowserVisible && !edgeDockEnabled
             verticalPreferredHeight: 390
-            isPerspective: window.templatesUsePerspective
-            path: (templatesBrowser.isPerspective && window.perspectiveModeEnabled)
-                ? window.templatesPerspectivePath
-                : standardPath
-            pathDisplayPrefix: cwp
-            showLeftAction: templatesBrowser.isPerspective && window.perspectiveModeEnabled
-            leftActionText: qsTr("Perspective OFF")
+            // With a lens on: the lens' folder in the project it looks into (A1, A4).
+            path: window.lensInProject ? String(window.lensState.target || "") : standardPath
+            pathDisplayPrefix: window.lensInProject ? String(window.lensState.project_dir || "") : cwp
+            showLeftAction: window.lensOn
+            leftActionText: qsTr("End perspective")
             showEmbryos: window.templatesShowEmbryos
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
@@ -3445,10 +3186,9 @@ ApplicationWindow {
             hostBackend: backend
             hostProjectIconForPath: projectIconForPath
             hostHasBackend: hasBackend
-            resolvePath: resolveTemplateDisplayPathToReal
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
-            showPerspectivePin: window.perspectiveModeEnabled
+            showPerspectivePin: window.lensOn
             iconPin: window.iconPin
             searchActive: level2SearchActive
             searchText: level2SearchText
@@ -3461,20 +3201,17 @@ ApplicationWindow {
             }
             onStyleChanged: function(style) { level2ButtonStyle = style }
         onLeftActionTriggered: {
-            disablePerspectiveMode()
+            lensRequest("take_off")
         }
-        onCurrentPathDoubleActivated: onCwdDoubleActivated
+        onCurrentPathDoubleActivated: onCwdDoubleActivated()
         onToggleEmbryos: {
             window.templatesShowEmbryos = !window.templatesShowEmbryos
-                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
-                var listingPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
-            standardFolders = listTemplates(listingPath)
+            standardFolders = listTemplates(templatesListingPath())
             updateStandardFolders()
         }
             onPathSegmentActivated: function(index) {
                 show_FilesPanel()
-                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
-                var currentPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
+                var currentPath = templatesListingPath()
                 var nextPath = currentPath
                 if (templatesBrowser.fullPathForDisplayIndex) {
                     nextPath = templatesBrowser.fullPathForDisplayIndex(index)
@@ -3482,52 +3219,44 @@ ApplicationWindow {
                     var parts = currentPath.split("/").filter(function(p){ return p.length > 0 })
                     nextPath = "/" + parts.slice(0, index + 1).join("/")
                 }
-                if (perspectiveActive) {
-                    window.templatesPerspectivePath = nextPath
+                if (window.lensOn) {
+                    // A flatter lens; the project itself is the way to the shelf (E4).
+                    if (nextPath !== String(window.lensState.project_dir || "")) {
+                        lensRequest("look_at", { "path": nextPath })
+                    }
                 } else {
                     standardPath = nextPath
                 }
             }
             onPathSelected: function(path) {
                 show_FilesPanel()
-                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
-                if (perspectiveActive) {
-                    window.templatesPerspectivePath = String(path || "")
+                if (window.lensOn) {
+                    lensRequest("look_at", { "path": String(path || "") })
                 } else {
                     standardPath = path
                 }
             }
             onFolderActivated: function(name) {
                 show_FilesPanel()
-                var perspectiveActive = templatesBrowser.isPerspective && window.perspectiveModeEnabled
-                var currentPath = perspectiveActive ? window.templatesPerspectivePath : standardPath
-                var nextPath = String(name || currentPath)
-                if (perspectiveActive) {
-                    window.templatesPerspectivePath = nextPath
+                var nextPath = String(name || templatesListingPath())
+                if (window.lensOn) {
+                    lensRequest("look_at", { "path": nextPath })
                 } else {
                     standardPath = nextPath
                 }
             }
             onNavigationRequested: function(path, gesture, source, meta) {
-                var realPath = resolveTemplateDisplayPathToReal(path)
-                if (gesture === "single") {
-                    applyFolderActivation(realPath)
+                var target = String(path || "").trim()
+                if (target.length === 0) return
+                if (window.lensOn) {
+                    // The lens gets sharper, or another department's lens is put on (A3).
+                    lensRequest("look_at", { "path": target })
+                } else if (gesture === "single") {
+                    applyFolderActivation(target)
+                } else if (isMyosFolder(meta)) {
+                    lensRequest("look_at", { "path": target })  // put on the lens (A3)
                 } else {
-                    var applyPerspective = shouldApplyPerspectiveForFolderType(meta)
-                    if (!applyPerspective) {
-                        if (String(path || "").trim().length > 0) {
-                            commitCTD(realPath)
-                        }
-                        return
-                    }
-                    if (!ensurePerspectiveOpenForTemplates()) {
-                        return
-                    }
-                    var targetCpd = perspectiveCpdFromTemplatePath(String(path || ""))
-                    if (targetCpd.length === 0) {
-                        return
-                    }
-                    applyPerspectiveCpd(targetCpd)
+                    commitCTD(target)
                 }
             }
             onNavigateToPathRequested: function(path) {
@@ -3554,7 +3283,7 @@ ApplicationWindow {
             pathDisplayPrefix: cwp
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
-            showPerspectivePin: window.perspectiveModeEnabled
+            showPerspectivePin: window.lensOn
             iconPin: window.iconPin
             folders: subProjects
             childrenProvider: function(targetPath, options) { return listChildren(targetPath, options) }
@@ -3644,26 +3373,26 @@ ApplicationWindow {
                 var targetPath = String(path || "").trim().indexOf("/") === 0 ? String(path || "").trim() : (cwp + "/" + String(path || "").trim())
                 if (targetPath.length === 0) return
                 if (gesture === "single") {
+                    // Browsing (the menus open): the FilesPanel shows the folder, a lens stays on.
                     show_FilesPanel()
                     applyFolderActivation(targetPath)
                     clearSearchAfterNavigate()
                 } else {
+                    // A double click changes where one is; a lens on follows (A3), and the
+                    // FilesPanel shows the lens again.
                     if (projectsBrowser && typeof projectsBrowser.resetPreview === "function") {
                         projectsBrowser.resetPreview()
                         projectsBrowser.scheduleContentHeightUpdate()
                     }
                     setCwp(targetPath, "projectsBrowser.navigationRequested")
-                    commitCTD(targetPath)
+                    if (!window.lensOn) commitCTD(targetPath)
                     clearSearchAfterNavigate()
-                    if (shouldApplyPerspectiveForFolderType(meta)) {
-                        applyPerspectiveForRealPath(targetPath)
-                    }
                 }
             }
             onNavigateToPathRequested: function(path) {
                 // CWD/CTD handled by onNavigationRequested
             }
-            onCurrentPathDoubleActivated: onCwdDoubleActivated
+            onCurrentPathDoubleActivated: onCwdDoubleActivated()
             onFolderActivated: function(name) {
                 show_FilesPanel()
             }
@@ -3831,7 +3560,10 @@ ApplicationWindow {
                     templatesBrowser.scheduleContentHeightUpdate()
                 }
             }
-            onMoveEntriesRequested: function(payload, targetDir) { moveEntry(payload, targetDir) }
+            onMoveEntriesRequested: function(payload, targetDir) {
+                var target = filesCreateTarget(targetDir)
+                if (target.length > 0) moveEntry(payload, target)
+            }
             onTagToggled: function(tag) { toggleTagSelection(tag) }
             onAddFolderTagRequested: function(tag) { addFolderTag(tag) }
             onRemoveFolderTagRequested: function(tag) { removeFolderTag(tag) }
@@ -3843,7 +3575,8 @@ ApplicationWindow {
                 if (targetBase.length === 0) {
                     targetBase = currentFilesPath()
                 }
-                requestCreateFolderAt(targetBase)
+                targetBase = filesCreateTarget(targetBase)
+                if (targetBase.length > 0) requestCreateFolderAt(targetBase)
             }
             onMoveSelectedIntoNewFolderRequested: function(paths) {
                 promptMoveSelectedIntoNewFolder(paths)
@@ -3856,6 +3589,12 @@ ApplicationWindow {
                 var targetPath = String(path || "").trim()
                 if (targetPath.length === 0) return
                 show_FilesPanel()
+                // With a lens on: a folder of the department makes the lens sharper; any
+                // other (the fallback shows the project's folders) takes it off to go there.
+                if (window.lensOn) {
+                    if (lensRequest("look_at", { "path": targetPath })) return
+                    lensRequest("take_off")
+                }
                 setCwp(targetPath, "filesPane.navigationRequested")
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()

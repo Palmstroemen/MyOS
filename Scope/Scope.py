@@ -42,7 +42,7 @@ from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
 from core.scope_api import ScopeApi
-from daemon.client import connect as connect_daemon
+from daemon.client import LocalSession, connect as connect_daemon
 
 
 class DropDebugFilter(QObject):
@@ -328,15 +328,17 @@ class Backend(QObject):
         # The perspective daemon of this projects root: the lens session and the
         # "Perspektiven" drive next to "Projekte" (daemon/perspective_daemon.py). Scope
         # uses only the daemon of its own root and starts it when none runs (switched off
-        # with MYOS_SCOPE_START_DAEMON=0, e.g. for tests). Until Scope shows the lens from
-        # the session (E3), its perspective slots still ask the local ScopeApi.
+        # with MYOS_SCOPE_START_DAEMON=0, e.g. for tests). The lens is the daemon's session;
+        # without a daemon Scope asks a session of its own (then no other program sees it).
         self._daemon_client = None
         self._daemon_process = None
+        self._lens_session = None
         self._projects_root = self._api.projects_root()
         if self._projects_root is not None:
             self._daemon_client = connect_daemon(self._projects_root)
             if self._daemon_client is None and os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0":
                 self._start_perspective_daemon()
+            self._lens_session = self._daemon_client or LocalSession(self._projects_root)
 
     @Slot(str, bool, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
@@ -472,37 +474,30 @@ class Backend(QObject):
     def saveFilter(self, path: str, sourcePath: str, targetId: str, newName: str):
         return self._api.save_filter(path, sourcePath, targetId, newName)
 
-    @Slot(str, str, result="QVariantMap")
-    def perspectiveOpen(self, path: str, perspectiveId: str):
-        return self._api.perspective_open(path, perspectiveId)
+    # The lens (Designdocument Perspective Resolver MVP.md, Part A): Scope only asks the
+    # session (daemon/perspective_daemon.py); it builds no lens paths itself.
+    _LENS_REQUESTS = frozenset({"state", "set_cwd", "put_on", "look_at", "go_into", "take_off",
+                                "move_to_project", "to_shelf", "into_shelf", "listing"})
+
+    @Slot(str, "QVariantMap", result="QVariantMap")
+    def lens(self, method: str, params) -> dict:
+        """A lens request: {ok, result | error}; result describes the lens afterwards."""
+        if method not in self._LENS_REQUESTS or self._lens_session is None:
+            return {"ok": False, "error": f"no lens request: {method}"}
+        return self._lens_session.call(method, **dict(params or {}))
 
     @Slot(result="QVariantMap")
-    def perspectiveState(self):
-        return self._api.perspective_state()
-
-    @Slot(str, result="QVariantMap")
-    def perspectiveSetCpd(self, cpd: str):
-        return self._api.perspective_set_cpd(cpd)
-
-    @Slot(str, result="QVariantMap")
-    def perspectiveResolveCpd(self, cpd: str):
-        return self._api.perspective_resolve_cpd(cpd)
-
-    @Slot(str, result="QVariantMap")
-    def perspectiveResolveReal(self, path: str):
-        return self._api.perspective_resolve_real(path)
-
-    @Slot(str, bool, result="QVariantList")
-    def perspectiveListDir(self, cpd: str, showHidden: bool = False):
-        return self._api.perspective_list_dir(cpd, showHidden)
-
-    @Slot(str, bool, result="QVariantList")
-    def perspectiveListTemplates(self, cpd: str, showHidden: bool = False):
-        return self._api.perspective_list_templates(cpd, showHidden)
-
-    @Slot(result=bool)
-    def perspectiveClear(self) -> bool:
-        return self._api.perspective_clear()
+    def lensBear(self) -> dict:
+        """Bear the lens' folder (where the department folder is missing) to drop or create
+        something in it."""
+        state = self.lens("state", {}).get("result") or {}
+        target = str(state.get("target") or "")
+        if not target:
+            return {"ok": False, "error": "no lens target"}
+        # Security: only born where the user may write - as for any folder created.
+        if not self._api.acl_allows("write", Path(target)):
+            return {"ok": False, "error": f"no write access: {target}"}
+        return self._lens_session.call("bear")
 
     @Slot(str, str, result="QVariantMap")
     def previewSortTargetForMove(self, sourcePath: str, targetDir: str):

@@ -76,11 +76,19 @@ class PerspectiveSession:
         """Put on (or change) the lens of a department path, in the project looked at."""
         if self.cwd is None:
             raise ValueError("no CWD")
-        lens = self._checked_parts(lens)
         place = self._place if self.active and not self._shelf else self._project_of(self.cwd)
-        if not lens or lens[0] not in departments(self.projects_root.joinpath(*place)):
-            raise ValueError(f"not a department: {'/'.join(lens)}")
-        self.active, self.lens, self._place, self._shelf = True, lens, place, False
+        self._wear(place, lens)
+
+    def look_at(self, path: Union[str, Path]) -> None:
+        """Put on (or move) the lens to a folder of a project - born or embryo - given as a
+        real path (Scope's MyOS-folder row shows such folders). The CWD stays."""
+        if self.cwd is None:
+            raise ValueError("no CWD")
+        folder = Path(path).expanduser().resolve()
+        place = self._project_of(folder)
+        if not place:
+            raise ValueError(f"not inside a project: {folder}")
+        self._wear(place, folder.relative_to(self.projects_root.joinpath(*place)).parts)
 
     def move_to_project(self, project: Sequence[str]) -> None:
         """The right menu: move the lens to another project; the CWD stays."""
@@ -123,17 +131,31 @@ class PerspectiveSession:
         """The lens' content: on the shelf the projects (and folders leading to them);
         in a project the lens' folder, or its nearest existing parent (with folders)."""
         self._require_active()
+        shown, fallback = self.shown()
         if self._shelf:
-            folder = self.projects_root.joinpath(*self._place)
-            entries = [p for p in children(folder)
-                       if p.is_dir() and (is_project(p) or holds_project(p))]
-            return LensView(shown=folder, entries=entries, fallback=False)
+            entries = [p for p in children(shown) if p.is_dir() and (is_project(p) or holds_project(p))]
+            return LensView(shown=shown, entries=entries, fallback=False)
+        return LensView(shown=shown, entries=children(shown), fallback=fallback)
+
+    def shown(self) -> Tuple[Path, bool]:
+        """The folder the lens shows, and whether it is the fallback (the lens' folder does
+        not exist in the project: its nearest existing parent)."""
+        self._require_active()
+        if self._shelf:
+            return self.projects_root.joinpath(*self._place), False
         project_dir = self.projects_root.joinpath(*self._place)
         for depth in range(len(self.lens), -1, -1):
             folder = project_dir.joinpath(*self.lens[:depth])
             if folder.is_dir() and not folder.is_symlink():
-                return LensView(shown=folder, entries=children(folder), fallback=depth < len(self.lens))
-        return LensView(shown=project_dir, entries=[], fallback=True)
+                return folder, depth < len(self.lens)
+        return project_dir, True
+
+    def bear(self) -> Path:
+        """Create the lens' folder in its project (to drop or save into it); folders of
+        the template are born with their content, as embryos are."""
+        if self.project is None:
+            raise ValueError("no project to bear the lens in")
+        return bear_folder(self.projects_root.joinpath(*self._place), self.lens)
 
     def desk_file(self) -> Optional[Path]:
         """The department's Desk.md while the lens is on (A5): the nearest one up the lens
@@ -150,6 +172,12 @@ class PerspectiveSession:
         return None
 
     # --- helpers ---------------------------------------------------------------------
+
+    def _wear(self, place: Parts, lens: Sequence[str]) -> None:
+        lens = self._checked_parts(lens)
+        if not lens or lens[0] not in departments(self.projects_root.joinpath(*place)):
+            raise ValueError(f"not a department: {'/'.join(lens)}")
+        self.active, self.lens, self._place, self._shelf = True, lens, place, False
 
     def _require_active(self) -> None:
         if not self.active:
@@ -174,6 +202,18 @@ class PerspectiveSession:
             if is_project(candidate):
                 return candidate.relative_to(self.projects_root).parts
         return None
+
+
+def bear_folder(project_dir: Path, lens: Sequence[str]) -> Path:
+    """Create project_dir/<lens> (embryos on the way born with their template content)."""
+    from core.localBlueprintLayer import Blueprint  # late: heavy, only for writes
+
+    try:
+        return Blueprint(project_dir).materialize_dir("/".join(lens))
+    except ValueError:  # no blueprint for this project: plain folders
+        folder = project_dir.joinpath(*lens)
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
 
 
 def is_project(folder: Path) -> bool:

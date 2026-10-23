@@ -161,3 +161,44 @@ def test_the_desk_of_the_department(world):
 
     session.put_on(("07_Arbeit",))
     assert session.desk_file() is None  # never the project's own Desk
+
+
+def test_bearing_the_target_where_the_department_folder_is_missing(world):
+    # Dropping into the lens of a project without the department folder: the folder is
+    # born on the way (with the template's content, as an embryo is) and the lens shows it.
+    session = _session(world)
+    session.put_on(LENS)
+    session.move_to_project(("Reisen",))
+    assert session.listing().fallback
+
+    target = session.bear()
+
+    assert target == world["reisen"].resolve() / "04_Finanz" / "Ausgangsrechnungen" / "2026"
+    assert target.is_dir() and (target.parent / ".MyOS").is_dir()  # born from the template
+    assert session.shown() == (target, False)
+
+
+def test_nothing_to_bear_without_a_project(world):
+    session = _session(world)
+    with pytest.raises(ValueError):
+        session.bear()  # no lens
+    session.put_on(("04_Finanz",))
+    session.to_shelf()
+    with pytest.raises(ValueError):
+        session.bear()  # on the shelf
+
+
+def test_putting_on_the_lens_of_a_real_folder(world):
+    # Scope's MyOS-folder row shows real folders of the project looked at; a double click
+    # puts on the lens there. The session finds project and department path (nested too).
+    session = _session(world)
+    session.look_at(world["studio"] / "04_Finanz" / "Ausgangsrechnungen")
+    assert session.lens == ("04_Finanz", "Ausgangsrechnungen") and session.project == ("Musikstudio",)
+    assert session.cwd == world["studio"].resolve()  # the CWD stays
+
+    session.look_at(world["garten"] / "04_Finanz")  # an embryo: not born, still a lens
+    assert session.lens == ("04_Finanz",) and session.project == ("Wohnen", "Garten")
+
+    for nowhere in (world["studio"], world["studio"] / "Eigenes", world["root"] / "Clipboard"):
+        with pytest.raises(ValueError):
+            session.look_at(nowhere)  # the project itself, no department, outside projects

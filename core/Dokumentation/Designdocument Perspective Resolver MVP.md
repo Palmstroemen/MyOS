@@ -138,8 +138,26 @@ Built (2026-10-22):
 - Scope connects only to the daemon of its projects root and starts it when none runs
   (`MYOS_SCOPE_START_DAEMON=0` switches that off; the tests do). The client is
   `daemon/client.py` (as `Scope/daemon_client.py` it was never imported when Scope runs as
-  a script: there "Scope" means Scope.py). Scope's lens display does not use the session
-  yet (E3).
+  a script: there "Scope" means Scope.py).
+- Scope on the session (E3, 2026-10-23; the gestures below are an interim state - the
+  path bar with the framed lens, CLD, replaces them, see the concept to come): `Backend.lens(method, params)` asks the session
+  (the daemon's, or without a daemon `LocalSession`, the same answers in Scope's process);
+  `lensBear()` bears the lens' folder where the user may write. QML builds no lens paths:
+  the MyOS-folder row shows the lens' folder as a real path in its project (`target`, path
+  bar from `project_dir`), so its menus, embryos and hover preview work as without a lens;
+  the FilesPanel shows `shown` (the lens' folder or the fallback). Gestures: a double click
+  on a MyOS folder puts on its lens (`look_at`, any depth); with a lens on, a click on a
+  folder of the row or a path segment moves the lens there (sharper, flatter, another
+  department); a double click in the left menu changes the CWD and the lens follows (a
+  single click browses as without a lens: its menus open, the FilesPanel shows the folder,
+  the lens stays on; a single click on the lens' folder shows the lens again);
+  a double click in the FilesPanel on a folder of the department makes the lens sharper,
+  on any other folder takes it off and goes there; "End perspective" or a double click on
+  the CWD takes it off (the latter never worked: the handler named the function without
+  calling it). Something new in the fallback (drop on the panel, new folder, new note)
+  goes into the lens' folder, born then. On the shelf (the CWD a folder of projects) Scope
+  shows the CWD until E4; the session then puts the shelf at the projects root, not at
+  the folder of projects (to fix with E4).
 - LibreOffice reads its lock file right after creating it: the drive opens created files
   for reading and writing (fusepy does not pass the open flags to `create`).
 

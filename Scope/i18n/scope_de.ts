@@ -277,26 +277,26 @@ Fehlgeschlagen: %3</translation>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="30"/>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="35"/>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="43"/>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="52"/>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="56"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="33"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="38"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="46"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="55"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="59"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="41"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="44"/>
         <source>Could not create folder &quot;%1&quot;.</source>
         <translation>Konnte Ordner &quot;%1&quot; nicht erstellen.</translation>
     </message>
     <message>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="62"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="65"/>
         <source>Target folder: %1</source>
         <translation>Zielordner: %1</translation>
     </message>
     <message>
-        <location filename="../Dialogs/CreateFolderDialog.qml" line="70"/>
+        <location filename="../Dialogs/CreateFolderDialog.qml" line="73"/>
         <source>New folder name</source>
         <translation>Neuer Ordnername</translation>
     </message>
@@ -615,12 +615,12 @@ Fehlgeschlagen: %3</translation>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../Dialogs/FilterNameDialog.qml" line="38"/>
+        <location filename="../Dialogs/FilterNameDialog.qml" line="41"/>
         <source>Name for the new filter</source>
         <translation>Name für den neuen Filter</translation>
     </message>
     <message>
-        <location filename="../Dialogs/FilterNameDialog.qml" line="46"/>
+        <location filename="../Dialogs/FilterNameDialog.qml" line="49"/>
         <source>e.g. incoming invoices</source>
         <translation>z.B. Eingangsrechnungen</translation>
     </message>
@@ -646,80 +646,80 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>FolderBrowser</name>
     <message>
-        <location filename="../FolderBrowser.qml" line="2371"/>
-        <location filename="../FolderBrowser.qml" line="2586"/>
+        <location filename="../FolderBrowser.qml" line="2369"/>
+        <location filename="../FolderBrowser.qml" line="2584"/>
         <source>T Text</source>
         <translation>t Text</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2378"/>
-        <location filename="../FolderBrowser.qml" line="2593"/>
+        <location filename="../FolderBrowser.qml" line="2376"/>
+        <location filename="../FolderBrowser.qml" line="2591"/>
         <source>L Large</source>
         <translation>G Groß</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2385"/>
-        <location filename="../FolderBrowser.qml" line="2600"/>
+        <location filename="../FolderBrowser.qml" line="2383"/>
+        <location filename="../FolderBrowser.qml" line="2598"/>
         <source>S Small</source>
         <translation>k Klein</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2395"/>
-        <location filename="../FolderBrowser.qml" line="2610"/>
+        <location filename="../FolderBrowser.qml" line="2393"/>
+        <location filename="../FolderBrowser.qml" line="2608"/>
         <source>E Embryos</source>
         <translation>E Embryos</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2402"/>
-        <location filename="../FolderBrowser.qml" line="2617"/>
+        <location filename="../FolderBrowser.qml" line="2400"/>
+        <location filename="../FolderBrowser.qml" line="2615"/>
         <source>Show hidden folders</source>
         <translation>Versteckte Ordner anzeigen</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2409"/>
-        <location filename="../FolderBrowser.qml" line="2624"/>
+        <location filename="../FolderBrowser.qml" line="2407"/>
+        <location filename="../FolderBrowser.qml" line="2622"/>
         <source>P Path bar</source>
         <translation>P Pfadleiste</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2415"/>
-        <location filename="../FolderBrowser.qml" line="2630"/>
+        <location filename="../FolderBrowser.qml" line="2413"/>
+        <location filename="../FolderBrowser.qml" line="2628"/>
         <source>Preview</source>
         <translation>Vorschau</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2421"/>
-        <location filename="../FolderBrowser.qml" line="2636"/>
+        <location filename="../FolderBrowser.qml" line="2419"/>
+        <location filename="../FolderBrowser.qml" line="2634"/>
         <source>Preview background</source>
         <translation>Vorschau Hintergrund</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2428"/>
-        <location filename="../FolderBrowser.qml" line="2643"/>
+        <location filename="../FolderBrowser.qml" line="2426"/>
+        <location filename="../FolderBrowser.qml" line="2641"/>
         <source>Instant reopen</source>
         <translation>Instant Reopen</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2434"/>
-        <location filename="../FolderBrowser.qml" line="2649"/>
+        <location filename="../FolderBrowser.qml" line="2432"/>
+        <location filename="../FolderBrowser.qml" line="2647"/>
         <source>Tuning: Soft</source>
         <translation>Tuning: Soft</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2443"/>
-        <location filename="../FolderBrowser.qml" line="2659"/>
+        <location filename="../FolderBrowser.qml" line="2441"/>
+        <location filename="../FolderBrowser.qml" line="2657"/>
         <source>Tuning: Balanced</source>
         <translation>Tuning: Balanced</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2452"/>
-        <location filename="../FolderBrowser.qml" line="2669"/>
+        <location filename="../FolderBrowser.qml" line="2450"/>
+        <location filename="../FolderBrowser.qml" line="2667"/>
         <source>Tuning: Aggressive</source>
         <translation>Tuning: Aggressive</translation>
     </message>
     <message>
-        <location filename="../FolderBrowser.qml" line="2712"/>
-        <location filename="../FolderBrowser.qml" line="3196"/>
+        <location filename="../FolderBrowser.qml" line="2710"/>
+        <location filename="../FolderBrowser.qml" line="3194"/>
         <source>Search      + deep    # all</source>
         <translation>Suchen      + tief    # alle</translation>
     </message>
@@ -781,26 +781,26 @@ Fehlgeschlagen: %3</translation>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="30"/>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="35"/>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="43"/>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="48"/>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="52"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="33"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="38"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="46"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="51"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="55"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="40"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="43"/>
         <source>Could not create target folder &quot;%1&quot;.</source>
         <translation>Konnte Zielordner &quot;%1&quot; nicht erstellen.</translation>
     </message>
     <message>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="57"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="60"/>
         <source>Create a folder and move the selected entries into it.</source>
         <translation>Erstellt einen Ordner und verschiebt die ausgewählten Einträge hinein.</translation>
     </message>
     <message>
-        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="65"/>
+        <location filename="../Dialogs/MoveSelectedFoldersDialog.qml" line="68"/>
         <source>New folder name</source>
         <translation>Neuer Ordnername</translation>
     </message>
@@ -960,278 +960,278 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>main</name>
     <message>
-        <location filename="../main.qml" line="298"/>
-        <location filename="../main.qml" line="300"/>
-        <location filename="../main.qml" line="1244"/>
-        <location filename="../main.qml" line="1254"/>
+        <location filename="../main.qml" line="292"/>
+        <location filename="../main.qml" line="294"/>
+        <location filename="../main.qml" line="1012"/>
+        <location filename="../main.qml" line="1022"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="393"/>
+        <location filename="../main.qml" line="386"/>
         <source>You may not turn &quot;%1&quot; back into a folder: it has rights of its own that you may not change.</source>
         <translation>Du darfst „%1“ nicht wieder zum Ordner machen: Es hat eigene Rechte, die du nicht ändern darfst.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="394"/>
+        <location filename="../main.qml" line="387"/>
         <source>&quot;%1&quot; could not be turned back into a folder.</source>
         <translation>„%1“ konnte nicht wieder zum Ordner gemacht werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1067"/>
+        <location filename="../main.qml" line="834"/>
         <source>Target is not a folder.</source>
         <translation>Ziel ist kein Ordner.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1069"/>
+        <location filename="../main.qml" line="836"/>
         <source>Entry no longer exists.</source>
         <translation>Eintrag existiert nicht mehr.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1071"/>
+        <location filename="../main.qml" line="838"/>
         <source>A folder cannot be moved into itself.</source>
         <translation>Ein Ordner kann nicht in sich selbst verschoben werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1073"/>
+        <location filename="../main.qml" line="840"/>
         <source>An entry with this name already exists at the destination.</source>
         <translation>Am Ziel existiert bereits ein Eintrag mit diesem Namen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1075"/>
+        <location filename="../main.qml" line="842"/>
         <source>Move failed.</source>
         <translation>Verschieben fehlgeschlagen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1077"/>
+        <location filename="../main.qml" line="844"/>
         <source>Entry is already in the target folder.</source>
         <translation>Eintrag ist bereits im Zielordner.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1079"/>
+        <location filename="../main.qml" line="846"/>
         <source>Entry was selected multiple times.</source>
         <translation>Eintrag wurde mehrfach ausgewählt.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1081"/>
+        <location filename="../main.qml" line="848"/>
         <source>Access rules are already waiting for this place; ask whoever manages the rights.</source>
         <translation>Für diesen Ort sind schon Zugriffsregeln hinterlegt; bitte wende dich an die Person, die die Rechte verwaltet.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1083"/>
+        <location filename="../main.qml" line="850"/>
         <source>Operation skipped.</source>
         <translation>Vorgang übersprungen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1108"/>
+        <location filename="../main.qml" line="875"/>
         <source>Moved: %1</source>
         <translation>Verschoben: %1</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1114"/>
+        <location filename="../main.qml" line="881"/>
         <source>Could not move:</source>
         <translation>Konnte nicht verschieben:</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1126"/>
+        <location filename="../main.qml" line="893"/>
         <source>Skipped:</source>
         <translation>Übersprungen:</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1191"/>
+        <location filename="../main.qml" line="958"/>
         <source>Really move %1 folder(s) to &quot;%2&quot;?</source>
         <translation>Soll(en) %1 Ordner wirklich nach &quot;%2&quot; verschoben werden?</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1200"/>
+        <location filename="../main.qml" line="967"/>
         <source>After moving, it will be sorted into:
 %1</source>
         <translation>Nach dem Verschieben wird einsortiert nach:
 %1</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1214"/>
+        <location filename="../main.qml" line="982"/>
         <source>Could not create a note in this folder.</source>
         <translation>Konnte in diesem Ordner keine Notiz erstellen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1401"/>
+        <location filename="../main.qml" line="1169"/>
         <source>Batch rename currently works for files only.</source>
         <translation>Sammelumbenennung funktioniert aktuell nur für Dateien.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1454"/>
+        <location filename="../main.qml" line="1222"/>
         <source>Virtual embryo folders cannot be deleted.</source>
         <translation>Virtuelle Embryo-Ordner können nicht gelöscht werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1460"/>
+        <location filename="../main.qml" line="1228"/>
         <source>Embryo folders were skipped when deleting: %1</source>
         <translation>Embryo-Ordner wurden beim Löschen übersprungen: %1</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1497"/>
+        <location filename="../main.qml" line="1265"/>
         <source>Deleted: %1 file(s)
 Not deleted: %2 file(s)</source>
         <translation>Gelöscht: %1 Datei(en)
 Nicht gelöscht: %2 Datei(en)</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2096"/>
+        <location filename="../main.qml" line="1864"/>
         <source>Filter could not be activated.</source>
         <translation>Filter konnte nicht aktiviert werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2138"/>
+        <location filename="../main.qml" line="1906"/>
         <source>Filter saved: %1</source>
         <translation>Filter gespeichert: %1</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2143"/>
+        <location filename="../main.qml" line="1911"/>
         <source>Filter could not be saved.</source>
         <translation>Filter konnte nicht gespeichert werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2842"/>
+        <location filename="../main.qml" line="2579"/>
         <source>Search      + deep    # all</source>
         <translation>Suchen      + tief    # alle</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2983"/>
+        <location filename="../main.qml" line="2720"/>
         <source>Scope ▼</source>
         <translation>Scope ▼</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2983"/>
+        <location filename="../main.qml" line="2720"/>
         <source>Scope ▲</source>
         <translation>Scope ▲</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3011"/>
+        <location filename="../main.qml" line="2748"/>
         <source>Light</source>
         <translation>Hell</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3011"/>
+        <location filename="../main.qml" line="2748"/>
         <source>Dark</source>
         <translation>Dunkel</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3053"/>
+        <location filename="../main.qml" line="2790"/>
         <source>Filter: Auto</source>
         <translation>Filter: Auto</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3057"/>
+        <location filename="../main.qml" line="2794"/>
         <source>Filter</source>
         <translation>Filter</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3073"/>
+        <location filename="../main.qml" line="2810"/>
         <source>Auto follow</source>
         <translation>Auto folgen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3077"/>
+        <location filename="../main.qml" line="2814"/>
         <source>Open active filter</source>
         <translation>Aktiven Filter öffnen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3082"/>
+        <location filename="../main.qml" line="2819"/>
         <source>Save filter ...</source>
         <translation>Filter speichern ...</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3118"/>
+        <location filename="../main.qml" line="2855"/>
         <source>Projects</source>
         <translation>Projekte</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3118"/>
-        <location filename="../main.qml" line="3138"/>
+        <location filename="../main.qml" line="2855"/>
+        <location filename="../main.qml" line="2875"/>
         <source>ON</source>
         <translation>AN</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3118"/>
-        <location filename="../main.qml" line="3138"/>
+        <location filename="../main.qml" line="2855"/>
+        <location filename="../main.qml" line="2875"/>
         <source>OFF</source>
         <translation>AUS</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3138"/>
+        <location filename="../main.qml" line="2875"/>
         <source>Templates</source>
         <translation>Vorlagen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3158"/>
+        <location filename="../main.qml" line="2895"/>
         <source>Files 50%</source>
         <translation>Dateien 50%</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3178"/>
+        <location filename="../main.qml" line="2915"/>
         <source>Narrow</source>
         <translation>Schmal</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3198"/>
+        <location filename="../main.qml" line="2935"/>
         <source>Edge dock</source>
         <translation>Edge-Dock</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3218"/>
+        <location filename="../main.qml" line="2955"/>
         <source>Give project a theme</source>
         <translation>Projekt mit Thema versehen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3230"/>
+        <location filename="../main.qml" line="2967"/>
         <source>Desk.md could not be created.</source>
         <translation>Desk.md konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3232"/>
+        <location filename="../main.qml" line="2969"/>
         <source>Desk.md is ready in the current project.</source>
         <translation>Desk.md ist bereit im aktuellen Projekt.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3249"/>
+        <location filename="../main.qml" line="2986"/>
         <source>Enable sorting</source>
         <translation>Ordnung aktivieren</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3262"/>
+        <location filename="../main.qml" line="2999"/>
         <source>&quot;%1&quot; now sorts by date into years and months, once it holds more than 20 files (rule: .MyOS/Sort.md).</source>
         <translation>„%1“ sortiert jetzt nach Datum in Jahre und Monate, sobald mehr als 20 Dateien darin liegen (Regel: .MyOS/Sort.md).</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3264"/>
+        <location filename="../main.qml" line="3001"/>
         <source>&quot;%1&quot; already has a sort rule (.MyOS/Sort.md).</source>
         <translation>„%1“ hat schon eine Sortierregel (.MyOS/Sort.md).</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3266"/>
+        <location filename="../main.qml" line="3003"/>
         <source>Sorting works only inside projects.</source>
         <translation>Sortieren geht nur innerhalb von Projekten.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3267"/>
+        <location filename="../main.qml" line="3004"/>
         <source>The sort rule could not be created.</source>
         <translation>Die Sortierregel konnte nicht angelegt werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3369"/>
+        <location filename="../main.qml" line="3106"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3373"/>
+        <location filename="../main.qml" line="3110"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="3390"/>
-        <source>Perspective OFF</source>
-        <translation>Perspective OFF</translation>
+        <location filename="../main.qml" line="3125"/>
+        <source>End perspective</source>
+        <translation>Perspektive beenden</translation>
     </message>
 </context>
 </TS>

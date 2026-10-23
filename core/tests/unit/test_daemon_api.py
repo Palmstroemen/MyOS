@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from daemon.api import decode_request, decode_response, encode_request, encode_response
+from daemon.client import LocalSession
 from daemon.perspective_daemon import DaemonState, _end_when_free, _handle_request, socket_path_for
 
 
@@ -64,6 +65,29 @@ def test_the_lens_through_the_daemon(state, tmp_path):
 
     off = _ask(state, "take_off")["result"]
     assert off["active"] is False and off["cwd"] == str((root / "Musikstudio").resolve())
+
+
+def test_what_the_lens_shows_and_bearing_its_target(state, tmp_path):
+    reisen = (tmp_path / "Projekte" / "Reisen").resolve()
+    assert _ask(state, "set_cwd", path=str(reisen))["result"]["shown"] == ""  # no lens
+
+    on = _ask(state, "put_on", lens=["04_Finanz"])["result"]
+    assert on["fallback"] and on["shown"] == str(reisen)  # no 04_Finanz there yet
+    assert on["project_dir"] == str(reisen)  # where the lens looks (Scope's path bar)
+
+    born = _ask(state, "bear")["result"]
+    assert not born["fallback"] and born["shown"] == born["target"] == str(reisen / "04_Finanz")
+    assert (reisen / "04_Finanz").is_dir()
+
+
+def test_without_a_daemon_the_same_answers_in_process(state, tmp_path):
+    # Scope without a running daemon (tests, no drive) asks a session of its own.
+    local = LocalSession(tmp_path / "Projekte")
+    musikstudio = str(tmp_path / "Projekte" / "Musikstudio")
+    for method, params in (("set_cwd", {"path": musikstudio}), ("put_on", {"lens": ["04_Finanz"]}),
+                           ("look_at", {"path": musikstudio + "/04_Finanz"}), ("bear", {}),
+                           ("state", {}), ("take_off", {}), ("put_on", {"lens": ["nonsense"]})):
+        assert local.call(method, **params) == _ask(state, method, **params)
 
 
 def test_mistakes_are_reported(state):

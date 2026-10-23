@@ -29,7 +29,8 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] SunTree
 [ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
     Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
-    [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [ ] E3 Scope  [ ] E4 rechtes Menü  [ ] E5 SunTree  [ ] E6 Filter
+    [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [x] E3 Scope an der Sitzung  [ ] E3b Pfadleiste mit Rahmen (CLD)  [ ] E3c Desk der Abteilung
+        [ ] E4 Regal / Projektwechsel (mit dem Rahmen: links vom Rahmen navigieren)  [ ] E5 SunTree  [ ] E6 Filter
     [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein
         Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
         Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:
@@ -53,6 +54,9 @@ Kompakter Überblick: `docs/STATUS.md`.
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
     [x] P-Button: macht den angewählten Ordner, sonst (ohne Auswahl) den angezeigten zum Projekt; durchgestrichenes P macht ein Projekt wieder zum Ordner; P-Badge auf Projektordnern
     [x] Umbenennen in der Ordnerleiste: Feld zeigt den alten Namen (war leer); F2 benennt die Auswahl im FilesPanel um
+    [ ] FilesPanel Rasteransicht immer nach Name aufsteigend (oben MyOS-Ordner und Embryos, darunter Unterprojekte
+        und andere Ordner); heute übernimmt sie die Spaltensortierung der Listenansicht, ohne sie anzuzeigen
+    [ ] FilesPanel: Embryos erscheinen nicht halbtransparent (sollten sie, wie in den Ordnerleisten)
 [ ] PostFix UI verfeinern und Exporter bauen
     [x] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
     [x] ACL-Panel: Embryos zählen nicht mit (ein Schalter dafür wird nicht gebraucht)
