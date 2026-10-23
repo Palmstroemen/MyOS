@@ -157,10 +157,14 @@ class DeskService:
         path: Union[str, Path],
         *,
         manual_desk: Optional[Union[str, Path]] = None,
+        desk_owner: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Any]:
+        """Follow path with the desktop. manual_desk overrules the Desk found there (the
+        lens' Desk); desk_owner says where a change by the user goes ("": nowhere)
+        instead of the project of path."""
         target = Path(path).expanduser().resolve()
         try:
-            self._last_result = self._follow(target, manual_desk)
+            self._last_result = self._follow(target, manual_desk, desk_owner)
         except Exception:
             self._last_result = {
                 "ok": False,
@@ -171,7 +175,12 @@ class DeskService:
             }
         return dict(self._last_result)
 
-    def _follow(self, target: Path, manual_desk: Optional[Union[str, Path]]) -> Dict[str, Any]:
+    def _follow(
+        self,
+        target: Path,
+        manual_desk: Optional[Union[str, Path]],
+        desk_owner: Optional[Union[str, Path]] = None,
+    ) -> Dict[str, Any]:
         runtime = self._runtime
         context = target.parent if target.is_file() else target
         nearest, top = _project_roots(context)
@@ -193,7 +202,10 @@ class DeskService:
         )
         if changed and shared.get("owner"):
             # The user changed the desktop since MyOS set it: keep it where it was changed.
-            write_desk_values(Path(shared["owner"]), current)
+            try:
+                write_desk_values(Path(shared["owner"]), current)
+            except OSError:
+                pass  # not writable there (a template, say): not kept, the desktop still follows
 
         # "Same profile as last time" only means "nothing to do" while the desktop is
         # still as MyOS set it; after a change the profile is applied again.
@@ -203,6 +215,8 @@ class DeskService:
             manual_desk = manual_desk or system_desk
         result = runtime.handle_context(target, manual_desk=manual_desk, boundary=top, fallback=system_desk)
         owner = nearest / ".MyOS" / "Desk.md" if nearest is not None else system_desk
+        if desk_owner is not None:
+            owner = Path(desk_owner) if str(desk_owner) else None
         self._write_shared(runtime.backend.capture() or current, owner, runtime.active_source, runtime.active_hash)
         return result
 
@@ -217,7 +231,7 @@ class DeskService:
         except (OSError, ValueError, TypeError):
             return {}
 
-    def _write_shared(self, applied: DesktopState, owner: Path, source: Optional[str], profile_hash: Optional[str]) -> None:
+    def _write_shared(self, applied: DesktopState, owner: Optional[Path], source: Optional[str], profile_hash: Optional[str]) -> None:
         state_file = desk_home() / "desk-state.json"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -227,7 +241,7 @@ class DeskService:
                 "panel_theme": applied.panel_theme,
                 "taskbar": list(applied.taskbar) if applied.taskbar is not None else None,
             },
-            "owner": str(owner),
+            "owner": str(owner) if owner is not None else "",
             "source": source,
             "hash": profile_hash,
         }

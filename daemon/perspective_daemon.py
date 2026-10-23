@@ -134,7 +134,7 @@ class DaemonState:
 
     def _describe(self) -> Dict[str, Any]:
         session = self.session
-        target, desk = session.target, session.desk_file()
+        target, desk, desk_save = session.target, session.desk_file(), session.desk_save_file()
         shown, fallback = session.shown() if session.active else (None, False)
         return {
             "active": session.active,
@@ -145,6 +145,7 @@ class DaemonState:
             "project_dir": str(session.projects_root.joinpath(*session.project)) if session.project is not None else "",
             "target": str(target) if target else "",
             "desk": str(desk) if desk else "",
+            "desk_save": str(desk_save) if desk_save else "",  # where changes of the desktop go
             "shown": str(shown) if shown else "",
             "fallback": fallback,
         }

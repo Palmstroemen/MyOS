@@ -112,6 +112,20 @@ lens off (✕) brings the Desk of the project one then stands in: in `Reisen/04_
 that is Reisen's, not Musikstudio's. Dropping something into a department folder without a
 lens does not change the Desk.
 
+- **The template's Desk wins** (decided 2026-10-24). Birth copies `.MyOS`, so a born
+  `Musikstudio/04_Finanz` holds an old copy of the template's Desk. With a lens the
+  template's Desk applies; a Desk in the project's department folder counts only where
+  the template has none for the department. Without a lens no department Desk applies
+  (also not after ✕ inside `04_Finanz`): the project's.
+- **Changes are kept in the template** (decided 2026-10-24). What the user changes on the
+  desktop while the lens is on goes, without asking, into the template's Desk that
+  applies; where the department has none yet, it is created there
+  (`Templates/Standard/04_Finanz/.MyOS/Desk.md`), as a project without Desk gets one
+  ("Designdocument Desk.md", 12). The change then applies to the lens in every project.
+  Where the template cannot be written (file system), the change is not kept; the
+  desktop still follows.
+- Open: PostFix does not know the lens; a note opened there follows its project's Desk.
+
 ## A6. One Session: Daemon and FUSE
 
 - The lens' state (off, or on with its CPD and the CWD it looks from) lives in **one place:
@@ -199,7 +213,14 @@ Built (2026-10-22):
   CWD, the row stays on the lens' folder, the FilesPanel keeps what it showed. The session
   no longer lets the lens follow the CWD; "End perspective", the pin and the double click
   on the CWD are gone. Not yet: the shelf and the project list on a click on `Projekte`
-  (E4), the department's Desk (E3c; until then the Desk follows the project in the row).
+  (E4).
+- The department's Desk (E3c, 2026-10-24, A5): the session gives `desk` (the template's
+  first, then a copy in the project) and `desk_save` (the template's Desk, where changes
+  go). Scope's `setContext` asks the lens: with it on, `DeskService.refresh_context` gets
+  the lens' Desk (`manual_desk`) and where changes go (`desk_owner`, "" for nowhere).
+  Every lens request that moves it refreshes the Desk too, so ✕ inside the same project
+  (no new CWP) brings the project's Desk; after ✕ the context is the CWD's project, never
+  the department folder.
 - LibreOffice reads its lock file right after creating it: the drive opens created files
   for reading and writing (fusepy does not pass the open flags to `create`).
 

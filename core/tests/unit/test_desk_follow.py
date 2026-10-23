@@ -204,6 +204,57 @@ def test_scope_and_postfix_share_what_myos_set_last(tree):
     assert (desktop.state.theme, desktop.state.wallpaper) == ("Garten-Theme", "/bg/garten.jpg")
 
 
+def test_a_given_desk_overrules_the_projects_and_keeps_changes_where_it_says(tree, tmp_path):
+    # The lens (Designdocument Perspective Resolver MVP.md, A5): its Desk overrules the
+    # project's; what the user changes meanwhile goes where the caller says (the template).
+    lens_desk = tmp_path / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md"
+    lens_desk.parent.mkdir(parents=True)
+    lens_desk.write_text("# Desk\nThemePreset: Finanz-Hell\n")
+    desktop = FakeDesktop()
+    service = _service(desktop)
+
+    service.refresh_context(tree["garten"], manual_desk=lens_desk, desk_owner=lens_desk)
+    assert desktop.state.theme == "Finanz-Hell"
+    service.refresh_context(tree["haus"], manual_desk=lens_desk, desk_owner=lens_desk)
+    assert desktop.state.theme == "Finanz-Hell"  # the lens moved: its Desk stays
+
+    desktop.user_changes(theme="Finanz-Gold")
+    service.refresh_context(tree["haus"])  # lens off: the project's Desk again
+    assert "ThemePreset: Finanz-Gold\n" in lens_desk.read_text()
+    assert not (tree["haus"] / ".MyOS" / "Desk.md").exists()
+    assert desktop.state.theme == "Projekte-Theme"
+
+
+def test_an_empty_owner_keeps_changes_nowhere(tree):
+    desktop = FakeDesktop()
+    service = _service(desktop)
+    service.refresh_context(tree["haus"], desk_owner="")
+
+    desktop.user_changes(theme="Weg-Theme")
+    service.refresh_context(tree["garten"])
+
+    assert not (tree["haus"] / ".MyOS" / "Desk.md").exists()
+    assert "Weg-Theme" not in _desk(tree["top"])
+
+
+def test_a_desk_that_cannot_be_written_does_not_stop_following(tree, tmp_path):
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    (locked / "Desk.md").write_text("# Desk\nThemePreset: Gesperrt\n")
+    locked.chmod(0o500)
+    try:
+        desktop = FakeDesktop()
+        service = _service(desktop)
+        service.refresh_context(tree["haus"], manual_desk=locked / "Desk.md", desk_owner=locked / "Desk.md")
+        desktop.user_changes(theme="Neu")
+
+        result = service.refresh_context(tree["garten"])
+
+        assert result["ok"] and desktop.state.theme == "Garten-Theme"
+    finally:
+        locked.chmod(0o700)
+
+
 def test_without_a_desktop_backend_nothing_is_written(tree):
     service = DeskService(runtime=DeskRuntime(settings=SETTINGS, backend=DesktopBackend()))
 

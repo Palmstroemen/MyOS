@@ -368,7 +368,7 @@ def test_scope_api_refreshes_desk_context_on_init_and_updates(tmp_path, monkeypa
     calls = []
 
     class FakeDeskService:
-        def refresh_context(self, path, *, manual_desk=None):
+        def refresh_context(self, path, *, manual_desk=None, desk_owner=None):
             calls.append(str(Path(path).resolve()))
             return {"ok": True, "applied": False, "reason": "test"}
 
@@ -395,7 +395,7 @@ def test_scope_api_refreshes_desk_context_on_init_and_updates(tmp_path, monkeypa
 
 def test_scope_api_desk_context_runtime_error_is_non_fatal(tmp_path, monkeypatch):
     class FailingDeskService:
-        def refresh_context(self, path, *, manual_desk=None):
+        def refresh_context(self, path, *, manual_desk=None, desk_owner=None):
             return {"ok": False, "applied": False, "reason": "runtime_error", "source": None, "steps": []}
 
         def get_active_profile(self):

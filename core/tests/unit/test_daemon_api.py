@@ -57,6 +57,8 @@ def test_the_lens_through_the_daemon(state, tmp_path):
     on = _ask(state, "put_on", lens=["04_Finanz"])["result"]
     assert on["active"] and on["cpd"] == "/04_Finanz/Projekte/Musikstudio"
     assert on["cwd"] == str((root / "Musikstudio").resolve())
+    finance_desk = (tmp_path / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md").resolve()
+    assert on["desk"] == "" and on["desk_save"] == str(finance_desk)  # A5: kept in the template
 
     moved = _ask(state, "move_to_project", project=["Reisen"])["result"]
     assert moved["target"] == str((root / "Reisen" / "04_Finanz").resolve())
@@ -66,6 +68,7 @@ def test_the_lens_through_the_daemon(state, tmp_path):
     assert back["project"] == ["Musikstudio"]
 
     off = _ask(state, "take_off")["result"]  # ✕ removes the frame, one stays there
+    assert off["desk_save"] == ""
     assert off["active"] is False and off["cwd"] == str((root / "Musikstudio" / "04_Finanz").resolve())
 
 

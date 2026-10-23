@@ -174,13 +174,39 @@ def test_the_desk_of_the_department(world):
     session.put_on(LENS)
     assert session.desk_file() == world["template"] / "04_Finanz" / ".MyOS" / "Desk.md"
 
-    real = world["studio"] / "04_Finanz" / ".MyOS"
-    real.mkdir()
-    (real / "Desk.md").write_text("# Desk\nThemePreset: Eigen\n")
-    assert session.desk_file() == real / "Desk.md"  # the nearest one wins
+    # Birth copies .MyOS: the copy in the project does not hide the template's Desk.
+    copy = world["studio"] / "04_Finanz" / ".MyOS"
+    copy.mkdir()
+    (copy / "Desk.md").write_text("# Desk\nThemePreset: Alt\n")
+    assert session.desk_file() == world["template"] / "04_Finanz" / ".MyOS" / "Desk.md"
+
+    deeper = world["template"] / "04_Finanz" / "Ausgangsrechnungen" / ".MyOS" / "Desk.md"
+    deeper.write_text("# Desk\nThemePreset: Rot\n")
+    assert session.desk_file() == deeper  # the nearest one up the lens path
 
     session.put_on(("07_Arbeit",))
     assert session.desk_file() is None  # never the project's own Desk
+    own = world["studio"] / "07_Arbeit" / ".MyOS"
+    own.mkdir(parents=True)
+    (own / "Desk.md").write_text("# Desk\nThemePreset: Eigen\n")
+    assert session.desk_file() == own / "Desk.md"  # the template has none: the project's
+
+
+def test_changes_to_the_lens_desk_are_saved_in_the_template(world):
+    session = _session(world)
+    assert session.desk_save_file() is None  # no lens: the project's rule (Desk.md, 12)
+    session.put_on(LENS)
+    assert session.desk_save_file() == world["template"] / "04_Finanz" / ".MyOS" / "Desk.md"
+
+    deeper = world["template"] / "04_Finanz" / "Ausgangsrechnungen" / ".MyOS" / "Desk.md"
+    deeper.write_text("# Desk\nThemePreset: Rot\n")
+    assert session.desk_save_file() == deeper  # into the Desk that applies
+
+    session.put_on(("07_Arbeit",))  # no Desk yet: born in the template on the first change
+    assert session.desk_save_file() == world["template"] / "07_Arbeit" / ".MyOS" / "Desk.md"
+
+    session.take_off()
+    assert session.desk_save_file() is None
 
 
 def test_bearing_the_target_where_the_department_folder_is_missing(world):

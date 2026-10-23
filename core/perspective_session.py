@@ -166,13 +166,32 @@ class PerspectiveSession:
 
     def desk_file(self) -> Optional[Path]:
         """The department's Desk.md while the lens is on (A5): the nearest one up the lens
-        path - in the project, else in its template - never the project's own."""
+        path in the template - never the project's own. Birth copies .MyOS, so a project
+        holds old copies of the template's Desk; one there counts only where the template
+        has none for the department."""
         if self.project is None:
             return None
         project_dir = self.projects_root.joinpath(*self._place)
-        templates = template_dirs(project_dir)
+        for bases in (template_dirs(project_dir), [project_dir]):
+            desk = self._nearest_lens_desk(bases)
+            if desk is not None:
+                return desk
+        return None
+
+    def desk_save_file(self) -> Optional[Path]:
+        """Where a change of the desktop by the user goes while the lens is on: into the
+        template's Desk that applies, else (born on the first change) the department's."""
+        if self.project is None:
+            return None
+        templates = template_dirs(self.projects_root.joinpath(*self._place))
+        if not templates:
+            return None
+        home = next((t for t in templates if (t / self.lens[0]).is_dir()), templates[0])
+        return self._nearest_lens_desk(templates) or home / self.lens[0] / ".MyOS" / "Desk.md"
+
+    def _nearest_lens_desk(self, bases: Sequence[Path]) -> Optional[Path]:
         for depth in range(len(self.lens), 0, -1):
-            for base in [project_dir, *templates]:
+            for base in bases:
                 desk = base.joinpath(*self.lens[:depth], ".MyOS", "Desk.md")
                 if desk.is_file() and not desk.is_symlink():
                     return desk

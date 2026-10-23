@@ -41,7 +41,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
-from core.scope_api import ScopeApi
+from core.scope_api import ScopeApi, find_project_root
 from daemon.client import LocalSession, connect as connect_daemon
 
 
@@ -440,7 +440,17 @@ class Backend(QObject):
     @Slot(str)
     def setContext(self, path: str) -> None:
         # The desktop follows (Desk.md) and changes are saved in the core (DeskService).
-        self._api.update_context(path)
+        self._update_context(path, self.lens("state", {}).get("result") or {})
+
+    def _update_context(self, path: str, lens_state: dict) -> None:
+        # With a lens on, its Desk overrules the project's and changes of the desktop are
+        # kept in the template (Designdocument Perspective Resolver MVP.md, A5).
+        # Security: the template is written only where the file system lets the user
+        # write it (its ACLs.md governs the projects made from it, not the template).
+        if lens_state.get("active") and lens_state.get("project_dir"):
+            self._api.update_context(path, str(lens_state.get("desk") or ""), str(lens_state.get("desk_save") or ""))
+        else:
+            self._api.update_context(path)
 
     @Slot(str, str, result="QVariantMap")
     def ensureProjectConfig(self, path: str, configName: str):
@@ -478,13 +488,25 @@ class Backend(QObject):
     # session (daemon/perspective_daemon.py); it builds no lens paths itself.
     _LENS_REQUESTS = frozenset({"state", "set_cwd", "put_on", "look_at", "go_into", "take_off",
                                 "move_to", "move_to_project", "to_shelf", "into_shelf", "listing"})
+    # Requests that may change the Desk (set_cwd does not: Scope sets the context after it).
+    _LENS_MOVES = frozenset({"put_on", "look_at", "go_into", "take_off", "move_to", "move_to_project",
+                             "to_shelf", "into_shelf"})
 
     @Slot(str, "QVariantMap", result="QVariantMap")
     def lens(self, method: str, params) -> dict:
         """A lens request: {ok, result | error}; result describes the lens afterwards."""
         if method not in self._LENS_REQUESTS or self._lens_session is None:
             return {"ok": False, "error": f"no lens request: {method}"}
-        return self._lens_session.call(method, **dict(params or {}))
+        answer = self._lens_session.call(method, **dict(params or {}))
+        if method in self._LENS_MOVES and answer.get("ok"):
+            # The Desk follows the lens; ✕ in the same project changes no CWP (A5). Without
+            # the lens the project's Desk applies, as for the CWP, never a department's.
+            lens_state = answer.get("result") or {}
+            cwd = str(lens_state.get("cwd") or "")
+            path = lens_state.get("project_dir") or (find_project_root(Path(cwd)) if cwd else None)
+            if path:
+                self._update_context(str(path), lens_state)
+        return answer
 
     @Slot(result="QVariantMap")
     def lensBear(self) -> dict:

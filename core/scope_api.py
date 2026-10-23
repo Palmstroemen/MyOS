@@ -715,13 +715,15 @@ class ScopeApi:
         self._perspective_ctx = None
         return True
 
-    def update_context(self, path: str) -> None:
+    def update_context(self, path: str, lens_desk: str = "", lens_desk_save: Optional[str] = None) -> None:
+        """Be at path; with a lens on, its Desk (lens_desk) applies and changes of the
+        desktop go to lens_desk_save (Designdocument Perspective Resolver MVP.md, A5)."""
         target = self._resolve_path(path)
         root = find_project_root(target)
         if root != self.project_root:
             self._set_project_root(root)
             self._configure_acl_from_env()
-        self._refresh_desk_context(target)
+        self._refresh_desk_context(target, lens_desk or None, lens_desk_save)
 
     def _ensure_perspective_ctx(self) -> Optional[PerspectiveContext]:
         if self._perspective_ctx is not None:
@@ -864,8 +866,8 @@ class ScopeApi:
             return str(origins[0])
         return preferred
 
-    def _refresh_desk_context(self, target: Path) -> None:
-        self._desk_service.refresh_context(target)
+    def _refresh_desk_context(self, target: Path, manual_desk: Optional[str] = None, desk_owner: Optional[str] = None) -> None:
+        self._desk_service.refresh_context(target, manual_desk=manual_desk, desk_owner=desk_owner)
 
     def get_active_desk_profile(self) -> Dict[str, Optional[str]]:
         return self._desk_service.get_active_profile()
