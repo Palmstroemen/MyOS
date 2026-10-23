@@ -23,6 +23,9 @@ Dialog {
     onOpened: {
         window._setDialogButtonText(root, Dialog.Ok, qsTr("Apply"))
         window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
+        // "Apply" is the default: highlighted, and Return in the name field presses it.
+        var applyButton = root.standardButton(Dialog.Ok)
+        if (applyButton) applyButton.highlighted = true
         filterNameInput.forceActiveFocus()
         filterNameInput.selectAll()
     }
@@ -45,6 +48,9 @@ Dialog {
             text: window.pendingFilterNewName
             placeholderText: qsTr("e.g. incoming invoices")
             selectByMouse: true
+            Keys.onReturnPressed: root.accept()
+            Keys.onEnterPressed: root.accept()
+            Keys.onEscapePressed: root.reject()
             color: window.dialogInputText
             placeholderTextColor: window.dialogInputPlaceholder
             topPadding: 10

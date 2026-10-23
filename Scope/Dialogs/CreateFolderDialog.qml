@@ -20,6 +20,9 @@ Dialog {
     onOpened: {
         window._setDialogButtonText(root, Dialog.Ok, qsTr("Create"))
         window._setDialogButtonText(root, Dialog.Cancel, qsTr("Cancel"))
+        // "Create" is the default: highlighted, and Return in the name field presses it.
+        var createButton = root.standardButton(Dialog.Ok)
+        if (createButton) createButton.highlighted = true
         createFolderNameInput.forceActiveFocus()
         createFolderNameInput.selectAll()
     }
@@ -69,6 +72,9 @@ Dialog {
             text: window.pendingCreateFolderName
             placeholderText: qsTr("New folder name")
             selectByMouse: true
+            Keys.onReturnPressed: root.accept()
+            Keys.onEnterPressed: root.accept()
+            Keys.onEscapePressed: root.reject()
             color: window.dialogInputText
             placeholderTextColor: window.dialogInputPlaceholder
             topPadding: 10
