@@ -1422,6 +1422,15 @@ class ScopeApi:
         if user is not None and str(user).strip():
             self._acl_user_override = str(user).strip().lower()
 
+    def acl_allows(self, action: str, path: Path) -> bool:
+        """Whether the ACL checks allow action ("read", "write", "delete", ...) on path."""
+        probe = self._acl_probe(action, Path(path))
+        return not (probe and probe.enforced and not probe.allowed)
+
+    def projects_root(self) -> Optional[Path]:
+        """The projects root ("Projekte") of the start path, for the perspective daemon."""
+        return self._resolve_perspective_project_root(Path(self.get_start_path()).expanduser().resolve())
+
     def _acl_user_at(self, path) -> str:
         """The user ACLs are checked for at path (see core.identity)."""
         return self._acl_user_override or acl_user_for(path)

@@ -78,7 +78,7 @@ class PerspectiveSession:
             raise ValueError("no CWD")
         lens = self._checked_parts(lens)
         place = self._place if self.active and not self._shelf else self._project_of(self.cwd)
-        if not lens or lens[0] not in self._departments(self.projects_root.joinpath(*place)):
+        if not lens or lens[0] not in departments(self.projects_root.joinpath(*place)):
             raise ValueError(f"not a department: {'/'.join(lens)}")
         self.active, self.lens, self._place, self._shelf = True, lens, place, False
 
@@ -86,7 +86,7 @@ class PerspectiveSession:
         """The right menu: move the lens to another project; the CWD stays."""
         project = self._checked_parts(project)
         self._require_active()
-        if not self._is_project(self.projects_root.joinpath(*project)):
+        if not is_project(self.projects_root.joinpath(*project)):
             raise ValueError(f"not a project: {'/'.join(project)}")
         self._place, self._shelf = project, False
 
@@ -107,10 +107,10 @@ class PerspectiveSession:
             raise ValueError("not on the shelf")
         place = self._place + self._checked_parts([name])
         folder = self.projects_root.joinpath(*place)
-        if not (self._is_project(folder) or self._holds_project(folder)):
+        if not (is_project(folder) or holds_project(folder)):
             raise ValueError(f"no project there: {'/'.join(place)}")
         self._place = place
-        self._shelf = not self._is_project(folder)
+        self._shelf = not is_project(folder)
 
     def take_off(self) -> Optional[Path]:
         """Take the lens off; returns the CWD one is back in."""
@@ -125,14 +125,14 @@ class PerspectiveSession:
         self._require_active()
         if self._shelf:
             folder = self.projects_root.joinpath(*self._place)
-            entries = [p for p in _children(folder)
-                       if p.is_dir() and (self._is_project(p) or self._holds_project(p))]
+            entries = [p for p in children(folder)
+                       if p.is_dir() and (is_project(p) or holds_project(p))]
             return LensView(shown=folder, entries=entries, fallback=False)
         project_dir = self.projects_root.joinpath(*self._place)
         for depth in range(len(self.lens), -1, -1):
             folder = project_dir.joinpath(*self.lens[:depth])
             if folder.is_dir() and not folder.is_symlink():
-                return LensView(shown=folder, entries=_children(folder), fallback=depth < len(self.lens))
+                return LensView(shown=folder, entries=children(folder), fallback=depth < len(self.lens))
         return LensView(shown=project_dir, entries=[], fallback=True)
 
     def desk_file(self) -> Optional[Path]:
@@ -141,7 +141,7 @@ class PerspectiveSession:
         if self.project is None:
             return None
         project_dir = self.projects_root.joinpath(*self._place)
-        templates = self._template_dirs(project_dir)
+        templates = template_dirs(project_dir)
         for depth in range(len(self.lens), 0, -1):
             for base in [project_dir, *templates]:
                 desk = base.joinpath(*self.lens[:depth], ".MyOS", "Desk.md")
@@ -171,34 +171,44 @@ class PerspectiveSession:
         for candidate in [path, *path.parents]:
             if candidate == self.projects_root:
                 return ()
-            if self._is_project(candidate):
+            if is_project(candidate):
                 return candidate.relative_to(self.projects_root).parts
         return None
 
-    @staticmethod
-    def _is_project(folder: Path) -> bool:
-        return (folder / ".MyOS" / "Project.md").is_file()
 
-    @staticmethod
-    def _holds_project(folder: Path) -> bool:
-        for current, dirs, _files in os.walk(folder):
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
-            if current != str(folder) and (Path(current) / ".MyOS" / "Project.md").is_file():
-                return True
-        return False
+def is_project(folder: Path) -> bool:
+    return (folder / ".MyOS" / "Project.md").is_file()
 
-    def _template_dirs(self, project_dir: Path) -> List[Path]:
-        templates_dir = _resolve_templates_dir(project_dir)
-        if templates_dir is None:
-            return []
-        names = ProjectConfig(project_dir).get_effective_templates() or []
-        return [templates_dir / name for name in names if (templates_dir / name).is_dir()]
 
-    def _departments(self, project_dir: Path) -> set:
-        names: set = set()
-        for template in self._template_dirs(project_dir):
-            names |= _template_folder_names(template)
-        return names
+def holds_project(folder: Path) -> bool:
+    """Whether a project lies somewhere below folder (hidden folders not searched)."""
+    for current, dirs, _files in os.walk(folder):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        if current != str(folder) and (Path(current) / ".MyOS" / "Project.md").is_file():
+            return True
+    return False
+
+
+def template_dirs(project_dir: Path) -> List[Path]:
+    """The folders of the templates project_dir uses."""
+    templates_dir = _resolve_templates_dir(project_dir)
+    if templates_dir is None:
+        return []
+    names = ProjectConfig(project_dir).get_effective_templates() or []
+    return [templates_dir / name for name in names if (templates_dir / name).is_dir()]
+
+
+def departments(project_dir: Path) -> set:
+    """The department names (template folders) of a project."""
+    names: set = set()
+    for template in template_dirs(project_dir):
+        names |= _template_folder_names(template)
+    return names
+
+
+def children(folder: Path) -> List[Path]:
+    """Folders and files in folder (hidden ones not), sorted by name."""
+    return _children(folder)
 
 
 def _children(folder: Path) -> List[Path]:

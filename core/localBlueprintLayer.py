@@ -515,6 +515,19 @@ class Blueprint(Operations):
             result.append((name, is_embryo))
         return result
 
+    def materialize_dir(self, rel_path: str) -> Path:
+        """The folder rel_path below the project, created now: embryos on the way are born
+        (with their template content), the rest is created as plain folders."""
+        target = self._physical_path(rel_path)
+        if target.is_dir():
+            return target
+        try:
+            path = self._birth_path(rel_path)
+        except ValueError:  # no embryo on the way
+            path = target
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
     def _birth_path(self, fuse_path: str) -> Path:
         """
         Handle birth process for a path containing embryos.

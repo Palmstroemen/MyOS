@@ -18,9 +18,11 @@ from daemon.perspective_daemon import run_daemon
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MyOS perspective daemon (FUSE + Unix socket API)")
-    parser.add_argument("--project-root", required=True, help="Project root directory")
-    parser.add_argument("--mount-point", required=True, help="FUSE mount point")
-    parser.add_argument("--socket-path", default=None, help="Unix socket path (default: XDG_RUNTIME_DIR or ~/.config/myos)")
+    parser.add_argument("--projects-root", "--project-root", dest="projects_root", required=True,
+                        help="The projects root (e.g. .../Projekte)")
+    parser.add_argument("--mount-point", required=True, help="Where the drive appears (e.g. .../Perspektiven)")
+    parser.add_argument("--socket-path", default=None,
+                        help="Unix socket path (default: one per projects root in XDG_RUNTIME_DIR)")
     parser.add_argument("--foreground", action="store_true", help="Run in foreground")
     return parser.parse_args()
 
@@ -28,7 +30,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
     run_daemon(
-        project_root=args.project_root,
+        projects_root=args.projects_root,
         mount_point=args.mount_point,
         socket_path=args.socket_path,
         foreground=args.foreground,

@@ -7,7 +7,6 @@ import hashlib
 import mimetypes
 import shutil
 import subprocess
-import tempfile
 import time
 from pathlib import Path
 from threading import Lock
@@ -43,11 +42,7 @@ from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
 from core.scope_api import ScopeApi
-
-try:
-    from Scope.daemon_client import connect as connect_daemon
-except Exception:
-    connect_daemon = None
+from daemon.client import connect as connect_daemon
 
 
 class DropDebugFilter(QObject):
@@ -330,15 +325,18 @@ class Backend(QObject):
         self._filing_timer.timeout.connect(self._catch_up_filing)
         QTimer.singleShot(3000, self._catch_up_filing)
         self._filing_timer.start(24 * 60 * 60 * 1000)
+        # The perspective daemon of this projects root: the lens session and the
+        # "Perspektiven" drive next to "Projekte" (daemon/perspective_daemon.py). Scope
+        # uses only the daemon of its own root and starts it when none runs (switched off
+        # with MYOS_SCOPE_START_DAEMON=0, e.g. for tests). Until Scope shows the lens from
+        # the session (E3), its perspective slots still ask the local ScopeApi.
         self._daemon_client = None
         self._daemon_process = None
-        if connect_daemon is not None:
-            try:
-                self._daemon_client = connect_daemon()
-            except Exception:
-                self._daemon_client = None
-        if self._daemon_client is None and connect_daemon is not None and os.environ.get("MYOS_SCOPE_START_DAEMON"):
-            self._start_perspective_daemon()
+        self._projects_root = self._api.projects_root()
+        if self._projects_root is not None:
+            self._daemon_client = connect_daemon(self._projects_root)
+            if self._daemon_client is None and os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0":
+                self._start_perspective_daemon()
 
     @Slot(str, bool, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
@@ -476,20 +474,14 @@ class Backend(QObject):
 
     @Slot(str, str, result="QVariantMap")
     def perspectiveOpen(self, path: str, perspectiveId: str):
-        if self._daemon_client is not None:
-            return self._daemon_client.perspective_open(path, perspectiveId or "flipped")
         return self._api.perspective_open(path, perspectiveId)
 
     @Slot(result="QVariantMap")
     def perspectiveState(self):
-        if self._daemon_client is not None:
-            return self._daemon_client.perspective_state()
         return self._api.perspective_state()
 
     @Slot(str, result="QVariantMap")
     def perspectiveSetCpd(self, cpd: str):
-        if self._daemon_client is not None:
-            return self._daemon_client.perspective_set_cpd(cpd)
         return self._api.perspective_set_cpd(cpd)
 
     @Slot(str, result="QVariantMap")
@@ -502,21 +494,14 @@ class Backend(QObject):
 
     @Slot(str, bool, result="QVariantList")
     def perspectiveListDir(self, cpd: str, showHidden: bool = False):
-        if self._daemon_client is not None:
-            return self._daemon_client.perspective_list_dir(cpd, showHidden)
         return self._api.perspective_list_dir(cpd, showHidden)
 
     @Slot(str, bool, result="QVariantList")
     def perspectiveListTemplates(self, cpd: str, showHidden: bool = False):
-        if self._daemon_client is not None:
-            return self._daemon_client.perspective_list_templates(cpd, showHidden)
         return self._api.perspective_list_templates(cpd, showHidden)
 
     @Slot(result=bool)
     def perspectiveClear(self) -> bool:
-        if self._daemon_client is not None:
-            r = self._daemon_client.perspective_set_cpd("/Projekte")
-            return bool(r.get("ok"))
         return self._api.perspective_clear()
 
     @Slot(str, str, result="QVariantMap")
@@ -986,21 +971,14 @@ class Backend(QObject):
         return True
 
     def _start_perspective_daemon(self) -> None:
-        """Start the perspective daemon as subprocess (when MYOS_SCOPE_START_DAEMON is set)."""
-        base = self._api.get_project_root() or self._api.get_start_path()
-        if not base:
-            return
-        path = Path(base).expanduser().resolve()
-        if (path / "Projekte").is_dir():
-            project_root = str(path / "Projekte")
-        else:
-            project_root = str(path)
-        runtime = os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir())
-        mount_point = Path(runtime) / f"myos-perspective-{os.getpid()}"
-        mount_point.mkdir(parents=True, exist_ok=True)
+        """Start the daemon of this projects root; its drive appears as "Perspektiven"
+        next to "Projekte"."""
+        root = self._projects_root
+        mount_point = root.parent / "Perspektiven"
         try:
-            proc = subprocess.Popen(
-                [sys.executable, "-m", "daemon", "--project-root", project_root, "--mount-point", str(mount_point)],
+            mount_point.mkdir(exist_ok=True)
+            self._daemon_process = subprocess.Popen(
+                [sys.executable, "-m", "daemon", "--projects-root", str(root), "--mount-point", str(mount_point)],
                 cwd=str(REPO_ROOT),
                 env=os.environ,
                 stdout=subprocess.DEVNULL,
@@ -1008,12 +986,11 @@ class Backend(QObject):
             )
         except Exception:
             return
-        self._daemon_process = proc
-        time.sleep(0.6)
-        try:
-            self._daemon_client = connect_daemon()
-        except Exception:
-            self._daemon_client = None
+        for _ in range(30):  # up to 3 s until it answers
+            time.sleep(0.1)
+            self._daemon_client = connect_daemon(root)
+            if self._daemon_client is not None:
+                return
 
     def _on_about_to_quit(self) -> None:
         """Stop thumbnail tasks and timers so the app can exit promptly."""
@@ -1028,21 +1005,14 @@ class Backend(QObject):
         self._filing_timer.stop()
         self._filing_pool.waitForDone(3000)  # a move in progress finishes
         if self._daemon_process is not None:
+            # The drive ends with the Scope that started it. Only asked, never killed: a
+            # killed daemon leaves a dead drive behind. While a program still has a file
+            # open on the drive, the daemon waits and unmounts once it is free.
             if self._daemon_client is not None:
                 try:
                     self._daemon_client.request_shutdown(timeout=1.0)
-                    time.sleep(0.8)
                 except Exception:
                     pass
-            if self._daemon_process.poll() is None:
-                try:
-                    self._daemon_process.terminate()
-                    self._daemon_process.wait(timeout=3)
-                except Exception:
-                    try:
-                        self._daemon_process.kill()
-                    except Exception:
-                        pass
             self._daemon_process = None
         self._daemon_client = None
         for timer in self._thumb_refresh_timers.values():

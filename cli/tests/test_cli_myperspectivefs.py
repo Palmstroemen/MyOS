@@ -13,59 +13,20 @@ def _load_module():
     return mod
 
 
-def test_parse_args_requires_core_flags():
+def test_parse_args():
     myperspectivefs = _load_module()
-    args = myperspectivefs.parse_args(
-        [
-            "--project-root",
-            "/tmp/projects",
-            "--mount-point",
-            "/tmp/mnt",
-            "--foreground",
-        ]
-    )
-    assert args.project_root == "/tmp/projects"
-    assert args.mount_point == "/tmp/mnt"
-    assert args.perspective == "flipped"
-    assert args.foreground is True
+    args = myperspectivefs.parse_args(["--projects-root", "/tmp/Projekte", "--mount-point", "/tmp/Perspektiven", "--foreground"])
+    assert (args.projects_root, args.mount_point, args.foreground) == ("/tmp/Projekte", "/tmp/Perspektiven", True)
+    # the former name still works
+    assert myperspectivefs.parse_args(["--project-root", "/x", "--mount-point", "/y"]).projects_root == "/x"
 
 
-def test_choose_default_start_picks_first_project(tmp_path):
+def test_main_mounts_the_drive(tmp_path, monkeypatch):
     myperspectivefs = _load_module()
-    project_root = tmp_path / "Projekte"
-    project_root.mkdir()
-    (project_root / "B").mkdir()
-    (project_root / "A").mkdir()
-    start = myperspectivefs._choose_default_start(project_root)
-    assert start == project_root / "A"
-
-
-def test_main_calls_mount_with_expected_arguments(tmp_path, monkeypatch):
-    myperspectivefs = _load_module()
-    project_root = tmp_path / "Projekte"
-    project_root.mkdir()
-    (project_root / "ProjektA").mkdir()
-    mount_point = tmp_path / "mnt"
-    mount_point.mkdir()
-
     captured = {}
+    monkeypatch.setattr(myperspectivefs, "mount_perspective_drive", lambda **kwargs: captured.update(kwargs))
 
-    def _fake_mount(**kwargs):
-        captured.update(kwargs)
-        return None
+    myperspectivefs.main(["--projects-root", str(tmp_path / "Projekte"), "--mount-point", str(tmp_path / "Perspektiven")])
 
-    monkeypatch.setattr(myperspectivefs, "mount_perspective_fuse", _fake_mount)
-    myperspectivefs.main(
-        [
-            "--project-root",
-            str(project_root),
-            "--mount-point",
-            str(mount_point),
-            "--perspective",
-            "flipped",
-        ]
-    )
-
-    assert captured["project_root"] == str(project_root.resolve())
-    assert captured["mount_point"] == str(mount_point.resolve())
-    assert captured["perspective_id"] == "flipped"
+    assert captured == {"projects_root": str((tmp_path / "Projekte").resolve()),
+                        "mount_point": str((tmp_path / "Perspektiven").resolve()), "foreground": False}

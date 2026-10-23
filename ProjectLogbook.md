@@ -29,6 +29,7 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] SunTree
 [ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
     Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
+    [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [ ] E3 Scope  [ ] E4 rechtes Menü  [ ] E5 SunTree  [ ] E6 Filter
 [ ] ACLs
 [ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)

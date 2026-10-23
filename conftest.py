@@ -13,3 +13,5 @@ def no_real_desktop_changes(monkeypatch, tmp_path_factory):
     """
     monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
+    # Nor start a perspective daemon that mounts a drive (Scope starts one by default).
+    monkeypatch.setenv("MYOS_SCOPE_START_DAEMON", "0")

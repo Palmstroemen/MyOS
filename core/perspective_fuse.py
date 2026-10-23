@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-perspective_fuse.py - FUSE adapter for flipped perspective runtime.
+perspective_fuse.py - the "Perspektiven" FUSE drive over the turned tree.
+
+See "Designdocument Perspective Resolver MVP.md", A6. A thin adapter: what a path means
+comes from core/perspective_drive.py; here it is only turned into file operations on the
+real paths. Third-party programs (LibreOffice "Save as") write into
+/04_Finanz/Projekte/Job and the file lands in Projekte/Job/04_Finanz.
 """
 
 from __future__ import annotations
@@ -9,6 +14,7 @@ import errno
 import logging
 import os
 import stat
+import threading
 import time
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Optional
@@ -19,388 +25,196 @@ except ImportError:  # pragma: no cover - only used in systems without fusepy
     FUSE = None  # type: ignore
 
     class FuseOSError(OSError):  # type: ignore
-        pass
+        def __init__(self, code: int) -> None:
+            super().__init__(code, os.strerror(code))
 
     class Operations:  # type: ignore
         pass
 
-from core.perspective_resolver import (
-    PerspectiveContext,
-    ResolverErrorCode,
-    list_virtual_dir,
-    perspective_open,
-    prepare_create,
-    prepare_rename,
-    resolve_virtual_dir_for_read,
-    resolve_virtual_path,
-)
+from core.perspective_drive import DriveNode, PerspectiveDrive
 
 logger = logging.getLogger(__name__)
 
-
-def resolver_error_to_errno(error_code: Optional[ResolverErrorCode]) -> int:
-    mapping = {
-        "not_found": errno.ENOENT,
-        "denied": errno.EACCES,
-        "invalid_path": errno.EINVAL,
-        "ambiguous": errno.EINVAL,
-        "conflict": errno.EEXIST,
-        "unsupported": errno.ENOTSUP,
-        "io_error": errno.EIO,
-    }
-    if not error_code:
-        return errno.EIO
-    return mapping.get(error_code, errno.EIO)
+_WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_TRUNC
 
 
-class PerspectiveFuseAdapter(Operations):
-    """
-    Thin adapter: FUSE operations delegate perspective semantics to resolver.
-    """
+class PerspectiveDriveFuse(Operations):
+    def __init__(self, drive: PerspectiveDrive) -> None:
+        self.drive = drive
+        self._fds: Dict[int, int] = {}
+        self._next_handle = 1000
+        self._lock = threading.Lock()
+        self._mounted_at = time.time()
 
-    def __init__(
-        self,
-        *,
-        project_root: Optional[str] = None,
-        start_real_path: Optional[str] = None,
-        perspective_id: str = "flipped",
-        role: Optional[str] = None,
-        context_provider: Optional[Callable[[], PerspectiveContext]] = None,
-    ) -> None:
-        self._context_provider: Optional[Callable[[], PerspectiveContext]] = context_provider
-        self.ctx: Optional[PerspectiveContext] = None
-        if context_provider is None:
-            if project_root is None or start_real_path is None:
-                raise ValueError("project_root and start_real_path required when context_provider is not set")
-            self.ctx = perspective_open(
-                perspective_id=perspective_id,
-                project_root=project_root,
-                start_real_path=start_real_path,
-                role=role,
-            )
-        self.mount_time = time.time()
-        self._fd_table: Dict[int, int] = {}
-        self._next_handle: int = 1000
+    # --- helpers ---------------------------------------------------------------------
 
-    def _get_ctx(self) -> PerspectiveContext:
-        if self._context_provider is not None:
-            return self._context_provider()
-        assert self.ctx is not None
-        return self.ctx
+    def _node(self, path: str) -> DriveNode:
+        try:
+            node = self.drive.node(path)
+        except PermissionError:
+            raise FuseOSError(errno.EACCES)
+        if node is None:
+            raise FuseOSError(errno.ENOENT)
+        return node
 
-    def _fail(self, error_code: Optional[ResolverErrorCode]) -> None:
-        logger.debug("perspective_fuse.fail cpd=? error_code=%s", error_code)
-        raise FuseOSError(resolver_error_to_errno(error_code))
+    def _real(self, path: str, action: str) -> Path:
+        """The real path behind path; the virtual levels cannot be changed."""
+        node = self._node(path)
+        if node.real is None:
+            raise FuseOSError(errno.EACCES)
+        if action == "write":
+            # Security: where the lens enters a project (its department folder, or the
+            # project folder standing in for it) is not removed, renamed or changed here.
+            if node.project is not None and not node.rest:
+                raise FuseOSError(errno.EACCES)
+            if not self.drive.may(node.real, "write"):
+                raise FuseOSError(errno.EACCES)
+        return node.real
 
-    def _log_op(self, op: str, *, cpd: Optional[str] = None, real: Optional[str] = None, error_code: Optional[str] = None) -> None:
-        logger.debug(
-            "perspective_fuse.%s cpd=%s real=%s error_code=%s",
-            op,
-            cpd,
-            real,
-            error_code,
-        )
+    def _target(self, path: str) -> Path:
+        try:
+            return self.drive.target_for_create(path)
+        except PermissionError:
+            raise FuseOSError(errno.EACCES)
+        except FileNotFoundError:
+            raise FuseOSError(errno.ENOENT)
 
-    def _cpd(self, path: str) -> str:
-        p = str(path or "/").strip()
-        if not p.startswith("/"):
-            p = "/" + p
-        return p
+    def _keep(self, fd: int) -> int:
+        with self._lock:
+            handle = self._next_handle
+            self._next_handle += 1
+            self._fds[handle] = fd
+        return handle
 
-    def _split_parent_name(self, path: str) -> tuple[str, str]:
-        raw = self._cpd(path).rstrip("/")
-        if raw == "":
-            raw = "/"
-        parent = str(Path(raw).parent)
-        name = Path(raw).name
-        if not name:
-            return "/", ""
-        return parent, name
+    def _fd(self, handle: int) -> int:
+        fd = self._fds.get(handle)
+        if fd is None:
+            raise FuseOSError(errno.EBADF)
+        return fd
 
-    def _real_path(self, cpd: str, *, required: bool = True) -> Optional[str]:
-        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=cpd)
-        if not resolved.ok:
-            self._fail(resolved.error_code)
-        if required and not resolved.real_path:
-            self._fail("unsupported")
-        return resolved.real_path
+    @staticmethod
+    def _call(action: Callable[[], object]):
+        try:
+            return action()
+        except OSError as exc:
+            raise FuseOSError(exc.errno or errno.EIO)
 
-    def _looks_like_directory_path(self, cpd: str) -> bool:
-        if cpd.endswith("/"):
-            return True
-        name = Path(cpd).name
-        return "." not in name
-
-    # FUSE API ---------------------------------------------------------------
-    def access(self, path: str, mode: int) -> int:
-        cpd = self._cpd(path)
-        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=cpd)
-        if not resolved.ok:
-            self._log_op("access", cpd=cpd, real=resolved.real_path, error_code=resolved.error_code)
-            self._fail(resolved.error_code)
-        self._log_op("access", cpd=cpd, real=resolved.real_path, error_code=None)
-        return 0
+    # --- reading ---------------------------------------------------------------------
 
     def getattr(self, path: str, fh=None):
-        cpd = self._cpd(path)
-        ctx = self._get_ctx()
-        resolved = resolve_virtual_path(ctx=ctx, cpd=cpd)
-        if not resolved.ok:
-            # Apply parent fallback only for directory-like getattr requests.
-            if self._looks_like_directory_path(cpd):
-                dir_read = resolve_virtual_dir_for_read(ctx=ctx, cpd=cpd)
-                if dir_read.ok and dir_read.node_type == "dir":
-                    fallback_real = dir_read.effective_read_path
-                    if fallback_real:
-                        st = os.lstat(fallback_real)
-                        self._log_op(
-                            "getattr",
-                            cpd=cpd,
-                            real=fallback_real,
-                            error_code=("fallback" if dir_read.fallback_applied else None),
-                        )
-                        return {
-                            "st_mode": st.st_mode,
-                            "st_nlink": st.st_nlink,
-                            "st_size": st.st_size,
-                            "st_ctime": st.st_ctime,
-                            "st_mtime": st.st_mtime,
-                            "st_atime": st.st_atime,
-                            "st_uid": st.st_uid,
-                            "st_gid": st.st_gid,
-                        }
-            self._log_op("getattr", cpd=cpd, real=resolved.real_path, error_code=resolved.error_code)
-            self._fail(resolved.error_code)
-
-        # Virtual anchor behaves like readonly directory.
-        if resolved.node_type == "virtual_anchor":
-            self._log_op("getattr", cpd=cpd, real=None, error_code=None)
-            now = int(time.time())
-            return {
-                "st_mode": stat.S_IFDIR | 0o755,
-                "st_nlink": 2,
-                "st_size": 0,
-                "st_ctime": now,
-                "st_mtime": now,
-                "st_atime": now,
-            }
-
-        assert resolved.real_path is not None
-        self._log_op("getattr", cpd=cpd, real=resolved.real_path, error_code=None)
-        st = os.lstat(resolved.real_path)
-        return {
-            "st_mode": st.st_mode,
-            "st_nlink": st.st_nlink,
-            "st_size": st.st_size,
-            "st_ctime": st.st_ctime,
-            "st_mtime": st.st_mtime,
-            "st_atime": st.st_atime,
-            "st_uid": st.st_uid,
-            "st_gid": st.st_gid,
-        }
+        node = self._node(path)
+        if node.real is None:  # a virtual level: a read-only folder
+            return {"st_mode": stat.S_IFDIR | 0o555, "st_nlink": 2, "st_size": 0,
+                    "st_ctime": self._mounted_at, "st_mtime": self._mounted_at, "st_atime": self._mounted_at,
+                    "st_uid": os.getuid(), "st_gid": os.getgid()}
+        info = self._call(lambda: os.lstat(node.real))
+        return {key: getattr(info, key) for key in (
+            "st_mode", "st_nlink", "st_size", "st_ctime", "st_mtime", "st_atime", "st_uid", "st_gid")}
 
     def readdir(self, path: str, fh) -> Iterable[str]:
-        cpd = self._cpd(path)
-        ctx = self._get_ctx()
-        dir_read = resolve_virtual_dir_for_read(ctx=ctx, cpd=cpd)
-        if not dir_read.ok:
-            self._log_op("readdir", cpd=cpd, real=dir_read.real_path, error_code=dir_read.error_code)
-            self._fail(dir_read.error_code)
-        entries = [".", ".."]
-        for item in list_virtual_dir(ctx=ctx, cpd=cpd):
-            name = str(item.get("name") or "")
-            if name:
-                entries.append(name)
-        self._log_op(
-            "readdir",
-            cpd=cpd,
-            real=dir_read.effective_read_path,
-            error_code=("fallback" if dir_read.fallback_applied else None),
-        )
-        return entries
+        try:
+            names = self.drive.listdir(path)
+        except PermissionError:
+            raise FuseOSError(errno.EACCES)
+        except FileNotFoundError:
+            raise FuseOSError(errno.ENOENT)
+        return [".", "..", *names]
+
+    def access(self, path: str, mode: int) -> int:
+        node = self._node(path)
+        if mode & os.W_OK and (node.real is None or not self.drive.may(node.real, "write")):
+            raise FuseOSError(errno.EACCES)
+        return 0
 
     def open(self, path: str, flags: int) -> int:
-        cpd = self._cpd(path)
-        real_path = self._real_path(cpd, required=True)
-        assert real_path is not None
-        try:
-            fd = os.open(real_path, flags)
-        except OSError as exc:
-            raise FuseOSError(exc.errno) from exc
-        handle = self._next_handle
-        self._next_handle += 1
-        self._fd_table[handle] = fd
-        self._log_op("open", cpd=cpd, real=real_path, error_code=None)
-        return handle
-
-    def create(self, path: str, mode: int, fi=None) -> int:
-        parent_cpd, name = self._split_parent_name(path)
-        prepared = prepare_create(ctx=self._get_ctx(), cpd_parent=parent_cpd, name=name, node_type="file")
-        if not prepared.ok or not prepared.real_path:
-            self._log_op("create", cpd=path, real=prepared.real_path, error_code=prepared.error_code)
-            self._fail(prepared.error_code)
-        target = prepared.real_path
-        os.makedirs(str(Path(target).parent), exist_ok=True)
-        try:
-            fd = os.open(target, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, mode)
-        except OSError as exc:
-            raise FuseOSError(exc.errno) from exc
-        handle = self._next_handle
-        self._next_handle += 1
-        self._fd_table[handle] = fd
-        self._log_op("create", cpd=path, real=target, error_code=None)
-        return handle
+        real = self._real(path, "write" if flags & _WRITE_FLAGS else "read")
+        return self._keep(self._call(lambda: os.open(real, flags)))
 
     def read(self, path: str, size: int, offset: int, fh: int) -> bytes:
-        fd = self._fd_table.get(fh)
-        if fd is None:
-            raise FuseOSError(errno.EBADF)
-        os.lseek(fd, offset, os.SEEK_SET)
-        self._log_op("read", cpd=self._cpd(path), real=None, error_code=None)
-        return os.read(fd, size)
+        return self._call(lambda: os.pread(self._fd(fh), size, offset))
+
+    def statfs(self, path: str):
+        info = os.statvfs(self.drive.projects_root)
+        return {key: getattr(info, key) for key in (
+            "f_bavail", "f_bfree", "f_blocks", "f_bsize", "f_favail", "f_ffree", "f_files",
+            "f_flag", "f_frsize", "f_namemax")}
+
+    # --- writing ---------------------------------------------------------------------
+
+    def create(self, path: str, mode: int, fi=None) -> int:
+        # fusepy does not pass the caller's open flags here; the kernel keeps the caller's
+        # access mode, so the handle is opened for reading too (LibreOffice reads its lock
+        # file right after creating it).
+        target = self._target(path)
+        return self._keep(self._call(lambda: os.open(target, os.O_CREAT | os.O_RDWR | os.O_TRUNC, mode)))
 
     def write(self, path: str, data: bytes, offset: int, fh: int) -> int:
-        fd = self._fd_table.get(fh)
-        if fd is None:
-            raise FuseOSError(errno.EBADF)
-        os.lseek(fd, offset, os.SEEK_SET)
-        self._log_op("write", cpd=self._cpd(path), real=None, error_code=None)
-        return int(os.write(fd, data))
+        return self._call(lambda: os.pwrite(self._fd(fh), data, offset))
 
-    def release(self, path: str, fh: int) -> int:
-        fd = self._fd_table.pop(fh, None)
-        if fd is None:
-            return 0
-        os.close(fd)
-        self._log_op("release", cpd=self._cpd(path), real=None, error_code=None)
+    def truncate(self, path: str, length: int, fh=None) -> int:
+        if fh is not None and fh in self._fds:
+            self._call(lambda: os.ftruncate(self._fds[fh], length))
+        else:
+            real = self._real(path, "write")
+            self._call(lambda: os.truncate(real, length))
         return 0
 
     def flush(self, path: str, fh: int) -> int:
-        fd = self._fd_table.get(fh)
-        if fd is None:
-            return 0
-        os.fsync(fd)
         return 0
 
-    def truncate(self, path: str, length: int, fh=None):
-        if fh is not None and fh in self._fd_table:
-            os.ftruncate(self._fd_table[fh], length)
-            return 0
-        real_path = self._real_path(self._cpd(path), required=True)
-        assert real_path is not None
-        with open(real_path, "r+b") as fp:
-            fp.truncate(length)
+    def fsync(self, path: str, datasync: bool, fh: int) -> int:
+        self._call(lambda: os.fsync(self._fd(fh)))
+        return 0
+
+    def release(self, path: str, fh: int) -> int:
+        with self._lock:
+            fd = self._fds.pop(fh, None)
+        if fd is not None:
+            os.close(fd)
         return 0
 
     def mkdir(self, path: str, mode: int) -> int:
-        parent_cpd, name = self._split_parent_name(path)
-        prepared = prepare_create(ctx=self._get_ctx(), cpd_parent=parent_cpd, name=name, node_type="dir")
-        if not prepared.ok or not prepared.real_path:
-            self._log_op("mkdir", cpd=path, real=prepared.real_path, error_code=prepared.error_code)
-            self._fail(prepared.error_code)
-        try:
-            os.makedirs(prepared.real_path, mode=mode, exist_ok=False)
-        except OSError as exc:
-            raise FuseOSError(exc.errno) from exc
-        self._log_op("mkdir", cpd=path, real=prepared.real_path, error_code=None)
-        return 0
-
-    def rename(self, old: str, new: str) -> int:
-        target_parent, target_name = self._split_parent_name(new)
-        source_resolved, target_prepared = prepare_rename(
-            ctx=self._get_ctx(),
-            source_cpd=self._cpd(old),
-            target_parent_cpd=target_parent,
-            target_name=target_name,
-        )
-        if not source_resolved.ok:
-            self._log_op("rename", cpd=self._cpd(old), real=source_resolved.real_path, error_code=source_resolved.error_code)
-            self._fail(source_resolved.error_code)
-        if not target_prepared.ok or not source_resolved.real_path or not target_prepared.real_path:
-            self._log_op("rename", cpd=self._cpd(new), real=target_prepared.real_path, error_code=target_prepared.error_code)
-            self._fail(target_prepared.error_code)
-        try:
-            os.rename(source_resolved.real_path, target_prepared.real_path)
-        except OSError as exc:
-            raise FuseOSError(exc.errno) from exc
-        self._log_op("rename", cpd=f"{self._cpd(old)}->{self._cpd(new)}", real=target_prepared.real_path, error_code=None)
+        target = self._target(path)
+        self._call(lambda: os.mkdir(target, mode))
         return 0
 
     def unlink(self, path: str) -> int:
-        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=self._cpd(path))
-        if not resolved.ok:
-            self._log_op("unlink", cpd=self._cpd(path), real=resolved.real_path, error_code=resolved.error_code)
-            self._fail(resolved.error_code)
-        if resolved.node_type == "virtual_anchor":
-            self._log_op("unlink", cpd=self._cpd(path), real=None, error_code="unsupported")
-            self._fail("unsupported")
-        if not resolved.real_path:
-            self._log_op("unlink", cpd=self._cpd(path), real=None, error_code="unsupported")
-            self._fail("unsupported")
-        try:
-            os.unlink(resolved.real_path)
-        except OSError as exc:
-            raise FuseOSError(exc.errno) from exc
-        self._log_op("unlink", cpd=self._cpd(path), real=resolved.real_path, error_code=None)
+        real = self._real(path, "write")
+        self._call(lambda: os.unlink(real))
         return 0
 
     def rmdir(self, path: str) -> int:
-        resolved = resolve_virtual_path(ctx=self._get_ctx(), cpd=self._cpd(path))
-        if not resolved.ok:
-            self._log_op("rmdir", cpd=self._cpd(path), real=resolved.real_path, error_code=resolved.error_code)
-            self._fail(resolved.error_code)
-        if resolved.node_type == "virtual_anchor":
-            self._log_op("rmdir", cpd=self._cpd(path), real=None, error_code="unsupported")
-            self._fail("unsupported")
-        if not resolved.real_path:
-            self._log_op("rmdir", cpd=self._cpd(path), real=None, error_code="unsupported")
-            self._fail("unsupported")
-        try:
-            os.rmdir(resolved.real_path)
-        except OSError as exc:
-            raise FuseOSError(exc.errno) from exc
-        self._log_op("rmdir", cpd=self._cpd(path), real=resolved.real_path, error_code=None)
+        real = self._real(path, "write")
+        self._call(lambda: os.rmdir(real))
         return 0
 
-    def statfs(self, path: str):
-        root = Path(self._get_ctx().project_root)
-        st = os.statvfs(root)
-        return {
-            "f_bsize": st.f_bsize,
-            "f_frsize": st.f_frsize,
-            "f_blocks": st.f_blocks,
-            "f_bfree": st.f_bfree,
-            "f_bavail": st.f_bavail,
-            "f_files": st.f_files,
-            "f_ffree": st.f_ffree,
-            "f_favail": st.f_favail,
-            "f_flag": st.f_flag,
-            "f_namemax": st.f_namemax,
-        }
+    def rename(self, old: str, new: str) -> int:
+        source = self._real(old, "write")
+        target = self._target(new)
+        self._call(lambda: os.rename(source, target))
+        return 0
+
+    def chmod(self, path: str, mode: int) -> int:
+        real = self._real(path, "write")
+        self._call(lambda: os.chmod(real, mode))
+        return 0
+
+    def utimens(self, path: str, times=None) -> int:
+        real = self._real(path, "write")
+        self._call(lambda: os.utime(real, times))
+        return 0
 
 
-def mount_perspective_fuse(
+def mount_perspective_drive(
     *,
-    project_root: str,
-    start_real_path: str,
+    projects_root: str,
     mount_point: str,
-    perspective_id: str = "flipped",
-    role: Optional[str] = None,
+    may: Optional[Callable[[Path, str], bool]] = None,
     foreground: bool = True,
 ):
+    """Mount the turned tree of projects_root at mount_point (blocks while foreground)."""
     if FUSE is None:
         raise RuntimeError("fusepy is not installed")
-    adapter = PerspectiveFuseAdapter(
-        project_root=project_root,
-        start_real_path=start_real_path,
-        perspective_id=perspective_id,
-        role=role,
-    )
-    logger.info(
-        "perspective_fuse.mount project_root=%s start_real=%s mount_point=%s perspective=%s",
-        project_root,
-        start_real_path,
-        mount_point,
-        perspective_id,
-    )
-    return FUSE(adapter, str(mount_point), foreground=foreground, allow_other=False)
+    logger.info("perspective_fuse.mount projects_root=%s mount_point=%s", projects_root, mount_point)
+    fs = PerspectiveDriveFuse(PerspectiveDrive(projects_root, may=may))
+    return FUSE(fs, str(mount_point), foreground=foreground, allow_other=False, nothreads=False)

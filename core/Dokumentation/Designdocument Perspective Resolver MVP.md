@@ -108,6 +108,41 @@ The gesture rules live in the core as a perspective session (actions such as put
 move to project, go, take off; the lens' listing), tested there; the daemon serves it, the
 GUIs show it. No CPD building in QML (Scope, SunTree).
 
+Built (2026-10-22):
+- `core/perspective_session.py` - the session (E1). Its state is kept as parts (project
+  path below the projects root, lens path), not as a parsed CPD: projects may be nested
+  (`Wohnen/Garten`).
+- `core/perspective_drive.py` - the drive's turned tree (E2), independent of the session:
+  `/` the departments, `/04_Finanz[/...]` template subfolders and `Projekte`, the shelf
+  (real projects and the folders leading to them), then the project. Saving into a project
+  without the department folder bears it (`Blueprint.materialize_dir`, with its template
+  content). Denied access is reported as denied, not as missing. Where the lens enters a
+  project cannot be removed or renamed through the drive. Subprojects are reached through
+  their project. Hidden files other than `.MyOS` are allowed (LibreOffice lock files).
+- `core/perspective_fuse.py` - `PerspectiveDriveFuse`, the FUSE operations on the real
+  paths; `cli/myperspectivefs.py --projects-root ... --mount-point ...`.
+- `daemon/perspective_daemon.py` - the session plus the drive, one socket per projects
+  root (`socket_path_for`). FUSE runs in the daemon's own process: a FUSE fork kept only
+  one thread, and the socket server was gone (the reason the daemon never answered when
+  Scope started it).
+- Ending (2026-10-23): the drive ends with the Scope that started it. Scope only asks; the
+  daemon unmounts (`fusermount -u`), and its process ends with the drive. While a program
+  still has a file open on it (LibreOffice), unmounting is refused: the drive stays and it
+  is tried again every 2 s; a client coming back meanwhile (a new Scope) cancels the
+  ending. Never killed (a killed daemon left a dead drive, "Transport endpoint is not
+  connected") and never unmounted lazily (a program still open would save into the empty
+  mount point, outside the projects). SIGTERM takes the same way: it is blocked in all
+  threads and received by one of its own (Python runs signal handlers only in the main
+  thread, which stays inside FUSE). The former idle timeout (24 h without a request) is
+  gone: it would have taken the drive away under a running Scope.
+- Scope connects only to the daemon of its projects root and starts it when none runs
+  (`MYOS_SCOPE_START_DAEMON=0` switches that off; the tests do). The client is
+  `daemon/client.py` (as `Scope/daemon_client.py` it was never imported when Scope runs as
+  a script: there "Scope" means Scope.py). Scope's lens display does not use the session
+  yet (E3).
+- LibreOffice reads its lock file right after creating it: the drive opens created files
+  for reading and writing (fusepy does not pass the open flags to `create`).
+
 ## A8. Changed Against What Was Built Before
 
 - **"Off" is off.** Before, "Perspective OFF" set the CPD `/Templates` (canonical OFF
@@ -120,6 +155,8 @@ GUIs show it. No CPD building in QML (Scope, SunTree).
   (changing ScopeApi past the daemon). Scope attached to any running daemon and sent some
   calls to it, others to its local ScopeApi.
 - **Single click on a department folder** opened the real `Templates` folder.
+- **The drive's mapping** no longer goes through the CPD resolver (Part B, B7): it is
+  `core/perspective_drive.py` (A7). Part B still serves Scope's lens display until E3.
 - **Unchanged:** the resolver contract (Part B), the directory fallback with folders
   (A4), double click on the CWD ends the perspective, a template double click sets only the
   lens.

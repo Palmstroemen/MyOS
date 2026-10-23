@@ -1,20 +1,26 @@
 """
-Perspective daemon: holds state (project_root, CPD), serves Unix-socket API,
-runs FUSE with live-updated context.
+Perspective daemon: one lens session per projects root (core/perspective_session.py),
+served over a Unix socket, and the "Perspektiven" FUSE drive (core/perspective_fuse.py).
+
+See "Designdocument Perspective Resolver MVP.md", A6: the lens' state lives only here;
+Scope, SunTree and the CLI ask. The drive shows the whole turned tree, independent of
+the lens. Each projects root has its own socket, so a client finds the daemon of its root.
 """
 
 from __future__ import annotations
 
 import atexit
+import hashlib
 import os
 import signal
 import socket
+import subprocess
 import sys
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 _DAEMON_LOG_LOCK = threading.Lock()
 _DAEMON_LOG_FILE: Optional[Any] = None
@@ -65,249 +71,114 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.perspective_fuse import FUSE, PerspectiveFuseAdapter
-from core.perspective_resolver import PerspectiveContext, perspective_open, perspective_open_from_cpd
-from core.scope_api import ScopeApi, find_project_root
+from core.perspective_fuse import FUSE, mount_perspective_drive
+from core.perspective_session import PerspectiveSession
 
 from daemon.api import decode_request, encode_response, encode_request
 
 
-def _default_socket_path() -> str:
+def socket_path_for(projects_root: Union[str, Path]) -> str:
+    """The socket of the daemon serving projects_root (one per root)."""
+    key = hashlib.sha1(str(Path(projects_root).expanduser().resolve()).encode("utf-8")).hexdigest()[:12]
     runtime = os.environ.get("XDG_RUNTIME_DIR", "").strip()
-    if runtime:
-        return str(Path(runtime) / "myos-perspective.sock")
-    return str(Path.home() / ".config" / "myos" / "perspective.sock")
+    base = Path(runtime) if runtime else Path.home() / ".config" / "myos"
+    return str(base / f"myos-perspective-{key}.sock")
 
 
 class DaemonState:
-    def __init__(
-        self,
-        project_root: str,
-        cpd: str = "/Projekte",
-        mount_point: str = "",
-        idle_timeout_s: int = 86400,
-    ) -> None:
+    """The lens session of one projects root, and whether the daemon is asked to end."""
+
+    def __init__(self, projects_root: str, mount_point: str = "") -> None:
         self._lock = threading.Lock()
-        self._project_root = project_root
-        self._cpd = cpd
-        self._mount_point = mount_point
-        self._cached_ctx: Optional[PerspectiveContext] = None
-        self._api: Optional[ScopeApi] = None
-        self._shutdown_requested = False
-        self._idle_timeout_s = max(60, int(idle_timeout_s))
-        self._last_activity_mono = time.monotonic()
-        self._activity_event = threading.Event()
-
-    @property
-    def project_root(self) -> str:
-        with self._lock:
-            return self._project_root
-
-    @property
-    def cpd(self) -> str:
-        with self._lock:
-            return self._cpd
-
-    @property
-    def mount_point(self) -> str:
-        with self._lock:
-            return self._mount_point
+        self.session = PerspectiveSession(projects_root)
+        self.projects_root = str(self.session.projects_root)
+        self.mount_point = mount_point
+        self._shutdown = threading.Event()
 
     @property
     def shutdown_requested(self) -> bool:
-        with self._lock:
-            return self._shutdown_requested
-
-    def set_cpd(self, project_root: Optional[str], cpd: str) -> None:
-        with self._lock:
-            if project_root is not None:
-                self._project_root = project_root
-            self._cpd = (cpd or "").strip() or "/Projekte"
-
-    def set_mount_point(self, mount_point: str) -> None:
-        with self._lock:
-            self._mount_point = mount_point
+        return self._shutdown.is_set()
 
     def request_shutdown(self) -> None:
         with self._lock:
-            self._shutdown_requested = True
+            self._shutdown.set()
 
-    @property
-    def idle_timeout_s(self) -> int:
+    def cancel_shutdown(self) -> None:
+        """A client came back while the drive was still busy: the daemon stays."""
         with self._lock:
-            return self._idle_timeout_s
+            self._shutdown.clear()
 
-    def mark_activity(self) -> None:
+    def wait_for_shutdown(self) -> None:
+        self._shutdown.wait()
+
+    # --- the lens (Part A, A3) ---------------------------------------------------------
+
+    def act(self, action: Callable[[PerspectiveSession], Any]) -> Dict[str, Any]:
+        """Run a lens action and describe the lens afterwards (ValueError: a mistake)."""
         with self._lock:
-            self._last_activity_mono = time.monotonic()
-        self._activity_event.set()
+            action(self.session)
+            return self._describe()
 
-    def seconds_since_activity(self) -> float:
+    def describe(self) -> Dict[str, Any]:
         with self._lock:
-            last = self._last_activity_mono
-        return max(0.0, time.monotonic() - last)
+            return self._describe()
 
-    def idle_deadline_seconds(self) -> float:
+    def listing(self) -> Dict[str, Any]:
         with self._lock:
-            timeout_s = float(self._idle_timeout_s)
-            last = self._last_activity_mono
-        remaining = timeout_s - (time.monotonic() - last)
-        return max(0.0, remaining)
+            view = self.session.listing()
+        return {
+            "shown": str(view.shown),
+            "fallback": view.fallback,
+            "entries": [{"name": p.name, "path": str(p), "isDir": p.is_dir()} for p in view.entries],
+        }
 
-    def wait_for_activity(self, timeout_s: float) -> bool:
-        hit = self._activity_event.wait(timeout=max(0.0, timeout_s))
-        if hit:
-            self._activity_event.clear()
-        return hit
+    def _describe(self) -> Dict[str, Any]:
+        session = self.session
+        target, desk = session.target, session.desk_file()
+        return {
+            "active": session.active,
+            "cwd": str(session.cwd) if session.cwd else "",
+            "cpd": session.cpd,
+            "lens": list(session.lens),
+            "project": list(session.project) if session.project is not None else None,
+            "target": str(target) if target else "",
+            "desk": str(desk) if desk else "",
+        }
 
-    def get_context(self) -> PerspectiveContext:
-        with self._lock:
-            root = self._project_root
-            cpd = self._cpd or "/Projekte"
-        try:
-            ctx = perspective_open_from_cpd(project_root=root, cpd=cpd)
-            with self._lock:
-                self._cached_ctx = ctx
-            return ctx
-        except Exception:
-            with self._lock:
-                if self._cached_ctx is not None:
-                    return self._cached_ctx
-            raise
 
-    def _ensure_api(self) -> ScopeApi:
-        with self._lock:
-            root = self._project_root
-        if self._api is None:
-            self._api = ScopeApi(start_path=root)
-        return self._api
-
-    def _sync_ctx(self) -> bool:
-        api = self._ensure_api()
-        try:
-            ctx = self.get_context()
-            api._perspective_ctx = ctx
-            return True
-        except Exception:
-            return False
-
-    def perspective_state(self) -> Dict[str, Any]:
-        if not self._sync_ctx():
-            return {
-                "active": False,
-                "perspectiveId": "",
-                "projectRoot": self.project_root,
-                "cpd": self.cpd,
-                "cwdReal": "",
-                "role": "",
-                "templateHead": [],
-                "templateRoot": "",
-                "templateRoots": [],
-            }
-        return self._api.perspective_state()
-
-    def perspective_list_dir(self, cpd: str = "", show_hidden: bool = False) -> list:
-        if not self._sync_ctx():
-            return []
-        return self._api.perspective_list_dir(cpd or self.cpd, show_hidden)
-
-    def perspective_list_templates(self, cpd: str = "", show_hidden: bool = False) -> list:
-        if not self._sync_ctx():
-            return []
-        return self._api.perspective_list_templates(cpd or self.cpd, show_hidden)
+# method -> lens action taking the request's params
+_ACTIONS: Dict[str, Callable[[PerspectiveSession, Dict[str, Any]], Any]] = {
+    "set_cwd": lambda s, p: s.set_cwd(str(p.get("path", ""))),
+    "put_on": lambda s, p: s.put_on(list(p.get("lens") or [])),
+    "move_to_project": lambda s, p: s.move_to_project(list(p.get("project") or [])),
+    "go_into": lambda s, p: s.go_into(str(p.get("name", ""))),
+    "to_shelf": lambda s, p: s.to_shelf(),
+    "into_shelf": lambda s, p: s.into_shelf(str(p.get("name", ""))),
+    "take_off": lambda s, p: s.take_off(),
+}
 
 
 def _handle_request(state: DaemonState, req: Dict[str, Any]) -> str:
     method = (req.get("method") or "").strip()
     params = req.get("params") or {}
-
-    if method == "ping":
-        return encode_response(True, {"pong": True})
-
-    if method == "shutdown":
-        state.request_shutdown()
-        return encode_response(True, {"shutdown": True})
-
-    if method == "set_cpd":
-        project_root = params.get("project_root")
-        if project_root is not None:
-            project_root = str(project_root).strip()
-        cpd = str(params.get("cpd", "")).strip() or "/Projekte"
-        try:
-            state.set_cpd(project_root, cpd)
-            ctx = state.get_context()
-            return encode_response(True, {"cpd": ctx.cpd, "ok": True})
-        except Exception as e:
-            return encode_response(False, error=str(e))
-
-    if method == "get_state":
-        try:
-            ctx = state.get_context()
-            active = True
-            cpd = ctx.cpd
-        except Exception:
-            active = False
-            cpd = state.cpd
-        return encode_response(True, {
-            "project_root": state.project_root,
-            "cpd": cpd,
-            "mount_point": state.mount_point,
-            "active": active,
-        })
-
-    if method == "perspective_open":
-        path = str(params.get("path", "")).strip()
-        perspective_id = str(params.get("perspective_id") or params.get("perspectiveId") or "flipped")
-        root = find_project_root(Path(path).expanduser().resolve())
-        if root is None:
-            return encode_response(False, result={"active": False, "ok": False}, error="missing project_root")
-        try:
-            ctx = perspective_open(
-                perspective_id=perspective_id,
-                project_root=str(root),
-                start_real_path=path,
-            )
-            state.set_cpd(str(root), ctx.cpd)
-            out = state.perspective_state()
-            out["ok"] = True
-            return encode_response(True, result=out)
-        except Exception as e:
-            return encode_response(False, error=str(e))
-
-    if method == "perspective_set_cpd":
-        cpd = str(params.get("cpd", "")).strip()
-        try:
-            state.set_cpd(None, cpd)
-            ctx = state.get_context()
-            return encode_response(True, result={"ok": True, "cpd": ctx.cpd})
-        except Exception as e:
-            return encode_response(True, result={"ok": False, "errorCode": "invalid_path", "message": str(e)})
-
-    if method == "perspective_state":
-        try:
-            result = state.perspective_state()
-            return encode_response(True, result=result)
-        except Exception as e:
-            return encode_response(False, error=str(e))
-
-    if method == "perspective_list_dir":
-        cpd = str(params.get("cpd", "")).strip()
-        show_hidden = bool(params.get("show_hidden", False))
-        try:
-            result = state.perspective_list_dir(cpd, show_hidden)
-            return encode_response(True, result=result)
-        except Exception as e:
-            return encode_response(False, error=str(e))
-
-    if method == "perspective_list_templates":
-        cpd = str(params.get("cpd", "")).strip()
-        show_hidden = bool(params.get("show_hidden", False))
-        try:
-            result = state.perspective_list_templates(cpd, show_hidden)
-            return encode_response(True, result=result)
-        except Exception as e:
-            return encode_response(False, error=str(e))
-
+    if method != "shutdown" and state.shutdown_requested:
+        state.cancel_shutdown()
+        _daemon_log("shutdown cancelled: a client came back")
+    try:
+        if method == "ping":
+            return encode_response(True, {"pong": True, "projects_root": state.projects_root,
+                                          "mount_point": state.mount_point})
+        if method == "shutdown":
+            state.request_shutdown()
+            return encode_response(True, {"shutdown": True})
+        if method == "state":
+            return encode_response(True, state.describe())
+        if method == "listing":
+            return encode_response(True, state.listing())
+        if method in _ACTIONS:
+            return encode_response(True, state.act(lambda session: _ACTIONS[method](session, params)))
+    except (ValueError, OSError) as exc:
+        return encode_response(False, error=str(exc))
     return encode_response(False, error=f"unknown method: {method}")
 
 
@@ -322,7 +193,9 @@ def _run_socket_server(socket_path: str, state: DaemonState) -> None:
     except Exception as e:
         print(f"daemon: socket bind failed: {e}", file=sys.stderr)
         return
-    while not state.shutdown_requested:
+    # Serves until the process ends (the drive unmounted): while the drive is still busy,
+    # a new Scope can come back and cancel the shutdown.
+    while True:
         try:
             sock.settimeout(1.0)
             conn, _ = sock.accept()
@@ -346,8 +219,6 @@ def _run_socket_server(socket_path: str, state: DaemonState) -> None:
             else:
                 resp = _handle_request(state, req)
             conn.sendall(resp.encode("utf-8"))
-            if req and (req.get("method") or "").strip() == "shutdown":
-                break
         except Exception as e:
             try:
                 conn.sendall(encode_response(False, error=str(e)).encode("utf-8"))
@@ -358,14 +229,46 @@ def _run_socket_server(socket_path: str, state: DaemonState) -> None:
                 conn.close()
             except Exception:
                 pass
-            # Mark activity at the end of a request cycle to keep hot-path work first.
-            state.mark_activity()
     try:
         sock.close()
     except Exception:
         pass
-    if state.shutdown_requested:
-        os.kill(os.getpid(), signal.SIGTERM)
+
+
+def _end_when_free(state: DaemonState, unmount: Callable[[], bool], retry_s: float = 2.0) -> None:
+    """Once asked to end, unmount the drive (FUSE then returns in the main thread and the
+    daemon ends). While a program still has a file open on it (LibreOffice), unmounting is
+    refused: the drive stays and it is tried again - unless a client came back meanwhile.
+    Never killed (that leaves a dead mount point) and never unmounted lazily: a program
+    still open would then save into the empty mount point, outside the projects."""
+    while True:
+        state.wait_for_shutdown()
+        logged = False
+        while state.shutdown_requested:
+            if unmount():
+                return
+            if not logged:
+                _daemon_log("drive busy; unmounting when it is free")
+                logged = True
+            time.sleep(retry_s)
+
+
+def _fusermount(mount_point: str) -> bool:
+    """Unmount mount_point; False while it is busy."""
+    try:
+        return subprocess.run(["fusermount", "-u", mount_point], capture_output=True, timeout=5).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _shutdown_on_sigterm(state: DaemonState) -> None:
+    """SIGTERM (e.g. logging out) ends the daemon the same way as Scope does. Python runs
+    signal handlers only in the main thread, which stays inside FUSE: the signal is
+    blocked there and received here instead."""
+    while True:
+        signal.sigwait({signal.SIGTERM})
+        _daemon_log("SIGTERM; ending")
+        state.request_shutdown()
 
 
 def _pulse_loop(log_path: Path) -> None:
@@ -375,70 +278,48 @@ def _pulse_loop(log_path: Path) -> None:
         _daemon_log("pulse", log_path=log_path)
 
 
-def _idle_watchdog_loop(state: DaemonState, log_path: Path) -> None:
-    """Shutdown daemon if there was no activity for idle_timeout_s."""
-    _daemon_log(f"idle-watchdog active timeout_s={state.idle_timeout_s}", log_path=log_path)
-    while not state.shutdown_requested:
-        remaining = state.idle_deadline_seconds()
-        if remaining <= 0:
-            idle_for = int(round(state.seconds_since_activity()))
-            _daemon_log(f"idle-timeout reached idle_for_s={idle_for}; requesting shutdown", log_path=log_path)
-            state.request_shutdown()
-            return
-        state.wait_for_activity(remaining)
-
-
 def run_daemon(
-    project_root: str,
+    projects_root: str,
     mount_point: str,
     socket_path: Optional[str] = None,
-    foreground: bool = True,
+    foreground: bool = True,  # kept for callers; the drive always runs in this process
 ) -> None:
-    socket_path = socket_path or os.environ.get("MYOS_DAEMON_SOCKET") or _default_socket_path()
-    project_root = str(Path(project_root).expanduser().resolve())
+    projects_root = str(Path(projects_root).expanduser().resolve())
+    socket_path = socket_path or os.environ.get("MYOS_DAEMON_SOCKET") or socket_path_for(projects_root)
     mount_point = str(Path(mount_point).expanduser().resolve())
-    idle_timeout_env = os.environ.get("MYOS_DAEMON_IDLE_TIMEOUT_S", "").strip()
-    idle_timeout_s = 86400
-    if idle_timeout_env:
-        try:
-            idle_timeout_s = int(idle_timeout_env)
-        except Exception:
-            idle_timeout_s = 86400
 
     log_path = _daemon_log_path(socket_path)
-    _daemon_log(f"started mount_point={mount_point!r} socket_path={socket_path!r}", log_path=log_path)
+    _daemon_log(f"started projects_root={projects_root!r} mount_point={mount_point!r} socket_path={socket_path!r}",
+                log_path=log_path)
 
     atexit.register(_daemon_log_close)
-    state = DaemonState(
-        project_root=project_root,
-        cpd="/Projekte",
-        mount_point=mount_point,
-        idle_timeout_s=idle_timeout_s,
-    )
+    state = DaemonState(projects_root=projects_root, mount_point=mount_point)
+    # Blocked before any thread starts, so every thread inherits it (see _shutdown_on_sigterm).
+    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
     pulse_thread = threading.Thread(target=_pulse_loop, args=(log_path,), daemon=True)
     pulse_thread.start()
-    idle_thread = threading.Thread(target=_idle_watchdog_loop, args=(state, log_path), daemon=True)
-    idle_thread.start()
-
-    def context_provider() -> PerspectiveContext:
-        return state.get_context()
 
     if FUSE is None:
         raise RuntimeError("fusepy is not installed")
-    adapter = PerspectiveFuseAdapter(
-        context_provider=context_provider,
-    )
-    state.set_mount_point(mount_point)
+    from core.scope_api import ScopeApi  # late: heavy
 
-    server_thread = threading.Thread(target=_run_socket_server, args=(socket_path, state), daemon=False)
-    server_thread.start()
+    acl_api = ScopeApi(start_path=projects_root)
 
-    def on_sigterm(_signum: int, _frame: Any) -> None:
-        _daemon_log_close()
-        sys.exit(0)
-    signal.signal(signal.SIGTERM, on_sigterm)
+    def may(path: Path, action: str) -> bool:
+        # Security: the drive follows the same ACL checks as Scope.
+        return acl_api.acl_allows(action, path)
 
+    # The daemon lives as long as its drive: these threads end with it.
+    for target, args in ((_run_socket_server, (socket_path, state)),
+                         (_end_when_free, (state, lambda: _fusermount(mount_point))),
+                         (_shutdown_on_sigterm, (state,))):
+        threading.Thread(target=target, args=args, daemon=True).start()
+
+    Path(mount_point).mkdir(parents=True, exist_ok=True)
     try:
-        FUSE(adapter, mount_point, foreground=foreground, allow_other=False)
+        # Always in the foreground: the daemon already is the background process, and a
+        # FUSE fork would keep only this thread - the socket server would be gone.
+        mount_perspective_drive(projects_root=projects_root, mount_point=mount_point, may=may, foreground=True)
     finally:
+        Path(socket_path).unlink(missing_ok=True)
         _daemon_log_close()
