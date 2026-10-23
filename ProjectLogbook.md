@@ -34,6 +34,9 @@ Kompakter Überblick: `docs/STATUS.md`.
         Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
         Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:
         Nemo, Déjà Dup, Suchindex mit dem Symlink. Entscheiden: vor E3?
+    [ ] Energiemessung der Suche (A9): künstlicher Bestand (z. B. 200 Projekte), ganzer Home-Ordner vs. nur
+        */04_Finanz vs. Indexabfrage; berührte Dateien, gelesene Bytes, Zeit, Joule (RAPL, /sys/class/powercap).
+        Realistisch mit der Struktur echter Projekte (nur Mengen und Größen, keine Namen oder Inhalte)
 [ ] ACLs
 [ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)
