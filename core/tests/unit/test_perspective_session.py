@@ -1,9 +1,9 @@
 """The lens (see "Designdocument Perspective Resolver MVP.md", Part A).
 
 A lens looks at the projects from a department: /04_Finanz/Ausgangsrechnungen/2026 seen in
-a project. It does not change the CWD (where one is). The left menu changes the CWD and
-the lens follows; moving the lens to another project (the right menu, the CTD) leaves the
-CWD; taking the lens off brings one back to the CWD."""
+a project. Scope shows it framed in its one path line (A3): left of the frame the project
+(or the shelf), inside the frame the department path. Taking the lens off (✕) removes only
+the frame: one stays where the lens looked."""
 
 from pathlib import Path
 
@@ -66,28 +66,48 @@ def test_putting_on_a_lens_keeps_the_cwd(world):
     assert session.target == world["studio"].resolve() / "04_Finanz" / "Ausgangsrechnungen" / "2026"
 
 
-def test_the_right_menu_moves_only_the_lens_and_taking_it_off_returns_to_the_cwd(world):
+def test_left_of_the_frame_moves_the_lens_and_taking_it_off_stays_there(world):
     session = _session(world)
     session.put_on(LENS)
 
     session.move_to_project(("Reisen",))
 
-    assert session.target == world["reisen"].resolve() / "04_Finanz" / "Ausgangsrechnungen" / "2026"
-    assert session.cwd == world["studio"].resolve()
-    assert session.take_off() == world["studio"].resolve()
-    assert not session.active
+    reisen_2026 = world["reisen"].resolve() / "04_Finanz" / "Ausgangsrechnungen" / "2026"
+    assert session.target == reisen_2026
+    assert session.take_off() == reisen_2026  # an embryo there: one stays in it
+    assert session.cwd == reisen_2026 and not session.active
 
 
-def test_the_left_menu_changes_the_cwd_and_the_lens_follows(world):
+def test_left_of_the_frame_given_as_the_project_folder(world):
+    # Scope's projects row names a project by its real path.
     session = _session(world)
     session.put_on(LENS)
-    session.move_to_project(("Reisen",))
 
-    session.set_cwd(world["garten"])  # the left menu
+    session.move_to(world["garten"])
 
-    assert session.project == ("Wohnen", "Garten")  # the earlier right-menu choice is forgotten
+    assert session.project == ("Wohnen", "Garten")
     assert session.cpd == "/04_Finanz/Ausgangsrechnungen/2026/Projekte/Wohnen/Garten"
-    assert session.take_off() == world["garten"].resolve()
+    for not_a_project in (world["root"] / "Wohnen", world["studio"] / "04_Finanz", world["root"].parent):
+        with pytest.raises(ValueError):
+            session.move_to(not_a_project)
+    assert session.project == ("Wohnen", "Garten")
+
+
+def test_taking_the_lens_off_on_the_shelf_stays_on_the_shelf(world):
+    session = _session(world)
+    session.put_on(("04_Finanz",))
+    session.to_shelf()
+
+    assert session.take_off() == world["root"].resolve()
+
+
+def test_changing_the_cwd_leaves_the_lens(world):
+    session = _session(world)
+    session.put_on(LENS)
+
+    session.set_cwd(world["garten"])
+
+    assert session.project == ("Musikstudio",) and session.cwd == world["garten"].resolve()
 
 
 def test_what_the_lens_shows_and_the_fallback_to_the_project(world):

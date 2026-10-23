@@ -28,3 +28,33 @@ function pathPartsDisplay(path, pathDisplayPrefix) {
     var lastPrefix = prefix[prefix.length - 1]
     return (remainder.length === 0) ? [lastPrefix] : [lastPrefix].concat(remainder)
 }
+
+// --- The lens' frame (Designdocument Perspective Resolver MVP.md, A3) ------------------
+// Projekte › Job › [✕ 04_Finanz › Ausgaben]: the frame holds the segments below the
+// project the lens looks into (frameRoot); "" means no lens.
+
+function _trimSlash(path) {
+    var p = String(path || "")
+    return (p.length > 1 && p.endsWith("/")) ? p.slice(0, -1) : p
+}
+
+/// Whether path lies strictly below folder.
+function isBelow(path, folder) {
+    var f = _trimSlash(folder)
+    return f.length > 0 && String(path || "").indexOf(f + "/") === 0
+}
+
+/// Index of the first segment path inside the frame (paths.length: no frame).
+function lensFrameStart(paths, frameRoot) {
+    for (var i = 0; i < paths.length; i++) {
+        if (isBelow(paths[i], frameRoot)) return i
+    }
+    return paths.length
+}
+
+/// [from, ..., to - 1]
+function indexRange(from, to) {
+    var out = []
+    for (var i = from; i < to; i++) out.push(i)
+    return out
+}

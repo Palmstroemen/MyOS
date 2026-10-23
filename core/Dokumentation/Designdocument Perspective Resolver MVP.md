@@ -187,6 +187,19 @@ Built (2026-10-22):
   goes into the lens' folder, born then. On the shelf (the CWD a folder of projects) Scope
   shows the CWD until E4; the session then puts the shelf at the projects root, not at
   the folder of projects (to fix with E4).
+- The path line with the frame (E3b, 2026-10-23, A3): the MyOS-folder row's path line
+  frames the segments below the lens' project (`Job › [✕ 04_Finanz › Ausgaben]`; in the
+  vertical view the framed segments are outlined, the ✕ stands before them). Path
+  segments whose folder does not exist are pale, as embryos are in the rows - in every
+  path line, with or without a lens (the path line never showed embryos before); asked
+  again with each new listing, so a birth shows at once. The frame stays. The projects row
+  is left of the frame: with a lens on, a double click on a project moves the lens there
+  (`move_to`, a real path) and the row shows that project; on any other folder it takes
+  the lens off. ✕ (`take_off`) leaves one where the lens looked: its project becomes the
+  CWD, the row stays on the lens' folder, the FilesPanel keeps what it showed. The session
+  no longer lets the lens follow the CWD; "End perspective", the pin and the double click
+  on the CWD are gone. Not yet: the shelf and the project list on a click on `Projekte`
+  (E4), the department's Desk (E3c; until then the Desk follows the project in the row).
 - LibreOffice reads its lock file right after creating it: the drive opens created files
   for reading and writing (fusepy does not pass the open flags to `create`).
 

@@ -477,7 +477,7 @@ class Backend(QObject):
     # The lens (Designdocument Perspective Resolver MVP.md, Part A): Scope only asks the
     # session (daemon/perspective_daemon.py); it builds no lens paths itself.
     _LENS_REQUESTS = frozenset({"state", "set_cwd", "put_on", "look_at", "go_into", "take_off",
-                                "move_to_project", "to_shelf", "into_shelf", "listing"})
+                                "move_to", "move_to_project", "to_shelf", "into_shelf", "listing"})
 
     @Slot(str, "QVariantMap", result="QVariantMap")
     def lens(self, method: str, params) -> dict:

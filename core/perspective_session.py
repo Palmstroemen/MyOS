@@ -1,9 +1,10 @@
 # perspective_session.py - the lens: looking at the projects from a department
 #
 # See "Designdocument Perspective Resolver MVP.md", Part A. A lens is a department path
-# (04_Finanz/Ausgangsrechnungen/2026) seen in a project. It does not change the CWD - where
-# one is. Changing the CWD (left menu) makes the lens follow; moving the lens to another
-# project (right menu, the CTD) leaves the CWD; taking the lens off brings one back to it.
+# (04_Finanz/Ausgangsrechnungen/2026) seen in a project. Scope shows it framed in its one
+# path line (A3): left of the frame the project (or the shelf), inside the frame the
+# department path. Taking the lens off (✕) removes only the frame: one stays where the lens
+# looked, which becomes the CWD.
 #
 # The session keeps its state as parts (project path below the projects root, lens path)
 # rather than parsing CPD strings: projects may be nested (Wohnen/Garten). The CPD text is
@@ -62,15 +63,11 @@ class PerspectiveSession:
     # --- gestures (Part A, A3) -------------------------------------------------------
 
     def set_cwd(self, path: Union[str, Path]) -> None:
-        """The left menu: where one is. With a lens on, the lens follows into its project."""
+        """Where one is without a lens. A lens on stays where it is."""
         cwd = Path(path).expanduser().resolve()
-        project = self._project_of(cwd)
-        if project is None:
+        if self._project_of(cwd) is None:
             raise ValueError(f"{cwd} is not inside a project below {self.projects_root}")
         self.cwd = cwd
-        if self.active:
-            self._place = project
-            self._shelf = not project
 
     def put_on(self, lens: Sequence[str]) -> None:
         """Put on (or change) the lens of a department path, in the project looked at."""
@@ -81,7 +78,7 @@ class PerspectiveSession:
 
     def look_at(self, path: Union[str, Path]) -> None:
         """Put on (or move) the lens to a folder of a project - born or embryo - given as a
-        real path (Scope's MyOS-folder row shows such folders). The CWD stays."""
+        real path (Scope's MyOS-folder row shows such folders)."""
         if self.cwd is None:
             raise ValueError("no CWD")
         folder = Path(path).expanduser().resolve()
@@ -91,12 +88,19 @@ class PerspectiveSession:
         self._wear(place, folder.relative_to(self.projects_root.joinpath(*place)).parts)
 
     def move_to_project(self, project: Sequence[str]) -> None:
-        """The right menu: move the lens to another project; the CWD stays."""
+        """Left of the frame: move the lens to another project, keeping its depth."""
         project = self._checked_parts(project)
         self._require_active()
         if not is_project(self.projects_root.joinpath(*project)):
             raise ValueError(f"not a project: {'/'.join(project)}")
         self._place, self._shelf = project, False
+
+    def move_to(self, path: Union[str, Path]) -> None:
+        """move_to_project for a project given by its real path (Scope's projects row)."""
+        folder = Path(path).expanduser().resolve()
+        if self.projects_root not in folder.parents:
+            raise ValueError(f"not a project: {folder}")
+        self.move_to_project(folder.relative_to(self.projects_root).parts)
 
     def go_into(self, name: str) -> None:
         """Deeper into the department (the lens gets sharper)."""
@@ -121,7 +125,10 @@ class PerspectiveSession:
         self._shelf = not is_project(folder)
 
     def take_off(self) -> Optional[Path]:
-        """Take the lens off; returns the CWD one is back in."""
+        """Take the lens off (✕): one stays where it looked - its folder in the project
+        (an embryo stays one), on the shelf the folder of projects. Returns the new CWD."""
+        if self.active:
+            self.cwd = self.target or self.projects_root.joinpath(*self._place)
         self.active, self.lens, self._place, self._shelf = False, (), (), False
         return self.cwd
 

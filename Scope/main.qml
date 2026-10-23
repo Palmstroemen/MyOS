@@ -20,7 +20,6 @@ ApplicationWindow {
     property string iconFolder: "image://theme/folder-open"
     property string iconFolderOff: "image://theme/folder"
     property string iconProjectFallback: Qt.resolvedUrl("Theme/icons/project.svg")
-    property string iconPin: Qt.resolvedUrl("Theme/icons/pin.svg")
     property string iconSearch: "image://theme/system-search"
     property string iconFile: "image://theme/text-x-generic"
     property string iconGear: "image://theme/preferences-system"
@@ -589,7 +588,7 @@ ApplicationWindow {
         return lensInProject ? String(lensState.shown || "") : cwp
     }
 
-    /// The CWD changed (left menu): a lens on follows into the new CWD's project (A3).
+    /// The CWD changed: tell the session where one is (a lens on stays where it is, A3).
     function lensSetCwd() {
         if (!hasBackend() || typeof backend.lens !== "function") return
         var reply = backend.lens("set_cwd", { "path": cwp })
@@ -673,10 +672,20 @@ ApplicationWindow {
         return folderTypeFromMeta(folderMeta) > 0
     }
 
-    function onCwdDoubleActivated() {
-        if (lensOn) {
-            lensRequest("take_off")
-        }
+    /// ✕ on the lens' frame (A3): only the frame goes, one stays where the lens looked -
+    /// its folder in its project becomes the CWD (an embryo stays one); the FilesPanel keeps
+    /// what it shows. On the shelf (no project yet, E4) one is back in the CWD.
+    function takeOffLens() {
+        if (!lensOn) return
+        var projectDir = String(lensState.project_dir || "")
+        var target = String(lensState.target || "")
+        var shown = String(lensState.shown || "")
+        if (!lensRequest("take_off") || projectDir.length === 0) return
+        setCwp(projectDir, "lens.takeOff")
+        standardPath = target
+        standardFolders = listTemplates(target)
+        updateStandardFolders()
+        commitCTD(shown)
     }
 
     function _isMyOSFolderTrace(pathOrName) {
@@ -3127,8 +3136,7 @@ ApplicationWindow {
             // With a lens on: the lens' folder in the project it looks into (A1, A4).
             path: window.lensInProject ? String(window.lensState.target || "") : standardPath
             pathDisplayPrefix: window.lensInProject ? String(window.lensState.project_dir || "") : cwp
-            showLeftAction: window.lensOn
-            leftActionText: qsTr("End perspective")
+            lensFrameRoot: window.lensInProject ? String(window.lensState.project_dir || "") : ""
             showEmbryos: window.templatesShowEmbryos
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
@@ -3188,8 +3196,6 @@ ApplicationWindow {
             hostHasBackend: hasBackend
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
-            showPerspectivePin: window.lensOn
-            iconPin: window.iconPin
             searchActive: level2SearchActive
             searchText: level2SearchText
             onToggleMode: level2VerticalView = !level2VerticalView
@@ -3200,10 +3206,7 @@ ApplicationWindow {
                 updateStandardFolders()
             }
             onStyleChanged: function(style) { level2ButtonStyle = style }
-        onLeftActionTriggered: {
-            lensRequest("take_off")
-        }
-        onCurrentPathDoubleActivated: onCwdDoubleActivated()
+        onLensFrameClosed: takeOffLens()
         onToggleEmbryos: {
             window.templatesShowEmbryos = !window.templatesShowEmbryos
             standardFolders = listTemplates(templatesListingPath())
@@ -3283,8 +3286,6 @@ ApplicationWindow {
             pathDisplayPrefix: cwp
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
-            showPerspectivePin: window.lensOn
-            iconPin: window.iconPin
             folders: subProjects
             childrenProvider: function(targetPath, options) { return listChildren(targetPath, options) }
             showEmbryos: window.projectsShowEmbryos
@@ -3378,21 +3379,28 @@ ApplicationWindow {
                     applyFolderActivation(targetPath)
                     clearSearchAfterNavigate()
                 } else {
-                    // A double click changes where one is; a lens on follows (A3), and the
-                    // FilesPanel shows the lens again.
                     if (projectsBrowser && typeof projectsBrowser.resetPreview === "function") {
                         projectsBrowser.resetPreview()
                         projectsBrowser.scheduleContentHeightUpdate()
                     }
-                    setCwp(targetPath, "projectsBrowser.navigationRequested")
-                    if (!window.lensOn) commitCTD(targetPath)
                     clearSearchAfterNavigate()
+                    // With a lens on this row is left of its frame (A3): a project moves the
+                    // lens there, keeping its depth, and the row shows it (one line, one
+                    // place). Any other folder takes the lens off.
+                    if (window.lensOn) {
+                        if (lensRequest("move_to", { "path": targetPath })) {
+                            setCwp(targetPath, "lens.moveTo")
+                            return
+                        }
+                        lensRequest("take_off")
+                    }
+                    setCwp(targetPath, "projectsBrowser.navigationRequested")
+                    commitCTD(targetPath)
                 }
             }
             onNavigateToPathRequested: function(path) {
                 // CWD/CTD handled by onNavigationRequested
             }
-            onCurrentPathDoubleActivated: onCwdDoubleActivated()
             onFolderActivated: function(name) {
                 show_FilesPanel()
             }

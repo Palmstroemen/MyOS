@@ -62,9 +62,11 @@ def test_the_lens_through_the_daemon(state, tmp_path):
     assert moved["target"] == str((root / "Reisen" / "04_Finanz").resolve())
     listing = _ask(state, "listing")["result"]
     assert listing["fallback"] and [e["name"] for e in listing["entries"]] == ["lose.pdf"]
+    back = _ask(state, "move_to", path=str(root / "Musikstudio"))["result"]
+    assert back["project"] == ["Musikstudio"]
 
-    off = _ask(state, "take_off")["result"]
-    assert off["active"] is False and off["cwd"] == str((root / "Musikstudio").resolve())
+    off = _ask(state, "take_off")["result"]  # ✕ removes the frame, one stays there
+    assert off["active"] is False and off["cwd"] == str((root / "Musikstudio" / "04_Finanz").resolve())
 
 
 def test_what_the_lens_shows_and_bearing_its_target(state, tmp_path):
@@ -86,6 +88,7 @@ def test_without_a_daemon_the_same_answers_in_process(state, tmp_path):
     musikstudio = str(tmp_path / "Projekte" / "Musikstudio")
     for method, params in (("set_cwd", {"path": musikstudio}), ("put_on", {"lens": ["04_Finanz"]}),
                            ("look_at", {"path": musikstudio + "/04_Finanz"}), ("bear", {}),
+                           ("move_to", {"path": musikstudio}),
                            ("state", {}), ("take_off", {}), ("put_on", {"lens": ["nonsense"]})):
         assert local.call(method, **params) == _ask(state, method, **params)
 

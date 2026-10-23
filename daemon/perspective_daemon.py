@@ -156,6 +156,7 @@ _ACTIONS: Dict[str, Callable[[PerspectiveSession, Dict[str, Any]], Any]] = {
     "put_on": lambda s, p: s.put_on(list(p.get("lens") or [])),
     "look_at": lambda s, p: s.look_at(str(p.get("path", ""))),
     "move_to_project": lambda s, p: s.move_to_project(list(p.get("project") or [])),
+    "move_to": lambda s, p: s.move_to(str(p.get("path", ""))),
     "go_into": lambda s, p: s.go_into(str(p.get("name", ""))),
     "to_shelf": lambda s, p: s.to_shelf(),
     "into_shelf": lambda s, p: s.into_shelf(str(p.get("name", ""))),

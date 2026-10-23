@@ -39,8 +39,6 @@ Item { // ROOT
     property bool allowRename: false
     property bool allowDrags: false
     property bool allowDrops: false
-    property bool showLeftAction: false
-    property string leftActionText: ""
     property bool showCreateFolderButton: false
     property real createFolderButtonOpacity: 0.55
     property bool clipboardHasItems: false
@@ -89,8 +87,11 @@ Item { // ROOT
     property color pathButtonBorder: pillBorder
     property color folderButtonFill: pill
     property color folderButtonBorder: pillBorder
-    property bool showPerspectivePin: false
-    property string iconPin: ""
+    // The lens' frame (CLD, Designdocument Perspective Resolver MVP.md A3): the segments
+    // below lensFrameRoot (the project the lens looks into; "" = no lens) are framed, with
+    // a ✕ that takes the lens off. Embryos in it are pale like everywhere; the frame stays.
+    property string lensFrameRoot: ""
+    property color lensFrameColor: "#d97706"
     property bool tintPathAsProject: false
     property real cwdOpacity: 1.0
     property real pathProjectOpacity: 0.7
@@ -147,7 +148,7 @@ Item { // ROOT
     signal renameCanceled()
     signal searchTextEdited(string value)
     signal moveEntryRequested(string sourcePath, string targetDir)
-    signal leftActionTriggered()
+    signal lensFrameClosed()
     signal currentPathDoubleActivated()
     signal createFolderRequested(string basePath)
 
@@ -378,6 +379,17 @@ Item { // ROOT
             }
         }
         return null
+    }
+
+    // Path segments whose folder does not exist are embryos, drawn pale like in the rows.
+    // Asked again with every new listing (pathExistsRevision), so a birth shows at once.
+    property int pathExistsRevision: 0
+
+    function pathSegmentIsEmbryo(path) {
+        var revision = pathExistsRevision  // binding dependency
+        var p = String(path || "")
+        if (p.length === 0 || !hostBackend || typeof hostBackend.isDir !== "function") return false
+        return !hostBackend.isDir(p)
     }
 
     function _effectivePathColor(path, isCurrent) {
@@ -1222,6 +1234,7 @@ Item { // ROOT
         scheduleVerticalWidthUpdate()
     }
     onFoldersChanged: {
+        pathExistsRevision++  // a new listing: a segment may have been born
         if (previewReopenAfterPathCommitPending && tryRestorePreviewAfterPathCommit()) {
             scheduleVerticalWidthUpdate()
             return
@@ -1534,6 +1547,14 @@ Item { // ROOT
             return "/" + full.slice(0, index + 1).join("/")
         }
         return fullPathForDisplayIndex(index)
+    }
+
+    /// Index in pathPartsDisplayForBar() of the first framed segment (its length: no frame).
+    function lensFrameStartIndex() {
+        var count = pathPartsDisplayForBar().length
+        var paths = []
+        for (var i = 0; i < count; i++) paths.push(fullPathForBarIndex(i))
+        return FBUtils.lensFrameStart(paths, lensFrameRoot)
     }
 
     function getPathSegmentColor(fullPath, isCurrent) {
@@ -2773,7 +2794,9 @@ Item { // ROOT
                     Layout.minimumWidth: (root.usePathBar && !flowOnSecondLine) ? Math.max(80, compactButtonHeight * 2) : 0
                     Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(pathRow.implicitWidth, horizontalPathHostMaxWidth())
                     Layout.maximumWidth: flowOnSecondLine ? -1 : Math.max(horizontalPathHostMaxWidth(), (root.usePathBar ? Math.max(80, compactButtonHeight * 2) : 0))
-                    Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
+                    // The lens' frame (A3) needs a little room above and below the segments.
+                    Layout.preferredHeight: (effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight)
+                        + (FBUtils.isBelow(root.path, root.lensFrameRoot) ? 8 : 0)
                     clip: true
                     Row {
                         id: pathRow
@@ -2783,39 +2806,59 @@ Item { // ROOT
                         anchors.right: pathRow.implicitWidth <= pathHost.width ? undefined : parent.right
                         onImplicitWidthChanged: scheduleLayoutUpdate()
 
-                        FolderItem {
-                            visible: root.showLeftAction && String(root.leftActionText || "").length > 0
-                            y: root.cwdTabDrop
-                            label: String(root.leftActionText || "")
-                            style: root.effectiveStyle()
-                            compactHeight: root.compactButtonHeight
-                            largeHeight: root.largeButtonHeight
-                            largePadding: root.largeButtonPadding
-                            iconSmall: root.iconSizeSmall
-                            iconLarge: root.iconSizeLarge
-                            textYOffset: root.buttonTextYOffset
-                            iconSource: root.iconFolder
-                            iconSourceHover: root.iconFolder
-                            fillColor: root.smallButtonActiveBg
-                            strokeColor: root.smallButtonActiveBorder
-                            textColor: root.accentPrimaryText
-                            textSize: root.baseFont
-                            dimmedStyle: false
-                            flatBottomCorners: true
-                            renaming: false
-                            renameEnabled: false
-                            onActivate: root.leftActionTriggered()
-                            onDoubleActivate: root.leftActionTriggered()
+
+                        // The lens' frame (A3) splits the line: segments before it, then the
+                        // framed ones behind a ✕. Both use the same segment delegate.
+                        Repeater {
+                            model: FBUtils.indexRange(0, root.lensFrameStartIndex())
+                            delegate: pathSegmentDelegate
                         }
 
-                        Repeater {
-                            model: pathPartsDisplayForBar()
-                            delegate: FolderItem {
-                                property bool isCurrent: index === (pathPartsDisplayForBar().length - 1)
-                                property string fullPathForSegment: fullPathForBarIndex(index)
+                        Rectangle {  // the frame (CLD)
+                            visible: root.lensFrameStartIndex() < pathPartsDisplayForBar().length
+                            width: visible ? lensFrameRow.implicitWidth + 8 : 0
+                            height: lensFrameRow.implicitHeight + 6
+                            anchors.verticalCenter: parent.verticalCenter
+                            radius: TagChips.CHIP_RADIUS_COMPACT + 3
+                            color: "transparent"
+                            border.color: root.lensFrameColor
+                            border.width: 2
+                            Row {
+                                id: lensFrameRow
+                                x: 4
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                FolderItem {
+                                    width: root.compactButtonHeight
+                                    label: "✕"
+                                    style: "text"
+                                    compactHeight: root.compactButtonHeight
+                                    textSize: root.baseFont
+                                    fillColor: root.smallButtonBg
+                                    strokeColor: root.lensFrameColor
+                                    textColor: root.text
+                                    renaming: false
+                                    renameEnabled: false
+                                    ToolTip.visible: hoverActive
+                                    ToolTip.text: qsTr("Take off the lens (you stay here)")
+                                    onActivate: root.lensFrameClosed()
+                                }
+                                Repeater {
+                                    model: FBUtils.indexRange(root.lensFrameStartIndex(), pathPartsDisplayForBar().length)
+                                    delegate: pathSegmentDelegate
+                                }
+                            }
+                        }
+
+                        Component {
+                            id: pathSegmentDelegate
+                            FolderItem {
+                                readonly property int segIndex: modelData
+                                property bool isCurrent: segIndex === (pathPartsDisplayForBar().length - 1)
+                                property string fullPathForSegment: fullPathForBarIndex(segIndex)
                                 allowDrops: root.allowDrops
                                 y: isCurrent ? root.cwdTabDrop : 0
-                                label: itemName(modelData)
+                                label: itemName(pathPartsDisplayForBar()[segIndex])
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
                                 largeHeight: largeButtonHeight
@@ -2829,20 +2872,19 @@ Item { // ROOT
                                 fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : (isCurrent ? accentPrimary : pathButtonFill)
                                 strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : (isCurrent ? accentPrimary : pathButtonBorder)
                                 textColor: isCurrent ? accentPrimaryText : text
+                                opacity: root.pathSegmentIsEmbryo(fullPathForSegment) ? root.embryoOpacity : 1.0
                                 textSize: baseFont
                                 dimmedStyle: isCurrent
                                 flatBottomCorners: isCurrent
                                 renaming: root.allowRename && root.renameTargetPath === fullPathForSegment
                                 renameEnabled: root.allowRename
                                 renameText: root.renameDraft
-                                showPin: isCurrent && root.showPerspectivePin
-                                iconPin: root.iconPin
                                 // pathSegmentActivated may rebuild the path bar and destroy this
                                 // delegate mid-handler; capture everything needed afterwards first.
                                 onActivate: {
                                     var browser = root
                                     var segmentPath = fullPathForSegment
-                                    browser.pathSegmentActivated(index)
+                                    browser.pathSegmentActivated(segIndex)
                                     browser.emitNavigationIntent(segmentPath, "single", "pathbar", null)
                                     browser.navigateToPathRequested(segmentPath)
                                 }
@@ -2850,7 +2892,7 @@ Item { // ROOT
                                     var browser = root
                                     var segmentPath = fullPathForSegment
                                     var wasCurrent = isCurrent
-                                    browser.pathSegmentActivated(index)
+                                    browser.pathSegmentActivated(segIndex)
                                     browser.emitNavigationIntent(segmentPath, "double", "pathbar", null)
                                     browser.navigateToPathRequested(segmentPath)
                                     if (wasCurrent) browser.currentPathDoubleActivated()
@@ -2873,7 +2915,7 @@ Item { // ROOT
                                         var browser = root
                                         var segmentPath = fullPathForSegment
                                         if (browser.cwdHoverPanelOpen) browser.closeCwdHoverPanels("button-toggle")
-                                        browser.pathSegmentActivated(index)
+                                        browser.pathSegmentActivated(segIndex)
                                         browser.emitNavigationIntent(segmentPath, "single", "pathbar", null)
                                         browser.navigateToPathRequested(segmentPath)
                                     }
@@ -2982,8 +3024,6 @@ Item { // ROOT
                         flatBottomCorners: true
                         renaming: false
                         renameEnabled: false
-                        showPin: root.showPerspectivePin
-                        iconPin: root.iconPin
                         onActivate: {
                             if (root.cwdHoverPanelOpen) root.closeCwdHoverPanels("button-toggle")
                             root.pathSegmentActivated(pathPartsDisplay().length - 1)
@@ -3225,9 +3265,35 @@ Item { // ROOT
                         Layout.fillWidth: true
                         spacing: verticalParentSpacing
 
-                        Repeater { // PathButtons
-                            model: visibleParentPaths()
-                            delegate: FolderItem {
+                        // The lens' frame (A3): the parents below the lens' project are framed
+                        // (outlined), a ✕ before them takes the lens off.
+                        Repeater { // PathButtons before the frame
+                            model: visibleParentPaths().slice(0, FBUtils.lensFrameStart(visibleParentPaths(), root.lensFrameRoot))
+                            delegate: verticalPathDelegate
+                        }
+                        FolderItem {
+                            visible: FBUtils.isBelow(root.path, root.lensFrameRoot)
+                            Layout.preferredWidth: root.compactButtonHeight * 1.5
+                            label: "✕"
+                            style: "text"
+                            compactHeight: root.compactButtonHeight
+                            textSize: root.baseFont
+                            fillColor: root.smallButtonBg
+                            strokeColor: root.lensFrameColor
+                            textColor: root.text
+                            renaming: false
+                            renameEnabled: false
+                            ToolTip.visible: hoverActive
+                            ToolTip.text: qsTr("Take off the lens (you stay here)")
+                            onActivate: root.lensFrameClosed()
+                        }
+                        Repeater { // PathButtons in the frame
+                            model: visibleParentPaths().slice(FBUtils.lensFrameStart(visibleParentPaths(), root.lensFrameRoot))
+                            delegate: verticalPathDelegate
+                        }
+                        Component {
+                            id: verticalPathDelegate
+                            FolderItem {
                                 width: parent.width
                                 property string fullPathForSegment: modelData
                                 // property var segmentColors: getPathSegmentColor(fullPathForSegment, false)
@@ -3235,7 +3301,8 @@ Item { // ROOT
 
 
                                 fillColor: customColors ? (root._toColorString(customColors.fill) || pathButtonFill) : pathButtonFill
-                                strokeColor: customColors ? (root._toColorString(customColors.stroke) || pathButtonBorder) : pathButtonBorder
+                                strokeColor: FBUtils.isBelow(modelData, root.lensFrameRoot) ? root.lensFrameColor
+                                : (customColors ? (root._toColorString(customColors.stroke) || pathButtonBorder) : pathButtonBorder)
                                 // fillColor: customColors ? customColors.fill : (tintPathAsProject
                                 //     ? colorWithAlpha(projectTint, pathProjectOpacity, projectTint)
                                 //     : pathButtonFill)
@@ -3258,6 +3325,7 @@ Item { // ROOT
                                 // fillColor: segmentColors.fill
                                 // strokeColor: segmentColors.stroke
                                 textColor: text
+                                opacity: root.pathSegmentIsEmbryo(modelData) ? root.embryoOpacity : 1.0
                                 textSize: baseFont
                                 renaming: root.allowRename && root.renameTargetPath === fullPathForSegment
                                 renameEnabled: root.allowRename
@@ -3311,30 +3379,6 @@ Item { // ROOT
                         // }
                     }
 
-                    FolderItem { // VERTICAL VIEW: Perspective OFF (like H-View left action before CWD)
-                        visible: root.showLeftAction && String(root.leftActionText || "").length > 0
-                        width: parent.width
-                        label: String(root.leftActionText || "")
-                        style: (root.effectiveStyle() === "largeIcon") ? "smallIcon" : root.effectiveStyle()
-                        compactHeight: root.compactButtonHeight
-                        largeHeight: root.largeButtonHeight
-                        largePadding: root.largeButtonPadding
-                        iconSmall: root.iconSizeSmall
-                        iconLarge: root.iconSizeLarge
-                        textYOffset: root.buttonTextYOffset
-                        iconSource: root.iconFolder
-                        iconSourceHover: root.iconFolder
-                        fillColor: root.smallButtonActiveBg
-                        strokeColor: root.smallButtonActiveBorder
-                        textColor: root.accentPrimaryText
-                        textSize: root.baseFont
-                        dimmedStyle: false
-                        flatBottomCorners: true
-                        renaming: false
-                        renameEnabled: false
-                        onActivate: root.leftActionTriggered()
-                        onDoubleActivate: root.leftActionTriggered()
-                    }
 
                     FolderItem { // VERTICAL VIEW: section 2 (current path highlight)
                         id: cwpButton
@@ -3361,7 +3405,9 @@ Item { // ROOT
                         property var customColors: root._effectivePathColor(currentFullPath, true)
 
                         fillColor: (customColors && customColors.fill !== undefined && customColors.fill !== null) ? customColors.fill : accentPrimary
-                        strokeColor: (customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : accentPrimary
+                        strokeColor: FBUtils.isBelow(currentFullPath, root.lensFrameRoot) ? root.lensFrameColor
+                            : ((customColors && customColors.stroke !== undefined && customColors.stroke !== null) ? customColors.stroke : accentPrimary)
+                        opacity: root.pathSegmentIsEmbryo(currentFullPath) ? root.embryoOpacity : 1.0
                         // fillColor: customColors ? customColors.fill : (tintPathAsProject
                         //     ? colorWithAlpha(projectTint, cwdOpacity, projectTint)
                         //     : accentPrimary)
@@ -3379,8 +3425,6 @@ Item { // ROOT
                         renaming: root.allowRename && root.renameTargetPath === currentFullPath
                         renameEnabled: root.allowRename
                         renameText: root.renameDraft
-                        showPin: root.showPerspectivePin
-                        iconPin: root.iconPin
                         onActivate: {}
                         onDoubleActivate: root.currentPathDoubleActivated()
                         onRenameRequested: root.renameRequested(currentFullPath)

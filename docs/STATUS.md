@@ -19,7 +19,7 @@ MyOS has moved beyond early prototyping. Core components are implemented and ite
 - **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`)
 - **ClipboardTool** — CopyQ integration that saves text clips as Markdown
 
-Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py Scope/tests/test_format_utils.py Scope/tests/test_scope_i18n.py Scope/tests/test_scope_script_imports.py` — 758 passing, 2 benchmarks deselected (2026-10-23; run them with `-m benchmark`). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
+Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py Scope/tests/test_format_utils.py Scope/tests/test_scope_i18n.py Scope/tests/test_scope_script_imports.py Scope/tests/test_lens_frame.py` — 764 passing, 2 benchmarks deselected (2026-10-23; run them with `-m benchmark`). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
 
 ## Current Priorities
 
