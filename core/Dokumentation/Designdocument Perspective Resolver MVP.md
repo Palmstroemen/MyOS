@@ -25,43 +25,69 @@ Example. Two passions: making music and travelling, so two projects, `/Musikstud
    `/04_Finanz` → `/Ausgangsrechnungen` → `/2026` and double-click `2026`: I now wear the
    `/04_Finanz/Ausgangsrechnungen/2026` lens. The desktop turns into the finance one
    (light theme, spreadsheet and accounting in the taskbar).
-4. Below the lens folder a project menu lets me go to `/Reisen`: I am at once in
-   `Reisen/04_Finanz/Ausgangsrechnungen/2026` and drop the invoice there. (If `2026` does
-   not exist there yet, the folder is born or sorting by date files it into its year.)
-5. Back to the studio: `/Musikstudio` still stands top left. A double click on it (or
-   "End perspective") takes the lens off - I am in the studio again, with its desktop.
+4. The path line now reads `Projekte › Musikstudio › [✕ 04_Finanz › Ausgangsrechnungen ›
+   2026]`. A click on `Projekte` (left of the frame) lets me choose `Reisen`: the frame
+   stays, I am at once in `Reisen/04_Finanz/Ausgangsrechnungen/2026` and drop the invoice
+   there. (If `2026` does not exist there yet, it shows as an embryo inside the frame; the
+   folder is born by the drop, or sorting by date files it into its year.)
+5. Back to the studio: `Projekte` → `Musikstudio` (the frame comes along), then ✕ - the
+   frame is gone, I am in `Musikstudio/04_Finanz/Ausgangsrechnungen/2026` with the
+   studio's desktop.
 
 ## A2. Terms
 
-- **CWD** - where I am: the project shown top left. Its Desk applies without a lens.
+- **CWD** - where I am: the path line without a frame (A3). Its project's Desk applies
+  without a lens.
 - **CTD** - where I look and drop (see "Vision/GUI Filebrowser.md"). With a lens on, the
   lens is the CTD: it can point into another project than the CWD.
 - **Lens (CPD)** - the turned path, e.g. `/04_Finanz/Ausgangsrechnungen/2026/Projekte/Reisen`
   in the resolver's form: the department path (template side), the project, and a tail.
   A lens may sit at any depth of the department (`/04_Finanz`, `/04_Finanz/Ausgangsrechnungen/2026`).
 - **Department** - a template folder (`00_Admin` ... `08_Dokumentation`).
+- **CLD** (current lens directory, 2026-10-23) - the department path the lens fixes, e.g.
+  `04_Finanz/Ausgaben`. Scope shows it framed inside the one path line (A3). The CPD is the
+  same lens in the turned form of the drive.
 
-## A3. Gestures
+## A3. The Path Line With the Frame (CLD)
 
-1. **Put on a lens:** double click on a department folder - or any folder below it, at
-   any depth - in the CWD's MyOS folders (hover menu / template row). The lens starts at
-   the CWD's project (`/04_Finanz/Projekte/Musikstudio`), not at the shelf. The CWD stays.
-2. **Two menus, one meaning each:**
-   - **Left menu (CWD):** always changes the project one is in - with or without a lens.
-     With a lens on, the lens follows the new CWD (it looks from where one is); a project
-     chosen before in the right menu is forgotten. Taking the lens off then leaves one in
-     the new CWD.
-   - **Right menu (below the lens folder, the CTD):** moves only the lens to another
-     project. The CWD stays; taking the lens off brings one back to it.
-3. **Keep the depth:** moving the lens to another project keeps the whole department path
-   and tail (`.../Ausgangsrechnungen/2026`).
-4. **The shelf:** going up to `/04_Finanz/Projekte` shows all projects as the
-   department's folders - real projects only (no `Clipboard`, no plain folders).
-5. **Change the lens:** a double click on another department folder while wearing one.
-6. **Take the lens off:** a double click on the CWD, or "End perspective". The lens is
-   really off (no special "OFF" path); one is in the CWD again, with its Desk.
-7. **Without a lens:** a single click on a department folder opens that folder *of the
-   CWD's project* (born or embryo) - not the real `Templates` folder.
+Decided 2026-10-23 after a clickable sketch (artifact "Brillenrahmen"); replaces the two
+menus (left: CWD, right: lens) decided on 2026-10-22, which did not work in Scope.
+
+**One line, one place.** Scope shows one path line. Without a lens:
+`Projekte › Job › 04_Finanz › Ausgaben`. With a lens the department part is framed:
+`Projekte › Job › [✕ 04_Finanz › Ausgaben]`. The frame shows what is fixed: the CLD. There
+is no second place to come back to - the line is where one is, with or without a frame.
+
+1. **Put on a lens:** a double click on a MyOS folder (department folder or any folder
+   below it, at any depth, born or embryo) frames the department path down to it. A
+   double click elsewhere sets the CWD as before. So inside the MyOS folders a double click
+   always puts on a lens; one never sets a plain CWD there. Within one's own project this
+   is not felt - the line and the FilesPanel look as if the CWD had been set; the frame
+   only matters when the project changes. (Decided 2026-10-23.)
+2. **Left of the frame - which project:** a click on `Projekte` opens a list (on click,
+   never on hover) of the projects and "Shelf: all projects". Choosing a project moves
+   only the part left of the frame; the frame and its depth stay (`.../Ausgaben/2026`).
+   Without a lens, the same list changes the project one is in.
+3. **The shelf:** `Projekte › [✕ 04_Finanz › Ausgaben]` - the CLD of all projects, real
+   projects only (no `Clipboard`, no plain folders); the FilesPanel lists them with a
+   "Project" column.
+4. **Inside the frame - which department path:** a click on a segment makes the lens
+   flatter; the folders below the frame make it sharper; a double click on another MyOS
+   folder changes the lens.
+5. **The frame never changes for embryos.** A folder of the CLD not born in the shown
+   project is drawn as an embryo (pale, dashed) inside the frame, as everywhere; the frame
+   itself stays as it is. The FilesPanel shows the fallback (A4).
+6. **✕ takes off only the frame.** One stays where the lens looked:
+   `Projekte › Job › [✕ 04_Finanz › Ausgaben]` becomes `Projekte › Job › 04_Finanz ›
+   Ausgaben`, now the CWD (an embryo there stays an embryo until something is dropped).
+   The Desk turns back to the project's (A5).
+7. **Without a lens:** a click on a folder goes into it (a MyOS folder of the CWD's
+   project, born or embryo - not the real `Templates` folder); a click on a segment goes
+   back up.
+
+**The frame in tutorials (and later perhaps in Scope).** The frame shows the turned path
+directly: an animation slides the framed part to the left in front of `Projekte › Job`,
+giving the drive's form `04_Finanz › Ausgaben › Projekte › Job`, and back again.
 
 ## A4. What the Lens Shows
 
@@ -77,11 +103,14 @@ Example. Two passions: making music and travelling, so two projects, `/Musikstud
 
 ## A5. Desk With a Lens
 
-While a lens is on, the department's Desk applies (the nearest `Desk.md` up the
-department path: `2026` → `Ausgangsrechnungen` → `04_Finanz`, prepared in the template, e.g.
-`Templates/Standard/04_Finanz/.MyOS/Desk.md`), wherever the lens or the CWD is moved.
-Taking the lens off brings back the CWD project's Desk. Dropping something into a
-department folder without a lens does not change the Desk.
+While a lens is on, the department's Desk applies (the nearest `Desk.md` up the department
+path: `2026` → `Ausgangsrechnungen` → `04_Finanz`, prepared in the template, e.g.
+`Templates/Standard/04_Finanz/.MyOS/Desk.md`), wherever the lens or the CWD is moved. The
+lens' Desk overrules the project's: moving the lens from `Musikstudio` (dark) to `Reisen`
+keeps the finance Desk (light); Reisen's Desk is ignored while the frame is on. Taking the
+lens off (✕) brings the Desk of the project one then stands in: in `Reisen/04_Finanz/...`
+that is Reisen's, not Musikstudio's. Dropping something into a department folder without a
+lens does not change the Desk.
 
 ## A6. One Session: Daemon and FUSE
 
@@ -140,7 +169,7 @@ Built (2026-10-22):
   `daemon/client.py` (as `Scope/daemon_client.py` it was never imported when Scope runs as
   a script: there "Scope" means Scope.py).
 - Scope on the session (E3, 2026-10-23; the gestures below are an interim state - the
-  path bar with the framed lens, CLD, replaces them, see the concept to come): `Backend.lens(method, params)` asks the session
+  path line with the framed lens (CLD, A3) replaces them in E3b): `Backend.lens(method, params)` asks the session
   (the daemon's, or without a daemon `LocalSession`, the same answers in Scope's process);
   `lensBear()` bears the lens' folder where the user may write. QML builds no lens paths:
   the MyOS-folder row shows the lens' folder as a real path in its project (`target`, path
@@ -173,11 +202,13 @@ Built (2026-10-22):
   (changing ScopeApi past the daemon). Scope attached to any running daemon and sent some
   calls to it, others to its local ScopeApi.
 - **Single click on a department folder** opened the real `Templates` folder.
+- **Two menus and a CWD to come back to** (decided 2026-10-22) gave way to one path line
+  with the framed lens (A3, 2026-10-23): ✕ keeps the place, the project left of the frame
+  is chosen with a click on `Projekte`.
 - **The drive's mapping** no longer goes through the CPD resolver (Part B, B7): it is
   `core/perspective_drive.py` (A7). Part B still serves Scope's lens display until E3.
 - **Unchanged:** the resolver contract (Part B), the directory fallback with folders
-  (A4), double click on the CWD ends the perspective, a template double click sets only the
-  lens.
+  (A4), a template double click sets only the lens.
 
 ## A9. The Drive Belongs to MyOS (Concept, 2026-10-23)
 
@@ -240,6 +271,10 @@ the invoice from FirmaX from two weeks ago? In which project was it?"
 
 ## A10. Open
 
+- ✕ on the shelf: the sketch goes to `Projekte` (the list of projects), since there is no
+  place `Projekte/04_Finanz`.
+- Going deeper without changing the lens (right of the frame) - not drawn yet.
+- Whether the CWD survives as a word: with one line it is simply where one is.
 - The default of the fallback: with or without folders (A4).
 - The MyOS service (A9): which projects roots it serves (a small configuration: the real
   one, `MyOS_Test`); autostart of the small Scope; how Nemo, Déjà Dup and the search
