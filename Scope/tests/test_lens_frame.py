@@ -51,3 +51,17 @@ def test_index_ranges_for_the_two_parts_of_the_line(js):
     assert js("indexRange", 0, 2) == [0, 1]
     assert js("indexRange", 2, 4) == [2, 3]
     assert js("indexRange", 3, 3) == []
+
+
+def test_the_minimal_view_starts_the_path_line_below_the_project(js):
+    # Minimal view (M): the CWD button stands left; the path line goes on below it.
+    assert js("firstBelow", LINE, JOB) == 2
+    assert js("firstBelow", LINE, "") == 0  # nothing hidden
+    assert js("firstBelow", [JOB], JOB) == 1  # only the project: nothing left to show
+    assert js("firstBelow", ["/home/u/Projekte", JOB + "2/04_Finanz"], JOB) == 2
+
+
+def test_the_cascade_ends_at_the_projects_root(js):
+    chain = ["/home", "/home/u", "/home/u/Projekte", "/home/u/Projekte/Wohnen"]
+    assert js("pathsFrom", chain, "/home/u/Projekte") == ["/home/u/Projekte", "/home/u/Projekte/Wohnen"]
+    assert js("pathsFrom", chain, "") == chain

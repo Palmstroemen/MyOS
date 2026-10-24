@@ -33,6 +33,7 @@ Item { // ROOT
     property bool showThemeToggle: false
     property bool showEmbryos: true
     property bool showEmbryoToggle: true
+    property bool showClipboardButton: true
     property bool showHiddenFolders: false
     property bool searchActive: false
     property string searchText: ""
@@ -188,6 +189,20 @@ Item { // ROOT
     property bool cwdHoverEnabled: true
     /// When true, show path bar (H: breadcrumb row, V: vertical parent list); when false, use cascade menu on CWD hover.
     property bool usePathBar: true
+    // Minimal view (M): the cascade ends at the projects root and starts with the CWD itself,
+    // so its children open too ("" keeps the whole chain, without the CWD).
+    property string cascadeTopPath: ""
+    // Minimal view: path segments at or above this folder are not shown (they stand left of
+    // this browser); "" shows all.
+    property string pathShownBelow: ""
+    // Minimal view: the folders of this browser are not shown (only its CWD button).
+    property bool foldersShown: true
+    /// Narrow buttons in the line and the path dropdown (minimal view, FolderItem.edgeIcon).
+    property bool narrowButtons: false
+    // Minimal view: the width of the CWD button and the buttons left of it (from the parts:
+    // the row's own width depends on the width it is given).
+    readonly property real minimalWidth: (showModeToggle ? compactButtonHeight + 2 : 0)
+        + rightButtonsRow.implicitWidth + 2 + cwdCascadeButtonItem.implicitWidth + 8
     property bool cwdHoverPanelOpen: false
     property bool cwdHoverOverButton: false
     property bool cwdHoverOverPanel: false
@@ -1550,11 +1565,26 @@ Item { // ROOT
     }
 
     /// Index in pathPartsDisplayForBar() of the first framed segment (its length: no frame).
-    function lensFrameStartIndex() {
+    function barPaths() {
         var count = pathPartsDisplayForBar().length
         var paths = []
         for (var i = 0; i < count; i++) paths.push(fullPathForBarIndex(i))
-        return FBUtils.lensFrameStart(paths, lensFrameRoot)
+        return paths
+    }
+
+    function lensFrameStartIndex() {
+        return FBUtils.lensFrameStart(barPaths(), lensFrameRoot)
+    }
+
+    /// First segment of the path line before the frame (pathShownBelow hides the ones above).
+    function pathLineStartIndex() {
+        return Math.min(FBUtils.firstBelow(barPaths(), pathShownBelow), lensFrameStartIndex())
+    }
+
+    /// The hover dropdown's paths, nearest first.
+    function cwdHoverChain() {
+        if (cascadeTopPath.length === 0) return parentPathsFullChain().slice().reverse()
+        return FBUtils.pathsFrom(parentPathsFullChain().concat([String(path || "")]), cascadeTopPath).slice().reverse()
     }
 
     function getPathSegmentColor(fullPath, isCurrent) {
@@ -2756,6 +2786,7 @@ Item { // ROOT
                             }
                         }
                         Rectangle { // Clipboard button
+                            visible: showClipboardButton
                             width: compactButtonHeight
                             height: compactButtonHeight
                             radius: TagChips.CHIP_RADIUS_COMPACT
@@ -2791,7 +2822,9 @@ Item { // ROOT
                     id: pathHost
                     visible: root.usePathBar
                     Layout.fillWidth: flowOnSecondLine
-                    Layout.minimumWidth: (root.usePathBar && !flowOnSecondLine) ? Math.max(80, compactButtonHeight * 2) : 0
+                    // Never more than the segments need: in the minimal view the line may be empty
+                    // (CWD = project), and room kept here would push the folders out of the row.
+                    Layout.minimumWidth: (root.usePathBar && !flowOnSecondLine) ? Math.min(pathRow.implicitWidth, Math.max(80, compactButtonHeight * 2)) : 0
                     Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(pathRow.implicitWidth, horizontalPathHostMaxWidth())
                     Layout.maximumWidth: flowOnSecondLine ? -1 : Math.max(horizontalPathHostMaxWidth(), (root.usePathBar ? Math.max(80, compactButtonHeight * 2) : 0))
                     // The lens' frame (A3) needs a little room above and below the segments.
@@ -2810,7 +2843,7 @@ Item { // ROOT
                         // The lens' frame (A3) splits the line: segments before it, then the
                         // framed ones behind a ✕. Both use the same segment delegate.
                         Repeater {
-                            model: FBUtils.indexRange(0, root.lensFrameStartIndex())
+                            model: FBUtils.indexRange(root.pathLineStartIndex(), root.lensFrameStartIndex())
                             delegate: pathSegmentDelegate
                         }
 
@@ -2859,6 +2892,7 @@ Item { // ROOT
                                 allowDrops: root.allowDrops
                                 y: isCurrent ? root.cwdTabDrop : 0
                                 label: itemName(pathPartsDisplayForBar()[segIndex])
+                                edgeIcon: root.narrowButtons
                                 style: effectiveStyle()
                                 compactHeight: compactButtonHeight
                                 largeHeight: largeButtonHeight
@@ -3005,6 +3039,7 @@ Item { // ROOT
                         allowDrops: root.allowDrops
                         y: root.cwdTabDrop
                         label: pathPartsDisplay().length ? pathPartsDisplay()[pathPartsDisplay().length - 1] : "/"
+                        edgeIcon: root.narrowButtons
                         style: effectiveStyle()
                         compactHeight: compactButtonHeight
                         largeHeight: largeButtonHeight
@@ -3053,12 +3088,12 @@ Item { // ROOT
                 Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
                     id: topFlowHost
                     Layout.fillWidth: false
-                    Layout.preferredWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
-                    Layout.minimumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
-                    Layout.maximumWidth: flowOnSecondLine ? 0 : topFoldersRow.implicitWidth
+                    Layout.preferredWidth: flowOnSecondLine || !foldersShown ? 0 : topFoldersRow.implicitWidth
+                    Layout.minimumWidth: flowOnSecondLine || !foldersShown ? 0 : topFoldersRow.implicitWidth
+                    Layout.maximumWidth: flowOnSecondLine || !foldersShown ? 0 : topFoldersRow.implicitWidth
                     Layout.preferredHeight: compactButtonHeight
                     Layout.alignment: Qt.AlignTop
-                    visible: !flowOnSecondLine
+                    visible: !flowOnSecondLine && foldersShown
                     onWidthChanged: scheduleLayoutUpdate()
                         Row {
                         id: topFoldersRow
@@ -3067,6 +3102,7 @@ Item { // ROOT
                         Repeater {
                             model: folders
                             delegate: FolderItem {
+                                edgeIcon: root.narrowButtons
                                 property string fullPath: itemName(modelData).indexOf("/") === 0
                                     ? itemName(modelData)
                                     : (path + "/" + itemName(modelData))
@@ -3988,7 +4024,7 @@ Item { // ROOT
                                                     textColor: textSoft
                                                     textSize: baseFont
                                                     textLeftInset: effectiveStyle() === "text" ? 8 : 0
-                                                    tabHoverDropEnabled: true
+                                                    tabHoverDropEnabled: false
                                                     tabHoverDropPx: root.previewTabDropPx
                                                     tabPinned: root.isPreviewPathActive(previewLevel, fullPath)
                                                     textBold: root.isPreviewPathActive(previewLevel, fullPath)
@@ -4034,11 +4070,11 @@ Item { // ROOT
 
             RowLayout { // HORIZONTAL VIEW: row 2 (wrapped folders flow)
                 id: bottomRow
-                visible: !verticalView && flowOnSecondLine
+                visible: !verticalView && flowOnSecondLine && foldersShown
                 Layout.fillWidth: true
                 spacing: 6
                 implicitHeight: bottomFoldersFlow.implicitHeight
-                Layout.preferredHeight: flowOnSecondLine ? bottomFoldersFlow.implicitHeight : 0
+                Layout.preferredHeight: flowOnSecondLine && foldersShown ? bottomFoldersFlow.implicitHeight : 0
                 Item {
                     id: bottomFlowHost
                     Layout.fillWidth: true
@@ -4376,12 +4412,13 @@ Item { // ROOT
                         width: cwdHoverPanelFlick.width
                         spacing: 4
                         Repeater {
-                            model: root.parentPathsFullChain().slice().reverse()
+                            model: root.cwdHoverChain()
                             delegate: FolderItem {
                                 property var browserRoot: root
                                 property var _entry: modelData
                                 property string fullPath: String(modelData || "")
                                 isCwdMainPanelItem: true
+                                edgeIcon: root.narrowButtons
                                 hitAreaFullButton: true
                                 property var customColors: root._effectivePathColor(fullPath, false)
                                 width: parent.width
@@ -4405,7 +4442,8 @@ Item { // ROOT
                                 textSize: root.baseFont
                                 dimmedStyle: false
                                 flatBottomCorners: false
-                                tabHoverDropEnabled: true
+                                // The drop joins a tab to the preview row below it (H); a dropdown needs none.
+                                tabHoverDropEnabled: false
                                 tabHoverDropPx: root.previewTabDropPx
                                 opacity: root.cwdPanelOpacityMultiplier(-1, fullPath)
                                 renaming: false
@@ -4525,6 +4563,7 @@ Item { // ROOT
                                     hitAreaFullButton: true
                                     label: itemName(modelData)
                                     style: root.effectiveStyle()
+                                    edgeIcon: root.narrowButtons
                                     compactHeight: root.compactButtonHeight
                                     largeHeight: root.largeButtonHeight
                                     largePadding: root.largeButtonPadding
@@ -4542,7 +4581,7 @@ Item { // ROOT
                                     textSize: root.baseFont
                                     dragEnabled: root.allowDrags && !root.itemIsEmbryo(modelData)
                                     dragPayload: fullPath
-                                    tabHoverDropEnabled: true
+                                    tabHoverDropEnabled: false
                                     tabHoverDropPx: root.previewTabDropPx
                                     tabPinned: root.isPreviewPathActive(0, fullPath)
                                     textBold: root.isPreviewPathActive(0, fullPath)
@@ -4662,7 +4701,7 @@ Item { // ROOT
                                 textSize: root.baseFont
                                 dragEnabled: root.allowDrags && !root.itemIsEmbryo(modelData)
                                 dragPayload: fullPath
-                                tabHoverDropEnabled: true
+                                tabHoverDropEnabled: false
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
                                 textBold: root.isPreviewPathActive(0, fullPath)
@@ -4794,7 +4833,7 @@ Item { // ROOT
                                 textSize: root.baseFont
                                 dragEnabled: root.allowDrags && !root.itemIsEmbryo(modelData)
                                 dragPayload: fullPath
-                                tabHoverDropEnabled: true
+                                tabHoverDropEnabled: false
                                 tabHoverDropPx: root.previewTabDropPx
                                 tabPinned: root.isPreviewPathActive(0, fullPath)
                                 textBold: root.isPreviewPathActive(0, fullPath)

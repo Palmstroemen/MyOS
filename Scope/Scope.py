@@ -361,6 +361,11 @@ class Backend(QObject):
         return self._api.get_default_project_color() or ""
 
     @Slot(result="QString")
+    def projectsRoot(self) -> str:
+        """The projects root ("Projekte") of this Scope; "" outside the projects."""
+        return str(self._projects_root or "")
+
+    @Slot(result="QString")
     def platformName(self) -> str:
         """Returns QPA platform name, e.g. 'xcb' (X11) or 'wayland'. Used for edge-dock trigger (X11 vs Wayland fallback)."""
         if hasattr(self._app, "platformName"):

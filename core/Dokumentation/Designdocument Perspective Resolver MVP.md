@@ -64,13 +64,18 @@ is no second place to come back to - the line is where one is, with or without a
    always puts on a lens; one never sets a plain CWD there. Within one's own project this
    is not felt - the line and the FilesPanel look as if the CWD had been set; the frame
    only matters when the project changes. (Decided 2026-10-23.)
-2. **Left of the frame - which project:** a click on `Projekte` opens a list (on click,
-   never on hover) of the projects and "Shelf: all projects". Choosing a project moves
-   only the part left of the frame; the frame and its depth stay (`.../Ausgaben/2026`).
-   Without a lens, the same list changes the project one is in.
-3. **The shelf:** `Projekte › [✕ 04_Finanz › Ausgaben]` - the CLD of all projects, real
-   projects only (no `Clipboard`, no plain folders); the FilesPanel lists them with a
-   "Project" column.
+2. **Left of the frame - which project:** choosing a project moves only the part left of
+   the frame; the frame and its depth stay (`.../Ausgaben/2026`). Without a lens, the same
+   choice changes the project one is in. In the minimal view (M, 2026-10-24) the CWD sits
+   top left as a button; on hover the path above it drops down (up to `Projekte`), and each
+   level's children open to the right - at `Projekte` the main projects, at `Wohnen` the
+   Wohnen projects. (The earlier "on click, never on hover" is replaced there: in M the
+   dropdown opens on hover.) H and V keep the projects row with its path line.
+3. **The shelf** (the user's picture, "Vision/Brillen und die runde Halle.md"): in the
+   finance department one has a shelf whose folders are labelled with the projects. In
+   Scope that is what opens to the right of a level in M's dropdown: the projects there.
+   With a lens, choosing one moves the lens; the frame stays. A flat view of the CLD of
+   all projects at once (with a "Project" column) is not needed for now.
 4. **Inside the frame - which department path:** a click on a segment makes the lens
    flatter; the folders below the frame make it sharper; a double click on another MyOS
    folder changes the lens.
@@ -221,6 +226,17 @@ Built (2026-10-22):
   Every lens request that moves it refreshes the Desk too, so ✕ inside the same project
   (no new CWP) brings the project's Desk; after ✕ the context is the CWD's project, never
   the department folder.
+- The minimal view (M, E4 step 1, 2026-10-24, A3.2): a button "M" at the left of the top
+  bar. One line: the projects row is only its CWD button (`usePathBar: false`, the cascade
+  built in 2025 and not used until now; `foldersShown: false`), the MyOS-folder row follows
+  without the project segment (`pathShownBelow`), with the frame. The dropdown on hover
+  starts with the CWD (its children open too) and ends at the projects root
+  (`cascadeTopPath`, `Backend.projectsRoot()`); a click browses, a double click goes there
+  or, with a lens, moves the lens (the projects row's handlers). H and V are unchanged.
+  Narrow buttons in M (`narrowButtons`, `FolderItem.edgeIcon`): the icon forms the left
+  edge, as high as the button, little room after the name. One search and one clipboard,
+  beside the folders; no display menu. The path line keeps no room when it is empty. The
+  dropdown and V's preview columns have no hover drop (it joins a tab to H's preview row).
 - LibreOffice reads its lock file right after creating it: the drive opens created files
   for reading and writing (fusepy does not pass the open flags to `create`).
 
@@ -305,8 +321,14 @@ the invoice from FirmaX from two weeks ago? In which project was it?"
 
 ## A10. Open
 
-- ✕ on the shelf: the sketch goes to `Projekte` (the list of projects), since there is no
-  place `Projekte/04_Finanz`.
+- ✕ on the shelf: with the shelf as M's dropdown the lens always looks into a project, so
+  this question may be gone (the flat view across all projects is not planned for now).
+- M: the shelf shows `Clipboard` and plain folders too; only real projects (and folders
+  leading to them)? `Clipboard` is the multiclipboard: every copy lands there and travels
+  into all projects; later a small button with an icon, not a folder on the shelf. Appearing at the top edge of the screen (the edge dock). One line for
+  H as well?
+- The frame's bottom edge is cut off in the horizontal path line (H and M): the current
+  segment is a tab joined to the row below.
 - Going deeper without changing the lens (right of the frame) - not drawn yet.
 - Whether the CWD survives as a word: with one line it is simply where one is.
 - The default of the fallback: with or without folders (A4).

@@ -32,6 +32,10 @@ ApplicationWindow {
     property int searchPathPrefixDepth: 2
     property bool verticalProjectView: false
     property bool level2VerticalView: false
+    // Minimal view (M, prototype for E4): one line - the CWD as a button (the path above it
+    // drops down on hover, each level's children open to the right), then the MyOS folders
+    // with the lens' frame. H and V stay as they are.
+    property bool minimalView: false
     property var searchInputRef: null
     property string standardButtonStyle: "text"
     property string userButtonStyle: "text"
@@ -306,6 +310,8 @@ ApplicationWindow {
     property var activeFilter: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
     // The lens as the session describes it (see lensRequest); off: { active: false }.
     property var lensState: ({ active: false })
+    // The projects root ("Projekte"): the minimal view's dropdown ends there.
+    readonly property string projectsRootPath: (hasBackend() && typeof backend.projectsRoot === "function") ? String(backend.projectsRoot() || "") : ""
     readonly property bool lensOn: !!(lensState && lensState.active)
     // The lens looks into a project (not on the shelf, which comes with the right menu, E4).
     readonly property bool lensInProject: lensOn && !!lensState.project
@@ -2361,6 +2367,7 @@ ApplicationWindow {
     onVerticalProjectViewChanged: scheduleBrowserLayoutRefresh()
     onLevel2VerticalViewChanged: scheduleBrowserLayoutRefresh()
     onProjectsBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
+    onMinimalViewChanged: scheduleBrowserLayoutRefresh()
     onTemplatesBrowserVisibleChanged: scheduleBrowserLayoutRefresh()
     onFilesPaneVisibleChanged: scheduleBrowserLayoutRefresh()
     Connections {
@@ -2518,19 +2525,32 @@ ApplicationWindow {
     }
 
     function updateBrowserLayout() {
+        var minimal = minimalView
         var templatesVertical = level2VerticalView
         var projectsVertical = verticalProjectView
-        var ph_th = (!templatesVertical && !projectsVertical)
-        var pv_th = (!templatesVertical && projectsVertical)
-        var ph_tv = (templatesVertical && !projectsVertical)
-        var pv_tv = (templatesVertical && projectsVertical)
+        var ph_th = !minimal && (!templatesVertical && !projectsVertical)
+        var pv_th = !minimal && (!templatesVertical && projectsVertical)
+        var ph_tv = !minimal && (templatesVertical && !projectsVertical)
+        var pv_tv = !minimal && (templatesVertical && projectsVertical)
 
+        case_M.visible = minimal
         case_PH_TH.visible = ph_th
         case_PV_TH.visible = pv_th
         case_PH_TV.visible = ph_tv
         case_PV_TV.visible = pv_tv
 
-        if (ph_th) {
+        if (minimal) {
+            // One line: the projects row is only its CWD button, the MyOS folders follow.
+            setBrowserParent(projectsBrowser, slotProjects_M)
+            setBrowserParent(templatesBrowser, slotTemplates_M)
+            setBrowserParent(filesPane, slotFiles_M)
+            setSlotSize(slotTemplates_M, templatesBrowser, true, false)
+            setSlotSize(slotFiles_M, filesPane, true, true)
+            slotProjects_M.Layout.fillWidth = false
+            slotProjects_M.Layout.preferredWidth = Qt.binding(function() { return projectsBrowser.minimalWidth })
+            slotProjects_M.Layout.preferredHeight = Qt.binding(function() { return projectsBrowser.implicitHeight })
+            slotProjects_M.Layout.alignment = Qt.AlignTop
+        } else if (ph_th) {
             setBrowserParent(templatesBrowser, slotTemplates_PH_TH)
             setBrowserParent(projectsBrowser, slotProjects_PH_TH)
             setBrowserParent(filesPane, slotFiles_PH_TH)
@@ -2750,6 +2770,31 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     width: parent.width
                     spacing: 8
+                Rectangle { // Minimal view (M)
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: minimalView ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
+                    border.width: 0
+                    implicitWidth: minimalViewLabel.implicitWidth + 16
+                    width: implicitWidth
+                    Text {
+                        id: minimalViewLabel
+                        anchors.centerIn: parent
+                        text: "M"
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        id: minimalViewArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: minimalView = !minimalView
+                    }
+                    ToolTip.visible: minimalViewArea.containsMouse
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("Minimal view: the current folder top left, the path above it on hover")
+                }
+
                 Rectangle { // Theme Switch
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
@@ -3032,6 +3077,21 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
+                ColumnLayout { // Layout M (minimal view)
+                    id: case_M
+                    anchors.fill: parent
+                    spacing: 0
+                    visible: false
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: false
+                        spacing: 2
+                        Item { id: slotProjects_M; Layout.fillHeight: false }
+                        Item { id: slotTemplates_M; Layout.fillWidth: true; Layout.alignment: Qt.AlignTop }
+                    }
+                    Item { id: slotFiles_M; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 280 }
+                }
+
                 ColumnLayout { // Layout PH_TH   
                     id: case_PH_TH
                     anchors.fill: parent
@@ -3150,12 +3210,16 @@ ApplicationWindow {
             allowDrops: true
             folders: standardFoldersFiltered
             childrenProvider: function(targetPath) { return listTemplates(targetPath) }
-            verticalView: level2VerticalView
+            verticalView: level2VerticalView && !window.minimalView
+            pathShownBelow: window.minimalView ? (window.lensInProject ? String(window.lensState.project_dir || "") : cwp) : ""
             buttonStyle: level2ButtonStyle
             allowLargeIcons: true
-            showModeToggle: true
+            showModeToggle: !window.minimalView
+            narrowButtons: window.minimalView
             showSearchToggle: true
-            showStyleToggle: true
+            // Minimal view: one search and one clipboard (here, beside the folders), no menu.
+            showStyleToggle: !window.minimalView
+            showEmbryoToggle: !window.minimalView
             showThemeToggle: false
             showCreateFolderButton: true
             clipboardHasItems: window.clipboardHasItems
@@ -3300,12 +3364,18 @@ ApplicationWindow {
             debugLayout: false
             allowDrags: true
             allowDrops: true
-            verticalView: verticalProjectView
+            verticalView: verticalProjectView && !window.minimalView
+            usePathBar: !window.minimalView
+            foldersShown: !window.minimalView
+            narrowButtons: window.minimalView
+            cascadeTopPath: window.minimalView ? window.projectsRootPath : ""
+            showStyleToggle: !window.minimalView
+            showEmbryoToggle: !window.minimalView
             buttonStyle: folderItemStyle
             allowLargeIcons: true
-            showModeToggle: true
-            showSearchToggle: true
-            showStyleToggle: true
+            showModeToggle: !window.minimalView
+            showSearchToggle: !window.minimalView
+            showClipboardButton: !window.minimalView
             showThemeToggle: false
             showCreateFolderButton: true
             clipboardHasItems: window.clipboardHasItems

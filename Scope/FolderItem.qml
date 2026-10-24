@@ -95,6 +95,10 @@ Rectangle {
     property bool allowDrops: false
     property string dragPayload: ""
     property bool flatBottomCorners: false
+    /// Narrow button (minimal view): in "smallIcon" the icon forms the left edge, as high
+    /// as the button; only a little room after the name.
+    property bool edgeIcon: false
+    readonly property int smallIconBox: edgeIcon ? compactHeight : iconSmall
     property bool tabHoverDropEnabled: false
     property int tabHoverDropPx: 7
     readonly property bool hoverActive: hitArea.containsMouse
@@ -287,6 +291,10 @@ Rectangle {
     Drag.supportedActions: Qt.MoveAction
 
     implicitWidth: {
+        if (edgeIcon && style !== "largeIcon") {
+            var tight = style === "smallIcon" ? smallIconBox + 4 + textMeasure.width + 8 : textMeasure.width + 16
+            return Math.max(2 * compactHeight, tight)
+        }
         var base = textMeasure.width + 24
         if (style === "smallIcon") {
             return Math.max(80, base + iconSmall + 6)
@@ -318,13 +326,13 @@ Rectangle {
 
     Row {
         anchors.left: parent.left
-        anchors.leftMargin: 6 + root.nameOffsetX
+        anchors.leftMargin: (root.edgeIcon ? 0 : 6) + root.nameOffsetX
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 6
+        spacing: root.edgeIcon ? 4 : 6
         visible: style === "smallIcon"
         Item {
-            width: iconSmall
-            height: iconSmall
+            width: root.smallIconBox
+            height: root.smallIconBox
             readonly property bool hasBatch: Boolean(batchSource || shownBatchText)
             XrayFolder {}
             // Small icon: when batch exists, show only batch at full icon size (no folder + overlay).
@@ -374,7 +382,8 @@ Rectangle {
             color: textColor
             font.pixelSize: textSize
             font.bold: textBold
-            y: textYOffset
+            // Beside the button-high icon the name is centred; the row is as high as the icon.
+            y: (root.edgeIcon ? Math.round((root.smallIconBox - height) / 2) : 0) + textYOffset
             visible: !renaming
             // Leave room for the detail column instead of running into it.
             // The name ends where the next column starts (long names are elided).

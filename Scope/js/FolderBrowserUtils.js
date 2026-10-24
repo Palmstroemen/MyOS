@@ -52,6 +52,21 @@ function lensFrameStart(paths, frameRoot) {
     return paths.length
 }
 
+// --- The minimal view (M): the CWD as a button, the path above it in a hover dropdown ---
+
+/// Index of the first segment path below folder: the path line goes on from there
+/// ("" hides nothing).
+function firstBelow(paths, folder) {
+    return _trimSlash(folder).length > 0 ? lensFrameStart(paths, folder) : 0
+}
+
+/// The paths of chain from top on (the dropdown ends at the projects root; "" keeps all).
+function pathsFrom(chain, top) {
+    var t = _trimSlash(top)
+    if (t.length === 0) return chain
+    return chain.filter(function(p) { return _trimSlash(p) === t || isBelow(p, t) })
+}
+
 /// [from, ..., to - 1]
 function indexRange(from, to) {
     var out = []

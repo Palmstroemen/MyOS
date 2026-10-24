@@ -30,7 +30,11 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
     Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
     [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [x] E3 Scope an der Sitzung  [x] E3b Pfadleiste mit Rahmen (CLD)  [x] E3c Desk der Abteilung (Template gewinnt, Änderungen ins Template)
-        [ ] E4 Regal / Projektwechsel (mit dem Rahmen: links vom Rahmen navigieren)  [ ] E5 SunTree  [ ] E6 Filter
+        [ ] E4 Minimalansicht M mit Pfad-Dropdown (Hover), Regal = Projekte einer Ebene nach rechts
+            [x] Schritt 1: Knopf M, eine Zeile, Dropdown bis "Projekte", Kaskade nach rechts; schmale Knöpfe, 1x Suche und Clipboard
+            [ ] Clipboard (Multiclipboard, wandert in alle Projekte mit) als kleiner Icon-Knopf statt Ordner im Regal
+            [ ] Schritt 2: Auftauchen am oberen Bildschirmrand (Edge-Dock)
+            [ ] Rahmen: Unterkante in der waagrechten Pfadleiste abgeschnitten (H und M)  [ ] E5 SunTree  [ ] E6 Filter
     [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein
         Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
         Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:
@@ -38,6 +42,9 @@ Kompakter Überblick: `docs/STATUS.md`.
     [ ] Energiemessung der Suche (A9): künstlicher Bestand (z. B. 200 Projekte), ganzer Home-Ordner vs. nur
         */04_Finanz vs. Indexabfrage; berührte Dateien, gelesene Bytes, Zeit, Joule (RAPL, /sys/class/powercap).
         Realistisch mit der Struktur echter Projekte (nur Mengen und Größen, keine Namen oder Inhalte)
+    [ ] Standardperspektiven nebeneinander (Idee 2026-10-24): einige wenige feste Brillen parallel zeigen
+        (Fotos, Videos, Dokumente, ...), wie die Bibliotheken herkömmlicher Systeme; ein leichter Übergang
+        für Umsteiger
 [ ] ACLs
 [ ] Perspektiven (MVP mit Resolver/FUSE/Daemon läuft; Persistenz/Sharing offen)
 [ ] Rooms-Konzept (projektabhängige Desktops)
@@ -47,6 +54,14 @@ Kompakter Überblick: `docs/STATUS.md`.
     [ ] Taskleiste unter KDE; Programmnamen statt .desktop-Kennungen in Scope
 [ ] RecentFiles
 [ ] Learning MyOS weiter ausbauen
+    [ ] Am Ende des Tutorials (Idee 2026-10-24): Bitte an den Nutzer, selbst eine oder mehrere
+        Template-Strukturen zu entwerfen: wie er sie in Firmen vorgefunden hat oder für vernünftig hielte,
+        und vielleicht eine andere für sich privat
+[ ] Beispielanwendung Zeiterfassung (Idee 2026-10-24): Stunden pro Projekt, keine proprietäre Datenbank,
+    sondern kleine MD-Dateien im Projekt selbst (Tabelle: wann, wie lange, optional was); eine Perspektive
+    zeigt die Gesamtübersicht als Dateien, ein kleines Programm wertet sie aus. Schwierig: offen gelassen ist
+    nicht gearbeitet. Erster Anlauf: Aktivität (Mausbewegungen, Bearbeitungen auch in anderen Programmen)
+    mit einer Nachlaufzeit von etwa 5 min zählen
 [ ] Demodaten als Playground
 [ ] Scope UI verfeinern  
     [x] Röntgenblick (X-Ray): kleine Ordner durchsichtig, solange die Liste ohne Scrollbalken passt; Standard an; auch `myls --roentgen`
