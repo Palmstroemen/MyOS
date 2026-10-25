@@ -90,6 +90,14 @@ is no second place to come back to - the line is where one is, with or without a
 7. **Without a lens:** a click on a folder goes into it (a MyOS folder of the CWD's
    project, born or embryo - not the real `Templates` folder); a click on a segment goes
    back up.
+8. **The lens stays on until taken off** (decided 2026-10-25). Going elsewhere with it
+   (left of the frame, SunTree's right half and parents) takes it along: into the project
+   there, keeping its depth; a folder that is no project but lies inside one
+   (`Job/Aufträge`) keeps it in that project; a folder of projects (`Wohnen`, the projects
+   root) puts it on the shelf there; outside the projects it stays where it was. Only ✕
+   (or lifting the filter that put it on) takes it off.
+9. **MyOS folders only on the left** (2026-10-25): born or embryo, they are shown in the
+   MyOS-folder row (SunTree: the left half), never among the folders on the right.
 
 **The frame in tutorials (and later perhaps in Scope).** The frame shows the turned path
 directly: an animation slides the framed part to the left in front of `Projekte › Job`,
@@ -218,8 +226,8 @@ Built (2026-10-22):
   path line, with or without a lens (the path line never showed embryos before); asked
   again with each new listing, so a birth shows at once. The frame stays. The projects row
   is left of the frame: with a lens on, a double click on a project moves the lens there
-  (`move_to`, a real path) and the row shows that project; on any other folder it takes
-  the lens off. ✕ (`take_off`) leaves one where the lens looked: its project becomes the
+  (`move_to`, a real path) and the row shows that project; on any other folder it took
+  the lens off (until 2026-10-25: now the lens goes along, A3.8). ✕ (`take_off`) leaves one where the lens looked: its project becomes the
   CWD, the row stays on the lens' folder, the FilesPanel keeps what it showed. The session
   no longer lets the lens follow the CWD; "End perspective", the pin and the double click
   on the CWD are gone. Not yet: the shelf and the project list on a click on `Projekte`
@@ -248,12 +256,18 @@ Built (2026-10-22):
   SunTree both use it, so they share one lens. SunTree has Scope's gestures: a double click
   on a MyOS folder (left half) puts on its lens and the CWD stays; with a lens on the left
   half shows the lens' folder in its project and a click makes it sharper; the right half
-  and the parents move the lens with a project or take it off; a frame above the CWD
+  and the parents take the lens along (A3.8); a frame above the CWD
   (✕ and the lens' levels) replaces the old CPD stack. Coming back (hotkey, activation)
   SunTree asks for the lens again. Without a lens a single click still goes into the
   folder: SunTree has no file list to browse in.
-  Scope and SunTree always share the place too (decided 2026-10-25): the session has one
-  CWD; not built yet - each still keeps its own CWD and only tells the session.
+  Scope and SunTree always share the place too (decided and built 2026-10-25): the session
+  has one CWD. Each program tells it where it goes; turned to, a program follows where the
+  other one went (`LensLink.follow`): Scope when its window becomes active or the mouse
+  enters it, SunTree when it comes up (hotkey) or becomes active. The daemon reports
+  nothing by itself, so nothing runs in the background. Then the program also shows the
+  lens as the session has it; Scope only when it changed, so a folder browsed in the
+  FilesPanel stays. A place the session refused (outside the projects) is not left for
+  the session's old one.
 - LibreOffice reads its lock file right after creating it: the drive opens created files
   for reading and writing (fusepy does not pass the open flags to `create`).
 

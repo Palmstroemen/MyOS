@@ -135,7 +135,9 @@ class SunTreeBackend(QObject):
 
     @Slot(result="QVariantList")
     def listFolders(self):
-        return self._adapter.list_children(self._cwd)
+        """The right half: folders that are no MyOS folder - those, born or not, are shown
+        on the left only."""
+        return [entry for entry in self._adapter.list_children(self._cwd) if not entry.get("folderType")]
 
     @Slot(str, result="QVariantList")
     def listEmbryosAt(self, path: str):
@@ -184,6 +186,13 @@ class SunTreeBackend(QObject):
         self.cwdChanged.emit(self._cwd)
         self.dataChanged.emit()
         return True
+
+    @Slot(result=bool)
+    def followPlace(self) -> bool:
+        """Go where Scope went since SunTree last set or saw the place. Scope and SunTree
+        always share the place; SunTree asks when turned to."""
+        place = self._lens.follow()
+        return bool(place) and self.setCwd(place)
 
     @Slot(str, result=bool)
     def enterFolder(self, path: str) -> bool:

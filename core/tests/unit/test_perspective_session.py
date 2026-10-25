@@ -87,10 +87,28 @@ def test_left_of_the_frame_given_as_the_project_folder(world):
 
     assert session.project == ("Wohnen", "Garten")
     assert session.cpd == "/04_Finanz/Ausgangsrechnungen/2026/Projekte/Wohnen/Garten"
-    for not_a_project in (world["root"] / "Wohnen", world["studio"] / "04_Finanz", world["root"].parent):
-        with pytest.raises(ValueError):
-            session.move_to(not_a_project)
+    with pytest.raises(ValueError):
+        session.move_to(world["root"].parent)  # outside the projects: the lens stays
     assert session.project == ("Wohnen", "Garten")
+
+
+def test_the_lens_stays_on_through_folders_that_are_no_project(world):
+    # Persistent until taken off (2026-10-25): Job/Aufträge/Desertgreener -> Job/Aufträge -> Job.
+    session = _session(world)
+    session.put_on(LENS)
+
+    session.move_to(world["reisen"] / "Fotos")  # a folder inside a project: its project
+    assert session.active and session.project == ("Reisen",)
+
+    session.move_to(world["root"] / "Wohnen")  # a folder of projects: the shelf there
+    assert session.active and session.project is None
+    assert session.shown() == (world["root"].resolve() / "Wohnen", False)
+
+    session.move_to(world["root"])  # the projects root: the shelf
+    assert session.active and session.shown() == (world["root"].resolve(), False)
+
+    session.move_to(world["garten"])
+    assert session.project == ("Wohnen", "Garten") and session.lens == LENS
 
 
 def test_taking_the_lens_off_on_the_shelf_stays_on_the_shelf(world):

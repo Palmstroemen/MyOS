@@ -96,11 +96,19 @@ class PerspectiveSession:
         self._place, self._shelf = project, False
 
     def move_to(self, path: Union[str, Path]) -> None:
-        """move_to_project for a project given by its real path (Scope's projects row)."""
+        """Go somewhere with the lens on, given as a real path (the projects row, SunTree).
+        The lens stays on until taken off: a project, or a folder inside one, moves it to
+        that project, keeping its depth; a folder of projects (or the projects root) puts it
+        on the shelf there."""
         folder = Path(path).expanduser().resolve()
-        if self.projects_root not in folder.parents:
-            raise ValueError(f"not a project: {folder}")
-        self.move_to_project(folder.relative_to(self.projects_root).parts)
+        self._require_active()
+        place = self._project_of(folder)
+        if place is None:
+            raise ValueError(f"not below the projects root: {folder}")
+        if place:
+            self._place, self._shelf = place, False
+        else:
+            self._place, self._shelf = folder.relative_to(self.projects_root).parts, True
 
     def go_into(self, name: str) -> None:
         """Deeper into the department (the lens gets sharper)."""

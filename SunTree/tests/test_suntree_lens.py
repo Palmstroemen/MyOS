@@ -125,8 +125,34 @@ def test_the_gestures_are_scopes(world, suntree, window):
     assert suntree.cwd() == str(world["reisen"])
 
 
-def test_going_elsewhere_takes_the_lens_off(world, suntree, window):
+def test_the_lens_stays_on_until_taken_off(world, suntree, window):
+    # Job/Aufträge/Desertgreener -> Job/Aufträge -> Job: the lens stays (2026-10-25).
+    studio, orders = world["studio"], world["studio"] / "Aufträge"
+    orders.mkdir()
     _call(window, "applyLeftDoubleClick", _left(window).index("04_Finanz"))
-    _call(window, "navigateTo", str(world["root"]))  # not a project below the lens' root
-    assert not _lens(window)["active"]
-    assert suntree.cwd() == str(world["root"])
+
+    _call(window, "navigateTo", str(orders))  # no project: the lens stays in its project
+    assert _lens(window)["active"] and _lens(window)["project_dir"] == str(studio)
+    assert suntree.cwd() == str(orders)
+
+    _call(window, "navigateTo", str(world["root"]))  # the projects root: the shelf
+    assert _lens(window)["active"] and suntree.cwd() == str(world["root"])
+
+    _call(window, "navigateTo", str(world["reisen"]))
+    assert _lens(window)["target"] == str(world["reisen"] / "04_Finanz")
+
+    _call(window, "navigateTo", str(world["root"].parent))  # outside the projects
+    assert _lens(window)["active"]
+
+
+def test_the_right_half_shows_no_myos_folders(world, suntree):
+    (world["studio"] / "04_Finanz").mkdir()  # born: still a MyOS folder, left only
+    (world["studio"] / "Noten").mkdir()
+
+    assert [row["name"] for row in suntree.listFolders()] == ["Noten"]
+
+
+def test_embryos_are_pale(window):
+    rows = _call(window, "leftEntries")
+    finance = [row["label"] for row in rows].index("04_Finanz")
+    assert _call(window, "leftRowOpacity", finance) == window.property("embryoOpacity")

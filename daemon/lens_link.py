@@ -5,7 +5,8 @@ The lens lives in the perspective daemon of the projects root (daemon/perspectiv
 programs only ask it and build no lens paths themselves. A program connects to the daemon
 of its own root and starts it when none runs. Without a daemon it asks a session of its own
 (then no other program sees that lens). The Desk follows every move of the lens
-(Designdocument Perspective Resolver MVP.md, A5 and A6).
+(Designdocument Perspective Resolver MVP.md, A5 and A6). The programs share the place too:
+turned to, a program follows where the other one went (follow).
 """
 
 from __future__ import annotations
@@ -62,6 +63,7 @@ class LensLink:
         self._client = None
         self._process = None
         self._session = None
+        self._place = ""  # the session's CWD as this program last set or saw it
         root = api.projects_root()
         self.projects_root: Optional[Path] = Path(root) if root is not None else None
         if self.projects_root is None:
@@ -89,6 +91,8 @@ class LensLink:
         if method not in self.REQUESTS:
             return {"ok": False, "error": f"no lens request: {method}"}
         answer = self._session.call(method, **dict(params or {}))
+        if answer.get("ok"):
+            self._place = str((answer.get("result") or {}).get("cwd") or self._place)
         if method in self.MOVES and answer.get("ok"):
             # The Desk follows the lens; ✕ in the same project changes no place (A5). Without
             # the lens the project's Desk applies, as for the place, never a department's.
@@ -98,6 +102,14 @@ class LensLink:
             if path:
                 self._update_context(str(path), lens_state)
         return answer
+
+    def follow(self) -> Optional[str]:
+        """Where the other program went since this one last set or saw the place: the new
+        CWD, or None. A place of this program the session refused (outside the projects)
+        is not left for the session's old one."""
+        before = self._place
+        cwd = str((self.call("state").get("result") or {}).get("cwd") or "")  # sees it now
+        return cwd if cwd and cwd != before else None
 
     def bear(self) -> Dict[str, Any]:
         """Bear the lens' folder where the department folder is missing. The program checks

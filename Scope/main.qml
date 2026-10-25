@@ -595,6 +595,19 @@ ApplicationWindow {
         if (reply && reply.ok) showLens(reply.result)
     }
 
+    /// Turned to (the window active, or the mouse in it): Scope and SunTree always share the
+    /// place, so go where SunTree went and show the lens as the session has it. Unchanged,
+    /// nothing moves - a folder browsed in the FilesPanel stays.
+    function turnedTo() {
+        if (!hasBackend() || typeof backend.followPlace !== "function") return
+        var place = String(backend.followPlace() || "")
+        if (place.length > 0) setCwp(place, "session.follow")
+        var reply = backend.lens("state", {})
+        if (reply && reply.ok && JSON.stringify(reply.result) !== JSON.stringify(lensState)) {
+            showLens(reply.result)
+        }
+    }
+
     /// What the FilesPanel shows: what the lens shows - in a project. On the shelf (the CWD
     /// is a folder of projects) the CWD for now; the shelf itself comes with the right menu.
     function filesPathWithLens() {
@@ -724,6 +737,12 @@ ApplicationWindow {
             return dirs
         }
         return []
+    }
+
+    /// The projects row (right): folders that are no MyOS folder - those, born or not, are
+    /// shown in the MyOS-folder row only.
+    function listRightFolders(path, options) {
+        return listChildren(path, options).filter(function(item) { return !isMyosFolder(item) })
     }
 
     function listTemplates(path) {
@@ -2082,6 +2101,11 @@ ApplicationWindow {
         }
     }
 
+    onActiveChanged: if (active) turnedTo()
+    HoverHandler {
+        onHoveredChanged: if (hovered) window.turnedTo()
+    }
+
     onCwpChanged: {
         selectedEntryPaths = []
         selectedTags = []
@@ -2120,7 +2144,7 @@ ApplicationWindow {
     function updateSubProjects() {
         var query = searchText.trim()
         if (query.length === 0) {
-            subProjects = listChildren(cwp)
+            subProjects = listRightFolders(cwp)
             return
         }
         var mode = "direct"
@@ -2139,7 +2163,7 @@ ApplicationWindow {
             mode = "direct"
         }
         if (mode === "direct") {
-            var directItems = listChildren(cwp)
+            var directItems = listRightFolders(cwp)
             if (lower.length === 0) {
                 subProjects = directItems
                 return
@@ -3360,7 +3384,7 @@ ApplicationWindow {
             pathSegmentMyosTest: pathSegmentMyosTest
             pathSegmentMyOS: pathSegmentMyOS
             folders: subProjects
-            childrenProvider: function(targetPath, options) { return listChildren(targetPath, options) }
+            childrenProvider: function(targetPath, options) { return listRightFolders(targetPath, options) }
             showEmbryos: window.projectsShowEmbryos
             showHiddenFolders: window.projectsShowHiddenFolders
             projectTint: window.currentProjectTint
@@ -3463,15 +3487,14 @@ ApplicationWindow {
                         projectsBrowser.scheduleContentHeightUpdate()
                     }
                     clearSearchAfterNavigate()
-                    // With a lens on this row is left of its frame (A3): a project moves the
-                    // lens there, keeping its depth, and the row shows it (one line, one
-                    // place). Any other folder takes the lens off.
+                    // With a lens on this row is left of its frame (A3): the lens goes along,
+                    // keeping its depth - into the project there (a folder inside one: its
+                    // project), or onto the shelf of a folder of projects. It stays on until
+                    // taken off (✕), also outside the projects.
                     if (window.lensOn) {
-                        if (lensRequest("move_to", { "path": targetPath })) {
-                            setCwp(targetPath, "lens.moveTo")
-                            return
-                        }
-                        lensRequest("take_off")
+                        lensRequest("move_to", { "path": targetPath })
+                        setCwp(targetPath, "lens.moveTo")
+                        return
                     }
                     setCwp(targetPath, "projectsBrowser.navigationRequested")
                     commitCTD(targetPath)

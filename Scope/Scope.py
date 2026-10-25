@@ -499,6 +499,12 @@ class Backend(QObject):
         The Desk follows the lens."""
         return self._lens_link.call(method, dict(params or {}))
 
+    @Slot(result=str)
+    def followPlace(self) -> str:
+        """Where SunTree went since Scope last set or saw the place: the new CWD, or "".
+        Scope and SunTree always share the place; Scope asks when turned to."""
+        return self._lens_link.follow() or ""
+
     @Slot(result="QVariantMap")
     def lensBear(self) -> dict:
         """Bear the lens' folder (where the department folder is missing) to drop or create

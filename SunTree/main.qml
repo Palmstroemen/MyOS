@@ -12,6 +12,7 @@ ApplicationWindow {
 
     property var foldersModel: []
     property var embryosModel: []
+    property real embryoOpacity: 0.4  // as in Scope
     property var clipboardModel: []
     property var filtersModel: []
     property var parentModel: []
@@ -71,18 +72,13 @@ ApplicationWindow {
         return !!(entry && entry.isEmbryo === true)
     }
 
-    /// Go to path: with a lens on, a project moves the lens there, keeping its depth; any
-    /// other folder takes it off (Scope's projects row).
+    /// Go to path: with a lens on, the lens goes along, keeping its depth - into the project
+    /// there (a folder inside one: its project), or onto the shelf of a folder of projects.
+    /// It stays on until taken off (✕), also outside the projects (Scope's projects row).
     function navigateTo(path) {
         var target = String(path || "")
         if (target.length === 0) return
-        if (lensOn) {
-            if (sunTreeBackend.lens("move_to", { "path": target }).ok) {
-                sunTreeBackend.setCwd(target)
-                return
-            }
-            sunTreeBackend.lens("take_off", {})
-        }
+        if (lensOn) sunTreeBackend.lens("move_to", { "path": target })
         sunTreeBackend.setCwd(target)
     }
 
@@ -119,8 +115,14 @@ ApplicationWindow {
         if (visible) {
             raise()
             requestActivate()
-            refreshModels()
+            turnedTo()
         }
+    }
+
+    /// Scope and SunTree always share the place: turned to, go where Scope went.
+    function turnedTo() {
+        sunTreeBackend.followPlace()
+        refreshModels()
     }
 
     function fullPathFromEntry(entry) {
@@ -162,6 +164,13 @@ ApplicationWindow {
             })
         }
         return rows
+    }
+
+    /// An embryo (a MyOS folder not born here) is drawn pale, as in Scope.
+    function leftRowOpacity(index) {
+        var rows = leftEntries()
+        var row = rows[index]
+        return (row && row.entry && row.entry.isEmbryo === true) ? embryoOpacity : 1.0
     }
 
     function rightEntries() {
@@ -393,7 +402,7 @@ ApplicationWindow {
 
     Component.onCompleted: refreshModels()
     // The lens is shared with Scope: coming back, show what it is now.
-    onActiveChanged: if (active) refreshModels()
+    onActiveChanged: if (active) turnedTo()
 
     Timer {
         id: leftClickDelayTimer
@@ -577,6 +586,7 @@ ApplicationWindow {
                                 var selected = false
                                 var hovered = (hoveredLeftIndex === i)
                                 var baseColor = String((rows[i] && rows[i].color) ? rows[i].color : "")
+                                ctx.globalAlpha = leftRowOpacity(i)
                                 ctx.beginPath()
                                 ctx.arc(cx, cy, layoutRoot.halfOuterRadius, a0, a1, false)
                                 ctx.arc(cx, cy, layoutRoot.halfInnerRadius, a1, a0, true)

@@ -42,7 +42,11 @@ Kompakter Überblick: `docs/STATUS.md`.
                 kommt nach oben, die Ordner rutschen weg, ein Doppelklick trifft ein Pfadsegment) - schon vor M so
         [x] E5 SunTree an der Sitzung (2026-10-25): eine Brille mit Scope (daemon/lens_link.py), Gesten wie in Scope,
             Rahmen mit ✕ statt CPD-Stapel
-            [ ] Scope und SunTree teilen immer denselben Ort (entschieden 2026-10-25): beide folgen dem CWD der Sitzung
+            [x] Brille bleibt auf, bis man sie abnimmt (2026-10-25): ein Ordner ohne Projekt (Job/Aufträge) hält sie im
+                Projekt, ein Ordner voller Projekte legt sie aufs Regal; MyOS-Ordner nur links (auch geboren); SunTree
+                zeichnet Embryos blass
+            [x] Scope und SunTree teilen immer denselben Ort (2026-10-25): beide folgen dem CWD der Sitzung, wenn man
+                sich ihnen zuwendet (Scope: Fenster aktiv oder Maus darin; SunTree: Hotkey); nichts läuft im Hintergrund
         [x] E6 Filter (2026-10-25): "## Perspective" nennt die Brille (04_Finanz/Ausgaben); von Hand gewählt setzt der
             Filter sie auf, wo man steht, und nimmt sie beim Aufheben wieder ab (nur solange es noch seine ist); ein
             Auto-Filter nie. Alte CPD-Schicht entfernt (perspective_resolver.py, ScopeApi perspective_*, Teil B)

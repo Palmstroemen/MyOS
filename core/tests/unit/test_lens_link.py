@@ -61,6 +61,43 @@ def test_two_programs_see_one_lens(world):
     assert seen["active"] and seen["lens"] == ["04_Finanz"]
 
 
+def test_one_follows_the_place_the_other_set(world):
+    reisen = _project(world["root"] / "Reisen").resolve()
+    daemon = LocalSession(world["root"])
+    scope = LensLink(FakeApi(world["root"]), start_daemon=False, connect=lambda root: daemon)
+    suntree = LensLink(FakeApi(world["root"]), start_daemon=False, connect=lambda root: daemon)
+    scope.call("set_cwd", {"path": str(world["studio"])})
+
+    suntree.call("set_cwd", {"path": str(reisen)})
+    assert suntree.follow() is None  # its own place
+    assert scope.follow() == str(reisen)
+    assert scope.follow() is None  # already there
+
+
+def test_the_place_follows_a_moved_lens(world):
+    reisen = _project(world["root"] / "Reisen").resolve()
+    daemon = LocalSession(world["root"])
+    scope = LensLink(FakeApi(world["root"]), start_daemon=False, connect=lambda root: daemon)
+    suntree = LensLink(FakeApi(world["root"]), start_daemon=False, connect=lambda root: daemon)
+    scope.call("set_cwd", {"path": str(world["studio"])})
+    scope.call("put_on", {"lens": ["04_Finanz"]})
+    assert suntree.follow() == str(world["studio"])
+
+    suntree.call("move_to", {"path": str(reisen)})  # the lens moves, the program goes along
+    suntree.call("set_cwd", {"path": str(reisen)})
+    assert suntree.follow() is None
+    assert scope.follow() == str(reisen)
+
+
+def test_a_place_outside_the_projects_is_not_left(world, tmp_path):
+    daemon = LocalSession(world["root"])
+    scope = LensLink(FakeApi(world["root"]), start_daemon=False, connect=lambda root: daemon)
+    scope.call("set_cwd", {"path": str(world["studio"])})
+
+    assert not scope.call("set_cwd", {"path": str(tmp_path)})["ok"]  # Scope went outside
+    assert scope.follow() is None  # the session's old place does not pull it back
+
+
 def test_without_a_daemon_a_session_of_its_own(world):
     link = LensLink(FakeApi(world["root"]), start_daemon=False, connect=lambda root: None)
 

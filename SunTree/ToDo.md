@@ -8,5 +8,4 @@ SunTree ist nur zum Ablegen: er zeigt Ordner, keine Dateien, und hat keine Suche
 [ ] +Notiz (new Notiz) hinzufügen und halb transparent gestalten.
 [ ] Umbau auf Kontextmenü (transparent, disappear)
 [ ] Icons hinzufügen
-[ ] Kontextmenü Folder hinzufügen im FilesPanel.
 [ ] Clipboard
