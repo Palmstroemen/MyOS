@@ -53,7 +53,18 @@ The tree draws its branches inward and makes them part of its stem.
   the crown, the reverse of drawing in: the clicked parent becomes the CWD, the folder one
   came from opens as a field of it, and the crown settles at its first level.
 
-## 4. Values
+## 4. The Stem From Top to Bottom
+
+- **The Clipboard** sits at the top of the stem (2026-10-25), not in the top band: the
+  multiclipboard, where every copy lands and which travels into all projects. One drops onto
+  it like onto any folder.
+- **The lens' frame** (✕ and the lens' levels) below it, while a lens is on: it pushes the
+  Clipboard up.
+- **The CWD** in the middle (the oval), with the folders drawn into the stem above it as a
+  preview while diving.
+- **The parents** below it, down to the root.
+
+## 5. Values
 
 Tuned in the sketch, to be tuned further on the real desktop:
 
@@ -67,7 +78,7 @@ Tuned in the sketch, to be tuned further on the real desktop:
 
 One level takes 2 (T - ri) of hand movement outward: half of it growing, half drawing in.
 
-## 5. In SunTree (QML)
+## 6. In SunTree (QML)
 
 - `Crown.js` (`.pragma library`) holds the state of a half: `s` (the one coordinate), `u`
   (per level the continuous folder index) and `lock` (the folders drawn into the stem).
@@ -77,13 +88,22 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
 - **Pulling the pointer** is `QCursor.setPos` through a small backend slot, after each move:
   SunTree keeps the hand's position itself and sets the pointer where the crown draws it.
   This works on X11 (Cinnamon); Wayland does not let programs move the pointer.
-- Open: how pulling the pointer goes with a real drag and drop of files under X11 - the main
-  use of SunTree. If moving the pointer during a drag does not work, dropping needs its own
-  way (e.g. the crown follows the hand without pulling while dragging).
+- Pulling the pointer during a drag works (tried on 2026-10-25 in a nested X server,
+  Xephyr, with a Qt and a GTK 3 drag source - GTK as Nemo): after `QCursor.setPos` the drag
+  goes on from the new place with the hand's next movement, and the file is dropped there.
+  The drop target learns the new place only with that next movement.
 
-## 6. Open
+## 7. Open
 
 - Tweaks on the real desktop: curves, the line, softness, label sizes.
+- **Caught in the tree** (first try on the real desktop, 2026-10-25): while a half holds the
+  pointer it is put back where the crown draws it, so one can hardly leave the window; it
+  lets go only back in the hollow, over the top or bottom edge while the first field is
+  small, or with Esc. Ways out, perhaps combined: over the top or bottom edge on every
+  level; a strong, fast move (pulling away on purpose); across the stem into the other half.
+- The way back out of the stem (spitting folders out) is not built yet; a parent clicked
+  in the stem is gone into at once.
+- Drawing in, the preview and the CWD oval overlap restlessly in the middle of the glide.
 - Many folders on one level (a hundred): the fish-eye keeps the one under the pointer
   readable; the others become hairlines. Enough, or a scroll position shown at the edge?
-- The top band (filters, clipboard) and the lens' frame in the moving crown.
+- The top band (filters) in the moving crown.

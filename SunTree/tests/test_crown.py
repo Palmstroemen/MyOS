@@ -51,7 +51,14 @@ def js():
         assert not value.isError(), value.toString()
         return value.toVariant()
 
+    def evaluate(code):
+        engine.globalObject().setProperty("geo", engine.toScriptValue(GEO))
+        value = engine.evaluate(code)
+        assert not value.isError(), value.toString()
+        return value.toVariant()
+
     call.walk = walk
+    call.evaluate = evaluate
     yield call
 
 
@@ -122,3 +129,31 @@ def test_back_into_the_hollow_lets_go(js):
     start = js("start", 70, 0, 3)
     out = js.walk(start, [[-5, 0]] * 4)
     assert out["released"]
+
+
+def _layout(js, state):
+    engine_tree = "function kids(way) { var names = []; for (var i = 0; i < way.length; i++) names.push(nameAt(names, way[i]));" \
+                  " return (TREE[names.join('/')] || []).slice(); }"
+    return js.evaluate(engine_tree + "layout(" + repr(state).replace("'", '"').replace("True", "true").replace("False", "false")
+                       + ", geo, kids)")
+
+
+def test_the_rings_of_a_growing_field(js):
+    rings = _layout(js, {"s": 135, "u": [1.5], "lock": [], "released": False})  # Belege, half grown
+    field, kids = rings[0], [r for r in rings[1:] if r["under"]]
+    assert field["kind"] == "field" and field["r0"] == 60 and 210 < field["r1"] < 300
+    assert len(field["items"]) == 3 and abs(sum(field["sp"]) - 180) < 1e-6
+    assert kids[0]["r0"] == field["r1"] and kids[0]["r1"] == 300
+    assert kids[0]["way"] == [1] and len(kids[0]["items"]) == 12  # Belege's months in its slice
+
+
+def test_the_rings_while_drawn_in(js):
+    rings = _layout(js, {"s": 285, "u": [1.5, 6], "lock": [1], "released": False})
+    field, kids = rings
+    assert field["r1"] == kids["r0"] and 60 < field["r1"] < 210  # shrinking into the stem
+    assert kids["r1"] == 300 and abs(sum(kids["sp"]) - 180) < 1e-6 and len(kids["items"]) == 12
+
+
+def test_a_deeper_level_lists_the_way_down(js):
+    rings = _layout(js, {"s": 400, "u": [0.5, 0.5], "lock": [0], "released": False})
+    assert rings[0]["way"] == [0] and [len(r["items"]) for r in rings][0] == 3  # Aufträge's folders

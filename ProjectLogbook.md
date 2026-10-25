@@ -30,7 +30,11 @@ Kompakter Überblick: `docs/STATUS.md`.
     [ ] Weiche Krone (SunTree/Designdocument Krone.md, Skizze SunTree/prototype/Krone.html): Feld wächst nach außen,
         ab der Linie T (0,7 R) in den Stamm gesaugt, Zeiger nach innen gezogen; Rückweg ebenso weich
         [x] Schritt 1: Designdokument und Skizze  [x] Schritt 2: Rechnung SunTree/js/Crown.js mit Tests
-        [ ] Schritt 3: QML (Canvas, gleitender Stamm, QCursor.setPos)  [ ] Schritt 4: echte Ordner, Klick und Ablegen
+        [~] Schritt 3: QML mit echten Ordnern (2026-10-25): Krone in einer Canvas, Zeiger gezogen (QCursor.setPos, auch
+            beim Drag unter X11 erprobt), Stamm gezeichnet mit Clipboard oben, Klick und Ablegen; offen: Rückweg aus dem
+            Stamm (ausspucken), Feinabstimmung am echten Bildschirm
+            [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
+                schnellen Ruck oder quer in die andere Hälfte
 [ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
     Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
     [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [x] E3 Scope an der Sitzung  [x] E3b Pfadleiste mit Rahmen (CLD)  [x] E3c Desk der Abteilung (Template gewinnt, Änderungen ins Template)

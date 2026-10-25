@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import "js/Crown.js" as Crown
 
 ApplicationWindow {
     id: root
@@ -17,12 +18,9 @@ ApplicationWindow {
     property var filtersModel: []
     property var parentModel: []
     property string selectedFilterName: ""
-    property int hoveredLeftIndex: -1
-    property int hoveredRightIndex: -1
-    property int hoveredCenterIndex: -1
     property int hoveredFrameIndex: -1
     property int hoveredTopIndex: -1
-    property int pendingLeftClickIndex: -1
+    property var pendingLeftRow: null
     property string cwdPath: ""
     property string currentProjectColor: ""
 
@@ -45,6 +43,8 @@ ApplicationWindow {
         clipboardModel = sunTreeBackend.listClipboardEntries()
         filtersModel = sunTreeBackend.listFilters()
         parentModel = sunTreeBackend.listParents()
+        crownCache = ({})
+        if (typeof crownCanvas !== "undefined") crownCanvas.requestPaint()
     }
 
     /// The left half: the MyOS folders of the CWD; with a lens on, the lens' folder.
@@ -60,7 +60,6 @@ ApplicationWindow {
             return false
         }
         refreshModels()
-        leftSectorCanvas.requestPaint()
         return true
     }
 
@@ -242,10 +241,6 @@ ApplicationWindow {
             })
         }
         rows.push({
-            kind: "clipboardPath",
-            label: "Clipboard (" + clipboardModel.length + ")"
-        })
-        rows.push({
             kind: "clipboardCreate",
             label: "Dummy Ablage"
         })
@@ -303,77 +298,439 @@ ApplicationWindow {
     /// A click on the left half: with a lens on, a flatter or sharper lens; without one,
     /// SunTree goes into the folder (it has no file list to browse in).
     function applyLeftClick(index) {
-        var rows = leftEntries()
-        if (!(index >= 0 && index < rows.length)) return
+        applyLeftRow(leftEntries()[index])
+    }
+
+    function applyLeftRow(row) {
+        if (!row) return
         if (lensOn) {
-            lensRequest("look_at", { "path": rows[index].path })
+            lensRequest("look_at", { "path": row.path })
         } else {
-            sunTreeBackend.enterFolder(rows[index].path)
+            sunTreeBackend.enterFolder(row.path)
         }
     }
 
     /// A double click: on a MyOS folder it puts on its lens and the CWD stays; with a lens
     /// on it gets sharper, or another department's lens is put on (A3).
     function applyLeftDoubleClick(index) {
-        var rows = leftEntries()
-        if (!(index >= 0 && index < rows.length)) return
-        if (lensOn || isMyosFolder(rows[index].entry)) {
-            lensRequest("look_at", { "path": rows[index].path })
+        applyLeftRowDouble(leftEntries()[index])
+    }
+
+    function applyLeftRowDouble(row) {
+        if (!row) return
+        if (lensOn || isMyosFolder(row.entry)) {
+            lensRequest("look_at", { "path": row.path })
         } else {
-            sunTreeBackend.enterFolder(rows[index].path)
+            sunTreeBackend.enterFolder(row.path)
         }
     }
 
-    function leftSectorIndex(localX, localY, areaWidth, areaHeight, count, innerR, outerR) {
-        if (count <= 0) {
-            return -1
-        }
-        var cx = areaWidth
-        var cy = areaHeight * 0.5
-        var dx = localX - cx
-        var dy = localY - cy
-        var radius = Math.sqrt(dx * dx + dy * dy)
-        if (radius < innerR || radius > outerR) {
-            return -1
-        }
-        var deg = Math.atan2(dy, dx) * 180 / Math.PI
-        if (deg < 0) {
-            deg += 360
-        }
-        if (deg < 90 || deg > 270) {
-            return -1
-        }
-        var rel = deg - 90
-        var idx = Math.floor(rel / (180 / count))
-        if (idx < 0 || idx >= count) {
-            return -1
-        }
-        // Left half should start at top; geometric slices start at bottom.
-        return count - 1 - idx
+    // --- The crown (SunTree/Designdocument Krone.md) ------------------------------------
+    // Moving outward a folder's field grows; beyond the line T it is drawn into the stem and
+    // the pointer is pulled inward. Diving only shows: a click goes in, a drop puts the file
+    // into the folder under the pointer. Crown.js does the arithmetic; here the hand moves
+    // it, springs soften it and one canvas draws both halves and the stem.
+    property real crownLineT: 0.7    // T as a share of R
+    property real crownInner: 0.2    // ri as a share of R
+    property real crownLens: 2.2     // the fish-eye at the start of a level
+    property real crownSoftness: 10  // spring rate of the shown values, per second
+    // Per half (-1 left, 1 right): target (where the hand put it), shown (the springs) and
+    // lensK (the fish-eye fading in and out).
+    property var crownHalves: ({ "-1": { target: null, shown: null, lensK: 0 }, "1": { target: null, shown: null, lensK: 0 } })
+    property int crownActive: 0      // the half holding the pointer, 0: none
+    property var crownPointer: null  // where the pointer was last seen or put (main area)
+    property var crownCache: ({})
+    property var stemGlide: ({})     // shown y of the stem's entries, by path
+    property var stemHits: []
+
+    function crownGeo(side) {
+        var R = layoutRoot.halfOuterRadius
+        var h = crownHalves[side]
+        return { ri: crownInner * R, T: crownLineT * R, R: R, lens: crownLens * (h ? h.lensK : 0), speed: 1,
+                 cx: side < 0 ? leftHalf.x + leftHalf.width : rightHalf.x, cy: leftHalf.y + leftHalf.height / 2 }
     }
 
-    function rightSectorIndex(localX, localY, areaWidth, areaHeight, count, innerR, outerR) {
-        if (count <= 0) {
-            return -1
+    /// The folders of a level of a half: way are folder indices from the CWD (left: from
+    /// the lens' folder) down.
+    function crownRows(side, way) {
+        var key = side + "|" + way.join("/")
+        if (crownCache[key]) return crownCache[key]
+        var rows = []
+        if (way.length === 0) {
+            var base = side < 0 ? leftEntries() : rightEntries()
+            for (var i = 0; i < base.length; i++) {
+                rows.push({ label: base[i].label, path: side < 0 ? base[i].path : fullPathFromEntry(base[i].entry),
+                            color: base[i].color, entry: base[i].entry })
+            }
+        } else {
+            var parent = crownRows(side, way.slice(0, way.length - 1))[way[way.length - 1]]
+            if (parent) {
+                var list = side < 0 ? sunTreeBackend.listEmbryosAt(parent.path) : sunTreeBackend.listFoldersAt(parent.path)
+                for (var j = 0; j < list.length; j++) {
+                    var name = String(list[j].name || "")
+                    rows.push({ label: name.split("/").pop(), color: String(list[j].color || ""), entry: list[j],
+                                path: String(list[j].path || "") || parent.path.replace(/\/+$/, "") + "/" + name })
+                }
+            }
         }
-        var cx = 0
-        var cy = areaHeight * 0.5
-        var dx = localX - cx
-        var dy = localY - cy
-        var radius = Math.sqrt(dx * dx + dy * dy)
-        if (radius < innerR || radius > outerR) {
-            return -1
+        crownCache[key] = rows
+        return rows
+    }
+
+    function crownCount(side) {
+        return function(way) { return crownRows(side, way).length }
+    }
+
+    function crownPolar(side, x, y) {
+        var g = crownGeo(side), lx = side * (x - g.cx), ly = y - g.cy
+        return { r: Math.sqrt(lx * lx + ly * ly), th: Math.atan2(ly, lx) * 180 / Math.PI, lx: lx }
+    }
+
+    function crownToLocal(side, r, th) {
+        var g = crownGeo(side), a = th * Math.PI / 180
+        return { x: g.cx + side * r * Math.cos(a), y: g.cy + r * Math.sin(a) }
+    }
+
+    /// The hand moved the pointer to (x, y) in the main area: take a half, or dive in it.
+    function handMoved(x, y) {
+        var last = crownPointer || { x: x, y: y }
+        var dx = x - last.x, dy = y - last.y
+        crownPointer = { x: x, y: y }
+        if (crownActive === 0) {
+            for (var side = -1; side <= 1; side += 2) {
+                var g = crownGeo(side), p = crownPolar(side, x, y)
+                var n = crownRows(side, []).length
+                if (n > 0 && p.lx > 0 && p.r >= g.ri && p.r <= g.R && Math.abs(p.th) <= 90) {
+                    var h = crownHalves[side]
+                    h.target = Crown.start(p.r, p.th, n)
+                    h.shown = { s: p.r, u: h.target.u.slice(), lock: [] }
+                    crownActive = side
+                    crownTimer.start()
+                    return
+                }
+            }
+            return
         }
-        var deg = Math.atan2(dy, dx) * 180 / Math.PI
-        if (deg < 0) {
-            deg += 360
+        var half = crownHalves[crownActive], geo = crownGeo(crownActive), count = crownCount(crownActive)
+        var a = Crown.pointer(half.target, geo, count).th * Math.PI / 180
+        var lx = crownActive * dx, ly = dy
+        var dr = lx * Math.cos(a) + ly * Math.sin(a), dt = -lx * Math.sin(a) + ly * Math.cos(a)
+        var next = Crown.move(half.target, dr, dt, geo, count)
+        if (next.released) {
+            crownRelease()
+            return
         }
-        if (deg > 90 && deg < 270) {
-            return -1
+        if (next.lock.join("/") !== half.target.lock.join("/")) {
+            // A new folder drawn in: its subfolders start under the pointer, not swept to.
+            half.shown.u[next.lock.length] = next.u[next.lock.length]
         }
-        var rel = deg <= 90 ? (deg + 90) : (deg - 270)
-        var idx = Math.floor(rel / (180 / count))
-        return (idx >= 0 && idx < count) ? idx : -1
+        half.target = next
+        crownTimer.start()
+    }
+
+    /// The half lets go: the crown runs back softly, the pointer is free.
+    function crownRelease() {
+        if (crownActive === 0) return
+        var h = crownHalves[crownActive]
+        h.target = { s: 0, u: h.target.u, lock: h.target.lock, released: true }
+        crownActive = 0
+        crownTimer.start()
+    }
+
+    /// Back to rest at once (a new CWD: the folders changed).
+    function crownReset() {
+        crownActive = 0
+        crownHalves = ({ "-1": { target: null, shown: null, lensK: 0 }, "1": { target: null, shown: null, lensK: 0 } })
+        crownCache = ({})
+        crownCanvas.requestPaint()
+    }
+
+    function crownTick(dt) {
+        var k = 1 - Math.exp(-dt * crownSoftness), moving = false
+        for (var side = -1; side <= 1; side += 2) {
+            var h = crownHalves[side]
+            if (!h.target) continue
+            var lensGoal = crownActive === side ? 1 : 0
+            h.lensK += (lensGoal - h.lensK) * k
+            if (Math.abs(lensGoal - h.lensK) > 0.01) moving = true
+            var sh = h.shown
+            sh.s += (h.target.s - sh.s) * k
+            if (Math.abs(h.target.s - sh.s) > 0.3) moving = true
+            for (var i = 0; i < h.target.u.length; i++) {
+                if (sh.u[i] === undefined) { sh.u[i] = h.target.u[i]; continue }
+                sh.u[i] += (h.target.u[i] - sh.u[i]) * k
+                if (Math.abs(h.target.u[i] - sh.u[i]) > 0.002) moving = true
+            }
+            sh.lock = h.target.lock.slice()
+            if (crownActive !== side && sh.s < crownGeo(side).ri && h.lensK < 0.02) {
+                h.target = null; h.shown = null  // settled back
+            }
+        }
+        if (crownActive !== 0) {
+            // The pointer is where the crown draws it: pulled inward beyond the line.
+            var half = crownHalves[crownActive]
+            var p = Crown.pointer(half.shown, crownGeo(crownActive), crownCount(crownActive))
+            var at = crownToLocal(crownActive, p.r, p.th)
+            if (!crownPointer || Math.abs(at.x - crownPointer.x) > 0.5 || Math.abs(at.y - crownPointer.y) > 0.5) {
+                var g = mainArea.mapToGlobal(at.x, at.y)
+                sunTreeBackend.pointerTo(Math.round(g.x), Math.round(g.y))
+                crownPointer = at
+            }
+        }
+        crownCanvas.requestPaint()
+        if (!moving) crownTimer.stop()
+    }
+
+    /// The folder under the pointer: {side, row}, or null.
+    function crownHit() {
+        if (crownActive === 0) return null
+        var h = crownHalves[crownActive]
+        if (!h.shown) return null
+        var geo = crownGeo(crownActive)
+        var st = Crown.phase(h.shown.s, geo.ri, geo.T)
+        var rings = Crown.layout(h.shown, geo, function(way) { return crownRows(crownActive, way) })
+        for (var i = 0; i < rings.length; i++) {
+            var ring = rings[i]
+            if ((st.ph === 1 && ring.kind === "field") || (st.ph === 2 && ring.kind === "kids" && ring.under)) {
+                return ring.hi >= 0 ? { side: crownActive, row: ring.items[ring.hi] } : null
+            }
+        }
+        return null
+    }
+
+    function crownClicked(x, y, twice) {
+        for (var i = 0; i < stemHits.length; i++) {
+            var s = stemHits[i]
+            if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) {
+                if (s.kind === "clipboard") sunTreeBackend.setCwd(sunTreeBackend.clipboardPath())
+                else if (s.kind === "parent") navigateTo(s.path)
+                else sunTreeBackend.refreshAll()
+                return
+            }
+        }
+        var hit = crownHit()
+        if (!hit) return
+        if (hit.side > 0) {
+            glideIntoStem(hit.row.path)
+            crownReset()
+            navigateTo(hit.row.path)
+            return
+        }
+        // The left half as before: a click goes in (a lens: flatter or sharper), a double
+        // click puts on the lens.
+        if (twice) {
+            leftClickDelayTimer.stop()
+            pendingLeftRow = null
+            crownReset()
+            applyLeftRowDouble(hit.row)
+        } else {
+            pendingLeftRow = hit.row
+            glideIntoStem(hit.row.path)
+            leftClickDelayTimer.restart()
+        }
+    }
+
+    /// A file dropped: into the folder under the pointer, or onto the Clipboard.
+    function crownDropped(drop) {
+        if (crownDropUrls(drop.urls || [])) drop.accept(Qt.MoveAction)
+        crownRelease()
+    }
+
+    function crownDropUrls(urls) {
+        var target = ""
+        var p = crownPointer
+        for (var i = 0; p && i < stemHits.length; i++) {
+            var s = stemHits[i]
+            if (s.kind === "clipboard" && p.x >= s.x && p.x <= s.x + s.w && p.y >= s.y && p.y <= s.y + s.h) target = sunTreeBackend.clipboardPath()
+        }
+        var hit = crownHit()
+        if (!target && hit) target = hit.row.path
+        if (!target) return false
+        var moved = false
+        for (var j = 0; j < urls.length; j++) {
+            var source = decodeURIComponent(String(urls[j]).replace(/^file:\/\//, ""))
+            if (sunTreeBackend.moveTo(source, target)) moved = true
+        }
+        return moved
+    }
+
+    /// A folder gone into glides from where it was into the stem.
+    function glideIntoStem(path) {
+        if (crownPointer) stemGlide[path] = crownPointer.y
+    }
+
+    // --- drawing -----------------------------------------------------------------------
+
+    function crownSector(ctx, side, cx, cy, r0, r1, a0, a1) {
+        var A0 = side > 0 ? a0 * Math.PI / 180 : Math.PI - a0 * Math.PI / 180
+        var A1 = side > 0 ? a1 * Math.PI / 180 : Math.PI - a1 * Math.PI / 180
+        ctx.beginPath()
+        ctx.arc(cx, cy, r1, A0, A1, side < 0)
+        ctx.arc(cx, cy, r0, A1, A0, side > 0)
+        ctx.closePath()
+    }
+
+    function crownLabel(ctx, side, cx, cy, r0, r1, a0, a1, text, alpha) {
+        var mid = (a0 + a1) / 2, arc = (a1 - a0) * Math.PI / 180 * (r0 + r1) / 2, width = r1 - r0 - 18
+        if (alpha < 0.05 || arc < 13 || width < 26) return
+        ctx.save()
+        ctx.font = "12px sans-serif"
+        var t = text
+        while (t.length > 2 && ctx.measureText(t).width > width) t = t.slice(0, t.length - 2) + "…"
+        var a = mid * Math.PI / 180, r = r0 + 10
+        ctx.translate(cx + side * r * Math.cos(a), cy + r * Math.sin(a))
+        ctx.rotate(side > 0 ? a : -a)
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = "#eaf3ff"
+        ctx.textAlign = side > 0 ? "left" : "right"
+        ctx.textBaseline = "middle"
+        ctx.fillText(t, 0, 0)
+        ctx.restore()
+    }
+
+    function crownPaintHalf(ctx, side, hit) {
+        var g = crownGeo(side), h = crownHalves[side]
+        var state = h.shown || { s: 0, u: [], lock: [] }
+        var rings = Crown.layout(state, g, function(way) { return crownRows(side, way) })
+        var fallback = side < 0 ? "#3b6b7d" : "#4e668f"
+        crownSector(ctx, side, g.cx, g.cy, 0, g.R + 6, -90, 90)
+        ctx.fillStyle = side < 0 ? "#273847" : "#2d3750"
+        ctx.fill()
+        for (var r = 0; r < rings.length; r++) {
+            var ring = rings[r], a = ring.start
+            for (var i = 0; i < ring.items.length; i++) {
+                var a0 = a, a1 = a + ring.sp[i]
+                a = a1
+                if (a1 - a0 < 0.05) continue
+                var row = ring.items[i]
+                var embryo = !!(row.entry && row.entry.isEmbryo === true)
+                var isHit = !!hit && hit.row === row
+                var color = String(row.color || "") || fallback
+                var f = ring.kind === "kids" ? 0.95 : 0.82
+                if (ring.kind === "field" && i === ring.hi) f = 0.92
+                if (isHit) f = 1.12
+                ctx.globalAlpha = ring.alpha * (embryo ? embryoOpacity : 1)
+                crownSector(ctx, side, g.cx, g.cy, ring.r0, ring.r1, a0, a1)
+                ctx.fillStyle = _adjustColor(color, f) || color
+                ctx.fill()
+                ctx.lineWidth = 1
+                ctx.strokeStyle = embryo ? "rgba(220,235,255,0.45)" : "rgba(15,17,23,0.9)"
+                ctx.setLineDash(embryo ? [4, 4] : [])
+                ctx.stroke()
+                ctx.setLineDash([])
+                ctx.globalAlpha = 1
+                crownLabel(ctx, side, g.cx, g.cy, ring.r0, ring.r1, a0, a1, row.label, ring.labels * (embryo ? 0.7 : 1))
+            }
+        }
+    }
+
+    /// The stem from top to bottom: the Clipboard, (the lens' frame), the folders drawn in
+    /// as a preview, the CWD, its parents (Designdocument Krone.md, 4).
+    function stemEntries() {
+        var out = []
+        for (var side = -1; side <= 1; side += 2) {
+            var h = crownHalves[side]
+            if (!h.shown) continue
+            var g = crownGeo(side), st = Crown.phase(h.shown.s, g.ri, g.T)
+            if (st.ph === 0) continue
+            var dive = []
+            for (var k = 0; k <= st.L; k++) {
+                if (k === st.L && st.ph !== 2) break
+                var row = crownRows(side, h.shown.lock.slice(0, k))[h.shown.lock[k]]
+                if (!row) break
+                dive.push({ label: row.label, path: row.path, w: k < st.L ? 1 : Crown.smooth(st.q), kind: "preview" })
+            }
+            out = out.concat(dive.reverse())
+        }
+        out.push({ label: cwdLeafName(), sub: projectNameFromCwd(), path: cwdPath, w: 1, kind: "cwd" })
+        var parents = centerStackEntries()
+        for (var i = 0; i < parents.length; i++) out.push({ label: parents[i].label, path: parents[i].path, w: 1, kind: "parent" })
+        return out
+    }
+
+    function stemPaint(ctx, dt) {
+        var k = 1 - Math.exp(-dt * crownSoftness)
+        var cx = layoutRoot.centerX, cy = layoutRoot.cwdY + layoutRoot.cwdHeight / 2
+        var ovalH = layoutRoot.cwdHeight, ovalW = layoutRoot.cwdWidth, pillH = 30, gap = 8, pillW = layoutRoot.stackWidth - 16
+        var hits = []
+        // The Clipboard on top: one drops onto it like onto any folder.
+        var cbY = layoutRoot.shellTop + 4
+        ctx.beginPath()
+        ctx.roundedRect(layoutRoot.stackX, cbY, layoutRoot.stackWidth, layoutRoot.clipboardHeight, 8, 8)
+        ctx.fillStyle = "#2c3f5d"; ctx.fill()
+        ctx.strokeStyle = "#5f7297"; ctx.lineWidth = 1; ctx.stroke()
+        ctx.fillStyle = "#e8efff"; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
+        ctx.fillText("Clipboard (" + clipboardModel.length + ")", cx, cbY + layoutRoot.clipboardHeight / 2)
+        hits.push({ kind: "clipboard", path: "", x: layoutRoot.stackX, y: cbY, w: layoutRoot.stackWidth, h: layoutRoot.clipboardHeight })
+
+        var entries = stemEntries(), slot = 0, ops = [], seen = ({})
+        for (var i = 0; i < entries.length; i++) {
+            var e = entries[i]
+            var key = e.kind + ":" + e.path
+            seen[key] = true
+            var y = slot < 1 ? cy + slot * (ovalH / 2 + gap + pillH / 2)
+                             : cy + (ovalH / 2 + gap + pillH / 2) + (slot - 1) * (pillH + gap)
+            var cur = stemGlide[key]
+            if (cur === undefined) cur = stemGlide[e.path] !== undefined ? stemGlide[e.path] : y
+            cur += (y - cur) * k
+            stemGlide[key] = cur
+            if (Math.abs(y - cur) > 0.5) crownTimer.start()
+            var big = 1 - Math.max(0, Math.min(1, slot)), w = pillW + (ovalW - pillW) * big, hh = pillH + (ovalH - pillH) * big
+            ops.push({ e: e, x: cx - w / 2, y: cur - hh / 2, w: w, h: hh, big: big, cy: cur })
+            if (e.kind !== "preview") hits.push({ kind: e.kind, path: e.path, x: cx - w / 2, y: cur - hh / 2, w: w, h: hh })
+            slot += e.w
+        }
+        for (var key2 in stemGlide) if (!seen[key2]) delete stemGlide[key2]
+        // the deepest last: on top
+        for (var j = ops.length - 1; j >= 0; j--) {
+            var o = ops[j]
+            if (o.y > layoutRoot.shellBottom) continue
+            ctx.save()
+            ctx.globalAlpha = Math.min(1, o.e.w * 1.2)
+            ctx.beginPath()
+            var rad = o.h / 2 * (0.3 + 0.7 * o.big)
+            ctx.roundedRect(o.x, o.y, o.w, o.h, rad, rad)
+            var projectColor = o.e.kind === "cwd" ? (_adjustColor(currentProjectColor, 0.72) || "#2f3d60") : "#324663"
+            ctx.fillStyle = o.big > 0.5 ? projectColor : "#324663"
+            ctx.fill()
+            ctx.lineWidth = o.big > 0.5 ? 2 : 1
+            ctx.strokeStyle = o.big > 0.5 ? (_adjustColor(currentProjectColor, 1.1) || "#9cb7f0") : "#6d82a8"
+            ctx.setLineDash(o.e.kind === "preview" ? [5, 4] : [])
+            ctx.stroke()
+            ctx.setLineDash([])
+            ctx.fillStyle = "#dbe5ff"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
+            ctx.font = (o.big > 0.5 ? "bold 13px " : "12px ") + "sans-serif"
+            ctx.fillText(o.e.label, cx, o.cy - (o.big > 0.5 && o.e.sub ? 7 : 0))
+            if (o.big > 0.5 && o.e.sub) {
+                ctx.font = "11px sans-serif"; ctx.fillStyle = "#b7c8ef"
+                ctx.fillText(o.e.sub, cx, o.cy + 9)
+            }
+            ctx.restore()
+        }
+        stemHits = hits
+    }
+
+    property real crownLastPaint: 0
+    function crownPaint(ctx) {
+        var now = Date.now(), dt = crownLastPaint ? Math.min(0.05, (now - crownLastPaint) / 1000) : 0.016
+        crownLastPaint = now
+        ctx.reset()
+        var hit = crownHit()
+        crownPaintHalf(ctx, -1, hit)
+        crownPaintHalf(ctx, 1, hit)
+        stemPaint(ctx, dt)
+    }
+
+    Timer {
+        id: crownTimer
+        interval: 16
+        repeat: true
+        onTriggered: crownTick(0.016)
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        onActivated: crownRelease()
     }
 
     Shortcut {
@@ -388,16 +745,8 @@ ApplicationWindow {
 
     Connections {
         target: sunTreeBackend
-        function onDataChanged() {
-            root.refreshModels()
-            leftSectorCanvas.requestPaint()
-            rightSectorCanvas.requestPaint()
-        }
-        function onCwdChanged() {
-            root.refreshModels()
-            leftSectorCanvas.requestPaint()
-            rightSectorCanvas.requestPaint()
-        }
+        function onDataChanged() { root.refreshModels() }
+        function onCwdChanged() { root.refreshModels() }
     }
 
     Component.onCompleted: refreshModels()
@@ -409,9 +758,9 @@ ApplicationWindow {
         interval: 170
         repeat: false
         onTriggered: {
-            var idx = pendingLeftClickIndex
-            pendingLeftClickIndex = -1
-            applyLeftClick(idx)
+            var row = pendingLeftRow
+            pendingLeftRow = null
+            applyLeftRow(row)
         }
     }
 
@@ -438,7 +787,7 @@ ApplicationWindow {
             property real cwdWidth: stackWidth + 56
             property real cwdY: shellTop + shellDiameter * 0.5 - cwdHeight * 0.5
             property real halfOuterRadius: Math.min(shellHalfWidth - 8, shellDiameter * 0.5 - 8)
-            property real halfInnerRadius: Math.max(38, halfOuterRadius * 0.43)
+            property real clipboardHeight: 30
 
             Rectangle {
                 id: topBand
@@ -547,102 +896,12 @@ ApplicationWindow {
                 height: parent.height - y
 
                 Item {
+                    // The halves only place the crown: its centres are their inner edges.
                     id: leftHalf
                     x: layoutRoot.leftX
                     y: layoutRoot.shellTop
                     width: layoutRoot.shellHalfWidth
                     height: layoutRoot.shellDiameter
-                    clip: true
-
-                    Rectangle {
-                        x: 0
-                        y: 0
-                        width: layoutRoot.shellDiameter
-                        height: layoutRoot.shellDiameter
-                        radius: width * 0.5
-                        color: "#273847"
-                        border.width: 0
-                    }
-
-                    Canvas {
-                        id: leftSectorCanvas
-                        anchors.fill: parent
-                        antialiasing: true
-                        onPaint: {
-                            var ctx = getContext("2d")
-                            ctx.reset()
-                            var rows = leftEntries()
-                            if (!rows || rows.length === 0) {
-                                return
-                            }
-                            var cx = width
-                            var cy = height * 0.5
-                            var startDeg = 90
-                            var slice = 180 / rows.length
-                            for (var i = 0; i < rows.length; i++) {
-                                var segPos = rows.length - 1 - i
-                                var a0 = (startDeg + segPos * slice) * Math.PI / 180
-                                var a1 = (startDeg + (segPos + 1) * slice) * Math.PI / 180
-                                var selected = false
-                                var hovered = (hoveredLeftIndex === i)
-                                var baseColor = String((rows[i] && rows[i].color) ? rows[i].color : "")
-                                ctx.globalAlpha = leftRowOpacity(i)
-                                ctx.beginPath()
-                                ctx.arc(cx, cy, layoutRoot.halfOuterRadius, a0, a1, false)
-                                ctx.arc(cx, cy, layoutRoot.halfInnerRadius, a1, a0, true)
-                                ctx.closePath()
-                                ctx.fillStyle = _sectorColor(baseColor, hovered, selected, "#3b6b7d")
-                                ctx.fill()
-                                var mid = (a0 + a1) * 0.5
-                                var r = layoutRoot.halfInnerRadius + 16
-                                var tx = cx + Math.cos(mid) * r
-                                var ty = cy + Math.sin(mid) * r
-                                var label = String((rows[i] && rows[i].label) ? rows[i].label : "")
-                                if (label.length > 12) {
-                                    label = label.slice(0, 11) + "…"
-                                }
-                                ctx.save()
-                                ctx.translate(tx, ty)
-                                // Flip left labels to avoid upside-down text.
-                                ctx.rotate(mid + Math.PI)
-                                ctx.font = "12px sans-serif"
-                                ctx.fillStyle = "#eff8ff"
-                                // Left half: right-aligned and center-near anchor.
-                                ctx.textAlign = "right"
-                                ctx.textBaseline = "middle"
-                                ctx.fillText(label, 0, 0)
-                                ctx.restore()
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onPositionChanged: function(mouse) {
-                            hoveredLeftIndex = leftSectorIndex(
-                                mouse.x, mouse.y,
-                                leftHalf.width, leftHalf.height,
-                                leftEntries().length,
-                                layoutRoot.halfInnerRadius,
-                                layoutRoot.halfOuterRadius
-                            )
-                            leftSectorCanvas.requestPaint()
-                        }
-                        onExited: {
-                            hoveredLeftIndex = -1
-                            leftSectorCanvas.requestPaint()
-                        }
-                        onClicked: {
-                            pendingLeftClickIndex = hoveredLeftIndex
-                            leftClickDelayTimer.restart()
-                        }
-                        onDoubleClicked: {
-                            leftClickDelayTimer.stop()
-                            pendingLeftClickIndex = -1
-                            applyLeftDoubleClick(hoveredLeftIndex)
-                        }
-                    }
                 }
 
                 Item {
@@ -651,91 +910,33 @@ ApplicationWindow {
                     y: layoutRoot.shellTop
                     width: layoutRoot.shellHalfWidth
                     height: layoutRoot.shellDiameter
-                    clip: true
+                }
 
-                    Rectangle {
-                        x: -layoutRoot.shellHalfWidth
-                        y: 0
-                        width: layoutRoot.shellDiameter
-                        height: layoutRoot.shellDiameter
-                        radius: width * 0.5
-                        color: "#2d3750"
-                        border.width: 0
-                    }
+                Canvas {
+                    id: crownCanvas
+                    anchors.fill: parent
+                    antialiasing: true
+                    onPaint: crownPaint(getContext("2d"))
+                }
 
-                    Canvas {
-                        id: rightSectorCanvas
-                        anchors.fill: parent
-                        antialiasing: true
-                        onPaint: {
-                            var ctx = getContext("2d")
-                            ctx.reset()
-                            var rows = rightEntries()
-                            if (!rows || rows.length === 0) {
-                                return
-                            }
-                            var cx = 0
-                            var cy = height * 0.5
-                            var startDeg = -90
-                            var slice = 180 / rows.length
-                            for (var i = 0; i < rows.length; i++) {
-                                var a0 = (startDeg + i * slice) * Math.PI / 180
-                                var a1 = (startDeg + (i + 1) * slice) * Math.PI / 180
-                                var hovered = (hoveredRightIndex === i)
-                                var baseColor = String((rows[i] && rows[i].color) ? rows[i].color : "")
-                                ctx.beginPath()
-                                ctx.arc(cx, cy, layoutRoot.halfOuterRadius, a0, a1, false)
-                                ctx.arc(cx, cy, layoutRoot.halfInnerRadius, a1, a0, true)
-                                ctx.closePath()
-                                ctx.fillStyle = _sectorColor(baseColor, hovered, false, "#4e668f")
-                                ctx.fill()
-                                var mid = (a0 + a1) * 0.5
-                                var r = layoutRoot.halfInnerRadius + 10
-                                var tx = cx + Math.cos(mid) * r
-                                var ty = cy + Math.sin(mid) * r
-                                var label = String((rows[i] && rows[i].label) ? rows[i].label : "")
-                                if (label.length > 12) {
-                                    label = label.slice(0, 11) + "…"
-                                }
-                                ctx.save()
-                                ctx.translate(tx, ty)
-                                ctx.rotate(mid)
-                                ctx.font = "12px sans-serif"
-                                ctx.fillStyle = "#ecf2ff"
-                                // Right half: left-aligned so text grows away from center.
-                                ctx.textAlign = "left"
-                                ctx.textBaseline = "middle"
-                                ctx.fillText(label, 0, 0)
-                                ctx.restore()
-                            }
-                        }
-                    }
+                MouseArea {
+                    id: crownMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onPositionChanged: function(mouse) { handMoved(mouse.x, mouse.y) }
+                    onExited: crownRelease()
+                    onClicked: function(mouse) { crownClicked(mouse.x, mouse.y, false) }
+                    onDoubleClicked: function(mouse) { crownClicked(mouse.x, mouse.y, true) }
+                }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onPositionChanged: function(mouse) {
-                            hoveredRightIndex = rightSectorIndex(
-                                mouse.x, mouse.y,
-                                rightHalf.width, rightHalf.height,
-                                rightEntries().length,
-                                layoutRoot.halfInnerRadius,
-                                layoutRoot.halfOuterRadius
-                            )
-                            rightSectorCanvas.requestPaint()
-                        }
-                        onExited: {
-                            hoveredRightIndex = -1
-                            rightSectorCanvas.requestPaint()
-                        }
-                        onClicked: {
-                            var rows = rightEntries()
-                            if (hoveredRightIndex >= 0 && hoveredRightIndex < rows.length) {
-                                var full = fullPathFromEntry(rows[hoveredRightIndex].entry)
-                                navigateTo(full)
-                            }
-                        }
-                    }
+                DropArea {
+                    // Files dragged in (from Nemo, ...) dive like the pointer and land in the
+                    // folder under it.
+                    anchors.fill: parent
+                    onEntered: function(drag) { handMoved(drag.x, drag.y) }
+                    onPositionChanged: function(drag) { handMoved(drag.x, drag.y) }
+                    onExited: crownRelease()
+                    onDropped: function(drop) { crownDropped(drop) }
                 }
 
                 Rectangle {
@@ -743,7 +944,7 @@ ApplicationWindow {
                     // level makes the lens flatter. Nearest to the CWD stands the deepest.
                     id: lensFrame
                     x: layoutRoot.stackX
-                    y: layoutRoot.shellTop + 10
+                    y: layoutRoot.shellTop + layoutRoot.clipboardHeight + 18
                     width: layoutRoot.stackWidth
                     height: Math.max(80, layoutRoot.cwdY - y - 10)
                     radius: 10
@@ -827,228 +1028,6 @@ ApplicationWindow {
                                 }
                             }
                         }
-                    }
-                }
-
-                Rectangle {
-                    id: centerStack
-                    x: layoutRoot.stackX
-                    y: layoutRoot.cwdY + layoutRoot.cwdHeight + 12
-                    width: layoutRoot.stackWidth
-                    height: Math.max(120, layoutRoot.shellBottom - y - 10)
-                    radius: 10
-                    color: "#1f2a3d"
-                    border.width: 0
-
-                    Flickable {
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        contentHeight: centerColumn.implicitHeight
-                        clip: true
-
-                        Column {
-                            id: centerColumn
-                            width: parent.width
-                            spacing: 6
-
-                            Repeater {
-                                model: centerStackEntries()
-                                delegate: Rectangle {
-                                    property var rowData: modelData
-                                    width: parent.width
-                                    height: 32
-                                    radius: 7
-                                    color: hoveredCenterIndex === index
-                                           ? (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 0.96) || "#546c97")
-                                           : (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 0.78) || "#324663")
-                                    border.width: 1
-                                    border.color: hoveredCenterIndex === index
-                                                  ? (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 1.16) || "#c0d6ff")
-                                                  : (_adjustColor(String((rowData && rowData.color) ? rowData.color : ""), 0.98) || "#6d82a8")
-
-                                    Text {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 8
-                                        anchors.rightMargin: 8
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: String((rowData && rowData.label) ? rowData.label : "")
-                                        color: "#dbe6ff"
-                                        font.pixelSize: 12
-                                        elide: Text.ElideRight
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        onEntered: hoveredCenterIndex = index
-                                        onExited: if (hoveredCenterIndex === index) hoveredCenterIndex = -1
-                                        onClicked: {
-                                            navigateTo(String((rowData && rowData.path) ? rowData.path : ""))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: cwdOval
-                    width: layoutRoot.cwdWidth
-                    height: layoutRoot.cwdHeight
-                    radius: height * 0.5
-                    x: layoutRoot.centerX - width * 0.5
-                    y: layoutRoot.cwdY
-                    z: 20
-                    color: _adjustColor(currentProjectColor, 0.72) || "#2f3d60"
-                    border.width: 2
-                    border.color: _adjustColor(currentProjectColor, 1.1) || "#9cb7f0"
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 2
-                        width: parent.width - 24
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: cwdLeafName()
-                            color: "#dbe5ff"
-                            font.bold: true
-                            font.pixelSize: 13
-                            elide: Text.ElideRight
-                            width: parent.width
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: projectNameFromCwd()
-                            color: "#b7c8ef"
-                            font.pixelSize: 11
-                            visible: text.length > 0
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: sunTreeBackend.refreshAll()
-                    }
-                }
-
-                Canvas {
-                    id: rightArrowBottomToRight
-                    width: 30
-                    height: 30
-                    x: cwdOval.x + cwdOval.width - width - 8
-                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
-                    z: 22
-                    visible: hoveredCenterIndex >= 0
-                    antialiasing: true
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.reset()
-                        ctx.strokeStyle = "#ffdd74"
-                        ctx.lineWidth = 2
-                        ctx.lineCap = "round"
-                        // Right icon: arc 9h -> 12h, arrow at 12h.
-                        ctx.beginPath()
-                        ctx.moveTo(5, 15)
-                        ctx.quadraticCurveTo(5, 5, 15, 5)
-                        ctx.stroke()
-                        ctx.beginPath()
-                        ctx.moveTo(15, 5)
-                        ctx.lineTo(11, 8)
-                        ctx.moveTo(15, 5)
-                        ctx.lineTo(19, 8)
-                        ctx.stroke()
-                    }
-                }
-
-                Canvas {
-                    id: rightArrowRightToDown
-                    width: 30
-                    height: 30
-                    x: cwdOval.x + cwdOval.width - width - 8
-                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
-                    z: 22
-                    visible: hoveredRightIndex >= 0
-                    antialiasing: true
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.reset()
-                        ctx.strokeStyle = "#ffdd74"
-                        ctx.lineWidth = 2
-                        ctx.lineCap = "round"
-                        // Right icon: arc 9h -> 12h, arrow at 9h (reverse).
-                        ctx.beginPath()
-                        ctx.moveTo(5, 15)
-                        ctx.quadraticCurveTo(5, 5, 15, 5)
-                        ctx.stroke()
-                        ctx.beginPath()
-                        ctx.moveTo(5, 15)
-                        ctx.lineTo(9, 12)
-                        ctx.moveTo(5, 15)
-                        ctx.lineTo(9, 18)
-                        ctx.stroke()
-                    }
-                }
-
-                Canvas {
-                    id: leftArrowTopToLeft
-                    width: 30
-                    height: 30
-                    x: cwdOval.x + 8
-                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
-                    z: 22
-                    visible: hoveredFrameIndex >= 0
-                    antialiasing: true
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.reset()
-                        ctx.strokeStyle = "#ffdd74"
-                        ctx.lineWidth = 2
-                        ctx.lineCap = "round"
-                        // Left icon: arc 3h -> 6h, arrow at 3h.
-                        ctx.beginPath()
-                        ctx.moveTo(25, 15)
-                        ctx.quadraticCurveTo(25, 25, 15, 25)
-                        ctx.stroke()
-                        ctx.beginPath()
-                        ctx.moveTo(25, 15)
-                        ctx.lineTo(21, 12)
-                        ctx.moveTo(25, 15)
-                        ctx.lineTo(21, 18)
-                        ctx.stroke()
-                    }
-                }
-
-                Canvas {
-                    id: leftArrowLeftToUp
-                    width: 30
-                    height: 30
-                    x: cwdOval.x + 8
-                    y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
-                    z: 22
-                    visible: hoveredLeftIndex >= 0
-                    antialiasing: true
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.reset()
-                        ctx.strokeStyle = "#ffdd74"
-                        ctx.lineWidth = 2
-                        ctx.lineCap = "round"
-                        // Left icon: arc 3h -> 6h, arrow at 6h (reverse).
-                        ctx.beginPath()
-                        ctx.moveTo(25, 15)
-                        ctx.quadraticCurveTo(25, 25, 15, 25)
-                        ctx.stroke()
-                        ctx.beginPath()
-                        ctx.moveTo(15, 25)
-                        ctx.lineTo(12, 21)
-                        ctx.moveTo(15, 25)
-                        ctx.lineTo(18, 21)
-                        ctx.stroke()
                     }
                 }
             }

@@ -174,3 +174,53 @@ function move(state, dr, dt, geo, childCount) {
     next.s = s
     return next
 }
+
+/// The rings a half shows for a state: [{kind, way, items, r0, r1, start, sp, alpha, labels,
+/// hi, under}]. childrenOf(way) gives the folders below a way of folder indices (any
+/// objects; the rings carry them through). kind "base" (no field grows), "field" (the level
+/// the pointer is on, or the one being drawn in) or "kids" (subfolders: of each field in
+/// its slice while growing, of the field drawn in on the whole half); hi is the folder the
+/// pointer is on in a field, under marks the subfolders of that folder.
+function layout(state, geo, childrenOf) {
+    var st = phase(state.s, geo.ri, geo.T)
+    var way = state.lock.slice(0, st.L)
+    var items = childrenOf(way), n = items.length
+    var u = state.u[st.L] !== undefined ? state.u[st.L] : n / 2
+    if (st.ph === 0 || n === 0) {
+        return [{ kind: "base", way: way, items: items, r0: geo.ri, r1: geo.R, start: -90,
+                  sp: spans(n, u, 0, geo.lens), alpha: 1, labels: 1, hi: -1, under: false }]
+    }
+    var rings = []
+    if (st.ph === 1) {
+        var e = smooth(st.p)
+        var sp = spans(n, u, st.p, geo.lens), starts = startsOf(sp)
+        var Ro = fieldRadius(st.p, geo.R, geo.T)
+        var th = pointerAngle(sp, u, st.p), hi = indexAt(sp, th)
+        rings.push({ kind: "field", way: way, items: items, r0: geo.ri, r1: Ro, start: -90, sp: sp,
+                     alpha: 1, labels: 1, hi: hi, under: false })
+        for (var i = 0; i < n; i++) {
+            var kidWay = way.concat([i]), kids = childrenOf(kidWay)
+            if (!kids.length || sp[i] < 0.5) continue
+            var under = i === hi
+            var uc = under ? clamp((th - starts[i]) / sp[i], 0, 0.9999) * kids.length : kids.length / 2
+            var csp = spans(kids.length, uc, 0, under ? geo.lens : 0)
+            for (var j = 0; j < csp.length; j++) csp[j] = csp[j] * sp[i] / 180
+            rings.push({ kind: "kids", way: kidWay, items: kids, r0: Ro, r1: geo.R, start: starts[i], sp: csp,
+                         alpha: clamp(e * 1.6, 0, 1), labels: e, hi: -1, under: under })
+        }
+        return rings
+    }
+    // Drawn in: the field fills the half and shrinks into the stem; its subfolders take over.
+    var q = smooth(st.q), locked = clamp(state.lock[st.L] !== undefined ? state.lock[st.L] : Math.floor(u), 0, n - 1)
+    var Rp = suckRadius(st.q, geo.ri, geo.T)
+    var was = spans(n, u, 1, geo.lens), full = smooth(st.q * 5), psp = []
+    for (var k = 0; k < n; k++) psp.push((1 - full) * was[k] + full * (k === locked ? 180 : 0))
+    rings.push({ kind: "field", way: way, items: items, r0: geo.ri, r1: Rp, start: -90, sp: psp,
+                 alpha: 1 - q * 0.5, labels: 1 - q, hi: locked, under: false })
+    var downWay = way.concat([locked]), down = childrenOf(downWay)
+    var ud = state.u[st.L + 1] !== undefined ? state.u[st.L + 1] : down.length / 2
+    var dsp = spans(down.length, ud, 0, geo.lens)
+    rings.push({ kind: "kids", way: downWay, items: down, r0: Rp, r1: geo.R, start: -90, sp: dsp,
+                 alpha: 1, labels: 1, hi: indexAt(dsp, angleAt(dsp, ud)), under: true })
+    return rings
+}

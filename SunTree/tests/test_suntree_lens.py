@@ -156,3 +156,16 @@ def test_embryos_are_pale(window):
     rows = _call(window, "leftEntries")
     finance = [row["label"] for row in rows].index("04_Finanz")
     assert _call(window, "leftRowOpacity", finance) == window.property("embryoOpacity")
+
+
+def test_the_folders_of_any_level(world, suntree):
+    (world["reisen"] / "Fotos" / "2026").mkdir(parents=True)
+    (world["reisen"] / "04_Finanz").mkdir()  # a MyOS folder: left only
+
+    assert [row["name"] for row in suntree.listFoldersAt(str(world["reisen"]))] == ["Fotos"]
+    assert [row["name"] for row in suntree.listFoldersAt(str(world["reisen"] / "Fotos"))] == ["2026"]
+
+
+def test_the_pointer_is_put_where_the_crown_draws_it(suntree):
+    suntree.pointerTo(120, 80)
+    assert suntree.lastPointer() == {"x": 120, "y": 80}

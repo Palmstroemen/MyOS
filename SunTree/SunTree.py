@@ -87,6 +87,7 @@ class SunTreeBackend(QObject):
         super().__init__()
         self._adapter = adapter
         self._cwd = str(Path(start_path).expanduser().resolve())
+        self._last_pointer = {"x": 0, "y": 0}
         # The lens: the daemon of the projects root, shared with Scope (daemon/lens_link.py).
         # Started when none runs, with the same switch as Scope (MYOS_SCOPE_START_DAEMON=0).
         self._lens = LensLink(adapter, start_daemon=os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0")
@@ -135,9 +136,25 @@ class SunTreeBackend(QObject):
 
     @Slot(result="QVariantList")
     def listFolders(self):
-        """The right half: folders that are no MyOS folder - those, born or not, are shown
-        on the left only."""
-        return [entry for entry in self._adapter.list_children(self._cwd) if not entry.get("folderType")]
+        return self.listFoldersAt(self._cwd)
+
+    @Slot(str, result="QVariantList")
+    def listFoldersAt(self, path: str):
+        """The right half at path (the CWD, or a level of the crown): folders that are no
+        MyOS folder - those, born or not, are shown on the left only."""
+        return [entry for entry in self._adapter.list_children(path) if not entry.get("folderType")]
+
+    @Slot(int, int)
+    def pointerTo(self, x: int, y: int) -> None:
+        """Put the pointer where the crown draws it (global coordinates): diving, the tree
+        pulls it inward (SunTree/Designdocument Krone.md). Works on X11, also during a drag;
+        Wayland does not let programs move the pointer."""
+        self._last_pointer = {"x": int(x), "y": int(y)}
+        QCursor.setPos(int(x), int(y))
+
+    @Slot(result="QVariantMap")
+    def lastPointer(self):
+        return dict(self._last_pointer)
 
     @Slot(str, result="QVariantList")
     def listEmbryosAt(self, path: str):
