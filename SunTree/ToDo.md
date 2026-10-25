@@ -1,6 +1,7 @@
 # ToDo für SunTree
 
-[ ] FilesPanel hinzufügen
+SunTree ist nur zum Ablegen: er zeigt Ordner, keine Dateien, und hat keine Suche (entschieden 2026-10-25).
+
 [ ] Hoover Automatik hinzufügen
 [ ] Manifestierte Embryos weiterhin nur im TemplatesBrowser anzeigen.
 [ ] +Folder (new Folder) hinzufügen und halb transparent gestalten.

@@ -330,10 +330,11 @@ the invoice from FirmaX from two weeks ago? In which project was it?"
   the drive and finds everything; the first part of the path is the project.
 - Scope answers the same question faster on the real tree, since it knows the mapping:
   with the lens `04_Finanz` on, a search for "FirmaX", last two weeks, looks only into the
-  `04_Finanz` folders of all projects and lists the hits with a "Project" column. This
-  belongs to E6 (a filter puts on a lens); the dates come from the sort rules' date
-  sources (Designdocument Sort.md, section 5), right even when copying changed the
-  modification time.
+  `04_Finanz` folders of all projects and lists the hits with a "Project" column (E7,
+  postponed on 2026-10-25 until the search is missed in daily use; lean: file names only,
+  one field in Scope; SunTree gets no search - it shows folders only, for dropping). The
+  dates come from the sort rules' date sources (Designdocument Sort.md, section 5), right
+  even when copying changed the modification time.
 - Energy: such a search touches only the department's folders, not the whole disk or the
   whole home folder. For one person this is irrelevant; across many users and data
   centres it may be a real argument for MyOS. Claim (Oliver): about one hundredth of the
