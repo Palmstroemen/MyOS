@@ -339,3 +339,43 @@ def test_apply_filter_projection_applies_include_exclude_and_group():
         assert projected[0]["name"] == "invoice1.pdf"
         assert projected[0]["filterActive"] is True
         assert "filterGroup" in projected[0]
+
+
+# A filter may put on a lens (Designdocument Perspective Resolver MVP.md, A6, E6): its
+# department and deeper levels, without a project - put on where one stands.
+
+@pytest.mark.parametrize("written, lens", [
+    ("04_Finanz", ("04_Finanz",)),
+    ("04_Finanz/Ausgaben", ("04_Finanz", "Ausgaben")),
+    ("/04_Finanz/Ausgaben/", ("04_Finanz", "Ausgaben")),
+])
+def test_a_filter_names_its_lens(tmp_path, written, lens):
+    cfg = tmp_path / "Filter.md"
+    cfg.write_text(f"# Filter\nName: Finance\n\n## Perspective\n{written}\n")
+
+    assert FilterConfig.from_file(cfg).lens == lens
+
+
+@pytest.mark.parametrize("written", ["../04_Finanz", "04_Finanz/../../etc", "./04_Finanz"])
+def test_a_lens_never_leaves_the_project(tmp_path, written):
+    # Security: the lens names folders inside a project; no way out of it.
+    cfg = tmp_path / "Filter.md"
+    cfg.write_text(f"# Filter\nName: Finance\n\n## Perspective\n{written}\n")
+
+    assert FilterConfig.from_file(cfg).lens == ()
+
+
+def test_without_perspective_no_lens(tmp_path):
+    cfg = tmp_path / "Filter.md"
+    _write_filter(cfg)
+
+    assert FilterConfig.from_file(cfg).lens == ()
+
+
+def test_the_nearest_filter_names_the_lens(tmp_path):
+    sub = tmp_path / "Sub"
+    sub.mkdir()
+    (tmp_path / "Filter.md").write_text("# Filter\nName: Root\n\n## Perspective\n04_Finanz\n")
+    (sub / "Filter.md").write_text("# Filter\nName: Sub\n\n## Perspective\n05_Rechtliches/Verträge\n")
+
+    assert resolve_effective_filter(sub).config.lens == ("05_Rechtliches", "Verträge")

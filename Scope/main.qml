@@ -588,6 +588,13 @@ ApplicationWindow {
         updateStandardFolders()
     }
 
+    /// Show the lens as the session has it now (changed by a filter, or another program).
+    function showLensOfSession() {
+        if (!hasBackend() || typeof backend.lens !== "function") return
+        var reply = backend.lens("state", {})
+        if (reply && reply.ok) showLens(reply.result)
+    }
+
     /// What the FilesPanel shows: what the lens shows - in a project. On the shelf (the CWD
     /// is a folder of projects) the CWD for now; the shelf itself comes with the right menu.
     function filesPathWithLens() {
@@ -1886,6 +1893,7 @@ ApplicationWindow {
                 moveReportDialog.open()
             }
         }
+        showLensOfSession()  // a filter chosen by hand brings its lens and takes it along
         refreshFilters()
         updateFiles()
     }
@@ -1894,6 +1902,7 @@ ApplicationWindow {
         if (hasBackend() && typeof backend.clearManualFilter === "function") {
             backend.clearManualFilter()
         }
+        showLensOfSession()
         refreshFilters()
         updateFiles()
     }

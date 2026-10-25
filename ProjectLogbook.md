@@ -43,7 +43,10 @@ Kompakter Überblick: `docs/STATUS.md`.
         [x] E5 SunTree an der Sitzung (2026-10-25): eine Brille mit Scope (daemon/lens_link.py), Gesten wie in Scope,
             Rahmen mit ✕ statt CPD-Stapel
             [ ] Scope und SunTree teilen immer denselben Ort (entschieden 2026-10-25): beide folgen dem CWD der Sitzung
-        [ ] E6 Filter (nutzt noch die alte CPD-API in ScopeApi; danach diese aufräumen)
+        [x] E6 Filter (2026-10-25): "## Perspective" nennt die Brille (04_Finanz/Ausgaben); von Hand gewählt setzt der
+            Filter sie auf, wo man steht, und nimmt sie beim Aufheben wieder ab (nur solange es noch seine ist); ein
+            Auto-Filter nie. Alte CPD-Schicht entfernt (perspective_resolver.py, ScopeApi perspective_*, Teil B)
+        [ ] E7 Suche mit Brille über alle Projekte (nur die Abteilungsordner, Spalte "Projekt"; Designdoc A9)
     [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein
         Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
         Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:

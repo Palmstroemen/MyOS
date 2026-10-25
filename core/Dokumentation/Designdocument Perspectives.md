@@ -23,6 +23,7 @@ The term **Perspective** is reserved for a future flipped path-space navigation 
 - Flatten deep trees while preserving provenance
 - Group by project, folder, tag, or date
 - Provide a custom UI profile (`Desk.md`)
+- Put on a lens when chosen by hand (`## Perspective`)
 
 ---
 
@@ -78,7 +79,15 @@ tags
 
 ## Desk
 Desk.md
+
+## Perspective
+04_Finanz/Ausgaben
 ```
+
+`## Perspective` names a lens: a department and deeper levels, without a project (`..`
+and `.` are refused). Chosen by hand, the filter puts it on where one stands and takes it
+off again when lifted - only while it is still the filter's. An auto filter never puts on a
+lens ("Designdocument Perspective Resolver MVP.md", A6).
 
 Open item: we may evolve the parser to allow more natural inline formatting later (e.g., `## Group_by: project`). We also keep “friendly input” options like pipe-separated lists (`| A | B | C`) in mind for the future, but not for MVP.
 

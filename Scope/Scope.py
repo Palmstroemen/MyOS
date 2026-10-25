@@ -330,6 +330,7 @@ class Backend(QObject):
         # for tests).
         self._lens_link = LensLink(self._api, start_daemon=os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0")
         self._projects_root = self._lens_link.projects_root
+        self._filter_lens = None  # the lens a filter chosen by hand put on
 
     @Slot(str, bool, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
@@ -457,11 +458,29 @@ class Backend(QObject):
 
     @Slot(str, result=bool)
     def setManualFilter(self, filterPath: str) -> bool:
-        return self._api.set_manual_filter(filterPath)
+        """Choose a filter by hand. Its lens (## Perspective) is put on where one stands; the
+        previous filter's lens goes (Designdocument Perspective Resolver MVP.md, A6). An auto
+        filter never puts on a lens."""
+        if not self._api.set_manual_filter(filterPath):
+            return False
+        self._take_off_filter_lens()
+        lens = list(self._api.manual_filter_lens())
+        if lens and self._lens_link.call("put_on", {"lens": lens}).get("ok"):
+            self._filter_lens = lens
+        return True
 
     @Slot(result=bool)
     def clearManualFilter(self) -> bool:
+        self._take_off_filter_lens()
         return self._api.clear_manual_filter()
+
+    def _take_off_filter_lens(self) -> None:
+        """The lens a filter put on goes with it - only while it is still the filter's (the
+        user may have gone on with it)."""
+        lens, self._filter_lens = self._filter_lens, None
+        state = self._lens_link.call("state").get("result") or {}
+        if lens and state.get("active") and list(state.get("lens") or []) == lens:
+            self._lens_link.call("take_off")
 
     @Slot(str, str, result="QVariantList")
     def listFilterSaveTargets(self, path: str, sourcePath: str):

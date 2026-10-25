@@ -27,11 +27,13 @@ class FilterConfig:
     flatten: bool
     groups: List[str]
     desk: Optional[str]
-    perspective_cpd: Optional[str] = None
+    # The lens a manually chosen filter puts on: department and deeper levels, without a
+    # project (Designdocument Perspective Resolver MVP.md, A6). () = none.
+    lens: Tuple[str, ...] = ()
     inherit: str = "dynamic"
     flatten_set: bool = False
     desk_set: bool = False
-    perspective_set: bool = False
+    lens_set: bool = False
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "FilterConfig":
@@ -89,11 +91,7 @@ class FilterConfig:
         desk = desk_values[0] if desk_values else None
 
         perspective_values = _normalize_section_list(data.get("Perspective"))
-        perspective_set = bool(perspective_values)
-        perspective_cpd = str(perspective_values[0]).strip() if perspective_values else None
-        if perspective_cpd == "":
-            perspective_cpd = None
-            perspective_set = False
+        lens = _lens_from_text(perspective_values[0]) if perspective_values else ()
 
         return cls(
             name=name,
@@ -104,11 +102,11 @@ class FilterConfig:
             flatten=flatten,
             groups=groups,
             desk=desk,
-            perspective_cpd=perspective_cpd,
+            lens=lens,
             inherit=inherit,
             flatten_set=flatten_set,
             desk_set=desk_set,
-            perspective_set=perspective_set,
+            lens_set=bool(lens),
         )
 
 
@@ -255,8 +253,8 @@ def resolve_effective_filter(
     flatten_set = False
     desk_value: Optional[str] = None
     desk_set = False
-    perspective_value: Optional[str] = None
-    perspective_set = False
+    lens_value: Tuple[str, ...] = ()
+    lens_set = False
     effective_name = ""
     effective_scope: Optional[str] = None
     effective_inherit = "dynamic"
@@ -276,8 +274,8 @@ def resolve_effective_filter(
             flatten_set = False
             desk_value = None
             desk_set = False
-            perspective_value = None
-            perspective_set = False
+            lens_value = ()
+            lens_set = False
         merged_layers.append(layer)
         effective_name = cfg.name
         effective_scope = cfg.scope
@@ -292,9 +290,9 @@ def resolve_effective_filter(
         if cfg.desk_set:
             desk_value = cfg.desk
             desk_set = True
-        if cfg.perspective_set and cfg.perspective_cpd:
-            perspective_value = cfg.perspective_cpd
-            perspective_set = True
+        if cfg.lens_set:
+            lens_value = cfg.lens
+            lens_set = True
         if cfg.inherit == "fix":
             locked_by_fix = True
 
@@ -307,11 +305,11 @@ def resolve_effective_filter(
         flatten=flatten_value,
         groups=groups,
         desk=desk_value,
-        perspective_cpd=perspective_value,
+        lens=lens_value,
         inherit=effective_inherit,
         flatten_set=flatten_set,
         desk_set=desk_set,
-        perspective_set=perspective_set,
+        lens_set=lens_set,
     )
     # Keep layers in specificity order for display.
     return EffectiveFilter(
@@ -361,6 +359,15 @@ def apply_filter_projection(
             )
         )
     return projected
+
+
+def _lens_from_text(text: Any) -> Tuple[str, ...]:
+    """04_Finanz/Ausgaben -> ("04_Finanz", "Ausgaben"); () when it is not a lens."""
+    parts = tuple(part.strip() for part in str(text or "").strip().strip("/").split("/"))
+    # Security: a lens names folders inside a project - no ".." or "." leads out of it.
+    if not parts or any(part in ("", ".", "..") for part in parts):
+        return ()
+    return parts
 
 
 def _normalize_section_list(section: Any) -> List[str]:
