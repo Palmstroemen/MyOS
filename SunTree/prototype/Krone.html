@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Sketch of the SunTree crown (SunTree/Designdocument Krone.md); open in a browser. -->
+<title>SunTree Krone</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one dark stage (the tree) filling the screen, a thin control strip below it. Single dark world, like SunTree itself. */
+:root {
+  color-scheme: dark;
+  --bg: #0e1015;
+  --strip: #161a22;
+  --line: #2a3242;
+  --text: #e6eef8;
+  --muted: #8e9bb0;
+  --hand: #f2b84b;
+  --ui: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 var(--ui);
+  display: flex;
+  flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px;
+  box-sizing: border-box;
+  gap: 10px;
+  margin: 0;
+}
+html { overflow: hidden; }
+@media (max-height: 560px), (max-width: 520px) { html { overflow: auto; } }
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+}
+h1 {
+  font-size: 17px;
+  margin: 0;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+}
+header p { margin: 0; color: var(--muted); max-width: 90ch; }
+kbd {
+  font: 12px var(--mono);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+  color: var(--text);
+}
+#stage {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 320px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 50%, #151a24 0%, var(--bg) 70%);
+  border: 1px solid var(--line);
+}
+#crown { width: 100%; height: 100%; display: block; cursor: none; touch-action: none; }
+#crown:focus-visible { outline: 2px solid var(--hand); outline-offset: -2px; }
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  background: rgba(22, 26, 34, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+#hint {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font: 12px var(--mono);
+  color: var(--muted);
+  pointer-events: none;
+}
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  align-items: center;
+  background: var(--strip);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+.strip label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+.strip input[type=range] { width: 120px; accent-color: var(--hand); }
+.strip output { font: 12px var(--mono); color: var(--text); min-width: 3.5em; font-variant-numeric: tabular-nums; }
+#readout { font: 12px var(--mono); color: var(--text); margin-left: auto; font-variant-numeric: tabular-nums; }
+button {
+  font: 12px var(--ui);
+  color: var(--text);
+  background: #222938;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button:focus-visible, input:focus-visible { outline: 2px solid var(--hand); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SunTree Krone</h1>
+  <p>Ins Bild klicken fängt die Maus ein (<kbd>Esc</kbd> gibt sie frei). Nach außen fahren: das Feld wächst und zeigt seine Unterordner. Ab der gestrichelten Grenze zieht der Baum den Zeiger nach innen. Auf und ab: blättern. Kurz klicken: hineingehen. Gedrückt halten und loslassen: ablegen.</p>
+</header>
+
+<div id="stage">
+  <canvas id="crown" tabindex="0" aria-label="SunTree: links MyOS-Ordner, rechts Ordner, in der Mitte der Stamm"></canvas>
+  <div id="hint">Testordner wie MyOS_Test/Projekte/Job</div>
+  <div id="toast" role="status" aria-live="polite" style="opacity:0"></div>
+</div>
+
+<div class="strip">
+  <label for="pT">Grenze (Anteil R) <input id="pT" type="range" min="0.35" max="0.85" step="0.01" value="0.7"><output id="oT">0.70</output></label>
+  <label for="pRi">Innenradius <input id="pRi" type="range" min="0.08" max="0.32" step="0.01" value="0.2"><output id="oRi">0.20</output></label>
+  <label for="pLens">Lupe <input id="pLens" type="range" min="0" max="5" step="0.1" value="2.2"><output id="oLens">2.2</output></label>
+  <label for="pSoft">Weichheit <input id="pSoft" type="range" min="2" max="30" step="1" value="10"><output id="oSoft">10</output></label>
+  <label for="pSpeed">Blättern <input id="pSpeed" type="range" min="0.3" max="3" step="0.1" value="1"><output id="oSpeed">1.0</output></label>
+  <button id="reset" type="button">Zurück zu Job</button>
+  <span id="readout">frei</span>
+</div>
+
+<script>
+"use strict";
+// ---------- test folders (as in MyOS_Test/Projekte) ----------
+function N(name, kids, o) {
+  o = o || {};
+  const n = { name, kids: kids || [], myos: !!o.myos, embryo: !!o.embryo, parent: null };
+  n.kids.forEach(k => { k.parent = n; });
+  return n;
+}
+const em = (name, kids) => N(name, kids, { myos: true, embryo: true });
+const bo = (name, kids) => N(name, kids, { myos: true });
+const months = ["Jänner", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+function departments(born) {
+  born = born || {};
+  const d = (name, kids) => (born[name] ? bo : em)(name, kids);
+  return [
+    d("00_Admin", [em("Verträge"), em("Zugänge")]),
+    d("01_Info", [em("Handbuch"), em("Kontakte")]),
+    d("02_Team", [em("Personen"), em("Termine")]),
+    d("03_Kommunikation", [em("E-Mail"), em("Briefe"), em("Telefonnotizen")]),
+    d("04_Finanz", born["04_Finanz"]
+      ? [bo("Ausgaben", [bo("2025"), bo("2026", months.slice(0, 10).map(m => bo(m)))]), em("Eingangsrechnungen", [em("2025"), em("2026")]),
+         bo("Ausgangsrechnungen", [bo("2025"), bo("2026")]), em("Steuer", [em("UVA"), em("Jahresabschluss")])]
+      : [em("Ausgaben"), em("Eingangsrechnungen"), em("Ausgangsrechnungen"), em("Steuer")]),
+    d("05_Rechtliches", [em("Verträge"), em("Fristen")]),
+    d("06_Ressourcen", [em("Geräte"), em("Software")]),
+    d("07_Arbeit", [em("Vorlagen"), em("Entwürfe")]),
+    d("08_Dokumentation", [em("Protokolle")])
+  ];
+}
+const project = (name, kids, born) => N(name, departments(born).concat(kids || []));
+const plain = (name, kids) => N(name, kids);
+const JOB = project("Job", [
+  plain("Aufträge", [
+    project("Desertgreener", [plain("Angebote"), plain("Pläne"), plain("Fotos"), plain("Korrespondenz")]),
+    project("TestKunde", [plain("Angebote"), plain("Korrespondenz")]),
+    plain("Gartenhof", [plain("Skizzen"), plain("Fotos")]),
+    plain("Weingut Berger", [plain("Etiketten"), plain("Angebote")]),
+    plain("Bäckerei Lind", [plain("Logo")]),
+    plain("Sägewerk Ost", [plain("Pläne")]),
+    plain("Kanzlei Moser", [plain("Website")])
+  ]),
+  plain("Belege", [
+    plain("2024", ["Q1", "Q2", "Q3", "Q4"].map(q => plain(q))),
+    plain("2025", ["Q1", "Q2", "Q3", "Q4"].map(q => plain(q))),
+    plain("2026", months.map(m => plain(m)))
+  ]),
+  plain("Eigene Projekte", [plain("Website", [plain("Texte"), plain("Bilder")]), plain("Buch", [plain("Kapitel"), plain("Notizen")]), plain("Workshop", [plain("Folien")])]),
+  plain("Rechnungen", [plain("2025"), plain("2026")])
+], { "04_Finanz": true });
+const PROJEKTE = N("Projekte", [
+  JOB,
+  project("Familie", [plain("Freunde"), plain("Kind"), plain("Partner")]),
+  plain("Wohnen", [project("Garten", [plain("Hecke"), plain("Gartenzaun")]), plain("Haus"), plain("Wohnung")]),
+  plain("Computer"),
+  plain("Testkunde")
+]);
+const HOME = N("home", [N("oliver", [N("Dokumente", [N("MyOS", [N("MyOS_Test", [PROJEKTE])])])])]);
+
+let cwd = JOB;
+const list = (node, side) => node.kids.filter(k => k.myos === (side < 0));
+const pathOf = node => { const parts = []; for (let n = node; n; n = n.parent) parts.unshift(n.name); return parts; };
+
+// ---------- parameters ----------
+const P = { T: 0.7, ri: 0.2, lens: 2.2, soft: 10, speed: 1 };
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function bindSlider(id, out, key, digits) {
+  const el = document.getElementById(id), o = document.getElementById(out);
+  const set = () => { P[key] = parseFloat(el.value); o.textContent = P[key].toFixed(digits); };
+  el.addEventListener("input", set); set();
+}
+bindSlider("pT", "oT", "T", 2);
+bindSlider("pRi", "oRi", "ri", 2);
+bindSlider("pLens", "oLens", "lens", 1);
+bindSlider("pSoft", "oSoft", "soft", 0);
+bindSlider("pSpeed", "oSpeed", "speed", 1);
+
+// ---------- canvas ----------
+const FONT_UI = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
+const FONT_MONO = '"JetBrains Mono", ui-monospace, monospace';
+const cv = document.getElementById("crown"), ctx = cv.getContext("2d");
+let W = 0, H = 0;
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(resize).observe(cv);
+resize();
+
+function geo() {
+  const stemW = Math.max(104, Math.min(170, W * 0.14)), gap = 12;
+  const R = Math.max(70, Math.min(H * 0.46, (W - stemW - 2 * gap) / 2 - 8));
+  return { stemW, gap, R, cy: H / 2, cx: { "-1": W / 2 - stemW / 2 - gap, "1": W / 2 + stemW / 2 + gap }, ri: P.ri * R, T: P.T * R };
+}
+
+// ---------- the crown's math ----------
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const smooth = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+
+// One coordinate s runs through all levels: each level is [ri, T) growing (phase 1) and
+// [T, T + D) being sucked into the stem (phase 2), D = T - ri.
+function phaseOf(s, g) {
+  const D = g.T - g.ri;
+  if (s < g.ri) return { L: 0, v: s, ph: 0, p: 0, q: 0 };
+  const L = Math.floor((s - g.ri) / (2 * D)), v = s - L * 2 * D;
+  if (v < g.T) return { L, v, ph: 1, p: (v - g.ri) / D, q: 0 };
+  return { L, v, ph: 2, p: 1, q: (v - g.T) / D };
+}
+
+// Angular spans (degrees, summing to 180) of n folders: a fish-eye around u that sharpens
+// with p until the folder under u fills the half.
+function spans(n, u, p, lens) {
+  if (n === 0) return [];
+  const e = smooth(p), w0 = [], w1 = [];
+  let s0 = 0, s1 = 0;
+  for (let i = 0; i < n; i++) {
+    const d = i + 0.5 - u;
+    const a = 1 + lens * Math.exp(-((d / 1.25) ** 2)), b = Math.exp(-((d / 0.32) ** 2)) + 1e-9;
+    w0.push(a); w1.push(b); s0 += a; s1 += b;
+  }
+  return w0.map((a, i) => 180 * ((1 - e) * a / s0 + e * w1[i] / s1));
+}
+function startsOf(sp) { const st = []; let a = -90; for (const s of sp) { st.push(a); a += s; } return st; }
+function angleAt(sp, u) {
+  const n = sp.length; if (!n) return 0;
+  const i = clamp(Math.floor(u), 0, n - 1), f = clamp(u - i, 0, 1);
+  return startsOf(sp)[i] + f * sp[i];
+}
+// The pointer's angle: inside the fish-eye at first; the fuller the field, the more it moves
+// evenly with the hand, and the neighbouring field grows past it.
+function pointerAngle(sp, u, p) {
+  const n = sp.length; if (!n) return 0;
+  const e = smooth(p);
+  return (1 - e) * angleAt(sp, u) + e * (-90 + clamp(u / n, 0, 1) * 180);
+}
+// The u whose fish-eye puts the pointer at angle th (bisection: the angle grows with u).
+function uAtAngle(n, th, lens) {
+  let lo = 0, hi = n - 1e-4;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (angleAt(spans(n, mid, 0, lens), mid) < th) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+function indexAt(sp, th) {
+  const st = startsOf(sp);
+  for (let i = sp.length - 1; i >= 0; i--) if (th >= st[i]) return i;
+  return 0;
+}
+function nodesAlong(h, uArr, L) {
+  let node = cwd; const out = [node];
+  for (let k = 0; k < L; k++) {
+    const items = list(node, h.side);
+    if (!items.length) break;
+    node = items[clamp(h.lock[k] ?? Math.floor(uArr[k] || 0), 0, items.length - 1)];
+    out.push(node);
+  }
+  return out;
+}
+
+// ---------- the two halves ----------
+function makeHalf(side) { return { side, engaged: false, s: 0, sR: 0, u: [], uR: [], lock: [], lensR: 0 }; }
+const halves = [makeHalf(-1), makeHalf(1)];
+
+// What a half shows from (s, u): level, folders, spans, rings and the pointer's place.
+function layout(h, s, u, g, lensK) {
+  const st = phaseOf(s, g), lens = P.lens * lensK;
+  const nodes = nodesAlong(h, u, st.L), level = nodes[nodes.length - 1];
+  const L = nodes.length - 1, items = list(level, h.side), n = items.length;
+  const out = { st, L, level, items, n, rings: [], pointer: null, hit: null };
+  if (st.ph === 0 || n === 0) {
+    const sp = h.engaged || lensK > 0.01 ? spans(n, u[0] ?? n / 2, 0, lens) : items.map(() => 180 / Math.max(1, n));
+    out.rings.push({ r0: g.ri, r1: g.R, items, sp, alpha: 1, labels: 1, kind: "base" });
+    return out;
+  }
+  if (st.ph === 1) {
+    const e = smooth(st.p), uL = u[L] ?? n / 2;
+    const sp = spans(n, uL, st.p, lens), Ro = g.R - (g.R - g.T) * e, starts = startsOf(sp);
+    const th = pointerAngle(sp, uL, st.p), hi = indexAt(sp, th);
+    out.rings.push({ r0: g.ri, r1: Ro, items, sp, alpha: 1, labels: 1, kind: "field", hi });
+    // Each folder's subfolders in its own slice; the one under the pointer as a fish-eye.
+    items.forEach((it, i) => {
+      const kids = list(it, h.side);
+      if (!kids.length || sp[i] < 0.5) return;
+      const uc = i === hi ? clamp((th - starts[i]) / sp[i], 0, 0.9999) * kids.length : kids.length / 2;
+      const csp = spans(kids.length, uc, 0, i === hi ? lens : 0).map(x => x * sp[i] / 180);
+      out.rings.push({ r0: Ro, r1: g.R, items: kids, sp: csp, start: starts[i], alpha: clamp(e * 1.6, 0, 1), labels: e, kind: "kids", hiParent: i === hi });
+    });
+    out.pointer = { r: st.v, th };
+    out.hit = items[hi];
+    return out;
+  }
+  // phase 2: the folder fills the half and is drawn into the stem; its subfolders take over.
+  const e = smooth(st.q), hi = clamp(h.lock[L] ?? Math.floor(u[L] ?? 0), 0, n - 1);
+  const parent = items[hi], kids = list(parent, h.side);
+  const Rp = g.T - (g.T - g.ri) * e;
+  const full = smooth(st.q * 5), was = spans(n, u[L] ?? hi + 0.5, 1, lens);
+  const psp = was.map((w, i) => (1 - full) * w + full * (i === hi ? 180 : 0));
+  out.rings.push({ r0: g.ri, r1: Rp, items, sp: psp, alpha: 1 - e * 0.5, labels: 1 - e, kind: "field", hi });
+  const uc = u[L + 1] ?? kids.length / 2;
+  const csp = spans(kids.length, uc, 0, lens);
+  out.rings.push({ r0: Rp, r1: g.R, items: kids, sp: csp, alpha: 1, labels: 1, kind: "kids", hiParent: true, hi: clamp(Math.floor(uc), 0, kids.length - 1) });
+  out.pointer = { r: Rp + 1, th: angleAt(csp, uc) };
+  out.hit = kids[clamp(Math.floor(uc), 0, kids.length - 1)];
+  out.absorbing = { node: parent, w: e };
+  return out;
+}
+
+// ---------- pointer ----------
+let ptr = { x: 0, y: 0 };      // where the pointer is drawn (free) - the tree moves it when engaged
+let hand = { x: 0, y: 0 };     // where the hand put it (no pulling)
+let locked = false, lockFailed = false, carrying = false, carryTimer = 0, downAt = 0, swallowUp = false;
+let crownFade = 1, toastTimer = 0, active = null;
+
+function localPolar(side, x, y, g) {
+  const lx = side * (x - g.cx[side]), ly = y - g.cy;
+  return { r: Math.hypot(lx, ly), th: Math.atan2(ly, lx) * 180 / Math.PI, lx };
+}
+function toScreen(side, r, thDeg, g) {
+  const a = thDeg * Math.PI / 180;
+  return { x: g.cx[side] + side * r * Math.cos(a), y: g.cy + r * Math.sin(a) };
+}
+function engage(h, x, y, g) {
+  const lp = localPolar(h.side, x, y, g);
+  const n = list(cwd, h.side).length;
+  if (!n) return false;
+  halves.forEach(o => { if (o !== h) disengage(o); });
+  h.engaged = true; h.s = lp.r; h.sR = lp.r; h.lock = [];
+  h.u = [clamp((lp.th + 90) / 180 * n, 0, n - 1e-4)]; h.uR = h.u.slice();
+  active = h;
+  return true;
+}
+function disengage(h) {
+  if (!h.engaged) return;
+  h.engaged = false; h.s = 0;
+  if (active === h) active = null;
+}
+
+function moveBy(dx, dy) {
+  const g = geo();
+  hand.x = clamp(hand.x + dx, 0, W); hand.y = clamp(hand.y + dy, 0, H);
+  const h = active;
+  if (!h) {
+    ptr.x = clamp(ptr.x + dx, 0, W); ptr.y = clamp(ptr.y + dy, 0, H);
+    for (const o of halves) {
+      const lp = localPolar(o.side, ptr.x, ptr.y, g);
+      if (lp.lx > 0 && lp.r >= g.ri && lp.r <= g.R && Math.abs(lp.th) <= 90) { engage(o, ptr.x, ptr.y, g); break; }
+    }
+    return;
+  }
+  // Engaged: radial movement runs s (deeper/back), tangential movement scrolls a level.
+  const lay = layout(h, h.s, h.u, g, h.lensR);
+  const th = (lay.pointer ? lay.pointer.th : 0) * Math.PI / 180;
+  const lx = h.side * dx, ly = dy;
+  const dr = lx * Math.cos(th) + ly * Math.sin(th), dt = -lx * Math.sin(th) + ly * Math.cos(th);
+  const st = lay.st, uLevel = st.ph === 2 ? lay.L + 1 : lay.L;
+  const items = uLevel === lay.L ? lay.items : list(lay.items[clamp(h.lock[lay.L] ?? 0, 0, lay.n - 1)], h.side);
+  const n = Math.max(1, items.length);
+  const slot = Math.PI * g.R * 0.55 / n / P.speed;
+  let u = (h.u[uLevel] ?? n / 2) + dt / slot;
+  if (uLevel === 0 && st.ph <= 1 && (u < -0.15 || u > n + 0.15) && st.p < 0.25) {
+    // Out over the top or bottom edge at the first level: the half lets go.
+    const p = lay.pointer ? toScreen(h.side, lay.pointer.r, lay.pointer.th, g) : ptr;
+    disengage(h); ptr.x = p.x + dx; ptr.y = p.y + dy; return;
+  }
+  h.u[uLevel] = clamp(u, 0, n - 1e-4);
+
+  let s = h.s + dr;
+  const D = g.T - g.ri, levelBase = lay.L * 2 * D;
+  if (st.ph === 1 && s >= levelBase + g.T) {
+    // Crossing the line: the folder under the pointer needs subfolders to be drawn in.
+    const sp = spans(lay.n, h.u[lay.L], 1, P.lens * h.lensR), thNow = lay.pointer.th;
+    const hi = indexAt(sp, thNow), kids = list(lay.items[hi], h.side);
+    if (!kids.length) s = levelBase + g.T - 0.01;
+    else {
+      h.lock[lay.L] = hi;
+      // The subfolders start under the pointer: their index from its place in the half.
+      h.u[lay.L + 1] = uAtAngle(kids.length, thNow, P.lens * h.lensR);
+      h.uR[lay.L + 1] = h.u[lay.L + 1];
+      h.u.length = lay.L + 2; h.uR.length = lay.L + 2; h.lock.length = lay.L + 1;
+    }
+  }
+  if (s < g.ri) {
+    // Back into the stem's hollow: the pointer is free again.
+    const p = toScreen(h.side, Math.max(0, s), lay.pointer ? lay.pointer.th : 0, g);
+    disengage(h); ptr.x = p.x; ptr.y = p.y; return;
+  }
+  h.s = s;
+}
+
+// ---------- springs and drawing ----------
+const stemY = new Map();
+function spring(cur, target, dt) {
+  const k = reduceMotion ? 40 : P.soft;
+  return cur + (target - cur) * (1 - Math.exp(-dt * k));
+}
+
+const COL = {
+  left: [46, 76, 87], right: [61, 79, 114], kidsLeft: [62, 104, 112], kidsRight: [84, 104, 146],
+  text: "#eaf3ff", stem: "#3427a8", stemEdge: "#6a5cff", pill: "#283246", pillEdge: "#3f4c66"
+};
+function rgb(c, f, a) { return `rgba(${Math.round(c[0] * f)},${Math.round(c[1] * f)},${Math.round(c[2] * f)},${a})`; }
+
+function sector(side, cx, cy, r0, r1, a0, a1) {
+  const A = th => side > 0 ? th * Math.PI / 180 : Math.PI - th * Math.PI / 180;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r1, A(a0), A(a1), side < 0);
+  ctx.arc(cx, cy, r0, A(a1), A(a0), side > 0);
+  ctx.closePath();
+}
+function label(side, cx, cy, r0, r1, a0, a1, text, alpha) {
+  const mid = (a0 + a1) / 2, arc = (a1 - a0) * Math.PI / 180 * (r0 + r1) / 2, width = r1 - r0 - 18;
+  if (alpha < 0.05 || arc < 13 || width < 26) return;
+  ctx.save();
+  ctx.font = "12.5px " + FONT_UI;
+  let t = text;
+  while (t.length > 2 && ctx.measureText(t).width > width) t = t.slice(0, -2) + "…";
+  const a = mid * Math.PI / 180, r = r0 + 10;
+  ctx.translate(cx + side * r * Math.cos(a), cy + r * Math.sin(a));
+  ctx.rotate(side > 0 ? a : Math.PI - a + Math.PI);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = COL.text;
+  ctx.textAlign = side > 0 ? "left" : "right";
+  ctx.textBaseline = "middle";
+  ctx.fillText(t, 0, 0);
+  ctx.restore();
+}
+
+function drawHalf(h, g, lay, hitNode) {
+  const cx = g.cx[h.side], cy = g.cy;
+  const base = h.side < 0 ? COL.left : COL.right, kidCol = h.side < 0 ? COL.kidsLeft : COL.kidsRight;
+  // backdrop disc
+  sector(h.side, cx, cy, 0, g.R + 4, -90, 90);
+  ctx.fillStyle = "rgba(255,255,255,0.025)"; ctx.fill();
+  for (const ring of lay.rings) {
+    let a = ring.start ?? -90;
+    ring.items.forEach((it, i) => {
+      const a0 = a, a1 = a + ring.sp[i]; a = a1;
+      if (a1 - a0 < 0.05) return;
+      const isHit = it === hitNode;
+      const f = (ring.kind === "kids" ? 0.95 : 0.85) + (isHit ? 0.32 : 0) + (ring.kind === "field" && i === ring.hi && lay.st.ph === 1 ? 0.12 : 0);
+      const embryoA = it.embryo ? 0.4 : 1;
+      ctx.globalAlpha = ring.alpha * embryoA * crownFade;
+      sector(h.side, cx, cy, ring.r0, ring.r1, a0, a1);
+      ctx.fillStyle = rgb(ring.kind === "kids" ? kidCol : base, f, 1);
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(14,16,21,0.9)";
+      ctx.setLineDash(it.embryo ? [4, 4] : []);
+      if (it.embryo) ctx.strokeStyle = "rgba(220,235,255,0.35)";
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      label(h.side, cx, cy, ring.r0, ring.r1, a0, a1, it.name, ring.labels * embryoA * crownFade * (it.embryo ? 1.6 : 1));
+    });
+  }
+  if (!lay.items.length) {
+    ctx.fillStyle = "#5d6a80"; ctx.font = "12px " + FONT_MONO;
+    ctx.textAlign = "center";
+    ctx.fillText(h.side < 0 ? "keine MyOS-Ordner" : "keine Ordner", cx + h.side * g.R * 0.55, cy);
+  }
+  // the line at T
+  ctx.save();
+  ctx.setLineDash([3, 6]); ctx.strokeStyle = "rgba(242,184,75,0.35)"; ctx.lineWidth = 1;
+  const A0 = h.side > 0 ? -Math.PI / 2 : Math.PI * 1.5, A1 = h.side > 0 ? Math.PI / 2 : Math.PI / 2;
+  ctx.beginPath(); ctx.arc(cx, cy, g.T, A0, A1, h.side < 0); ctx.stroke();
+  ctx.restore();
+}
+
+function stemEntries(g, lays) {
+  // Deepest first: folders drawn into the stem (a preview), the CWD, its parents.
+  const out = [];
+  for (const h of halves) {
+    const lay = lays[h.side];
+    if (!lay || lay.st.ph === 0) continue;
+    const nodes = nodesAlong(h, h.uR, lay.L);
+    const dive = nodes.slice(1).map(n => ({ node: n, w: 1, preview: true }));
+    if (lay.absorbing) dive.push({ node: lay.absorbing.node, w: lay.absorbing.w, preview: true });
+    out.push(...dive.reverse());
+  }
+  out.push({ node: cwd, w: 1, preview: false });
+  for (let n = cwd.parent; n; n = n.parent) out.push({ node: n, w: 1, preview: false, parent: true });
+  return out;
+}
+
+let stemHits = [];
+function drawStem(g, lays, dt) {
+  const entries = stemEntries(g, lays);
+  const ovalH = 62, pillH = 28, gap = 9, ovalW = g.stemW + 50, pillW = g.stemW - 16;
+  let slot = 0;
+  stemHits = [];
+  const seen = new Set(), ops = [];
+  for (const e of entries) {
+    const key = pathOf(e.node).join("/") + (e.preview ? "#p" : "");
+    seen.add(key);
+    const y = slot < 1 ? g.cy + slot * (ovalH / 2 + gap + pillH / 2) : g.cy + (ovalH / 2 + gap + pillH / 2) + (slot - 1) * (pillH + gap);
+    let cur = stemY.get(key);
+    if (cur === undefined) cur = { y, born: performance.now() };
+    cur.y = spring(cur.y, y, dt);
+    stemY.set(key, cur);
+    const big = 1 - clamp(slot, 0, 1);
+    const w = pillW + (ovalW - pillW) * big, hh = pillH + (ovalH - pillH) * big;
+    const x = W / 2 - w / 2, yy = cur.y - hh / 2;
+    if (yy > H) { slot += e.w; continue; }
+    ops.push(() => {
+    ctx.save();
+    ctx.globalAlpha = clamp(e.w * 1.2, 0, 1) * clamp((H - yy) / 60, 0, 1);
+    ctx.beginPath();
+    ctx.roundRect(x, yy, w, hh, hh / 2 * (0.35 + 0.65 * big));
+    ctx.fillStyle = big > 0.5 ? COL.stem : COL.pill;
+    ctx.fill();
+    ctx.lineWidth = big > 0.5 ? 2 : 1;
+    ctx.strokeStyle = big > 0.5 ? COL.stemEdge : COL.pillEdge;
+    ctx.setLineDash(e.preview ? [5, 4] : []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = COL.text;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = (big > 0.5 ? "700 15px " : "12.5px ") + FONT_UI;
+    ctx.fillText(e.node.name, W / 2, cur.y - (big > 0.5 ? 8 : 0));
+    if (big > 0.5) {
+      ctx.font = "11px " + FONT_MONO;
+      ctx.fillStyle = "#c9c3ff";
+      ctx.fillText(e.preview ? "Vorschau · Klick geht hinein" : "CWD", W / 2, cur.y + 13);
+    }
+    ctx.restore();
+    });
+    if (!e.preview) stemHits.push({ node: e.node, x, y: yy, w, h: hh });
+    slot += e.w;
+  }
+  for (let i = ops.length - 1; i >= 0; i--) ops[i]();
+  for (const k of [...stemY.keys()]) if (!seen.has(k)) stemY.delete(k);
+}
+
+function drawPointer(p) {
+  // the hand, faint, where it would be without the pull
+  const d = Math.hypot(hand.x - p.x, hand.y - p.y);
+  if (d > 8) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(242,184,75,0.28)"; ctx.setLineDash([2, 5]);
+    ctx.beginPath(); ctx.moveTo(hand.x, hand.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(242,184,75,0.22)";
+    ctx.beginPath(); ctx.arc(hand.x, hand.y, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.font = "11px " + FONT_MONO;
+    ctx.fillStyle = "rgba(242,184,75,0.6)"; ctx.textAlign = "left";
+    ctx.fillText("Hand", hand.x + 9, hand.y + 4);
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.fillStyle = "#f2b84b"; ctx.strokeStyle = "#0e1015"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 17); ctx.lineTo(4.5, 13); ctx.lineTo(8, 20); ctx.lineTo(10.5, 19); ctx.lineTo(7.2, 12.2); ctx.lineTo(12.5, 12); ctx.closePath();
+  ctx.stroke(); ctx.fill();
+  if (carrying) {
+    ctx.font = "12px " + FONT_UI;
+    const t = "Rechnung_FirmaX.pdf", w = ctx.measureText(t).width + 16;
+    ctx.fillStyle = "rgba(242,184,75,0.92)";
+    ctx.beginPath(); ctx.roundRect(14, 16, w, 22, 5); ctx.fill();
+    ctx.fillStyle = "#1a1408"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(t, 22, 27);
+  }
+  ctx.restore();
+}
+
+let lastT = performance.now(), currentHit = null, drawnPtr = { x: 0, y: 0 };
+function frame(t) {
+  const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
+  const g = geo();
+  ctx.clearRect(0, 0, W, H);
+  crownFade = spring(crownFade, 1, dt);
+  const lays = {};
+  currentHit = null;
+  for (const h of halves) {
+    h.sR = spring(h.sR, h.s, dt);
+    h.lensR = spring(h.lensR, h.engaged ? 1 : 0, dt);
+    for (let k = 0; k < Math.max(h.u.length, h.uR.length); k++) {
+      if (h.u[k] === undefined) continue;
+      h.uR[k] = h.uR[k] === undefined ? h.u[k] : spring(h.uR[k], h.u[k], dt);
+    }
+    if (!h.engaged && h.sR < g.ri) { h.sR = Math.min(h.sR, g.ri); }
+    lays[h.side] = layout(h, h.sR, h.uR, g, h.lensR);
+  }
+  let p = ptr;
+  if (active) {
+    const lay = lays[active.side];
+    if (lay.pointer) { p = toScreen(active.side, lay.pointer.r, lay.pointer.th, g); currentHit = lay.hit; }
+  }
+  drawnPtr = p;
+  for (const h of halves) drawHalf(h, g, lays[h.side], h === active ? currentHit : null);
+  drawStem(g, lays, dt);
+  drawPointer(p);
+  updateReadout(lays, g);
+  requestAnimationFrame(frame);
+}
+
+function updateReadout(lays, g) {
+  const r = document.getElementById("readout");
+  if (!active) { r.textContent = locked ? "frei · Maus eingefangen" : (lockFailed ? "frei · ohne Einfangen" : "frei"); return; }
+  const lay = lays[active.side], st = lay.st;
+  const side = active.side < 0 ? "links" : "rechts";
+  const ph = st.ph === 1 ? `wachsen ${Math.round(st.p * 100)} %` : st.ph === 2 ? `einsaugen ${Math.round(st.q * 100)} %` : "Stamm";
+  r.textContent = `${side} · Ebene ${lay.L + 1} · ${ph}${currentHit ? " · " + currentHit.name : ""}`;
+}
+
+// ---------- actions ----------
+function toast(text) {
+  const el = document.getElementById("toast");
+  el.textContent = text; el.style.opacity = 1;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.style.opacity = 0; }, 2400);
+}
+function goInto(node) {
+  if (!node || node === cwd) return;
+  // the new CWD glides from where it was clicked into the stem
+  stemY.set(pathOf(node).join("/"), { y: drawnPtr.y });
+  cwd = node;
+  halves.forEach(h => { h.engaged = false; h.s = 0; h.sR = 0; h.u = []; h.uR = []; h.lock = []; });
+  active = null; crownFade = 0;
+  toast("CWD: " + pathOf(node).slice(-3).join(" › "));
+}
+function click() {
+  if (currentHit) { goInto(currentHit); return; }
+  for (const s of stemHits) {
+    if (drawnPtr.x >= s.x && drawnPtr.x <= s.x + s.w && drawnPtr.y >= s.y && drawnPtr.y <= s.y + s.h) { goInto(s.node); return; }
+  }
+}
+function drop() {
+  const target = currentHit;
+  if (!target) { toast("Nicht abgelegt: kein Ordner unter dem Zeiger"); return; }
+  const where = pathOf(target).slice(pathOf(cwd).length - 1).join(" › ");
+  if (target.embryo) {
+    for (let n = target; n && n.embryo; n = n.parent) n.embryo = false;
+    toast("Abgelegt in " + where + " (dabei geboren)");
+  } else toast("Abgelegt in " + where);
+}
+function retract() {
+  halves.forEach(h => { if (h.engaged) { const lay = layout(h, h.s, h.u, geo(), h.lensR); if (lay.pointer) { const q = toScreen(h.side, geo().ri * 0.6, lay.pointer.th, geo()); ptr.x = q.x; ptr.y = q.y; } } h.engaged = false; h.s = 0; });
+  active = null;
+}
+
+// ---------- input ----------
+cv.addEventListener("mousedown", e => {
+  if (!locked && !lockFailed && cv.requestPointerLock) {
+    swallowUp = true;
+    ptr.x = hand.x = e.offsetX; ptr.y = hand.y = e.offsetY;
+    try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => { lockFailed = true; }); } catch (_) { lockFailed = true; }
+    return;
+  }
+  downAt = performance.now();
+  clearTimeout(carryTimer);
+  carryTimer = setTimeout(() => { carrying = true; }, 230);
+});
+window.addEventListener("mouseup", () => {
+  clearTimeout(carryTimer);
+  if (swallowUp) { swallowUp = false; return; }
+  if (carrying) { carrying = false; drop(); return; }
+  if (performance.now() - downAt < 400) click();
+});
+document.addEventListener("pointerlockchange", () => {
+  locked = document.pointerLockElement === cv;
+  if (!locked) { retract(); carrying = false; }
+});
+document.addEventListener("pointerlockerror", () => { lockFailed = true; swallowUp = false; });
+cv.addEventListener("mouseenter", e => { if (!locked) { ptr.x = hand.x = e.offsetX; ptr.y = hand.y = e.offsetY; } });
+cv.addEventListener("mouseleave", () => { if (!locked) { retract(); carrying = false; } });
+cv.addEventListener("mousemove", e => moveBy(e.movementX, e.movementY));
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape") retract();
+});
+document.getElementById("reset").addEventListener("click", () => goInto(JOB));
+
+ptr.x = hand.x = W / 2; ptr.y = hand.y = H / 2;
+requestAnimationFrame(frame);
+</script>
+
+</body>
+</html>
