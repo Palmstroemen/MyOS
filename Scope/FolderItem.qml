@@ -169,7 +169,8 @@ Rectangle {
             return _containsTextGlyph(textLabel, px, py)
         }
         if (style === "smallIcon") {
-            return _containsItemPoint(smallIconImage, px, py) || _containsTextGlyph(smallIconLabel, px, py)
+            // The whole icon box: a badge replaces the folder icon there and takes clicks too.
+            return _containsItemPoint(smallIconBoxItem, px, py) || _containsTextGlyph(smallIconLabel, px, py)
         }
         if (style === "largeIcon") {
             return _containsItemPoint(largeIconImage, px, py) || _containsTextGlyph(largeIconLabel, px, py)
@@ -331,6 +332,7 @@ Rectangle {
         spacing: root.edgeIcon ? 4 : 6
         visible: style === "smallIcon"
         Item {
+            id: smallIconBoxItem
             width: root.smallIconBox
             height: root.smallIconBox
             readonly property bool hasBatch: Boolean(batchSource || shownBatchText)

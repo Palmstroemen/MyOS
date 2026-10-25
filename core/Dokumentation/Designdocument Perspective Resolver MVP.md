@@ -325,7 +325,11 @@ the invoice from FirmaX from two weeks ago? In which project was it?"
   this question may be gone (the flat view across all projects is not planned for now).
 - M: the shelf shows `Clipboard` and plain folders too; only real projects (and folders
   leading to them)? `Clipboard` is the multiclipboard: every copy lands there and travels
-  into all projects; later a small button with an icon, not a folder on the shelf. Appearing at the top edge of the screen (the edge dock). One line for
+  into all projects; later a small button with an icon, not a folder on the shelf. Appearing
+  at the top edge of the screen (the edge dock) is put back while M is a prototype: the CWD
+  sits top left in Scope's window (2026-10-25). Likely later: the full screen width, the
+  whole top edge opens it at once, it closes about 0.5 s after the mouse leaves; how it
+  relates to the old edge dock (projects only, a click toggle) is open. One line for
   H as well?
 - The frame's bottom edge is cut off in the horizontal path line (H and M): the current
   segment is a tab joined to the row below.

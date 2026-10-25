@@ -33,8 +33,14 @@ Kompakter Überblick: `docs/STATUS.md`.
         [ ] E4 Minimalansicht M mit Pfad-Dropdown (Hover), Regal = Projekte einer Ebene nach rechts
             [x] Schritt 1: Knopf M, eine Zeile, Dropdown bis "Projekte", Kaskade nach rechts; schmale Knöpfe, 1x Suche und Clipboard
             [ ] Clipboard (Multiclipboard, wandert in alle Projekte mit) als kleiner Icon-Knopf statt Ordner im Regal
-            [ ] Schritt 2: Auftauchen am oberen Bildschirmrand (Edge-Dock)
-            [ ] Rahmen: Unterkante in der waagrechten Pfadleiste abgeschnitten (H und M)  [ ] E5 SunTree  [ ] E6 Filter
+            [ ] Schritt 2: Auftauchen am oberen Bildschirmrand (Edge-Dock) - zurückgestellt (2026-10-25): im Prototyp reicht
+                das CWD links oben im Scope-Fenster. Später voraussichtlich: volle Bildschirmbreite, Kante über die ganze
+                Breite klappt sofort auf, zu nach ca. 0,5 s ohne Maus im Fenster; Verhältnis zum alten Edge-Dock offen
+            [x] Ein Badge (z. B. das € von 04_Finanz) nimmt Klicks an wie das Ordner-Icon (2026-10-25)
+            [ ] Beim visuellen Makeover: Rahmen-Unterkante in der waagrechten Pfadleiste abgeschnitten (H und M);
+                in H springt bei sehr langer Pfadzeile das Layout, sobald die Maus auf einen Ordner fährt (die Pfadzeile
+                kommt nach oben, die Ordner rutschen weg, ein Doppelklick trifft ein Pfadsegment) - schon vor M so
+        [ ] E5 SunTree  [ ] E6 Filter
     [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein
         Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
         Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:
