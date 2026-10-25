@@ -16,35 +16,102 @@ ApplicationWindow {
     property var filtersModel: []
     property var parentModel: []
     property string selectedFilterName: ""
-    property string cpdPath: ""
-    property string cpdLabel: ""
-    property var perspectiveState: ({ active: false, cpd: "", projectRoot: "", cwdReal: "" })
-    property string lastSyncedPerspectiveCpd: ""
-    property bool lastSyncedPerspectiveActive: false
     property int hoveredLeftIndex: -1
     property int hoveredRightIndex: -1
     property int hoveredCenterIndex: -1
-    property int hoveredCpdIndex: -1
+    property int hoveredFrameIndex: -1
     property int hoveredTopIndex: -1
-    property int selectedLeftIndex: -1
     property int pendingLeftClickIndex: -1
-    property int leftEventSeq: 0
     property string cwdPath: ""
     property string currentProjectColor: ""
+
+    // --- The lens (Designdocument Perspective Resolver MVP.md, Part A) -------------------
+    // The lens lives in one session (the perspective daemon), shared with Scope; SunTree
+    // only asks it and shows what it answers - it builds no lens paths. The gestures are
+    // Scope's. With a lens on, the left half shows the lens' folder in its project and a
+    // frame (✕ and the lens' levels) stands above the CWD.
+    property var lensState: ({ active: false })
+    readonly property bool lensOn: !!(lensState && lensState.active)
+    readonly property bool lensInProject: lensOn && !!lensState.project
 
     function refreshModels() {
         cwdPath = String(sunTreeBackend.cwd() || "")
         foldersModel = sunTreeBackend.listFolders()
         currentProjectColor = String(sunTreeBackend.effectiveProjectColor(cwdPath) || "")
-        syncPerspectiveState()
-        if (perspectiveState.active) {
-            embryosModel = sunTreeBackend.listPerspectiveTemplates(String(perspectiveState.cpd || ""))
-        } else {
-            embryosModel = sunTreeBackend.listEmbryos()
-        }
+        var reply = sunTreeBackend.lens("state", {})
+        lensState = (reply && reply.ok) ? reply.result : ({ active: false })
+        embryosModel = sunTreeBackend.listEmbryosAt(leftListingPath())
         clipboardModel = sunTreeBackend.listClipboardEntries()
         filtersModel = sunTreeBackend.listFilters()
         parentModel = sunTreeBackend.listParents()
+    }
+
+    /// The left half: the MyOS folders of the CWD; with a lens on, the lens' folder.
+    function leftListingPath() {
+        return lensInProject ? String(lensState.target || "") : cwdPath
+    }
+
+    /// Ask the session (look_at, move_to, take_off, ...) and show the lens afterwards.
+    function lensRequest(method, params) {
+        var reply = sunTreeBackend.lens(method, params || ({}))
+        if (!reply || !reply.ok) {
+            console.log("lens", method, "failed:", reply ? reply.error : "no reply")
+            return false
+        }
+        refreshModels()
+        leftSectorCanvas.requestPaint()
+        return true
+    }
+
+    /// A MyOS folder (born or embryo): a double click on it puts on its lens.
+    function isMyosFolder(entry) {
+        if (entry && entry.folderType !== undefined && !isNaN(Number(entry.folderType))) {
+            return Number(entry.folderType) > 0
+        }
+        return !!(entry && entry.isEmbryo === true)
+    }
+
+    /// Go to path: with a lens on, a project moves the lens there, keeping its depth; any
+    /// other folder takes it off (Scope's projects row).
+    function navigateTo(path) {
+        var target = String(path || "")
+        if (target.length === 0) return
+        if (lensOn) {
+            if (sunTreeBackend.lens("move_to", { "path": target }).ok) {
+                sunTreeBackend.setCwd(target)
+                return
+            }
+            sunTreeBackend.lens("take_off", {})
+        }
+        sunTreeBackend.setCwd(target)
+    }
+
+    /// ✕ on the frame: only the lens goes, one stays where it looked - its folder in its
+    /// project becomes the CWD (an embryo stays one: then the project).
+    function takeOffLens() {
+        if (!lensOn) return
+        var projectDir = String(lensState.project_dir || "")
+        var target = String(lensState.target || "")
+        if (!lensRequest("take_off")) return
+        if (!sunTreeBackend.setCwd(target) && projectDir.length > 0) {
+            sunTreeBackend.setCwd(projectDir)
+        }
+    }
+
+    /// The frame: the levels of the lens below its project (04_Finanz, Ausgaben, ...).
+    function frameEntries() {
+        if (!lensInProject) return []
+        var projectDir = String(lensState.project_dir || "").replace(/\/+$/, "")
+        var target = String(lensState.target || "").replace(/\/+$/, "")
+        if (target.indexOf(projectDir + "/") !== 0) return []
+        var parts = target.slice(projectDir.length + 1).split("/").filter(function(p) { return p.length > 0 })
+        var out = []
+        var path = projectDir
+        for (var i = 0; i < parts.length; i++) {
+            path += "/" + parts[i]
+            out.push({ label: parts[i], path: path })
+        }
+        return out
     }
 
     function toggleFromHotkey() {
@@ -82,25 +149,14 @@ ApplicationWindow {
 
     function leftEntries() {
         var rows = []
+        var base = leftListingPath().replace(/\/+$/, "")
         for (var i = 0; i < embryosModel.length; i++) {
             var item = embryosModel[i]
-            if (perspectiveState.active) {
-                if (String((item && item.nodeType) ? item.nodeType : "") !== "dir") {
-                    continue
-                }
-                rows.push({
-                    kind: "template",
-                    label: String((item && item.name) ? item.name : ""),
-                    cpd: String((item && item.cpd) ? item.cpd : ""),
-                    color: String((item && item.color) ? item.color : ""),
-                    entry: item
-                })
-                continue
-            }
+            var name = String((item && item.name) ? item.name : "")
             rows.push({
                 kind: "template",
-                label: String((item && item.name) ? item.name : ""),
-                cpd: "",
+                label: name.indexOf("/") >= 0 ? name.split("/").filter(function(p) { return p.length > 0 }).slice(-1)[0] : name,
+                path: String((item && item.path) ? item.path : "") || (name.charAt(0) === "/" ? name : base + "/" + name),
                 color: String((item && item.color) ? item.color : ""),
                 entry: item
             })
@@ -187,14 +243,6 @@ ApplicationWindow {
         return rows
     }
 
-    function currentTemplateRootName() {
-        var fromState = String((perspectiveState && perspectiveState.templateRoot) ? perspectiveState.templateRoot : "").trim()
-        if (fromState.length > 0) {
-            return fromState
-        }
-        return "Standard"
-    }
-
     function centerStackEntries() {
         var rows = parentModel || []
         var out = []
@@ -220,45 +268,6 @@ ApplicationWindow {
         return out
     }
 
-    function parsePerspectiveCpd(cpd) {
-        var raw = String(cpd || "").trim()
-        var parts = raw.split("/").filter(function(p) { return p.length > 0 })
-        var idx = -1
-        for (var i = 0; i < parts.length; i++) {
-            if (parts[i] === "Projekte") {
-                idx = i
-                break
-            }
-        }
-        if (idx < 0 || idx + 1 >= parts.length) {
-            return { valid: false, templateParts: [], projectName: "", tailParts: [] }
-        }
-        return {
-            valid: true,
-            templateParts: parts.slice(0, idx),
-            projectName: String(parts[idx + 1] || ""),
-            tailParts: parts.slice(idx + 2)
-        }
-    }
-
-    function buildPerspectiveCpd(templateParts, projectName, tailParts) {
-        var out = []
-        for (var i = 0; i < templateParts.length; i++) out.push(String(templateParts[i]))
-        out.push("Projekte")
-        out.push(String(projectName || ""))
-        for (var j = 0; j < tailParts.length; j++) out.push(String(tailParts[j]))
-        return "/" + out.filter(function(p) { return p.length > 0 }).join("/")
-    }
-
-    function displayPathFromPerspectiveCpd(cpd) {
-        var parsed = parsePerspectiveCpd(cpd)
-        if (!parsed.valid) {
-            return ""
-        }
-        var displayParts = ["Templates"].concat(parsed.templateParts).concat(parsed.tailParts)
-        return "/" + displayParts.join("/") + "/"
-    }
-
     function parseApdFromPath(path) {
         var raw = String(path || "").trim()
         var parts = raw.split("/").filter(function(p) { return p.length > 0 })
@@ -282,222 +291,28 @@ ApplicationWindow {
         }
     }
 
-    function sanitizeTailParts(parts) {
-        var out = []
-        for (var i = 0; i < (parts || []).length; i++) {
-            var part = String(parts[i] || "").replace(/\//g, "").trim()
-            if (part.length > 0) {
-                out.push(part)
-            }
-        }
-        return out
-    }
-
-    function tailPartsFromLeftRow(row) {
-        if (row && String(row.cpd || "").length > 0) {
-            var parsedCpd = parsePerspectiveCpd(String(row.cpd || ""))
-            if (parsedCpd.valid) {
-                return sanitizeTailParts(parsedCpd.templateParts.concat(parsedCpd.tailParts))
-            }
-        }
-        var entryPath = String((row && row.entry && row.entry.path) ? row.entry.path : "")
-        if (entryPath.length > 0) {
-            var parsedPath = parseApdFromPath(entryPath)
-            if (parsedPath.valid) {
-                return sanitizeTailParts(parsedPath.tailParts)
-            }
-        }
-        var label = String((row && row.label) ? row.label : "").replace(/\//g, "").trim()
-        if (label.length > 0) {
-            return [label]
-        }
-        return []
-    }
-
-    function _isPrefixParts(prefix, full) {
-        if ((prefix || []).length > (full || []).length) {
-            return false
-        }
-        for (var i = 0; i < prefix.length; i++) {
-            if (String(prefix[i] || "") !== String(full[i] || "")) {
-                return false
-            }
-        }
-        return true
-    }
-
-    function derivePerspectiveTailForLeftDoubleClick(row) {
-        var parsedState = parsePerspectiveCpd(String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : ""))
-        var baseTail = parsedState.valid ? sanitizeTailParts(parsedState.templateParts.concat(parsedState.tailParts)) : []
-        var parsedRow = parsePerspectiveCpd(String((row && row.cpd) ? row.cpd : ""))
-        if (parsedRow.valid) {
-            var rowTail = sanitizeTailParts(parsedRow.templateParts.concat(parsedRow.tailParts))
-            // Accept resolver-provided CPD only when it extends current CPD tail.
-            if (_isPrefixParts(baseTail, rowTail) && rowTail.length >= baseTail.length) {
-                return rowTail
-            }
-        }
-        var label = String((row && row.label) ? row.label : "").replace(/\//g, "").trim()
-        if (label.length === 0) {
-            return baseTail
-        }
-        return baseTail.concat([label])
-    }
-
-    function buildRealPathFromApdAndTail(apd, tailParts) {
-        if (!apd || !apd.valid) {
-            return ""
-        }
-        var cleanTail = sanitizeTailParts(tailParts)
-        var allParts = []
-        for (var i = 0; i < apd.apdParts.length; i++) {
-            allParts.push(String(apd.apdParts[i] || ""))
-        }
-        for (var j = 0; j < cleanTail.length; j++) {
-            allParts.push(cleanTail[j])
-        }
-        return "/" + allParts.filter(function(p) { return p.length > 0 }).join("/")
-    }
-
-    function buildCpdFromApdAndTail(apd, tailParts) {
-        if (!apd || !apd.valid) {
-            return ""
-        }
-        return buildPerspectiveCpd(sanitizeTailParts(tailParts), String(apd.projectName || ""), [])
-    }
-
-    function ensurePerspectiveOpenFromCwd() {
-        if (perspectiveState.active) {
-            return true
-        }
-        var opened = sunTreeBackend.openPerspective(String(sunTreeBackend.cwd() || ""))
-        console.log("[SunTree] openPerspective from left dblclick", JSON.stringify(opened))
-        syncPerspectiveState()
-        if (!perspectiveState.active) {
-            console.warn("[SunTree] perspective open failed from current CWD", String(sunTreeBackend.cwd() || ""))
-            return false
-        }
-        return true
-    }
-
+    /// A click on the left half: with a lens on, a flatter or sharper lens; without one,
+    /// SunTree goes into the folder (it has no file list to browse in).
     function applyLeftClick(index) {
         var rows = leftEntries()
-        if (!(index >= 0 && index < rows.length)) {
-            return
-        }
-        var row = rows[index]
-        var apd = parseApdFromPath(String(sunTreeBackend.cwd() || ""))
-        if (!apd.valid) {
-            console.warn("[SunTree] left click missing APD in CWD", String(sunTreeBackend.cwd() || ""))
-            return
-        }
-        var tail = tailPartsFromLeftRow(row)
-        var targetReal = buildRealPathFromApdAndTail(apd, tail)
-        console.log("[SunTree] left click -> CWD", JSON.stringify({ apdPath: apd.apdPath, tail: tail, targetReal: targetReal }))
-        if (targetReal.length > 0) {
-            sunTreeBackend.enterFolder(targetReal)
+        if (!(index >= 0 && index < rows.length)) return
+        if (lensOn) {
+            lensRequest("look_at", { "path": rows[index].path })
+        } else {
+            sunTreeBackend.enterFolder(rows[index].path)
         }
     }
 
+    /// A double click: on a MyOS folder it puts on its lens and the CWD stays; with a lens
+    /// on it gets sharper, or another department's lens is put on (A3).
     function applyLeftDoubleClick(index) {
         var rows = leftEntries()
-        if (!(index >= 0 && index < rows.length)) {
-            return
+        if (!(index >= 0 && index < rows.length)) return
+        if (lensOn || isMyosFolder(rows[index].entry)) {
+            lensRequest("look_at", { "path": rows[index].path })
+        } else {
+            sunTreeBackend.enterFolder(rows[index].path)
         }
-        if (!ensurePerspectiveOpenFromCwd()) {
-            return
-        }
-        var row = rows[index]
-        var apd = parseApdFromPath(String(sunTreeBackend.cwd() || ""))
-        if (!apd.valid) {
-            console.warn("[SunTree] left dblclick missing APD in CWD", String(sunTreeBackend.cwd() || ""))
-            return
-        }
-        var tail = perspectiveState.active
-                   ? derivePerspectiveTailForLeftDoubleClick(row)
-                   : tailPartsFromLeftRow(row)
-        var targetCpd = buildCpdFromApdAndTail(apd, tail)
-        console.log("[SunTree] left dblclick -> CPD", JSON.stringify({ projectName: apd.projectName, tail: tail, targetCpd: targetCpd }))
-        if (targetCpd.length === 0) {
-            console.warn("[SunTree] left dblclick no target CPD", index, JSON.stringify(row))
-            return
-        }
-        var setRes = sunTreeBackend.setPerspectiveCpd(targetCpd)
-        console.log("[SunTree] setPerspectiveCpd result", JSON.stringify(setRes))
-        if (!setRes || !setRes.ok) {
-            console.warn("[SunTree] setPerspectiveCpd failed", targetCpd, JSON.stringify(setRes || {}))
-            return
-        }
-        syncPerspectiveState()
-        cpdLabel = String((row && row.label) ? row.label : "")
-        selectedLeftIndex = index
-        refreshModels()
-        leftSectorCanvas.requestPaint()
-    }
-
-    function syncPerspectiveState() {
-        var next = sunTreeBackend.getPerspectiveState() || ({ active: false, cpd: "" })
-        var nextActive = !!next.active
-        var nextCpd = String(next.cpd || "")
-        var changed = (nextActive !== lastSyncedPerspectiveActive) || (nextCpd !== lastSyncedPerspectiveCpd)
-        perspectiveState = next
-        var rendered = next.active ? displayPathFromPerspectiveCpd(next.cpd) : ""
-        cpdPath = rendered.length > 0 ? rendered : String(next.active ? (next.cpd || "") : "")
-        if (changed) {
-            lastSyncedPerspectiveActive = nextActive
-            lastSyncedPerspectiveCpd = nextCpd
-            embryosModel = nextActive
-                          ? sunTreeBackend.listPerspectiveTemplates(nextCpd)
-                          : sunTreeBackend.listEmbryos()
-            leftSectorCanvas.requestPaint()
-        }
-    }
-
-    function cpdStackEntries() {
-        var currentCpd = String((perspectiveState && perspectiveState.cpd) ? perspectiveState.cpd : "")
-        if (currentCpd === "/Templates" || currentCpd === "/Templates/" || currentCpd.indexOf("/Templates/") === 0) {
-            var outTemplates = [
-                { label: "select Template", cpd: "/Templates" },
-                { label: "Perspective OFF", cpd: "/Templates" }
-            ]
-            var tailParts = currentCpd.split("/").filter(function(p) { return p.length > 0 }).slice(1)
-            for (var t = 0; t < tailParts.length; t++) {
-                var prefix = "/Templates/" + tailParts.slice(0, t + 1).join("/")
-                outTemplates.push({
-                    label: "/" + tailParts[t] + "/",
-                    cpd: prefix
-                })
-            }
-            return outTemplates
-        }
-        var parsed = parsePerspectiveCpd(currentCpd)
-        if (!parsed.valid) {
-            return [
-                { label: "select Template", cpd: "/Templates" },
-                { label: "Perspective OFF", cpd: "/Templates" }
-            ]
-        }
-        var hint = parsed.templateParts.length > 0 ? String(parsed.templateParts[0] || "") : ""
-        var mergedTail = parsed.templateParts.slice(1).concat(parsed.tailParts)
-        var out = [
-            { label: "select Template", cpd: "/Templates" },
-            { label: "Perspective OFF", cpd: "/Templates" }
-        ]
-        var cwpName = projectNameFromCwd()
-        if (cwpName.length > 0) {
-            out.push({
-                label: "/" + cwpName + " (CWP)/",
-                cpd: buildPerspectiveCpd(hint.length > 0 ? [hint] : [], parsed.projectName, [])
-            })
-        }
-        for (var i = 0; i < mergedTail.length; i++) {
-            var nextTail = mergedTail.slice(0, i + 1)
-            out.push({
-                label: "/" + String(mergedTail[i] || "") + "/",
-                cpd: buildPerspectiveCpd(hint.length > 0 ? [hint] : [], parsed.projectName, nextTail)
-            })
-        }
-        return out
     }
 
     function leftSectorIndex(localX, localY, areaWidth, areaHeight, count, innerR, outerR) {
@@ -577,6 +392,8 @@ ApplicationWindow {
     }
 
     Component.onCompleted: refreshModels()
+    // The lens is shared with Scope: coming back, show what it is now.
+    onActiveChanged: if (active) refreshModels()
 
     Timer {
         id: leftClickDelayTimer
@@ -584,14 +401,6 @@ ApplicationWindow {
         repeat: false
         onTriggered: {
             var idx = pendingLeftClickIndex
-            leftEventSeq += 1
-            console.log("[SunTree][L-Event#" + leftEventSeq + "] timer triggered", JSON.stringify({
-                hoveredLeftIndex: hoveredLeftIndex,
-                pendingLeftClickIndex: pendingLeftClickIndex,
-                resolvedIndex: idx,
-                rowsLen: leftEntries().length,
-                ts: Date.now()
-            }))
             pendingLeftClickIndex = -1
             applyLeftClick(idx)
         }
@@ -765,7 +574,7 @@ ApplicationWindow {
                                 var segPos = rows.length - 1 - i
                                 var a0 = (startDeg + segPos * slice) * Math.PI / 180
                                 var a1 = (startDeg + (segPos + 1) * slice) * Math.PI / 180
-                                var selected = (selectedLeftIndex === i)
+                                var selected = false
                                 var hovered = (hoveredLeftIndex === i)
                                 var baseColor = String((rows[i] && rows[i].color) ? rows[i].color : "")
                                 ctx.beginPath()
@@ -800,28 +609,6 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        onPressed: function(mouse) {
-                            leftEventSeq += 1
-                            console.log("[SunTree][L-Event#" + leftEventSeq + "] pressed", JSON.stringify({
-                                x: mouse.x,
-                                y: mouse.y,
-                                hoveredLeftIndex: hoveredLeftIndex,
-                                pendingLeftClickIndex: pendingLeftClickIndex,
-                                rowsLen: leftEntries().length,
-                                ts: Date.now()
-                            }))
-                        }
-                        onReleased: function(mouse) {
-                            leftEventSeq += 1
-                            console.log("[SunTree][L-Event#" + leftEventSeq + "] released", JSON.stringify({
-                                x: mouse.x,
-                                y: mouse.y,
-                                hoveredLeftIndex: hoveredLeftIndex,
-                                pendingLeftClickIndex: pendingLeftClickIndex,
-                                rowsLen: leftEntries().length,
-                                ts: Date.now()
-                            }))
-                        }
                         onPositionChanged: function(mouse) {
                             hoveredLeftIndex = leftSectorIndex(
                                 mouse.x, mouse.y,
@@ -837,24 +624,10 @@ ApplicationWindow {
                             leftSectorCanvas.requestPaint()
                         }
                         onClicked: {
-                            leftEventSeq += 1
-                            console.log("[SunTree][L-Event#" + leftEventSeq + "] clicked", JSON.stringify({
-                                hoveredLeftIndex: hoveredLeftIndex,
-                                pendingLeftClickIndex: pendingLeftClickIndex,
-                                rowsLen: leftEntries().length,
-                                ts: Date.now()
-                            }))
                             pendingLeftClickIndex = hoveredLeftIndex
                             leftClickDelayTimer.restart()
                         }
                         onDoubleClicked: {
-                            leftEventSeq += 1
-                            console.log("[SunTree][L-Event#" + leftEventSeq + "] doubleclicked", JSON.stringify({
-                                hoveredLeftIndex: hoveredLeftIndex,
-                                pendingLeftClickIndex: pendingLeftClickIndex,
-                                rowsLen: leftEntries().length,
-                                ts: Date.now()
-                            }))
                             leftClickDelayTimer.stop()
                             pendingLeftClickIndex = -1
                             applyLeftDoubleClick(hoveredLeftIndex)
@@ -949,54 +722,77 @@ ApplicationWindow {
                             var rows = rightEntries()
                             if (hoveredRightIndex >= 0 && hoveredRightIndex < rows.length) {
                                 var full = fullPathFromEntry(rows[hoveredRightIndex].entry)
-                                if (full.length > 0) {
-                                    sunTreeBackend.enterFolder(full)
-                                }
+                                navigateTo(full)
                             }
                         }
                     }
                 }
 
                 Rectangle {
-                    id: cpdStack
+                    // The lens' frame (A3): ✕ takes it off (one stays where it looked); a
+                    // level makes the lens flatter. Nearest to the CWD stands the deepest.
+                    id: lensFrame
                     x: layoutRoot.stackX
                     y: layoutRoot.shellTop + 10
                     width: layoutRoot.stackWidth
                     height: Math.max(80, layoutRoot.cwdY - y - 10)
                     radius: 10
-                    color: "#1a2d35"
-                    border.width: 0
-                    visible: perspectiveState.active
+                    color: "transparent"
+                    border.width: 2
+                    border.color: "#e08a1e"
+                    visible: lensInProject
 
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.NoButton
                         hoverEnabled: true
-                        onExited: hoveredCpdIndex = -1
+                        onExited: hoveredFrameIndex = -1
                     }
 
                     Flickable {
                         anchors.fill: parent
                         anchors.margins: 8
-                        contentHeight: Math.max(cpdColumn.implicitHeight, height)
+                        contentHeight: Math.max(frameColumn.implicitHeight, height)
                         clip: true
 
                         Column {
-                            id: cpdColumn
+                            id: frameColumn
                             y: Math.max(0, parent.height - implicitHeight)
                             width: parent.width
                             spacing: 6
 
+                            Rectangle {
+                                width: 30
+                                height: 30
+                                radius: 7
+                                color: takeOffMouse.containsMouse ? "#5a4a33" : "#3a3328"
+                                border.width: 1
+                                border.color: "#e08a1e"
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "\u2715"
+                                    color: "#f4e6d2"
+                                    font.pixelSize: 13
+                                }
+
+                                MouseArea {
+                                    id: takeOffMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: takeOffLens()
+                                }
+                            }
+
                             Repeater {
-                                id: cpdRepeater
-                                model: cpdStackEntries()
+                                model: frameEntries()
                                 delegate: Rectangle {
                                     property var rowData: modelData
                                     width: parent.width
                                     height: 30
                                     radius: 7
-                                    color: "#355767"
-                                    border.width: (index === 0 || index === (cpdRepeater.count - 1)) ? 1 : 0
+                                    color: hoveredFrameIndex === index ? "#4a6f7f" : "#355767"
+                                    border.width: index === frameEntries().length - 1 ? 1 : 0
                                     border.color: "#8cb8c4"
 
                                     Text {
@@ -1007,28 +803,16 @@ ApplicationWindow {
                                         text: String((rowData && rowData.label) ? rowData.label : "")
                                         color: "#e4f6fb"
                                         font.pixelSize: 12
+                                        font.bold: index === frameEntries().length - 1
                                         elide: Text.ElideRight
                                     }
 
                                     MouseArea {
                                         anchors.fill: parent
                                         hoverEnabled: true
-                                        onEntered: hoveredCpdIndex = index
-                                        onExited: if (hoveredCpdIndex === index) hoveredCpdIndex = -1
-                                        onClicked: {
-                                            if (index <= 1) {
-                                                // Canonical OFF anchor keeps perspective context active.
-                                                sunTreeBackend.setPerspectiveCpd("/Templates")
-                                                sunTreeBackend.refreshAll()
-                                                return
-                                            }
-                                            var targetCpd = String((rowData && rowData.cpd) ? rowData.cpd : "")
-                                            if (targetCpd.length > 0) {
-                                                sunTreeBackend.setPerspectiveCpd(targetCpd)
-                                                // Trigger the normal backend->UI refresh path.
-                                                sunTreeBackend.refreshAll()
-                                            }
-                                        }
+                                        onEntered: hoveredFrameIndex = index
+                                        onExited: if (hoveredFrameIndex === index) hoveredFrameIndex = -1
+                                        onClicked: lensRequest("look_at", { "path": String(rowData.path || "") })
                                     }
                                 }
                             }
@@ -1089,10 +873,7 @@ ApplicationWindow {
                                         onEntered: hoveredCenterIndex = index
                                         onExited: if (hoveredCenterIndex === index) hoveredCenterIndex = -1
                                         onClicked: {
-                                            var target = String((rowData && rowData.path) ? rowData.path : "")
-                                            if (target.length > 0) {
-                                                sunTreeBackend.setCwd(target)
-                                            }
+                                            navigateTo(String((rowData && rowData.path) ? rowData.path : ""))
                                         }
                                     }
                                 }
@@ -1210,7 +991,7 @@ ApplicationWindow {
                     x: cwdOval.x + 8
                     y: cwdOval.y + cwdOval.height * 0.5 - height * 0.5
                     z: 22
-                    visible: hoveredCpdIndex >= 0
+                    visible: hoveredFrameIndex >= 0
                     antialiasing: true
                     onPaint: {
                         var ctx = getContext("2d")

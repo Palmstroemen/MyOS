@@ -237,6 +237,18 @@ Built (2026-10-22):
   edge, as high as the button, little room after the name. One search and one clipboard,
   beside the folders; no display menu. The path line keeps no room when it is empty. The
   dropdown and V's preview columns have no hover drop (it joins a tab to H's preview row).
+- SunTree at the session (E5, 2026-10-25): `daemon/lens_link.py` is a program's line to the
+  lens - the daemon of its projects root (started when none runs, ended only by the program
+  that started it), the lens requests, and the Desk following each move (A5). Scope and
+  SunTree both use it, so they share one lens. SunTree has Scope's gestures: a double click
+  on a MyOS folder (left half) puts on its lens and the CWD stays; with a lens on the left
+  half shows the lens' folder in its project and a click makes it sharper; the right half
+  and the parents move the lens with a project or take it off; a frame above the CWD
+  (✕ and the lens' levels) replaces the old CPD stack. Coming back (hotkey, activation)
+  SunTree asks for the lens again. Without a lens a single click still goes into the
+  folder: SunTree has no file list to browse in.
+  Scope and SunTree always share the place too (decided 2026-10-25): the session has one
+  CWD; not built yet - each still keeps its own CWD and only tells the session.
 - LibreOffice reads its lock file right after creating it: the drive opens created files
   for reading and writing (fusepy does not pass the open flags to `create`).
 
@@ -251,6 +263,8 @@ Built (2026-10-22):
   failure), in Scope's QML (display path and CPD cache), in SunTree's QML, and in filters
   (changing ScopeApi past the daemon). Scope attached to any running daemon and sent some
   calls to it, others to its local ScopeApi.
+- **SunTree built CPDs itself** (`/Templates/04_Finanz/Projekte/Job`) and kept a stack with
+  "select Template" and "Perspective OFF"; it now asks the shared session (E5).
 - **Single click on a department folder** opened the real `Templates` folder.
 - **Two menus and a CWD to come back to** (decided 2026-10-22) gave way to one path line
   with the framed lens (A3, 2026-10-23): ✕ keeps the place, the project left of the frame

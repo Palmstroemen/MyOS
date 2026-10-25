@@ -41,8 +41,8 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
-from core.scope_api import ScopeApi, find_project_root
-from daemon.client import LocalSession, connect as connect_daemon
+from core.scope_api import ScopeApi
+from daemon.lens_link import LensLink
 
 
 class DropDebugFilter(QObject):
@@ -325,20 +325,11 @@ class Backend(QObject):
         self._filing_timer.timeout.connect(self._catch_up_filing)
         QTimer.singleShot(3000, self._catch_up_filing)
         self._filing_timer.start(24 * 60 * 60 * 1000)
-        # The perspective daemon of this projects root: the lens session and the
-        # "Perspektiven" drive next to "Projekte" (daemon/perspective_daemon.py). Scope
-        # uses only the daemon of its own root and starts it when none runs (switched off
-        # with MYOS_SCOPE_START_DAEMON=0, e.g. for tests). The lens is the daemon's session;
-        # without a daemon Scope asks a session of its own (then no other program sees it).
-        self._daemon_client = None
-        self._daemon_process = None
-        self._lens_session = None
-        self._projects_root = self._api.projects_root()
-        if self._projects_root is not None:
-            self._daemon_client = connect_daemon(self._projects_root)
-            if self._daemon_client is None and os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0":
-                self._start_perspective_daemon()
-            self._lens_session = self._daemon_client or LocalSession(self._projects_root)
+        # The lens: the daemon of this projects root, shared with SunTree (daemon/lens_link.py).
+        # Scope starts it when none runs (switched off with MYOS_SCOPE_START_DAEMON=0, e.g.
+        # for tests).
+        self._lens_link = LensLink(self._api, start_daemon=os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0")
+        self._projects_root = self._lens_link.projects_root
 
     @Slot(str, bool, bool, result="QVariantList")
     def listChildren(self, path: str, includeEmbryos: bool, showHidden: bool = False):
@@ -444,18 +435,9 @@ class Backend(QObject):
 
     @Slot(str)
     def setContext(self, path: str) -> None:
-        # The desktop follows (Desk.md) and changes are saved in the core (DeskService).
-        self._update_context(path, self.lens("state", {}).get("result") or {})
-
-    def _update_context(self, path: str, lens_state: dict) -> None:
-        # With a lens on, its Desk overrules the project's and changes of the desktop are
-        # kept in the template (Designdocument Perspective Resolver MVP.md, A5).
-        # Security: the template is written only where the file system lets the user
-        # write it (its ACLs.md governs the projects made from it, not the template).
-        if lens_state.get("active") and lens_state.get("project_dir"):
-            self._api.update_context(path, str(lens_state.get("desk") or ""), str(lens_state.get("desk_save") or ""))
-        else:
-            self._api.update_context(path)
+        # The desktop follows (Desk.md, with a lens on its Desk) and changes are saved in
+        # the core (DeskService).
+        self._lens_link.update_context(path)
 
     @Slot(str, str, result="QVariantMap")
     def ensureProjectConfig(self, path: str, configName: str):
@@ -490,28 +472,13 @@ class Backend(QObject):
         return self._api.save_filter(path, sourcePath, targetId, newName)
 
     # The lens (Designdocument Perspective Resolver MVP.md, Part A): Scope only asks the
-    # session (daemon/perspective_daemon.py); it builds no lens paths itself.
-    _LENS_REQUESTS = frozenset({"state", "set_cwd", "put_on", "look_at", "go_into", "take_off",
-                                "move_to", "move_to_project", "to_shelf", "into_shelf", "listing"})
-    # Requests that may change the Desk (set_cwd does not: Scope sets the context after it).
-    _LENS_MOVES = frozenset({"put_on", "look_at", "go_into", "take_off", "move_to", "move_to_project",
-                             "to_shelf", "into_shelf"})
+    # session (daemon/lens_link.py); it builds no lens paths itself.
 
     @Slot(str, "QVariantMap", result="QVariantMap")
     def lens(self, method: str, params) -> dict:
-        """A lens request: {ok, result | error}; result describes the lens afterwards."""
-        if method not in self._LENS_REQUESTS or self._lens_session is None:
-            return {"ok": False, "error": f"no lens request: {method}"}
-        answer = self._lens_session.call(method, **dict(params or {}))
-        if method in self._LENS_MOVES and answer.get("ok"):
-            # The Desk follows the lens; ✕ in the same project changes no CWP (A5). Without
-            # the lens the project's Desk applies, as for the CWP, never a department's.
-            lens_state = answer.get("result") or {}
-            cwd = str(lens_state.get("cwd") or "")
-            path = lens_state.get("project_dir") or (find_project_root(Path(cwd)) if cwd else None)
-            if path:
-                self._update_context(str(path), lens_state)
-        return answer
+        """A lens request: {ok, result | error}; result describes the lens afterwards.
+        The Desk follows the lens."""
+        return self._lens_link.call(method, dict(params or {}))
 
     @Slot(result="QVariantMap")
     def lensBear(self) -> dict:
@@ -524,7 +491,7 @@ class Backend(QObject):
         # Security: only born where the user may write - as for any folder created.
         if not self._api.acl_allows("write", Path(target)):
             return {"ok": False, "error": f"no write access: {target}"}
-        return self._lens_session.call("bear")
+        return self._lens_link.bear()
 
     @Slot(str, str, result="QVariantMap")
     def previewSortTargetForMove(self, sourcePath: str, targetDir: str):
@@ -992,28 +959,6 @@ class Backend(QObject):
         QCursor.setPos(int(round(pos.x() + dx)), int(pos.y()))
         return True
 
-    def _start_perspective_daemon(self) -> None:
-        """Start the daemon of this projects root; its drive appears as "Perspektiven"
-        next to "Projekte"."""
-        root = self._projects_root
-        mount_point = root.parent / "Perspektiven"
-        try:
-            mount_point.mkdir(exist_ok=True)
-            self._daemon_process = subprocess.Popen(
-                [sys.executable, "-m", "daemon", "--projects-root", str(root), "--mount-point", str(mount_point)],
-                cwd=str(REPO_ROOT),
-                env=os.environ,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception:
-            return
-        for _ in range(30):  # up to 3 s until it answers
-            time.sleep(0.1)
-            self._daemon_client = connect_daemon(root)
-            if self._daemon_client is not None:
-                return
-
     def _on_about_to_quit(self) -> None:
         """Stop thumbnail tasks and timers so the app can exit promptly."""
         self._shutting_down = True
@@ -1026,17 +971,7 @@ class Backend(QObject):
         self._acl_pool.waitForDone(1000)
         self._filing_timer.stop()
         self._filing_pool.waitForDone(3000)  # a move in progress finishes
-        if self._daemon_process is not None:
-            # The drive ends with the Scope that started it. Only asked, never killed: a
-            # killed daemon leaves a dead drive behind. While a program still has a file
-            # open on the drive, the daemon waits and unmounts once it is free.
-            if self._daemon_client is not None:
-                try:
-                    self._daemon_client.request_shutdown(timeout=1.0)
-                except Exception:
-                    pass
-            self._daemon_process = None
-        self._daemon_client = None
+        self._lens_link.close()  # the drive ends with the Scope that started it
         for timer in self._thumb_refresh_timers.values():
             timer.stop()
         self._thumb_refresh_timers.clear()

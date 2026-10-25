@@ -14,6 +14,7 @@ from PySide6.QtGui import QGuiApplication, QIcon, QCursor
 from PySide6.QtQml import QQmlApplicationEngine
 
 from core.scope_api import ScopeApi
+from daemon.lens_link import LensLink
 
 
 class GlobalHotkeyService(QObject):
@@ -86,7 +87,11 @@ class SunTreeBackend(QObject):
         super().__init__()
         self._adapter = adapter
         self._cwd = str(Path(start_path).expanduser().resolve())
-        self._adapter.update_context(self._cwd)
+        # The lens: the daemon of the projects root, shared with Scope (daemon/lens_link.py).
+        # Started when none runs, with the same switch as Scope (MYOS_SCOPE_START_DAEMON=0).
+        self._lens = LensLink(adapter, start_daemon=os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0")
+        self._lens.call("set_cwd", {"path": self._cwd})
+        self._lens.update_context(self._cwd)
         self._clipboard = self._resolve_clipboard_dir()
         self._ensure_clipboard_dir()
 
@@ -132,10 +137,6 @@ class SunTreeBackend(QObject):
     def listFolders(self):
         return self._adapter.list_children(self._cwd)
 
-    @Slot(result="QVariantList")
-    def listEmbryos(self):
-        return self._adapter.list_templates(self._cwd)
-
     @Slot(str, result="QVariantList")
     def listEmbryosAt(self, path: str):
         try:
@@ -152,38 +153,18 @@ class SunTreeBackend(QObject):
     def listFilters(self):
         return self._adapter.list_filters(self._cwd)
 
-    @Slot(str, result="QVariantMap")
-    def openPerspective(self, path: str):
-        target = str(path or "").strip() or self._cwd
-        return self._adapter.perspective_open(target)
+    # The lens (Designdocument Perspective Resolver MVP.md, Part A): SunTree only asks the
+    # session, as Scope does; it builds no lens paths itself.
+    @Slot(str, "QVariantMap", result="QVariantMap")
+    def lens(self, method: str, params) -> dict:
+        """A lens request: {ok, result | error}; result describes the lens afterwards.
+        The Desk follows the lens."""
+        return self._lens.call(method, dict(params or {}))
 
-    @Slot(result="QVariantMap")
-    def getPerspectiveState(self):
-        return self._adapter.perspective_state()
-
-    @Slot(str, result="QVariantMap")
-    def setPerspectiveCpd(self, cpd: str):
-        return self._adapter.perspective_set_cpd(cpd)
-
-    @Slot(str, result="QVariantMap")
-    def resolvePerspectiveCpd(self, cpd: str):
-        return self._adapter.perspective_resolve_cpd(cpd)
-
-    @Slot(str, result="QVariantMap")
-    def resolvePerspectiveReal(self, path: str):
-        return self._adapter.perspective_resolve_real(path)
-
-    @Slot(str, result="QVariantList")
-    def listPerspectiveDir(self, cpd: str):
-        return self._adapter.perspective_list_dir(cpd)
-
-    @Slot(str, result="QVariantList")
-    def listPerspectiveTemplates(self, cpd: str):
-        return self._adapter.perspective_list_templates(cpd)
-
-    @Slot(result=bool)
-    def clearPerspective(self) -> bool:
-        return self._adapter.perspective_clear()
+    @Slot(result="QString")
+    def projectsRoot(self) -> str:
+        """The projects root ("Projekte"); "" outside the projects."""
+        return str(self._lens.projects_root or "")
 
     @Slot(str, result="QString")
     def effectiveProjectColor(self, path: str) -> str:
@@ -198,7 +179,8 @@ class SunTreeBackend(QObject):
         if not target.exists() or not target.is_dir():
             return False
         self._cwd = str(target)
-        self._adapter.update_context(self._cwd)
+        self._lens.call("set_cwd", {"path": self._cwd})  # a lens on stays where it is (A3)
+        self._lens.update_context(self._cwd)
         self.cwdChanged.emit(self._cwd)
         self.dataChanged.emit()
         return True
@@ -246,8 +228,11 @@ class SunTreeBackend(QObject):
 
     @Slot()
     def refreshAll(self) -> None:
-        self._adapter.update_context(self._cwd)
+        self._lens.update_context(self._cwd)
         self.dataChanged.emit()
+
+    def close(self) -> None:
+        self._lens.close()  # the drive ends with the program that started it
 
     def _resolve_clipboard_dir(self) -> str:
         myos_root = self._adapter.get_myos_root()
@@ -267,8 +252,11 @@ class MyOSBackendAdapter:
     def __init__(self, api: ScopeApi) -> None:
         self._api = api
 
-    def update_context(self, path: str) -> None:
-        self._api.update_context(path)
+    def projects_root(self):
+        return self._api.projects_root()
+
+    def update_context(self, path: str, lens_desk: str = "", lens_desk_save: Optional[str] = None) -> None:
+        self._api.update_context(path, lens_desk, lens_desk_save)
 
     def get_myos_root(self) -> Optional[str]:
         return self._api.get_myos_root()
@@ -284,30 +272,6 @@ class MyOSBackendAdapter:
 
     def list_filters(self, path: str) -> list:
         return self._api.list_filters(path)
-
-    def perspective_open(self, path: str, perspective_id: str = "flipped") -> dict:
-        return self._api.perspective_open(path, perspective_id)
-
-    def perspective_state(self) -> dict:
-        return self._api.perspective_state()
-
-    def perspective_set_cpd(self, cpd: str) -> dict:
-        return self._api.perspective_set_cpd(cpd)
-
-    def perspective_resolve_cpd(self, cpd: str) -> dict:
-        return self._api.perspective_resolve_cpd(cpd)
-
-    def perspective_resolve_real(self, path: str) -> dict:
-        return self._api.perspective_resolve_real(path)
-
-    def perspective_list_dir(self, cpd: str = "") -> list:
-        return self._api.perspective_list_dir(cpd)
-
-    def perspective_list_templates(self, cpd: str = "") -> list:
-        return self._api.perspective_list_templates(cpd)
-
-    def perspective_clear(self) -> bool:
-        return self._api.perspective_clear()
 
     def get_effective_project_color(self, path: str) -> Optional[str]:
         return self._api.get_effective_project_color(path)
@@ -356,6 +320,7 @@ def main() -> int:
     QTimer.singleShot(0, backend.refreshAll)
     exit_code = app.exec()
     hotkey_service.stop()
+    backend.close()
     return exit_code
 
 

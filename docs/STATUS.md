@@ -16,10 +16,10 @@ MyOS has moved beyond early prototyping. Core components are implemented and ite
 - **Desk** — The desktop follows the projects: per-project themes (apps, taskbar) and wallpaper (KDE, Cinnamon, GNOME), changes saved automatically; project icon. Taskbar programs not yet
 - **Sort** — `Sort.md` runtime for automatic project sorting
 - **Tagging** — Project-scoped tags, color registry, security-tested
-- **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`)
+- **SunTree** — Experimental half-circle navigator (early stage, see `SunTree/ToDo.md`); shares the lens with Scope (`daemon/lens_link.py`)
 - **ClipboardTool** — CopyQ integration that saves text clips as Markdown
 
-Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py Scope/tests/test_format_utils.py Scope/tests/test_scope_i18n.py Scope/tests/test_scope_script_imports.py Scope/tests/test_lens_frame.py Scope/tests/test_lens_desk.py Scope/tests/test_folder_item_hit.py` — 777 passing, 2 benchmarks deselected (2026-10-25; run them with `-m benchmark`). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
+Test suite: `python3 -m pytest core/tests/unit cli/tests PostFix/tests Scope/tests/test_list_sort.py Scope/tests/test_format_utils.py Scope/tests/test_scope_i18n.py Scope/tests/test_scope_script_imports.py Scope/tests/test_lens_frame.py Scope/tests/test_lens_desk.py Scope/tests/test_folder_item_hit.py SunTree/tests` — 792 passing, 2 benchmarks deselected (2026-10-25; run them with `-m benchmark`). The other tests in `Scope/tests` (`test_scope_smoke.py`, one in `test_scope_browser_parity.py`) already failed before Oct 2026 and are not part of the suite yet.
 
 ## Current Priorities
 

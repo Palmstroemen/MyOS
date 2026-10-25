@@ -40,7 +40,10 @@ Kompakter Überblick: `docs/STATUS.md`.
             [ ] Beim visuellen Makeover: Rahmen-Unterkante in der waagrechten Pfadleiste abgeschnitten (H und M);
                 in H springt bei sehr langer Pfadzeile das Layout, sobald die Maus auf einen Ordner fährt (die Pfadzeile
                 kommt nach oben, die Ordner rutschen weg, ein Doppelklick trifft ein Pfadsegment) - schon vor M so
-        [ ] E5 SunTree  [ ] E6 Filter
+        [x] E5 SunTree an der Sitzung (2026-10-25): eine Brille mit Scope (daemon/lens_link.py), Gesten wie in Scope,
+            Rahmen mit ✕ statt CPD-Stapel
+            [ ] Scope und SunTree teilen immer denselben Ort (entschieden 2026-10-25): beide folgen dem CWD der Sitzung
+        [ ] E6 Filter (nutzt noch die alte CPD-API in ScopeApi; danach diese aufräumen)
     [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein
         Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
         Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:
