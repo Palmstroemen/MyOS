@@ -28,6 +28,10 @@ What follows from it:
 
 - After the action SunTree is gone, so one no longer sees where the files went: a short
   notice ("3 files -> Belege/03"), perhaps with undo, so a wrong drop is not annoying.
+- **No background** (2026-10-26): the window is transparent, only the crown and the stem are
+  drawn over what lies below (it needs a compositor, as Cinnamon has). A click beside them,
+  in the margin or the empty corners, puts SunTree away - the cancelling of use 7; a click in
+  the hollow or on the stem between the halves does not.
 - SunTree appears with the stem under the pointer: the hand starts in the hollow and every
   direction is a way into the crown, like a pie menu.
 - The way back out of the stem matters mostly for dropping (one level too deep, out again);

@@ -8,7 +8,7 @@ ApplicationWindow {
     height: 780
     visible: !sunTreeStartHidden
     title: "SunTree"
-    color: "#0f1117"
+    color: "transparent"  // only the crown and the stem are drawn
     flags: Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
 
     property var foldersModel: []
@@ -112,6 +112,23 @@ ApplicationWindow {
             requestActivate()
             turnedTo()
         }
+    }
+
+    /// Cancelling: a click beside the crown and the stem puts SunTree away.
+    function putAway() {
+        crownRelease(false)
+        visible = false
+    }
+
+    /// Whether (x, y) in the main area is on the crown (either half, its hollow included) or
+    /// on the stem between them.
+    function onCrown(x, y) {
+        for (var side = -1; side <= 1; side += 2) {
+            var p = crownPolar(side, x, y)
+            if (p.lx >= 0 && p.r <= crownGeo(side).R) return true
+        }
+        var l = crownGeo(-1), r = crownGeo(1)
+        return x >= l.cx && x <= r.cx && y >= layoutRoot.shellTop && y <= layoutRoot.shellBottom
     }
 
     /// Scope and SunTree always share the place: turned to, go where Scope went.
@@ -501,7 +518,10 @@ ApplicationWindow {
             }
         }
         var hit = crownHit()
-        if (!hit) return
+        if (!hit) {
+            if (!onCrown(x, y)) putAway()
+            return
+        }
         if (hit.side > 0) {
             glideIntoStem(hit.row.path)
             crownReset()
@@ -756,9 +776,14 @@ ApplicationWindow {
         }
     }
 
-    Rectangle {
+    Item {
         anchors.fill: parent
-        color: "#0f1117"
+
+        MouseArea {
+            // The margin around the crown: beside it, too.
+            anchors.fill: parent
+            onClicked: root.putAway()
+        }
 
         Item {
             id: layoutRoot
