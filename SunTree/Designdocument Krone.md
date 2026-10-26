@@ -192,6 +192,12 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
 - **Pulling the pointer** is `QCursor.setPos` through a small backend slot, after each move:
   SunTree keeps the hand's position itself and sets the pointer where the crown draws it.
   This works on X11 (Cinnamon); Wayland does not let programs move the pointer.
+- **Motion from before a put** (2026-10-26): after the crown puts the pointer, X reports the
+  put with a motion event at the put place (tried in Xephyr); motion events the hand made
+  before it may still arrive after the put, reporting the older place. Until the report,
+  only their steps from where the hand was count; taken as steps from the put place they
+  threw the crown several steps on ("it hangs, then one lands somewhere"). Without a report
+  the wait ends after 200 ms.
 - Pulling the pointer during a drag works (tried on 2026-10-25 in a nested X server,
   Xephyr, with a Qt and a GTK 3 drag source - GTK as Nemo): after `QCursor.setPos` the drag
   goes on from the new place with the hand's next movement, and the file is dropped there.

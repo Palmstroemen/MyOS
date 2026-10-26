@@ -452,6 +452,11 @@ ApplicationWindow {
     property bool pointerGliding: false  // riding to the stem before SunTree shows
     property var pickedUpAt: null        // where the pointer was when SunTree was called
     property var crownPointer: null  // where the pointer was last seen or put (main area)
+    // The pointer put by the crown, until X reports the put back (the motion event it makes at
+    // the put place, after any the hand made before it): [{x, y, at}]. Meanwhile motion
+    // events are from before the put - only their steps from handBefore are the hand's.
+    property var putsPending: []
+    property var handBefore: null
     property var crownCache: ({})
     property var stemGlide: ({})     // shown y of the stem's entries, by path
     property var stemHits: []
@@ -511,6 +516,24 @@ ApplicationWindow {
         var last = crownPointer || { x: x, y: y }
         var dx = x - last.x, dy = y - last.y
         crownPointer = { x: x, y: y }
+        var now = Date.now()
+        while (putsPending.length && now - putsPending[0].at > 200) putsPending.shift()  // no report came
+        if (putsPending.length) {
+            for (var i = 0; i < putsPending.length; i++) {
+                var put = putsPending[i]
+                if (Math.abs(x - put.x) <= 1 && Math.abs(y - put.y) <= 1) {
+                    // X reports the put: from here on, motion is the hand's again.
+                    putsPending = putsPending.slice(i + 1)
+                    crownPointer = putsPending.length ? last : { x: put.x, y: put.y }
+                    return
+                }
+            }
+            // From before the put: the hand's step from where it was; the pointer stays put.
+            dx = x - handBefore.x
+            dy = y - handBefore.y
+            handBefore = { x: x, y: y }
+            crownPointer = last
+        }
         if (crownActive === 0) {
             for (var side = -1; side <= 1; side += 2) {
                 var g = crownGeo(side), p = crownPolar(side, x, y)
@@ -598,6 +621,8 @@ ApplicationWindow {
             if (!crownPointer || Math.abs(at.x - crownPointer.x) > 0.5 || Math.abs(at.y - crownPointer.y) > 0.5) {
                 var g = mainArea.mapToGlobal(at.x, at.y)
                 sunTreeBackend.pointerTo(Math.round(g.x), Math.round(g.y))
+                if (!putsPending.length) handBefore = crownPointer || at
+                putsPending = putsPending.concat([{ x: at.x, y: at.y, at: Date.now() }])
                 crownPointer = at
             }
         }

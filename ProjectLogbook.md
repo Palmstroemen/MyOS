@@ -43,6 +43,8 @@ Kompakter Überblick: `docs/STATUS.md`.
             [x] Grenze überholt den Zeiger (2026-10-26): Einsaugen ab 75 % des Feldes bis 25 % in den äußeren Ring
             [x] Immer bereit (2026-10-26): kein X mehr (Strg+Q beendet), Autostart per SunTree/install_autostart.py;
                 CWD außerhalb des Projektbaums: an der Projekte-Wurzel
+            [x] Hänger beim Tauchen (2026-10-26): Bewegungen von vor dem Setzen des Zeigers warfen die Krone; jetzt bis
+                zum Echo des Setzens als Schritte der Hand gezählt
             [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
                 schnellen Ruck oder quer in die andere Hälfte
                 -> weitgehend gelöst durch "eine Handlung, dann weg" (2026-10-26); bleibt: Abbrechen (Esc, Shortcut, Klick daneben)

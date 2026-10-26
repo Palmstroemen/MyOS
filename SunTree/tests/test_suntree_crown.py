@@ -82,6 +82,15 @@ def _prop(win, name):
     return value.toVariant() if hasattr(value, "toVariant") else value
 
 
+def _tick(win, dt):
+    """A frame of the crown and, as X does after the crown has put the pointer, the motion
+    event at the put place (which ends the time of motion events from before the put)."""
+    _call(win, "crownTick", dt)
+    if _prop(win, "putsPending"):
+        at = _prop(win, "crownPointer")
+        _call(win, "handMoved", at["x"], at["y"])
+
+
 def _dive(win, distance, step=5):
     """The hand moves outward on the right half's middle line (towards Noten), the crown
     settling after each move as its timer would."""
@@ -91,7 +100,7 @@ def _dive(win, distance, step=5):
         at = _prop(win, "crownPointer")
         _call(win, "handMoved", at["x"] + step, at["y"])
         for _ in range(3):
-            _call(win, "crownTick", 0.2)
+            _tick(win, 0.2)
     return geo
 
 
@@ -143,7 +152,7 @@ def test_letting_go_runs_the_crown_back(world, window):
     _dive(window, geo["T"] - geo["ri"])
     _call(window, "crownRelease", False)
     for _ in range(40):
-        _call(window, "crownTick", 0.2)
+        _tick(window, 0.2)
     assert _prop(window, "crownActive") == 0 and _call(window, "crownHit") is None
 
 
@@ -193,13 +202,13 @@ def test_past_the_last_folder_into_the_stem(world, window):
         a = math.radians(p["th"])
         _call(window, "handMoved", at["x"] + 3 * math.sin(a), at["y"] - 3 * math.cos(a))
         for _ in range(3):
-            _call(window, "crownTick", 0.2)
+            _tick(window, 0.2)
     assert _prop(window, "crownActive") == 1 and _call(window, "crownHit")["row"]["label"] == "2025"
     for _ in range(60):
         at = _prop(window, "crownPointer")
         _call(window, "handMoved", at["x"] - 4, at["y"])  # sideways to the stem
         for _ in range(3):
-            _call(window, "crownTick", 0.2)
+            _tick(window, 0.2)
         if _prop(window, "crownActive") == 0:
             break
     assert _prop(window, "crownActive") == 0
@@ -238,7 +247,7 @@ def test_up_the_stem_the_folders_are_spat_out(world, suntree, window):
     assert _prop(window, "crownHalves")["1"]["shown"]["lock"] == [noten, 0]  # 2025: first of Noten's
 
     for _ in range(60):
-        _call(window, "crownTick", 0.1)
+        _tick(window, 0.1)
     assert [e["kind"] for e in _call(window, "stemEntries")][0] == "ctd"  # all spat out
     assert _prop(window, "crownHalves")["1"]["shown"] is None  # the crown at rest
 
@@ -260,9 +269,27 @@ def test_drawing_in_the_stem_entries_never_overlap(world, window):
     D = geo["T"] - geo["ri"]
     _dive(window, 1.5 * D)  # s about T + D/2: q about 0.5
     for _ in range(30):
-        _call(window, "crownTick", 0.2)
+        _tick(window, 0.2)
     places = _call(window, "stemPlaces")
     kinds = [p["kind"] for p in places]
     assert kinds[:2] == ["preview", "ctd"] and 0.2 < places[0]["weight"] < 0.8
     for upper, lower in zip(places, places[1:]):
         assert upper["y"] + upper["h"] / 2 <= lower["y"] - lower["h"] / 2 + 0.01, (upper, lower)
+
+
+def test_a_motion_from_before_the_pull_does_not_throw_the_crown(world, window):
+    # While drawing in, the crown puts the pointer inward each frame. A motion event the hand
+    # made before that put, arriving after it, reports the old place further out: it must
+    # count as the small step it was, not as a jump from where the pointer was put.
+    geo = _call(window, "crownGeo", 1)
+    _dive(window, geo["T"] - geo["ri"] + 40)  # drawing in: the crown pulls the pointer
+    hand = _prop(window, "crownPointer")
+    _call(window, "handMoved", hand["x"] + 4, hand["y"])  # the hand moves on
+    before = _prop(window, "crownHalves")["1"]["target"]["s"]
+    _call(window, "crownTick", 0.2)  # the crown puts the pointer inward
+    put = _prop(window, "crownPointer")
+    assert put["x"] < hand["x"]  # pulled in
+
+    _call(window, "handMoved", hand["x"] + 6, hand["y"])  # stale: from before the put, 2 px on
+    after = _prop(window, "crownHalves")["1"]["target"]["s"]
+    assert after - before < 5  # a small step, not the gap to the put pointer
