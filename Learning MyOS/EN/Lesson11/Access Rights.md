@@ -1,16 +1,16 @@
-Who is allowed to see your files? Who is allowed to change them? Especially in teams and collaborative scenarios it's extremely important to protect folders and files from unauthorized access.
+Who is allowed to see your files? Who is allowed to change them? Especially in teams and when you work together with others, it can be important to protect folders and files from unauthorized access.
 
-That's what *access rights* or *permissions* are about. 
-Companies pay huge salaries for sys-admins to manage these permissions with scripts and complicated tools to keep things safe and proper.
+That's what *access rights* or *permissions* are about.
+Companies pay high salaries to system administrators who manage these permissions with scripts and complicated tools to keep everything safe and in order.
 
-Linux is well known for its very good and strong access policies which made it the first choice to build up servers and huge clusters of computers. Let's face it. The whole internet is built on Linux. By the way. Did you notice that you're working on a Linux machine here?
+Linux is well known for its very good and strict access rules. That made it the first choice for servers and huge computer clusters. Let's face it: the whole internet runs on Linux. By the way: did you notice that you are working on a Linux machine here?
 
-Let's keep things short and simple for now. Just imagine you want to give your financial department the permission to read and write into your /finance/-folders. It's just ONE Entry in your /finance/-template-folder and you're done. From now on, your finance department will only see the folders and files it is allowed to. You want to let them read the /infos/ too? Easy going. Can you imagine how this might ease up things significantly.
+Let's keep it short and simple. Imagine you want to allow your finance department to read and write in your /04_Finance/ folders. That's just ONE entry in the /04_Finance/ folder of your template, and you're done. From now on, your finance department only sees the folders and files it is allowed to see. They should be able to read /01_Info/ too? No problem. Can you imagine how much this simplifies things?
 
-However. The most modern and flexible way to manage access-rights is by means of so called *Access Control Lists*(ACLs). These are in principle lists which determine for each folder or file who may read them, write them, execute them, copy them, create new files, ... things like that and of course WHO is allowed to change these lists. Everything is made a bit easier by '*roles*' that you can define. But the real game changer comes with our implementation.
+The most modern and flexible way to manage access rights is so-called *Access Control Lists* (ACLs). In principle these are lists that determine for each folder and each file who may read it, write it, execute it, copy it, create new files in it ... and of course WHO may change these lists. *Roles* that you can define make everything a bit easier. But the real game changer is the way we have implemented it.
 
-We really do not want to bother you here with these internals, but it's important. Just good to know, that it's all implemented and it's easier than ever to use.
+We really don't want to bore you with these rather special things here, but they are important. Good to know: it's all implemented, and easier to use than ever.
 
-If you want to deep dive into this you'll find some exercises here in this lesson.
+If you want to dive deeper, you'll find some exercises in this lesson.
 
-[[Filters|Let's move on!]]
+[Let's move on!](<../Lesson12/Filters.md>)

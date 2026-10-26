@@ -1,18 +1,18 @@
-Da du jetzt das Konzept der virtuellen Ordner verstehst, nehmen wir an, dein Projekt wächst. Dafür nehmen wir ein anderes Projekt. Dein kleines Startup, in dem du den „Fluxcompensator" bauen und verkaufen willst.
+Jetzt, wo du das Prinzip der **vorgeschlagenen Standardordner** verstehst, nehmen wir an, dein Projekt wächst. Dafür nehmen wir ein anderes Projekt: dein kleines Startup, mit dem du den „Fluxkompensator" bauen und verkaufen willst.
 
-Du findest also ein Projekt namens „*Fluxcompensator*".
-Wenn dein Startup wächst, füllen sich deine Standardordner und du möchtest eine detailliertere Organisation innerhalb deiner Ordner. Du möchtest vielleicht interne und externe Kommunikation unterscheiden, oder eingehende und ausgehende Rechnungen.
+Du kreierst also ein Projekt namens „*Fluxkompensator*".
+Wenn dein Startup wächst, füllen sich deine Standardordner, und du möchtest innerhalb der Ordner genauer ordnen. Vielleicht willst du interne und externe Kommunikation trennen, oder Einnahmen und Ausgaben.
 
-Versuche, einen deiner virtuellen Ordner zu öffnen. Du wirst sehen, dass darin weitere Standardordner versteckt sind, und wieder darin. Es steht dir eine ganze Ordnerstruktur zur Verfügung.
+Öffne einen deiner vorgeschlagenen Ordner, etwa /03_Kommunikation/. Du wirst sehen, dass darin **weitere Standardordner** stecken (/intern/ und /extern/), und in anderen Ordnern sogar noch tiefer weitere. Dir steht eine ganze Ordnerstruktur zur Verfügung: eine **virtuelle Struktur aus Standardordnern**, die du für jedes deiner Projekte verwenden kannst, aber nicht musst.
 
-Eine solche tiefe Struktur von Standardordnern nennen wir eine *Vorlage*. Was du gerade gesehen hast, ist unsere Standard-Vorlage.
+Eine solche tiefe Struktur aus Standardordnern nennen wir eine *Vorlage*. Was du gerade gesehen hast, ist unsere **Standard-Vorlage**.
 
-Du denkst vielleicht: Schön, aber ich hätte gern andere Ordner darin, weil ich meine Daten anders zu sortieren gewohnt bin. Sei versichert: Du kannst unser Standardschema an deine Bedürfnisse anpassen. Es gibt sogar zwei Wege:
-1. Du kannst Vorlagen zu deinen Standardordnern hinzufügen. Zum Beispiel: Finanz-Vorlagen, Technik-Entwicklungs-Vorlagen, Vorlagen für Klienten oder Patienten.
-2. Du kannst die Vorlagen direkt bearbeiten. Vielleicht willst du sie in deine Sprache übersetzen, umbenennen, Ordner hinzufügen oder entfernen.
+Du denkst vielleicht: Schön, aber ich hätte gern andere Ordner darin, weil ich meine Daten anders sortiere. Keine Sorge: Du kannst unser Schema an deine Bedürfnisse anpassen. Es gibt sogar zwei Wege:
+1. Du kannst deinen Standardordnern weitere Vorlagen hinzufügen. Zum Beispiel Vorlagen für Finanzen, für technische Entwicklung, für Klienten oder Patienten.
+2. Du kannst die Vorlagen direkt bearbeiten: in deine Sprache übersetzen, Ordner umbenennen, hinzufügen oder entfernen.
 
-Für jetzt wollen wir nicht zu tief in diese Dinge einsteigen, aber du kannst sicher sein, dass du sie nach deinen Wünschen ändern kannst.
+Wir wollen hier noch nicht zu tief einsteigen, aber du kannst sicher sein, dass du alles nach deinen Wünschen ändern kannst.
 
-Dein Mitnahme aus dieser Lektion ist hoffentlich: Unsere Standardordner kommen mit einer tiefen Struktur von Unterordnern dahinter, die wir „Vorlage" nennen, und du kannst sie nach Belieben ändern.
+Was du hoffentlich aus dieser Lektion mitnimmst: Hinter unseren Standardordnern steckt eine tiefe Struktur von Unterordnern, die wir **Vorlage** nennen, und du kannst sie nach Belieben ändern.
 
-Dann [[MyOS/Learning MyOS/DE/Lektion09/Groß werden|weiter geht's]].
+[Weiter geht's](<../Lektion09/Groß werden.md>).

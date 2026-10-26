@@ -1,32 +1,33 @@
-Nehmen wir an, dein kleines Startup wird groß und wird zu einem großen Unternehmen.
-Was sind deine Ordner jetzt geworden?
+Nehmen wir an, dein kleines Startup wächst und wird zu einem großen Unternehmen.
+Was ist dann aus deinen Ordnern geworden?
 
-| Admin | Allgemeine Geschäftsführung |
-| Info | allgemeine Informationen für neue Mitarbeiter |
-| Team | deine Personalabteilung |
-| Kommunikation | viele Abteilungen wie |
-|  | Interne Kommunikation |
+| 00_Admin | die Geschäftsführung |
+| 01_Info | allgemeine Informationen, etwa für neue Mitarbeiter |
+| 02_Team | deine Personalabteilung |
+| 03_Kommunikation | viele Abteilungen, etwa |
+|  | interne Kommunikation |
 |  | Kundenbeziehungen |
 |  | Öffentlichkeitsarbeit (Website, Social Media) |
 |  | Investor Relations |
 |  | Vertrieb |
 |  | Kundendienst |
-| Finanzen | deine Finanzabteilung (Buchhaltung) |
-| Recht | deine Rechtsabteilung |
-| Ressourcen | Autos, Maschinen, Gebäude, ... |
-| Dokumentation | dein Archiv, deine Filme und Bilder |
+| 04_Finanz | deine Finanzabteilung (Buchhaltung) |
+| 05_Rechtliches | deine Rechtsabteilung |
+| 06_Ressourcen | Fahrzeuge, Maschinen, Gebäude, ... |
+| 07_Arbeit | deine Produktion, deine Entwicklung – die eigentliche Arbeit |
+| 08_Dokumentation | dein Archiv, deine Filme und Bilder |
 
-Je nach Bedarf kannst du zusätzliche Vorlagen hinzufügen, zum Beispiel für Buchhaltung, Kundenbeziehungsmanagement, technische Entwicklung, Softwareentwicklung, Websites, ... was auch immer.
+Je nach Bedarf kannst du weitere Vorlagen hinzufügen, etwa für Buchhaltung, Kundenbeziehungsmanagement, technische Entwicklung, Softwareentwicklung, Websites ... was immer du brauchst.
 
-Wir können uns einen wachsenden Marktplatz für Vorlagen vorstellen. Es wird Vorlagen geben, die zueinander passen wie ein Baukastensystem. Unternehmen möchten vielleicht eigene Vorlagen oder Vorlagensysteme erstellen.
+Wir können uns einen wachsenden Marktplatz für Vorlagen vorstellen. Es wird Vorlagen geben, die zueinander passen wie Bausteine eines Baukastens. Unternehmen werden vielleicht eigene Vorlagen oder ganze Vorlagensysteme erstellen.
 
-Derzeit bieten wir einen kleinen Satz zusätzlicher Vorlagen zu unserer Standard-Vorlage.
-Du erinnerst dich, dass unsere Standard-Vorlage für Personen nicht so gut passte, weil etwas wie /health/ und /education/ fehlt. Genau das fügt unsere *Personen-Vorlage* unserer Standard-Vorlage hinzu.
+Derzeit bieten wir zusätzlich zu unserer Standard-Vorlage einen kleinen Satz weiterer Vorlagen.
+Du erinnerst dich: Für Menschen passte unsere Standard-Vorlage nicht ganz, weil etwas wie Gesundheit und Bildung fehlte. Genau das ergänzt unsere *Personen-Vorlage*: /07_Gesundheit/ und /08_Bildung/.
 
-Aktuell arbeitet ein Team von Experten aus verschiedenen Bereichen – Bildung, Gesundheit, Industrie, Verwaltung, ... – an der Erstellung eines Satzes von Vorlagen für unsere erste Veröffentlichung.
+Derzeit arbeitet ein Team von Fachleuten aus verschiedenen Bereichen – Bildung, Gesundheit, Industrie, Verwaltung ... – an einem Satz von Vorlagen für unsere erste Veröffentlichung.
 
-Wir glauben, die wahre Kraft solcher Vorlagen liegt in einer Art Standardisierung. Wenn jedes Unternehmen seine eigenen Vorlagen entwickelt, könnte die Austauschbarkeit leiden. Während wir Individualisierung zulassen, wollen wir gleichzeitig einen nutzbaren Satz von Vorlagen selbst bereitstellen.
+Wir glauben, die wahre Kraft solcher Vorlagen liegt in einer gewissen Standardisierung. Wenn jedes Unternehmen seine eigenen Vorlagen entwickelt, leidet die Austauschbarkeit. Darum lassen wir Individualisierung zu und bieten gleichzeitig selbst einen brauchbaren Satz an Vorlagen.
 
-So viel zu Vorlagen, Individualisierung, Standardisierung und einem möglichen Vorlagen-Markt in der Zukunft.
+So viel zu Vorlagen, Individualisierung, Standardisierung und einem möglichen Vorlagen-Marktplatz in der Zukunft.
 
-[[MyOS/Learning MyOS/DE/Lektion10/Tags|Weiter geht's!]]
+[Weiter geht's!](<../Lektion10/Tags.md>)

@@ -1,21 +1,18 @@
-As you now understand the concept of virtual folders, let's assume your project grows. Let's take another project for this purpose. Your little startup where you want to build and sell the "Fluxcompensator".
+Now that you understand the principle of **suggested standard folders**, let's assume your project grows. Let's take another project for this: your little startup, with which you want to build and sell the "Flux Capacitor".
 
-So you find a project named "*Fluxcompensator*".
-As your Startup grows, your standard folders get filled up and you'd like to do some more detailed organisation inside your folders.
-You might like to distinguish your internal and external communication i.e. or incoming and outgoing invoices. 
+So you find a project named "*Flux Capacitor*".
+As your startup grows, your standard folders fill up, and you'd like to organize things in more detail inside them. Maybe you want to separate internal and external communication, or income and expenses.
 
-Try to open one of your virtual folders. You will see that there are other standard folders hidden inside, and again inside. There is a whole folder structure right at your disposal.
+Open one of your suggested folders, say /03_Communication/. You will see that there are **more standard folders** inside (/internal/ and /external/), and in other folders even deeper ones. A whole folder structure is at your disposal: a **virtual structure of standard folders** that you can use for each of your projects, but don't have to.
 
-Such a deep structure of standard folders we call a *Template*. What you have seen right now is our Standard Template.
+We call such a deep structure of standard folders a *template*. What you have just seen is our **Standard template**.
 
-Now you might think. Nice, but I would like to have other folders inside because I'm used to another way to sort my data. Be assured, you can adapt our standard scheme to your specific needs. There are even two ways to adapt it.
-1. You can add templates to your standard folders. For example: financial templates, technical development templates, templates for clients or patients.
-2. You can edit the templates directly. Maybe you want to change them to your language, rename, add or remove folders.
+Now you might think: nice, but I'd like to have other folders inside, because I'm used to sorting my data differently. Don't worry: you can adapt our scheme to your needs. There are even two ways:
+1. You can add more templates to your standard folders. For example templates for finance, for technical development, for clients or patients.
+2. You can edit the templates directly: translate them into your language, rename, add, or remove folders.
 
-For now, we do not want to go too deep into these kinds of things, but you can be sure that you can change them to your needs.
+We don't want to go too deep here yet, but you can be sure that you can change everything to your liking.
 
-So hopefully your takeaway from this lesson is that our standard folders come with a deep structure of subfolders behind them, which we call a 'Template', and that you can change it to your liking.
+So hopefully your takeaway from this lesson is: behind our standard folders there is a deep structure of subfolders, which we call a **template**, and you can change it as you like.
 
-Then [[growing big|let's take things further]].
-
-
+[Let's go on](<../Lesson09/growing big.md>).

@@ -1,15 +1,15 @@
-So by means of permissions your financial department is allowed to just see the /finance/ folders and all their entries and subfolders. Wouldn't it be nice, if you could also have a concentrated view on your financial data? Or your legal affairs? On your development or communication?
+Thanks to permissions, your finance department only sees the /04_Finance/ folders with everything inside them. Wouldn't it be nice if you, too, had a focused view of your finances? Or of your legal matters? Of your development or your communication?
 
-You might have the right to see all your data, but you want to focus on a specific subset of your data. That's what filters are made for. Build them easily yourself! Build different filters for different projects or use some filters for all of them. 
+You might be allowed to see all your data, but you want to focus on a specific part of it. That's what filters are for. Build them yourself, easily! Build different filters for different projects, or use some filters for all of them.
 
-A filter might be somehow like your Today-Screen in some apps. It presents you the most recent, the most urgent, the most interesting data at a glance.
+A filter can be something like the Today screen of some apps. It shows you the newest, the most urgent, the most interesting at a glance.
 
-A filter might also be an overview about multiple subprojects. This is, where our naming-convention comes in handy. Want to see your open bills over all your projects?
+A filter can also be an overview of several subprojects. This is where consistent naming pays off. Want to see your open invoices across all your projects?
 
-Think of a filter a bit like a saved search. You can do this in your OS but almost no one uses it because it's kind of weird and complicated. With the power of our standard templates and tags it becomes a totally new game.
+Think of a filter a bit like a saved search. Your operating system can already do that today, but almost no one uses it, because it's somehow weird and complicated. With our standard templates and tags, it becomes a totally new game. It becomes more efficient and more tangible.
 
-Finally you can search for finances from last month with tag 'open', for news from your teams with the  tag 'urgent' or 'important', for pictures that need to be reviewed, ...
+Finally you can search for last month's finances with the tag "open", for news from your teams with the tag "urgent" or "important", for pictures that still need to be reviewed ...
 
-But filters, to be honest, have always existed, they just get supercharged by our standard-folders. But the next thing, our standard-folders enable will blow your mind.
+But to be honest: filters have always existed. What our standard folders make possible goes one big step further. And that brings us to a central, entirely new feature that can truly inspire enthusiasm.
 
-So let's go on!
+[So let's move forward.](<../Lesson13/Perspectives.md>)

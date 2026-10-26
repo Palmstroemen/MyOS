@@ -1,36 +1,36 @@
 Lass mich dir etwas Magie zeigen.
-Dafür musst du einen klassischen Dateibrowser öffnen.
-Du findest ihn in der Leiste unten links am Bildschirm. Er hat ein blaues ordnerähnliches Symbol.
+Dafür brauchst du einen klassischen Dateibrowser.
+Du findest ihn in der Leiste am unteren Bildschirmrand, ganz links. Sein Symbol sieht aus wie ein Ordner.
 
-Öffne diesen Dateibrowser und navigiere zu ...
-Dort findest du einen Ordner namens „vacation 2025" voller Dateien.
-Wirf einen kurzen Blick hinein und verlasse den Ordner wieder, sodass du ihn von außen siehst.
+Öffne diesen Dateibrowser und geh zu ...
+Dort findest du einen Ordner namens „Urlaub 2025" voller Dateien.
+Wirf einen kurzen Blick hinein und verlass den Ordner wieder, sodass du ihn von außen siehst.
 
-Vielleicht möchtest du diesen Dateibrowser auf die rechte Bildschirmhälfte legen und unseren auf die linke, damit du sie nebeneinander sehen kannst.
+Am besten legst du diesen Dateibrowser auf die rechte Bildschirmhälfte und unseren auf die linke, damit du beide nebeneinander siehst.
 
-Du könntest auch deinen Ordner im linken Dateibrowser sehen. Das könnte ein kleines Projekt mit nur ein paar Dateien sein. Aber wenn dein kleines Projekt wächst, möchtest du vielleicht etwas Struktur hinzufügen.
-Mit einem Rechtsklick auf deinen Ordner im linken Dateibrowser bekommst du ein Kontextmenü wie: „In Projekt verwandeln".
+Im linken Dateibrowser siehst du denselben Ordner. Er ist vielleicht ein kleines Projekt mit nur ein paar Dateien. Aber wenn dein kleines Projekt wächst, möchtest du ihm vielleicht etwas Struktur geben.
+Ein Rechtsklick auf deinen Ordner im linken Dateibrowser öffnet ein Kontextmenü mit: **In Projekt verwandeln**.
 
-Du solltest bemerken, dass sich auf der linken Seite das Symbol deines Ordners geändert hat. Es zeigt jetzt, dass er zu einem irgendwie „erweiterten" Projektordner geworden ist.
+Links hat sich das Symbol deines Ordners geändert. Es zeigt jetzt, dass er zu einem „erweiterten" Projektordner geworden ist.
 
-Auf der rechten Seite siehst du, dass sich der Ordner überhaupt nicht geändert hat. Das ist das „alte" Dateisystem, das von unseren Änderungen nichts weiß. Was wir tun, ist gewissermaßen eine dünne, schicke Schicht Magie über dein Betriebssystem zu legen. Links siehst du die Zukunft des Rechnens. Rechts die Vergangenheit.
-In gewisser Weise ist es wie die Motorhaube deines Autos zu öffnen. Rechts siehst du den Motor, links das Auto mit elektrischen Fenstern, Sitzheizung und allem modernen Komfort.
+Rechts hat sich der Ordner überhaupt nicht geändert. Das ist das „alte" Dateisystem, das von unseren Änderungen nichts weiß. Was wir tun, ist gewissermaßen eine dünne, schicke Schicht Magie über dein Betriebssystem zu legen. Links siehst du die Zukunft des Computers, rechts die Vergangenheit.
+Es ist ein bisschen, als würdest du die Motorhaube deines Autos öffnen: Rechts siehst du den Motor, links das Auto mit elektrischen Fensterhebern, Sitzheizung und allem modernen Komfort.
 
-Da du den Unterschied verstehst, schauen wir uns die beiden Ordner von innen an. Fang mit dem rechten Dateibrowser an. Er sollte zeigen, was du erwartest. Ein Haufen Dateien.
+Jetzt, wo du den Unterschied kennst, schauen wir uns die beiden Ordner von innen an. Fang mit dem rechten Dateibrowser an. Er zeigt, was du erwartest: einen Haufen Dateien.
 
-Jetzt schau dir den linken Dateibrowser an. Er sieht fast gleich aus, mit einem Unterschied. **Siehst du die Standardordner oben?** Sie sind noch nicht da, wie du im rechten Dateibrowser sehen kannst. Sie sind nur virtuell da. Sie sind Vorschläge, ungeborene Ordner, Embryos.
+Jetzt schau in den linken Dateibrowser. Er sieht fast gleich aus, mit einem Unterschied: **Siehst du die Standardordner oben?** Im rechten Dateibrowser gibt es sie noch nicht. Sie sind nur virtuell da – blass, als Vorschläge, ungeborene Ordner.
 
-Ziehe jetzt im linken Dateibrowser eine Datei in einen dieser virtuellen Ordner. Vielleicht eine Rechnung in /finance/. **Es ist eine Art Magie!**
-Plötzlich ist dieser Ordner real. Er ist nicht mehr halbtransparent. Er wurde geboren. Schau auf die rechte Seite! Dein neuer Ordner ist da, mit der Datei darin.
+Zieh jetzt im linken Dateibrowser eine Datei in einen dieser vorgeschlagenen Ordner. Vielleicht eine Rechnung nach /04_Finanz/. **Es ist eine Art Magie!**
+Plötzlich ist dieser Ordner echt. Er ist nicht mehr blass. Er ist zur Welt gekommen. Schau auf die rechte Seite! Dein neuer Ordner ist da, mit der Datei darin.
 ##### Dein Vorteil:
-* Du musstest keine Ordner manuell anlegen,
-* Du hast eine Menge Standardordner kostenlos bekommen,
-* UND sie heißen immer gleich! Was sie für deinen Computer ohne KI verständlich macht.
+* Du musstest keinen einzigen Ordner von Hand anlegen,
+* du hast eine ganze Reihe Standardordner geschenkt bekommen,
+* UND sie heißen immer gleich! Damit versteht sie dein Computer auch ohne KI.
 
-Versuche jetzt, alle losen Dateien in deine Standardordner zu sortieren. Dateien, die in keinen unserer Ordner passen, lass vorerst außen vor.
+Versuche jetzt, alle losen Dateien in deine **Standardordner** zu sortieren. Dateien, die in keinen davon passen, lässt du vorerst draußen.
 
-Es bleiben vielleicht ein paar Dateien übrig, die in keine unserer Standardordner passen. Aber da du im Aufräummodus bist, möchtest du diese Dateien vielleicht in einen Ordner deiner Wahl legen. Leg also einen an. Wir hindern dich nicht daran, eigene Ordner und Ordnerstrukturen zu erstellen.
+Vielleicht bleiben ein paar Dateien übrig, die in keinen unserer **Standardordner** passen. Da du aber schon beim Aufräumen bist, möchtest du sie vielleicht in einen Ordner deiner Wahl legen. Leg also einen an. Wir hindern dich nicht daran, eigene Ordner und Ordnerstrukturen anzulegen.
 
-Wir hoffen, du verstehst jetzt das Prinzip unserer Standardordner. Sie sind als Vorschlag für dich da, aber sie sind nicht da, bis du sie tatsächlich nutzt.
+Wir hoffen, du verstehst jetzt das Prinzip unserer **Standardordner**: Sie sind als Vorschlag für dich da, aber es gibt sie erst, wenn du sie tatsächlich benutzt.
 
-Lass uns die Sache [[MyOS/Learning MyOS/DE/Lektion08/Tiefe Strukturen|ein bisschen weiter treiben]].
+Treiben wir die Sache [ein bisschen weiter](<../Lektion08/Tiefe Strukturen.md>).
