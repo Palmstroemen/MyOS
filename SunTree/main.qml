@@ -87,6 +87,7 @@ ApplicationWindow {
         if (!sunTreeBackend.setCwd(target) && projectDir.length > 0) {
             sunTreeBackend.setCwd(projectDir)
         }
+        putAway()
     }
 
     /// The frame: the levels of the lens below its project (04_Finanz, Ausgaben, ...).
@@ -114,7 +115,11 @@ ApplicationWindow {
         }
     }
 
-    /// Cancelling: a click beside the crown and the stem puts SunTree away.
+    // One action, then gone (Designdocument Krone.md): a drop, a double click, the lens put
+    // on or taken off put SunTree away; a single click only goes in, to look further.
+    property real wentInAt: 0  // when a single click last went in: its double click goes away
+
+    /// Cancelling, or an action done: SunTree goes away.
     function putAway() {
         crownRelease(false)
         visible = false
@@ -508,20 +513,27 @@ ApplicationWindow {
     }
 
     function crownClicked(x, y, twice) {
+        var hit = crownHit()
+        if (twice && !(hit && hit.side < 0)) {
+            // The first click went in already: the second only puts SunTree away.
+            if (Date.now() - wentInAt < 1000) putAway()
+            return
+        }
         for (var i = 0; i < stemHits.length; i++) {
             var s = stemHits[i]
             if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) {
+                wentInAt = Date.now()
                 if (s.kind === "clipboard") sunTreeBackend.setCwd(sunTreeBackend.clipboardPath())
                 else if (s.kind === "parent") navigateTo(s.path)
                 else sunTreeBackend.refreshAll()
                 return
             }
         }
-        var hit = crownHit()
         if (!hit) {
             if (!onCrown(x, y)) putAway()
             return
         }
+        wentInAt = Date.now()
         if (hit.side > 0) {
             glideIntoStem(hit.row.path)
             crownReset()
@@ -535,6 +547,7 @@ ApplicationWindow {
             pendingLeftRow = null
             crownReset()
             applyLeftRowDouble(hit.row)
+            putAway()
         } else {
             pendingLeftRow = hit.row
             glideIntoStem(hit.row.path)
@@ -558,12 +571,32 @@ ApplicationWindow {
         var hit = crownHit()
         if (!target && hit) target = hit.row.path
         if (!target) return false
-        var moved = false
-        for (var j = 0; j < urls.length; j++) {
-            var source = decodeURIComponent(String(urls[j]).replace(/^file:\/\//, ""))
-            if (sunTreeBackend.moveTo(source, target)) moved = true
-        }
-        return moved
+        var sources = []
+        for (var j = 0; j < urls.length; j++) sources.push(decodeURIComponent(String(urls[j]).replace(/^file:\/\//, "")))
+        var done = sunTreeBackend.dropFiles(sources, target)
+        if (!done || !done.count) return false
+        showNotice(done.count, done.place)
+        putAway()
+        return true
+    }
+
+    /// After a drop: where the files went, with undo - SunTree itself is gone.
+    function showNotice(count, place) {
+        var parts = String(place || "").split("/").filter(function(p) { return p.length > 0 })
+        var where = parts.slice(-2).join("/")
+        dropNotice.text = count === 1 ? qsTr("1 file → %1").arg(where) : qsTr("%1 files → %2").arg(count).arg(where)
+        // Sized here: the platform writes a window's size back and so loses a binding.
+        dropNotice.width = noticeText.implicitWidth + noticeRow.spacing + undoButton.width + 32
+        dropNotice.x = dropNotice.screen.virtualX + (dropNotice.screen.width - dropNotice.width) / 2
+        dropNotice.y = dropNotice.screen.virtualY + dropNotice.screen.height - dropNotice.height - 60
+        dropNotice.visible = true
+        noticeTimer.restart()
+    }
+
+    function noticeUndo() {
+        sunTreeBackend.undoDrop()
+        noticeTimer.stop()
+        dropNotice.visible = false
     }
 
     /// A folder gone into glides from where it was into the stem.
@@ -731,6 +764,72 @@ ApplicationWindow {
         crownPaintHalf(ctx, -1, hit)
         crownPaintHalf(ctx, 1, hit)
         stemPaint(ctx, dt)
+    }
+
+    Window {
+        // The notice after a drop, at the bottom of the screen: it outlives SunTree's window.
+        id: dropNotice
+        objectName: "dropNotice"
+        property string text: ""
+        flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
+        transientParent: null  // its own window: SunTree's goes away as it shows
+        color: "transparent"
+        visible: false
+        width: 240
+        height: 46
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 12
+            color: "#1f2a3d"
+            border.width: 1
+            border.color: "#5f7297"
+
+            Row {
+                id: noticeRow
+                anchors.centerIn: parent
+                spacing: 14
+
+                Text {
+                    id: noticeText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: dropNotice.text
+                    color: "#e8efff"
+                    font.pixelSize: 13
+                }
+
+                Rectangle {
+                    id: undoButton
+                    width: undoLabel.implicitWidth + 20
+                    height: 28
+                    radius: 7
+                    color: undoMouse.containsMouse ? "#496a97" : "#2c3f5d"
+                    border.width: 1
+                    border.color: "#9ec2ff"
+
+                    Text {
+                        id: undoLabel
+                        anchors.centerIn: parent
+                        text: qsTr("Undo")
+                        color: "#e8efff"
+                        font.pixelSize: 12
+                    }
+
+                    MouseArea {
+                        id: undoMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: root.noticeUndo()
+                    }
+                }
+            }
+        }
+
+        Timer {
+            id: noticeTimer
+            interval: 6000
+            onTriggered: dropNotice.visible = false
+        }
     }
 
     Timer {

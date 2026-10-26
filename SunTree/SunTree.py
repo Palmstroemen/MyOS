@@ -97,6 +97,7 @@ class SunTreeBackend(QObject):
         self._lens.call("set_cwd", {"path": self._cwd})
         self._lens.update_context(self._cwd)
         self._clipboard = self._resolve_clipboard_dir()
+        self._last_drop: list = []  # [{from, now}] of the last drop, for undoDrop
         self._ensure_clipboard_dir()
 
     @Slot(result=str)
@@ -221,6 +222,36 @@ class SunTreeBackend(QObject):
             self.dataChanged.emit()
         return ok
 
+    @Slot("QVariantList", str, result="QVariantMap")
+    def dropFiles(self, sources, target_dir: str) -> dict:
+        """Files dropped onto a folder (one action, then gone): {count, place} - place is where
+        they lie now (a sorted folder files them on). Remembered for undoDrop."""
+        if target_dir == self._clipboard:
+            self._ensure_clipboard_dir()
+        result = self._adapter.move_entries([str(s) for s in (sources or [])], target_dir)
+        filed = {item["source"]: item["destination"] for item in result.get("sorted", [])}
+        self._last_drop = []
+        for item in result.get("moved", []):
+            now = filed.get(item["destination"], item["destination"])
+            self._last_drop.append({"from": item["source"], "now": now})
+        if self._last_drop:
+            self.dataChanged.emit()
+        place = str(Path(self._last_drop[-1]["now"]).parent) if self._last_drop else target_dir
+        return {"count": len(self._last_drop), "place": place}
+
+    @Slot(result=bool)
+    def undoDrop(self) -> bool:
+        """The last drop back where its files came from; a folder it emptied (an embryo again)
+        is born again by it. Once."""
+        drop, self._last_drop = self._last_drop, []
+        undone = False
+        for item in drop:
+            result = self._adapter.move_entries([item["now"]], str(Path(item["from"]).parent))
+            undone = bool(result.get("moved")) or undone
+        if undone:
+            self.dataChanged.emit()
+        return undone
+
     @Slot(str, result=bool)
     def moveToClipboard(self, source_path: str) -> bool:
         self._ensure_clipboard_dir()
@@ -292,6 +323,9 @@ class MyOSBackendAdapter:
 
     def move_entry(self, source_path: str, target_dir: str) -> bool:
         return self._api.move_entry(source_path, target_dir)
+
+    def move_entries(self, sources: list, target_dir: str) -> dict:
+        return self._api.move_entries(sources, target_dir)
 
     def create_folder(self, path: str, name: str) -> Optional[str]:
         return self._api.create_folder(path, name)

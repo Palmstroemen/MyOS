@@ -27,7 +27,14 @@ in it. Uses, all of this shape:
 What follows from it:
 
 - After the action SunTree is gone, so one no longer sees where the files went: a short
-  notice ("3 files -> Belege/03"), perhaps with undo, so a wrong drop is not annoying.
+  notice ("3 files -> Belege/03") with undo, so a wrong drop is not annoying.
+- **Built** (2026-10-26): a drop, a double click (a folder in the crown, a parent or the
+  Clipboard in the stem: going in and away), putting a lens on (double click on the left)
+  and taking it off (✕) put SunTree away; a single click only goes in, to look further.
+  The notice is a window of its own at the bottom of the screen, six seconds, with Undo:
+  each file goes back where it came from, also when a sorted folder filed it on, and a
+  folder the drop emptied (an embryo again) is born again by it. A folder born by the drop
+  becomes an embryo again when undo empties it.
 - **No background** (2026-10-26): the window is transparent, only the crown and the stem are
   drawn over what lies below (it needs a compositor, as Cinnamon has). A click beside them,
   in the margin or the empty corners, puts SunTree away - the cancelling of use 7; a click in
@@ -145,7 +152,9 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
   the ways out. Caught sideways at the first or last folder: solved, pushing on past it lets
   go on every level (1, point 7). What remains is cancelling (the shortcut again, a click
   beside the crown).
-- SunTree closing itself after an action, the notice with undo, appearing under the pointer.
+- Appearing under the pointer. Until then a half can take the pointer as soon as SunTree
+  shows, if the pointer happens to be over it.
+- SunTree's texts are not translated yet (no `.ts` for SunTree; the new ones use qsTr).
 - The global shortcut needs `pynput` (installed on 2026-10-26); without it SunTree reports
   "missing-pynput" and stays a normal window. Its default was "<ctrl>+<alt>+space", which
   pynput rejects ("<space>" is right), so the service failed silently: fixed, and SunTree's
