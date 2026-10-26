@@ -9,7 +9,8 @@ Decided on 2026-10-26.
 - **⚙ Setup** (in M's tools, later wherever Scope's top bar items go) flips Scope over: the
   window turns about its vertical axis (about 0.9 s: slow enough to be seen), and its back shows the settings. ⚙ on
   the back flips it back. Nothing opens or closes - the settings are the back of the thing
-  they set.
+  they set. Both ways it turns in the same sense - one swing, and the panel turns through -
+  and "⚙ Done" stands top left on the back, where ⚙ is on the front.
 - **Tabs** on the back: **General**, **Scope**, **Headline**, **SunTree**.
 - A change takes effect at once where it can (light/dark), and is kept: Scope today forgets
   light/dark and the language when it closes.

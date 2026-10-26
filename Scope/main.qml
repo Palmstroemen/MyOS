@@ -34,9 +34,10 @@ ApplicationWindow {
     SequentialAnimation {
         id: setupFlipAnimation
         property bool toBack: true
-        NumberAnimation { target: setupFlip; property: "angle"; from: 0; to: 90; duration: 450; easing.type: Easing.InQuad }
+        // Both ways the same sense: one swing, and the panel turns through.
+        NumberAnimation { target: setupFlip; property: "angle"; from: 0; to: -90; duration: 450; easing.type: Easing.InQuad }
         ScriptAction { script: window.setupShown = setupFlipAnimation.toBack }
-        NumberAnimation { target: setupFlip; property: "angle"; from: -90; to: 0; duration: 450; easing.type: Easing.OutQuad }
+        NumberAnimation { target: setupFlip; property: "angle"; from: 90; to: 0; duration: 450; easing.type: Easing.OutQuad }
     }
     function flipSetup(toBack) {
         if (setupFlipAnimation.running || setupShown === toBack) return

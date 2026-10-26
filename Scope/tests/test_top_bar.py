@@ -49,3 +49,10 @@ def test_a_broken_main_qml_is_told(tmp_path):
 
 def test_setup_stands_left_of_m():
     assert MAIN.index("Rectangle { // Setup: the back of Scope") < MAIN.index("Rectangle { // Minimal view (M)")  # far left
+
+
+def test_the_flip_turns_the_other_way_both_ways():
+    # One swing turns the panel through: to the back and back again in the same sense.
+    flip = MAIN[MAIN.index("id: setupFlipAnimation"):MAIN.index("function flipSetup(toBack)")]
+    assert "from: 0; to: -90" in flip and "from: 90; to: 0" in flip
+    assert "toBack ?" not in flip  # no direction of its own for the way back

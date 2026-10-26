@@ -191,3 +191,10 @@ def test_the_filter_is_on_the_scope_tab(page):
     assert button.property("label") == "Filter: Ausgaben [A]"
     _click(view, button)
     assert _heard(view)[-1] == "filter"
+
+
+def test_done_stands_top_left(page):
+    view, _ = page
+    done = _named(view, "setupFlipBack").mapToScene(QPointF(0, 0))
+    title = _named(view, "setupTitle").mapToScene(QPointF(0, 0))
+    assert done.x() < title.x() and abs(done.y() - title.y()) < 20

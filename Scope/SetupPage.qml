@@ -161,18 +161,21 @@ Rectangle {
         spacing: 16
 
         RowLayout {
+            // Top left, where ⚙ is on the front: one turns the panel back where one turned it.
             Layout.fillWidth: true
+            spacing: 16
+            Pill {
+                objectName: "setupFlipBack"
+                label: "⚙  " + qsTr("Done")
+                onActivated: root.flipBack()
+            }
             Text {
+                objectName: "setupTitle"
                 text: qsTr("Setup")
                 color: root.textColor
                 font.pixelSize: root.baseFont + 8
                 font.bold: true
                 Layout.fillWidth: true
-            }
-            Pill {
-                objectName: "setupFlipBack"
-                label: "⚙  " + qsTr("Done")
-                onActivated: root.flipBack()
             }
         }
 
