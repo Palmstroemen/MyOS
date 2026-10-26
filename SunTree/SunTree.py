@@ -265,6 +265,17 @@ class SunTreeBackend(QObject):
         """The projects root ("Projekte"); "" outside the projects."""
         return str(self._lens.projects_root or "")
 
+    @Slot(result=bool)
+    def homeIfOutside(self) -> bool:
+        """SunTree appearing with the CWD outside the project tree goes to the projects root."""
+        root = self.projectsRoot()
+        if not root:
+            return False
+        cwd = Path(self._cwd)
+        if cwd == Path(root) or Path(root) in cwd.parents:
+            return False
+        return self.setCwd(root)
+
     @Slot(str, result="QString")
     def effectiveProjectColor(self, path: str) -> str:
         return self._adapter.get_effective_project_color(path) or ""

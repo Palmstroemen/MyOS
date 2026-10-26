@@ -52,14 +52,17 @@ What follows from it:
   the middle of the stem, as the crown pulls it anyway: not a jump but a ride the eye can
   follow (350 ms, easing in and out). SunTree shows only when the pointer is there - shown
   at once, its loading held the ride up and it hopped. Going away, the pointer rides back
-  where SunTree picked it up; after the red X too, which ends SunTree once it is back.
+  where SunTree picked it up; after Ctrl+Q too, which ends SunTree once it is back.
+- **Always ready** (2026-10-26): SunTree is not ended by going away; it starts hidden at login
+  (`SunTree/install_autostart.py <projects root>` writes the autostart entry). Appearing, it
+  stands where Scope stands; with the CWD outside the project tree, at the projects root.
 - **Fading away** (2026-10-26): SunTree does not vanish at once. A snapshot of it
   (`ShaderEffectSource`, not live) blurs strongly (blurMax 64), fades out and draws together towards the stem (to
   60 %) over 300 ms, slowly at first; then the window hides and the crown is back at rest.
   Fading and drawing together are animators on the render thread, smooth even when the GUI
   thread is busy. Meanwhile the pointer rides back across the window: nothing there reacts,
   not even to hovering - a half took the pointer on its way and pulled it into the crown
-  again, which made the first fade jerky. The red X ends SunTree when both are done.
+  again, which made the first fade jerky. Ctrl+Q ends SunTree when both are done.
 - The way back out of the stem matters mostly for dropping (one level too deep, out again);
   it does not close SunTree.
 - **The shortcut during a drag** works (tried on 2026-10-26 in Xephyr with a GTK 3 drag
@@ -145,7 +148,8 @@ The tree draws its branches inward and makes them part of its stem.
 
 - **The Clipboard** sits at the top of the stem (2026-10-25): the multiclipboard, where every
   copy lands and which travels into all projects. One drops onto it like onto any folder.
-  Beside it the red X, an emergency exit that quits SunTree, until we find it is not needed.
+  No exit button (2026-10-26, the red X is gone): SunTree stays, ready for its shortcut;
+  Ctrl+Q ends it (after the pointer's ride back).
   The top band (filter buttons, "Dummy Ablage", development helpers) is gone (2026-10-26).
 - **The lens' frame** (✕ and the lens' levels) below it, while a lens is on: it pushes the
   Clipboard up.

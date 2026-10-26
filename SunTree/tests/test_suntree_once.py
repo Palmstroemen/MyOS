@@ -222,7 +222,8 @@ def test_going_away_brings_the_pointer_back_where_it_was_picked_up(world, suntre
     assert not window.isVisible() and suntree.lastPointer() == {"x": 30, "y": 40}
 
 
-def test_the_red_x_brings_the_pointer_back_too_then_quits(world, suntree, window):
+def test_ctrl_q_ends_suntree_after_the_pointer_is_back(world, suntree, window):
+    from PySide6.QtCore import QObject
     from PySide6.QtQml import qmlEngine
 
     quits = []
@@ -230,11 +231,27 @@ def test_the_red_x_brings_the_pointer_back_too_then_quits(world, suntree, window
     _pointer_at(suntree, 30, 40, screen=(0, 0, window.width(), window.height()))
     _call(window, "toggleFromHotkey")
     QTest.qWait(600)
+    assert any(o.property("sequence") == "Ctrl+Q" for o in window.findChildren(QObject))
 
     _call(window, "quitForGood")
     assert not quits  # first the fade and the ride back
     QTest.qWait(600)
     assert not window.isVisible() and suntree.lastPointer() == {"x": 30, "y": 40} and quits
+
+
+def test_appearing_outside_the_projects_it_goes_to_their_root(world, suntree, window):
+    # The CWD outside the project tree (Scope went up past the projects root): SunTree shows
+    # up at the projects root; inside, it stays where one stands.
+    suntree.setCwd(str(world["root"].parent))
+    _pointer_at(suntree, 1500, 1000)
+    _call(window, "toggleFromHotkey")
+    assert suntree.cwd() == str(world["root"])
+    _call(window, "putAway")
+    QTest.qWait(450)
+
+    suntree.setCwd(str(world["noten"]))
+    _call(window, "toggleFromHotkey")
+    assert suntree.cwd() == str(world["noten"])
 
 
 def test_going_away_fades_into_blur(world, suntree, window):

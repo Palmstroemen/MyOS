@@ -175,7 +175,8 @@ ApplicationWindow {
         maybeQuit()
     }
 
-    /// The red X: away as always, and SunTree ends once it has faded and the pointer is back.
+    /// Ctrl+Q: away as always, and SunTree ends once it has faded and the pointer is back.
+    /// Otherwise it stays, ready for the shortcut (there is no exit button).
     property bool quitting: false
     function quitForGood() {
         quitting = true
@@ -246,6 +247,7 @@ ApplicationWindow {
     /// Scope and SunTree always share the place: turned to, go where Scope went.
     function turnedTo() {
         sunTreeBackend.followPlace()
+        sunTreeBackend.homeIfOutside()
         refreshModels()
     }
 
@@ -897,7 +899,7 @@ ApplicationWindow {
         var cx = layoutRoot.centerX
         var hits = []
         // The Clipboard on top: one drops onto it like onto any folder.
-        var cbY = layoutRoot.shellTop + 4, cbW = layoutRoot.stackWidth - layoutRoot.clipboardHeight - 6
+        var cbY = layoutRoot.shellTop + 4, cbW = layoutRoot.stackWidth
         ctx.beginPath()
         ctx.rect(layoutRoot.stackX, cbY, cbW, layoutRoot.clipboardHeight)
         ctx.fillStyle = "#2c3f5d"; ctx.fill()
@@ -1035,6 +1037,11 @@ ApplicationWindow {
         interval: 16
         repeat: true
         onTriggered: crownTick(0.016)
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Q"
+        onActivated: root.quitForGood()
     }
 
     Shortcut {
@@ -1277,35 +1284,6 @@ ApplicationWindow {
                     onPositionChanged: function(drag) { handMoved(drag.x, drag.y) }
                     onExited: crownRelease()
                     onDropped: function(drop) { crownDropped(drop) }
-                }
-
-                Rectangle {
-                    // The emergency exit, beside the Clipboard: it quits SunTree (after the
-                    // pointer's ride back), until we find it is not needed (one action, then gone; Designdocument Krone.md).
-                    id: emergencyExit
-                    objectName: "emergencyExit"
-                    width: layoutRoot.clipboardHeight
-                    height: layoutRoot.clipboardHeight
-                    x: layoutRoot.stackX + layoutRoot.stackWidth - width
-                    y: layoutRoot.shellTop + 4
-                    color: exitMouse.pressed ? "#d40000" : (exitMouse.containsMouse ? "#ff1e1e" : "#ea0000")
-                    border.width: 1
-                    border.color: "#ffd2d2"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "X"
-                        color: "#ffffff"
-                        font.bold: true
-                        font.pixelSize: 13
-                    }
-
-                    MouseArea {
-                        id: exitMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: root.quitForGood()
-                    }
                 }
 
                 Rectangle {

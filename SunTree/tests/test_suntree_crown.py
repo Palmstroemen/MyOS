@@ -165,27 +165,16 @@ def test_no_top_band_only_the_stem(world, window):
     assert "Dummy Ablage" not in texts and "Ausgaben" not in texts
 
 
-def test_the_emergency_exit_beside_the_clipboard_quits(world, window):
-    from PySide6.QtCore import QPointF, Qt
-    from PySide6.QtQml import qmlEngine
+def test_no_exit_button_the_clipboard_spans_the_stem(world, window):
+    # SunTree stays, ready for the shortcut: no red X; Ctrl+Q ends it (test_suntree_once).
     from PySide6.QtQuick import QQuickItem
-    from PySide6.QtTest import QTest
 
     window.show()
     QGuiApplication.instance().processEvents()
+    assert window.findChild(QQuickItem, "emergencyExit") is None
     clipboard = next(h for h in _prop(window, "stemHits") if h["kind"] == "clipboard")
-    exit_ = window.findChild(QQuickItem, "emergencyExit")
-    at = exit_.mapToScene(QPointF(0, 0))
-    canvas = window.findChild(QQuickItem, "crownCanvas").mapToScene(QPointF(0, 0))
-    assert abs(at.y() - canvas.y() - clipboard["y"]) < 1  # on the Clipboard's line
-    assert at.x() - canvas.x() >= clipboard["x"] + clipboard["w"]  # to its right
-
-    quits = []
-    qmlEngine(window).quit.connect(lambda: quits.append(True))
-    centre = exit_.mapToScene(QPointF(exit_.width() / 2, exit_.height() / 2))
-    QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, centre.toPoint())
-    QTest.qWait(450)  # it fades out first
-    assert quits
+    left, right = _call(window, "crownGeo", -1), _call(window, "crownGeo", 1)
+    assert clipboard["w"] == right["cx"] - left["cx"]
 
 
 def test_past_the_last_folder_into_the_stem(world, window):
