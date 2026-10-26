@@ -70,7 +70,12 @@ Kompakter Überblick: `docs/STATUS.md`.
     [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [x] E3 Scope an der Sitzung  [x] E3b Pfadleiste mit Rahmen (CLD)  [x] E3c Desk der Abteilung (Template gewinnt, Änderungen ins Template)
         [ ] E4 Minimalansicht M mit Pfad-Dropdown (Hover), Regal = Projekte einer Ebene nach rechts
             [x] Schritt 1: Knopf M, eine Zeile, Dropdown bis "Projekte", Kaskade nach rechts; schmale Knöpfe, 1x Suche und Clipboard
-            [ ] Clipboard (Multiclipboard, wandert in alle Projekte mit) als kleiner Icon-Knopf statt Ordner im Regal
+            [x] Clipboard (Multiclipboard, wandert in alle Projekte mit) als kleiner Icon-Knopf: in den Werkzeugen von M
+            [x] Werkzeuge von M (2026-10-26): Knopfzeile oben im CWD-Dropdown statt Menü - Clipboard, Suche, Hell/Dunkel,
+                Sprache, versteckte Ordner (Scope/CwdTools.qml); M wird ein eigenes, oben angedocktes Werkzeug (kein H, kein E)
+            [x] M bleibt eine Zeile (2026-10-26): MyOS-Ordner brechen nicht mehr in eine zweite Zeile um; Mausrad schiebt
+            [ ] Setup-Knopf: Konfigurationsseite (Farbschema wählen/bearbeiten, SunTree-Werte wie Enter/Leave); braucht eine
+                gemeinsame Einstellungsdatei für Scope und SunTree. Später: Anmelden/Ummelden, Abschalten
             [ ] Schritt 2: Auftauchen am oberen Bildschirmrand (Edge-Dock) - zurückgestellt (2026-10-25): im Prototyp reicht
                 das CWD links oben im Scope-Fenster. Später voraussichtlich: volle Bildschirmbreite, Kante über die ganze
                 Breite klappt sofort auf, zu nach ca. 0,5 s ohne Maus im Fenster; Verhältnis zum alten Edge-Dock offen

@@ -3250,7 +3250,11 @@ ApplicationWindow {
             showModeToggle: !window.minimalView
             narrowButtons: window.minimalView
             showSearchToggle: true
-            // Minimal view: one search and one clipboard (here, beside the folders), no menu.
+            // Minimal view: search and Clipboard are in the tools of the CWD dropdown (the
+            // search field still opens here), no menu.
+            showSearchButton: !window.minimalView
+            wrapFolders: !window.minimalView  // M is one line: the folders right of the CWD
+            showClipboardButton: !window.minimalView
             showStyleToggle: !window.minimalView
             showEmbryoToggle: !window.minimalView
             showThemeToggle: false
@@ -3372,12 +3376,53 @@ ApplicationWindow {
             onCreateFolderRequested: function(basePath) { handleCreateFolder(templatesBrowser, basePath) }
         }
 
+        Component {
+            // M's tools at the top of the CWD dropdown: what would hide behind a menu, as
+            // buttons (Scope/CwdTools.qml).
+            id: cwdToolsComponent
+            CwdTools {
+                buttonSize: window.compactButtonHeight
+                baseFont: window.baseFont
+                pill: theme.pill
+                pillBorder: theme.pillBorder
+                pillActive: theme.smallButtonActiveBg
+                textColor: theme.text
+                iconSearch: window.iconSearch
+                clipboardHasItems: window.clipboardHasItems
+                darkTheme: window.darkTheme
+                language: window.uiLanguage
+                hiddenShown: window.projectsShowHiddenFolders
+                onOpenClipboard: {
+                    projectsBrowser.closeCwdHoverPanels("tools-clipboard")
+                    window.openClipboard()
+                }
+                onClipboardDrop: function(drop) {
+                    var payload = projectsBrowser.dropPayloadText(drop)
+                    if (!payload) return
+                    window.dropToClipboard(payload)
+                    drop.acceptProposedAction()
+                }
+                onOpenSearch: {
+                    projectsBrowser.closeCwdHoverPanels("tools-search")
+                    window.level2SearchActive = true
+                }
+                onSwitchTheme: window.darkTheme = !window.darkTheme
+                onSwitchLanguage: window.toggleUiLanguage()
+                onToggleHidden: {
+                    window.projectsShowHiddenFolders = !window.projectsShowHiddenFolders
+                    window.updateSubProjects()
+                    window.updateFiles()
+                }
+            }
+        }
+
         FolderBrowser {  // ProjectsBrowser
             id: projectsBrowser
             debugName: "ProjectsBrowser"
             parent: floatingPool
             z: 8
             markCwd: true  // its line ends at the CWD: it glows (FolderItem.cwdMark)
+            cwdHoverTools: window.minimalView ? cwdToolsComponent : null
             cwdGlow: window.darkTheme
             visible: projectsBrowserVisible
             maxParents: 10

@@ -250,6 +250,19 @@ Built (2026-10-22):
   edge, as high as the button, little room after the name. One search and one clipboard,
   beside the folders; no display menu. The path line keeps no room when it is empty. The
   dropdown and V's preview columns have no hover drop (it joins a tab to H's preview row).
+- M's tools (2026-10-26): no menu - what would hide behind one lies as buttons in a row at
+  the top of the CWD dropdown (`Scope/CwdTools.qml`, `FolderBrowser.cwdHoverTools`): Clipboard
+  (click: the Clipboard becomes the CWD; drop: into it; pale while empty), search (the field
+  opens in the line beside the CWD), light/dark, language, hidden folders. Search and Clipboard
+  left the MyOS-folder row. No H and no E (2026-10-26): M is becoming a tool of its own,
+  docked at the top of the screen; one does not switch it to the full view, at most one opens
+  a normal Scope beside it. Next: a Setup button opening a
+  configuration page (colour scheme, SunTree's values such as Enter/Leave); it needs a
+  settings file shared by Scope and SunTree. Later perhaps signing in / switching user and
+  switching off. The top bar is unchanged in M for now: its other switches (filter, Projekte/
+  Vorlagen AN, Dateien 50 %, ...) are not in the tools yet.
+- M is one line (2026-10-26): the MyOS folders stand right of the CWD and never flow onto a
+  second line (`FolderBrowser.wrapFolders` off); what does not fit is reached by the wheel.
 - SunTree at the session (E5, 2026-10-25): `daemon/lens_link.py` is a program's line to the
   lens - the daemon of its projects root (started when none runs, ended only by the program
   that started it), the lens requests, and the Desk following each move (A5). Scope and

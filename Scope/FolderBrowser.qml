@@ -158,6 +158,10 @@ Item { // ROOT
     signal createFolderRequested(string basePath)
 
     property bool flowOnSecondLine: false
+    // Folders that do not fit flow onto a second line; off (M, one line): they stay on the
+    // line and the wheel moves them sideways.
+    property bool wrapFolders: true
+    property real foldersScroll: 0
     property bool layoutUpdatePending: false
     property bool debugLayout: false
     property int wrapSlackOn: 30
@@ -196,6 +200,12 @@ Item { // ROOT
     // Minimal view (M): the cascade ends at the projects root and starts with the CWD itself,
     // so its children open too ("" keeps the whole chain, without the CWD).
     property string cascadeTopPath: ""
+    // A row at the top of the CWD dropdown (M: the tools, Scope/CwdTools.qml); the dropdown is
+    // at least as wide as it.
+    property Component cwdHoverTools: null
+    readonly property real cwdHoverToolsWidth: cwdHoverToolsLoader.item ? cwdHoverToolsLoader.item.implicitWidth + 8 : 0
+    // The search button may move elsewhere (M: into the tools); the field stays here.
+    property bool showSearchButton: true
     // Minimal view: path segments at or above this folder are not shown (they stand left of
     // this browser); "" shows all.
     property string pathShownBelow: ""
@@ -2059,7 +2069,7 @@ Item { // ROOT
         var p = item.mapToItem(host, 0, item.height)
         cwdHoverPanelX = p.x
         cwdHoverPanelY = p.y
-        cwdHoverPanelWidth = Math.max(120, item.width)
+        cwdHoverPanelWidth = Math.max(120, item.width, cwdHoverToolsWidth)
         cwdHoverSegmentY = p.y - item.height
         cwdHoverSegmentHeight = item.height
         cwdHoverCurrentPath = String(path || "")
@@ -2301,6 +2311,10 @@ Item { // ROOT
     property int _flowPlacementLastMs: 0
     function updateFlowPlacement() {
         if (verticalView) return
+        if (!wrapFolders) {
+            if (flowOnSecondLine) flowOnSecondLine = false
+            return
+        }
         if (!topFoldersRow || !topRow || !rightButtonsRow || !pathRow) return
         if (topRow.width <= 0) return
         var now = Date.now()
@@ -2742,7 +2756,7 @@ Item { // ROOT
                             }
                         }
                         Rectangle { // Search toggle button
-                            visible: showSearchToggle
+                            visible: showSearchToggle && showSearchButton
                             width: compactButtonHeight
                             height: compactButtonHeight
                             radius: TagChips.CHIP_RADIUS_COMPACT
@@ -3104,16 +3118,27 @@ Item { // ROOT
                 }
                 Item {  // HORIZONTAL: folders row (top line); hidden if wrapped
                     id: topFlowHost
-                    Layout.fillWidth: false
+                    Layout.fillWidth: !root.wrapFolders && foldersShown
                     Layout.preferredWidth: flowOnSecondLine || !foldersShown ? 0 : topFoldersRow.implicitWidth
-                    Layout.minimumWidth: flowOnSecondLine || !foldersShown ? 0 : topFoldersRow.implicitWidth
+                    Layout.minimumWidth: flowOnSecondLine || !foldersShown || !root.wrapFolders ? 0 : topFoldersRow.implicitWidth
                     Layout.maximumWidth: flowOnSecondLine || !foldersShown ? 0 : topFoldersRow.implicitWidth
                     Layout.preferredHeight: compactButtonHeight
                     Layout.alignment: Qt.AlignTop
                     visible: !flowOnSecondLine && foldersShown
+                    clip: !root.wrapFolders
                     onWidthChanged: scheduleLayoutUpdate()
+                    WheelHandler {
+                        // One line (M): what does not fit is reached by the wheel.
+                        enabled: !root.wrapFolders
+                        onWheel: function(event) {
+                            var step = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x
+                            var most = Math.max(0, topFoldersRow.implicitWidth - topFlowHost.width)
+                            root.foldersScroll = Math.max(0, Math.min(most, root.foldersScroll - step / 2))
+                        }
+                    }
                         Row {
                         id: topFoldersRow
+                        x: root.wrapFolders ? 0 : -Math.min(root.foldersScroll, Math.max(0, implicitWidth - topFlowHost.width))
                         spacing: 6
                         onImplicitWidthChanged: scheduleLayoutUpdate()
                         Repeater {
@@ -4428,6 +4453,13 @@ Item { // ROOT
                         id: cwdHoverPanelColumn
                         width: cwdHoverPanelFlick.width
                         spacing: 4
+                        Loader {
+                            id: cwdHoverToolsLoader
+                            objectName: "cwdHoverTools"
+                            active: root.cwdHoverTools !== null
+                            visible: active
+                            sourceComponent: root.cwdHoverTools
+                        }
                         Repeater {
                             model: root.cwdHoverChain()
                             delegate: FolderItem {
