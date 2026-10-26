@@ -11,6 +11,6 @@ The most modern and flexible way to manage access rights is so-called *Access Co
 
 We really don't want to bore you with these rather special things here, but they are important. Good to know: it's all implemented, and easier to use than ever.
 
-If you want to dive deeper, you'll find some exercises in this lesson.
+If you want to dive deeper, you'll find a small sample company in this lesson and [exercises for it](<Access rights exercises.md>).
 
 [Let's move on!](<../Lesson12/Filters.md>)

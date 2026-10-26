@@ -31,6 +31,6 @@ Und was ist mit Tags, die eine Zahl tragen, ein Gewicht? Etwas, das dir sagt: zu
 
 Du organisierst dich mit der Disney-Methode oder nach Eisenhower? Hier hast du die Mittel dafür direkt in deinem Betriebssystem. Nicht in einer Spezial-App. In deinem Betriebssystem! Verfügbar für alle deine Programme. Wir sind sicher, sie werden lernen, das zu nutzen – und du auch.
 
-Wenn du gern mit Tags experimentierst, findest du in dieser Lektion einige Dateien zum Taggen. Schau sie dir an – es gibt interessante Anwendungsfälle!
+Wenn du gern mit Tags experimentierst, findest du in dieser Lektion zwei kleine Projekte und [Übungen dazu](<Übungen zu Tags.md>).
 
 [Weiter!](<../Lektion11/Zugriffsrechte.md>)

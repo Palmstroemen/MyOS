@@ -31,6 +31,6 @@ And what about tags that carry a number, a weight? Something that tells you: 40 
 
 You organize yourself with the Disney method or the Eisenhower matrix? Here are the means for it, right in your operating system. Not in a specialized app. In your operating system! Available to all your programs. We are sure they will learn to make use of it – and so will you.
 
-If you like to experiment with tags, you'll find some files to tag in this lesson. Have a look – there are some interesting use cases!
+If you like to experiment with tags, you'll find two small projects in this lesson and [exercises for them](<Tag exercises.md>).
 
 [Let's move on!](<../Lesson11/Access Rights.md>)

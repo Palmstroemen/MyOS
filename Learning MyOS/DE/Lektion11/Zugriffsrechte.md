@@ -11,6 +11,6 @@ Die modernste und flexibelste Art, Zugriffsrechte zu verwalten, sind sogenannte 
 
 Wir wollen dich hier wirklich nicht mit diesen recht speziellen Dingen langweilen, aber sie sind wichtig. Gut zu wissen: Es ist alles umgesetzt und einfacher zu benutzen als je zuvor.
 
-Wenn du tiefer einsteigen willst, findest du in dieser Lektion einige Übungen.
+Wenn du tiefer einsteigen willst, findest du in dieser Lektion eine kleine Musterfirma und [Übungen dazu](<Übungen zu Zugriffsrechten.md>).
 
 [Weiter!](<../Lektion12/Filter.md>)
