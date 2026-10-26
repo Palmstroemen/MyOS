@@ -39,6 +39,11 @@ What follows from it:
   drawn over what lies below (it needs a compositor, as Cinnamon has). A click beside them,
   in the margin or the empty corners, puts SunTree away - the cancelling of use 7; a click in
   the hollow or on the stem between the halves does not.
+- **The stem's panel** (2026-10-26): between the halves, behind the stem, what lies below
+  shows blurred (about 10 px) and darkened (black, 35 %), with rounded corners. Muffin offers
+  no blur behind windows, so SunTree takes a snapshot of that rectangle just before it shows
+  (`takeBackdrop`, kept in memory only) and blurs it (`MultiEffect`). Where the screen cannot
+  be read (Wayland) only the tint remains.
 - SunTree appears with the stem under the pointer: the hand starts in the hollow and every
   direction is a way into the crown, like a pie menu.
 - The way back out of the stem matters mostly for dropping (one level too deep, out again);

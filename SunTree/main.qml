@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Effects
 import "js/Crown.js" as Crown
 
 ApplicationWindow {
@@ -107,6 +108,7 @@ ApplicationWindow {
     }
 
     function toggleFromHotkey() {
+        if (!visible) refreshBackdrop()  // before showing: what lies behind, not SunTree
         visible = !visible
         if (visible) {
             raise()
@@ -134,6 +136,13 @@ ApplicationWindow {
         }
         var l = crownGeo(-1), r = crownGeo(1)
         return x >= l.cx && x <= r.cx && y >= layoutRoot.shellTop && y <= layoutRoot.shellBottom
+    }
+
+    /// The stem's panel: a snapshot of what lies behind it, drawn blurred.
+    function refreshBackdrop() {
+        var at = stemPanel.mapToGlobal(0, 0)
+        stemPanel.backdrop = sunTreeBackend.takeBackdrop(Math.round(at.x), Math.round(at.y),
+                                                         Math.round(stemPanel.width), Math.round(stemPanel.height))
     }
 
     /// Scope and SunTree always share the place: turned to, go where Scope went.
@@ -860,7 +869,10 @@ ApplicationWindow {
         function onCwdChanged() { root.refreshModels() }
     }
 
-    Component.onCompleted: refreshModels()
+    Component.onCompleted: {
+        refreshModels()
+        if (!sunTreeStartHidden) refreshBackdrop()
+    }
     // The lens is shared with Scope: coming back, show what it is now.
     onActiveChanged: if (active) turnedTo()
 
@@ -926,6 +938,54 @@ ApplicationWindow {
                     y: layoutRoot.shellTop
                     width: layoutRoot.shellHalfWidth
                     height: layoutRoot.shellDiameter
+                }
+
+                Item {
+                    // Between the halves, behind the stem: what lies behind, blurred and
+                    // darkened. The compositor offers no blur behind windows (Muffin), so it
+                    // is a snapshot taken before SunTree shows; without one only the tint.
+                    id: stemPanel
+                    objectName: "stemPanel"
+                    property string backdrop: ""
+                    x: leftHalf.x + leftHalf.width
+                    y: layoutRoot.shellTop
+                    width: rightHalf.x - x
+                    height: layoutRoot.shellDiameter
+
+                    Image {
+                        id: backdropImage
+                        anchors.fill: parent
+                        source: stemPanel.backdrop
+                        cache: false
+                        visible: false
+                    }
+
+                    Rectangle {
+                        id: panelShape
+                        anchors.fill: parent
+                        radius: 16
+                        visible: false
+                        layer.enabled: true
+                    }
+
+                    MultiEffect {
+                        anchors.fill: parent
+                        source: backdropImage
+                        visible: stemPanel.backdrop !== ""
+                        autoPaddingEnabled: false
+                        blurEnabled: true
+                        blur: 1.0
+                        blurMax: 32  // about a 10 px blur: unreadable, light and dark still show
+                        maskEnabled: true
+                        maskSource: panelShape
+                    }
+
+                    Rectangle {
+                        objectName: "stemPanelTint"
+                        anchors.fill: parent
+                        radius: 16
+                        color: Qt.rgba(0, 0, 0, 0.35)
+                    }
                 }
 
                 Canvas {

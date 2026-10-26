@@ -40,6 +40,8 @@ Kompakter Überblick: `docs/STATUS.md`.
                     Ebene (summiert, 0,08 R); die Hälfte greift erst wieder, wenn die Hand sie verlassen hat
             [x] Obere Leiste weg (Filterknöpfe, "Dummy Ablage" - Entwicklungshilfen); das X als Notausgang neben dem Clipboard
             [x] Ohne Hintergrund (2026-10-26): Fenster transparent, nur Krone und Stamm; Klick daneben versteckt SunTree (Abbrechen)
+            [x] Panel hinter dem Stamm (2026-10-26): unscharf (etwa 10 px) und schwarz getönt; Momentaufnahme vor dem
+                Erscheinen, da Muffin kein Blur-Behind kennt
     [ ] Eine Handlung, dann weg (2026-10-26, Designdokument Krone): Ablegen, CWD, Brille, Clipboard, Ordner in Scope öffnen;
         danach schließt SunTree; Hinweis mit Rückgängig; erscheint mit dem Stamm unter dem Zeiger
         [x] Nach der Handlung weg (2026-10-26): Ablegen, Doppelklick (hinein und weg), Brille auf/ab; Hinweis unten

@@ -2,7 +2,7 @@
 the crown and the stem are drawn; a click beside them puts SunTree away (cancelling)."""
 
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QCursor, QGuiApplication, QImage
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
@@ -52,3 +52,49 @@ def test_a_click_on_the_crown_or_the_stem_keeps_it(world, window):
     left = _call(window, "crownGeo", -1)
     _call(window, "crownClicked", (left["cx"] + geo["cx"]) / 2, geo["cy"] - geo["R"] * 0.6, False)  # the stem, empty
     assert window.isVisible()
+
+
+# --- the panel between the halves: what lies behind, blurred and darkened ------------------
+
+def _fake_grab(calls):
+    from PySide6.QtGui import QColor
+
+    def grab(x, y, w, h):
+        calls.append((x, y, w, h))
+        image = QImage(max(1, w), max(1, h), QImage.Format_ARGB32)
+        image.fill(QColor("#ffcc00"))
+        return image
+    return grab
+
+
+def test_the_backdrop_is_a_snapshot_kept_in_memory(suntree):
+    calls = []
+    suntree._grab = _fake_grab(calls)
+
+    url = suntree.takeBackdrop(10, 20, 120, 300)
+
+    assert url.startswith("image://backdrop/") and calls == [(10, 20, 120, 300)]
+    assert suntree.backdrop.image.width() == 120
+    assert suntree.takeBackdrop(10, 20, 120, 300) != url  # a new one each time it shows
+
+    suntree._grab = lambda x, y, w, h: QImage()
+    assert suntree.takeBackdrop(0, 0, 10, 10) == ""  # no snapshot (Wayland): only the tint
+
+
+def test_showing_takes_the_snapshot_behind_the_panel(world, suntree, window):
+    from PySide6.QtCore import QPointF
+
+    calls = []
+    suntree._grab = _fake_grab(calls)
+    QCursor.setPos(-200, -200)
+    _call(window, "toggleFromHotkey")  # hidden -> shown: the snapshot is taken before
+    QGuiApplication.instance().processEvents()
+
+    panel = window.findChild(QQuickItem, "stemPanel")
+    left, right = _call(window, "crownGeo", -1), _call(window, "crownGeo", 1)
+    assert panel.width() == right["cx"] - left["cx"] and panel.height() > 0  # between the halves
+    at = panel.mapToGlobal(QPointF(0, 0))
+    assert calls == [(round(at.x()), round(at.y()), round(panel.width()), round(panel.height()))]
+    assert panel.property("backdrop").startswith("image://backdrop/")
+    tint = window.findChild(QQuickItem, "stemPanelTint")
+    assert tint.property("color").alpha() > 0 and tint.property("color").black() == 255

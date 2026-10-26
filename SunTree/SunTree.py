@@ -10,14 +10,34 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from PySide6.QtCore import QObject, Signal, Slot, QUrl, QTimer
-from PySide6.QtGui import QGuiApplication, QIcon, QCursor
+from PySide6.QtGui import QGuiApplication, QIcon, QCursor, QImage
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickImageProvider
 
 from core.scope_api import ScopeApi
 from daemon.lens_link import LensLink
 
 # pynput's syntax: named keys in angle brackets ("<space>", not "space").
 DEFAULT_HOTKEY = "<ctrl>+<alt>+<space>"
+
+
+class BackdropProvider(QQuickImageProvider):
+    """The snapshot of what lies behind the stem's panel, as image://backdrop/<n>."""
+
+    def __init__(self) -> None:
+        super().__init__(QQuickImageProvider.ImageType.Image)
+        self.image = QImage()
+
+    def requestImage(self, image_id, size, requested_size):  # noqa: N802 (Qt's name)
+        return self.image
+
+
+def grab_screen(x: int, y: int, w: int, h: int) -> QImage:
+    """What the screen shows at (x, y, w, h); a null image where it cannot be read (Wayland)."""
+    screen = QGuiApplication.primaryScreen()
+    if screen is None:
+        return QImage()
+    return screen.grabWindow(0, x, y, w, h).toImage()
 
 
 class GlobalHotkeyService(QObject):
@@ -98,6 +118,9 @@ class SunTreeBackend(QObject):
         self._lens.update_context(self._cwd)
         self._clipboard = self._resolve_clipboard_dir()
         self._last_drop: list = []  # [{from, now}] of the last drop, for undoDrop
+        self.backdrop = BackdropProvider()
+        self._grab = grab_screen
+        self._backdrops = 0
         self._ensure_clipboard_dir()
 
     @Slot(result=str)
@@ -239,6 +262,19 @@ class SunTreeBackend(QObject):
         place = str(Path(self._last_drop[-1]["now"]).parent) if self._last_drop else target_dir
         return {"count": len(self._last_drop), "place": place}
 
+    @Slot(int, int, int, int, result=str)
+    def takeBackdrop(self, x: int, y: int, w: int, h: int) -> str:
+        """A snapshot of what lies behind (x, y, w, h), taken before SunTree shows: the stem's
+        panel draws it blurred, as the compositor offers no blur behind windows (Muffin).
+        "" when the screen cannot be read: then the panel is only tinted."""
+        # Security: the screen's content stays in memory (the provider), never on disk.
+        image = self._grab(x, y, w, h)
+        if image is None or image.isNull():
+            return ""
+        self.backdrop.image = image
+        self._backdrops += 1
+        return f"image://backdrop/{self._backdrops}"
+
     @Slot(result=bool)
     def undoDrop(self) -> bool:
         """The last drop back where its files came from; a folder it emptied (an embryo again)
@@ -353,6 +389,7 @@ def main() -> int:
     start_hidden = requested_hidden and hotkey_service.status() == "active"
 
     engine = QQmlApplicationEngine()
+    engine.addImageProvider("backdrop", backend.backdrop)
     ctx = engine.rootContext()
     ctx.setContextProperty("sunTreeBackend", backend)
     ctx.setContextProperty("sunTreeHotkey", hotkey_service)
