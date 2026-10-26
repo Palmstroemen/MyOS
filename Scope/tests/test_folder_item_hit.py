@@ -50,7 +50,7 @@ def test_the_badge_takes_a_click_like_the_icon(make_item, edge_icon):
 
 
 def test_the_icon_takes_a_click(make_item):
-    item = make_item(f'iconSource: "{(SCOPE_DIR / "Theme" / "icons" / "project.svg").as_uri()}"')
+    item = make_item(f'iconSource: "{(SCOPE_DIR / "Theme" / "icons" / "folder.svg").as_uri()}"')
     assert _hits(item, 6 + 8, 12)
 
 

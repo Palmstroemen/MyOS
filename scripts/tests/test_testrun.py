@@ -136,3 +136,27 @@ def test_a_note_only_moved_on_the_screen_is_no_change(machine):
                      encoding="utf-8")
     result = testrun.finish(machine)
     assert "0 neu, 0 geändert, 0 weg" in (result / "Änderungen.md").read_text(encoding="utf-8")
+
+
+def test_the_copy_comes_from_the_last_commit_not_from_edited_lessons(tmp_path):
+    # A note opened in the repository itself (PostFix saves window places, someone types)
+    # must never reach a tester: the copy is built from what is committed.
+    import subprocess
+
+    repo = tmp_path / "repo"
+    lesson = repo / "Learning MyOS" / "DE" / "Lektion01" / "Beginne HIER.md"
+    lesson.parent.mkdir(parents=True)
+    lesson.write_text("# Hallo!\n", encoding="utf-8")
+    git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.org"]
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(git + ["add", "-A"], check=True)
+    subprocess.run(git + ["commit", "-q", "-m", "lesson"], check=True)
+    lesson.write_text("---\nwindow_x_permille: 300\n---\n# Hallo!\nangetippt\n", encoding="utf-8")
+    (lesson.parent / "stray.md").write_text("not committed", encoding="utf-8")
+
+    places = testrun.Places(repo=repo, tutorial=tmp_path / "copy", results=tmp_path / "results",
+                            config=tmp_path / "config")
+    testrun.prepare(places)
+    copied = places.tutorial / "DE" / "Lektion01"
+    assert (copied / "Beginne HIER.md").read_text(encoding="utf-8") == "# Hallo!\n"
+    assert not (copied / "stray.md").exists()

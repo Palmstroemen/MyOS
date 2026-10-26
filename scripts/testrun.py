@@ -19,6 +19,7 @@ MYOS_TUTORIAL_DIR and MYOS_RESULTS_DIR change where the copy and the results lie
 import argparse
 import datetime
 import difflib
+import io
 import json
 import os
 import re
@@ -26,6 +27,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tarfile
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -89,12 +91,31 @@ def copy_root(path: Path) -> Optional[Path]:
     return None
 
 
+def _committed_lessons(repo: Path, target: Path) -> bool:
+    """The lessons as committed (git archive HEAD) into target; False without git."""
+    try:
+        archive = subprocess.run(["git", "-C", str(repo), "archive", "--format=tar", "HEAD", "Learning MyOS"],
+                                 capture_output=True, check=True, timeout=60).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    with tempfile.TemporaryDirectory() as scratch:
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            # Security: only regular files and folders below "Learning MyOS" are unpacked.
+            members = [m for m in tar.getmembers()
+                       if (m.isfile() or m.isdir()) and m.name.split("/")[0] == "Learning MyOS" and ".." not in m.name.split("/")]
+            tar.extractall(scratch, members=members)
+        shutil.copytree(Path(scratch) / "Learning MyOS", target, ignore=shutil.ignore_patterns(*NOISE, "__pycache__"))
+    return True
+
+
 def _build_pristine(places: Places, target: Path) -> None:
-    """The tutorial as a tester finds it: the repository's lessons and the example data."""
+    """The tutorial as a tester finds it: the repository's lessons as last committed (a note
+    opened in the repository itself never reaches a tester) and the example data."""
     from scripts.make_tutorial_data import generate  # Pillow, reportlab: only when building
 
-    shutil.copytree(places.repo / "Learning MyOS", target,
-                    ignore=shutil.ignore_patterns(*NOISE, "__pycache__"))
+    if not _committed_lessons(places.repo, target):  # no git (e.g. an unpacked release)
+        shutil.copytree(places.repo / "Learning MyOS", target,
+                        ignore=shutil.ignore_patterns(*NOISE, "__pycache__"))
     generate(target)
     (target / COMMENTS).write_text(COMMENTS_TEXT, encoding="utf-8")
 

@@ -49,7 +49,6 @@ ApplicationWindow {
     }
     property string iconFolder: "image://theme/folder-open"
     property string iconFolderOff: "image://theme/folder"
-    property string iconProjectFallback: Qt.resolvedUrl("Theme/icons/project.svg")
     property string iconSearch: "image://theme/system-search"
     property string iconFile: "image://theme/text-x-generic"
     property string iconGear: "image://theme/preferences-system"
@@ -582,12 +581,13 @@ ApplicationWindow {
         return "image://theme/" + value
     }
 
+    // A project's own icon (Desk.md "projectIcon"), else "": then its folder shows the
+    // theme's folder icon like any other - a project shows itself by colour and P badge.
     function projectIconForPath(path) {
         if (!hasBackend() || typeof backend.projectIcon !== "function") {
-            return iconProjectFallback
+            return ""
         }
-        var resolved = normalizeProjectIconSource(backend.projectIcon(path))
-        return resolved.length > 0 ? resolved : iconProjectFallback
+        return normalizeProjectIconSource(backend.projectIcon(path))
     }
 
     // --- The lens (Designdocument Perspective Resolver MVP.md, Part A) -------------------

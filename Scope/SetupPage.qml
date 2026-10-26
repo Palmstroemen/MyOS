@@ -239,7 +239,7 @@ Rectangle {
                         y: current ? 4 : 0
                         style: example.folderStyle
                         label: modelData
-                        iconSource: Qt.resolvedUrl("Theme/icons/folder.svg")
+                        iconSource: "image://theme/folder"
                         compactHeight: 28
                         largeHeight: 64
                         iconSmall: 16
@@ -266,7 +266,7 @@ Rectangle {
                                  : (modelData.kind === "hidden" ? example.hidden : true)
                         style: example.folderStyle
                         label: modelData.name
-                        iconSource: Qt.resolvedUrl("Theme/icons/folder.svg")
+                        iconSource: "image://theme/folder"
                         compactHeight: 28
                         largeHeight: 64
                         iconSmall: 16
@@ -481,7 +481,7 @@ Rectangle {
                                 style: modelData.style
                                 width: 130
                                 label: modelData.suggestion ? qsTr("Suggestion") : qsTr("Present")
-                                iconSource: Qt.resolvedUrl("Theme/icons/folder.svg")
+                                iconSource: "image://theme/folder"
                                 compactHeight: 30
                                 largeHeight: 76
                                 iconSmall: 18

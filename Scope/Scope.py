@@ -45,6 +45,11 @@ from core.scope_api import ScopeApi
 from core.settings import Settings
 from daemon.lens_link import LensLink
 
+try:  # imported as Scope.Scope (tests) or run as a script (python3 Scope/Scope.py)
+    from .window_icon import with_project_badge
+except ImportError:
+    from window_icon import with_project_badge
+
 
 class DropDebugFilter(QObject):
     """Log drop events at window level to see if the drop reaches the window at all."""
@@ -1162,9 +1167,10 @@ def main() -> int:
     start_path = sys.argv[1] if len(sys.argv) > 1 else str(Path.cwd())
     api = ScopeApi(start_path)
     app = QGuiApplication(sys.argv)
+    # The window's icon is the theme's folder (Scope's own only where the theme has none) with
+    # the projects' P on it: in the taskbar Scope is not the file browser.
     icon_path = Path(__file__).with_name("Theme").joinpath("icons", "folder.svg")
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    app.setWindowIcon(with_project_badge(QIcon.fromTheme("folder", QIcon(str(icon_path)))))
     engine = QQmlApplicationEngine()
     engine.addImageProvider("theme", ThemeIconProvider())
 
