@@ -19,6 +19,9 @@ ApplicationWindow {
     property bool darkTheme: true
     // Kept in the settings file (core/settings.py) once read at the start.
     property bool settingsRead: false
+    // How pale embryos are: set on the back (General), followed at once.
+    readonly property real embryoOpacity: setupPage.embryoOpacity
+    readonly property real embryoBadgeOpacity: setupPage.embryoBadgeOpacity
     onDarkThemeChanged: if (settingsRead && hasBackend() && typeof backend.setSetting === "function") backend.setSetting("General/darkTheme", darkTheme)
 
     // --- The back: Setup (Scope/Designdocument Setup.md) ------------------------------------
@@ -2907,7 +2910,8 @@ ApplicationWindow {
             cwdOpacity: 1.0
             pathProjectOpacity: 0.7
             folderProjectOpacity: 0.55
-            embryoOpacity: 0.4
+            embryoOpacity: window.embryoOpacity
+            embryoBadgeOpacity: window.embryoBadgeOpacity
             debugLayout: false
             allowDrags: true
             allowDrops: true
@@ -3092,6 +3096,7 @@ ApplicationWindow {
 
         SetupPage {
             // The back of Scope: shown from the quarter turn on (flipSetup).
+            id: setupPage
             parent: window.contentItem
             anchors.fill: parent
             z: 100000
@@ -3139,7 +3144,8 @@ ApplicationWindow {
             cwdOpacity: 1.0
             pathProjectOpacity: 0.7
             folderProjectOpacity: 0.55
-            embryoOpacity: 0.4
+            embryoOpacity: window.embryoOpacity
+            embryoBadgeOpacity: window.embryoBadgeOpacity
             debugLayout: false
             allowDrags: true
             allowDrops: true
@@ -3310,7 +3316,8 @@ ApplicationWindow {
             projectsBrowserWidth: projectsBrowser.implicitWidth
             iconFolder: window.iconFolder
             iconFolderOff: window.iconFolderOff
-            iconFolderXray: Qt.resolvedUrl("Theme/icons/folder_xray.svg")
+            iconFolderXray: Qt.resolvedUrl("Theme/icons/xray.svg")
+            embryoOpacity: window.embryoOpacity
             iconFile: window.iconFile
             iconGear: window.iconGear
             itemStyle: window.filesItemStyle

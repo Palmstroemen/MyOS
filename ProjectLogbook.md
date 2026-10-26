@@ -134,7 +134,12 @@ Kompakter Überblick: `docs/STATUS.md`.
 [ ] Demodaten als Playground
 [ ] Scope UI verfeinern  
     [x] Röntgenblick (X-Ray): kleine Ordner durchsichtig, solange die Liste ohne Scrollbalken passt; Standard an; auch `myls --roentgen`
-    [ ] Röntgenblick: besseres Icon für den Button
+    [x] Röntgenblick: eigenes Icon (2026-10-26, Theme/icons/xray.svg: Film mit Brustkorb statt Ordner)
+    [x] Dateibereich (2026-10-26): Embryos unter den Ordnern blass (0,4) wie in den Ordnerzeilen - fehlte bisher;
+        neuer Ordnertag als blasser Tag ohne Namen am Ende der Tags, ein Klick benennt ihn ("#"-Knopf weg)
+        Blässe der Embryos einstellbar - für den Benutzer "Vorgeschlagene MyOS-Ordner" (Setup, Allgemein, Live-Vorschau
+        in allen drei Darstellungen; Scope und SunTree); ihre Badges mit eigenem Regler (Vorgabe 70 %); im Menü heißt
+        "E Embryos" jetzt "MyOS-Vorschläge"
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
     [x] P-Button: macht den angewählten Ordner, sonst (ohne Auswahl) den angezeigten zum Projekt; durchgestrichenes P macht ein Projekt wieder zum Ordner; P-Badge auf Projektordnern
     [x] Umbenennen in der Ordnerleiste: Feld zeigt den alten Namen (war leer); F2 benennt die Auswahl im FilesPanel um

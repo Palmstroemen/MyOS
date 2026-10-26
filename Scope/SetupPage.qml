@@ -20,6 +20,9 @@ Rectangle {
     property color pill: darkTheme ? "#2c3f5d" : "#dfe3f0"
     property color pillBorder: darkTheme ? "#5f7297" : "#c6ccdf"
     property alias currentTab: tabs.currentIndex
+    // How pale embryos are, as one slides (Scope follows at once; without settings the default).
+    readonly property real embryoOpacity: settings ? embryoSlider.value : 0.4
+    readonly property real embryoBadgeOpacity: settings ? badgeSlider.value : 0.7
     // The small fan's demo: the slider row under the mouse - until its slider is taken; then
     // the fan follows the slider, quiet until the mouse has left the row.
     property string hoveredDemo: ""
@@ -209,6 +212,54 @@ Rectangle {
                         objectName: "setupLanguage"
                         label: root.language.toUpperCase()
                         onActivated: root.switchLanguage()
+                    }
+                }
+                // For the user embryos are "suggested MyOS folders" (the code keeps embryo).
+                SettingSlider {
+                    id: embryoSlider
+                    key: "General/embryoOpacity"
+                    label: qsTr("Suggested MyOS folders")
+                    unit: "%"
+                    Layout.fillWidth: true
+                    help: qsTr("How pale MyOS folders appear that are only suggested here, not made yet.")
+                }
+                SettingSlider {
+                    id: badgeSlider
+                    key: "General/embryoBadgeOpacity"
+                    label: qsTr("Their badges")
+                    unit: "%"
+                    Layout.fillWidth: true
+                    help: qsTr("How pale the badges (€, § ...) on suggested MyOS folders are.")
+                }
+                Grid {
+                    // The live preview: a present MyOS folder beside a suggestion, in each style
+                    // Scope draws folders in (text only, small icon, large icon), drawn as Scope's
+                    // rows draw them: fill and frame pale, the badge as its own slider says.
+                    columns: 2
+                    columnSpacing: 16
+                    rowSpacing: 10
+                    leftPadding: 22
+                    Repeater {
+                        model: [{ style: "text", suggestion: false }, { style: "text", suggestion: true },
+                                { style: "smallIcon", suggestion: false }, { style: "smallIcon", suggestion: true },
+                                { style: "largeIcon", suggestion: false }, { style: "largeIcon", suggestion: true }]
+                        FolderItem {
+                            objectName: (modelData.suggestion ? "suggestionPreview_" : "presentPreview_") + modelData.style
+                            style: modelData.style
+                            width: 150
+                            label: modelData.suggestion ? qsTr("Suggestion") : qsTr("Present")
+                            iconSource: Qt.resolvedUrl("Theme/icons/folder.svg")
+                            compactHeight: 30
+                            largeHeight: 76
+                            iconSmall: 18
+                            iconLarge: 44
+                            textSize: root.baseFont
+                            batchText: "€"
+                            fillColor: Qt.rgba(root.pill.r, root.pill.g, root.pill.b, modelData.suggestion ? root.embryoOpacity : 1.0)
+                            strokeColor: Qt.rgba(root.pillBorder.r, root.pillBorder.g, root.pillBorder.b, modelData.suggestion ? root.embryoOpacity : 1.0)
+                            textColor: root.textColor
+                            badgeOpacity: modelData.suggestion ? root.embryoBadgeOpacity : 1.0
+                        }
                     }
                 }
                 Text {

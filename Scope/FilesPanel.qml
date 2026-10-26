@@ -10,6 +10,7 @@ import "js/FormatUtils.js" as FormatUtils
 Rectangle { // Files panel
     id: root
     property var itemsModel: null
+    property real embryoOpacity: 0.4  // as FolderBrowser's
     property int baseFont: 14
     property color text: "#e6e6e6"
     property color textMuted: "#c9ccd7"
@@ -45,14 +46,6 @@ Rectangle { // Files panel
     /** Bindung an Fenster-Sprache, damit Tag-Beschriftungen bei Sprachumschaltung neu übersetzt werden. */
     property string uiLanguage: ""
     property bool isTagIndexing: false
-    /// Tags are shown once they are used (simple first): the listed folder, its subfolders
-    /// or its files have tags, or a tag filter is on. Otherwise only the "#" button, which opens the
-    /// input for a first folder tag (tagEntryOpen, until the folder changes).
-    readonly property bool tagsInUse: (folderTags || []).length > 0 || (subfolderTags || []).length > 0
-        || (fileTags || []).length > 0
-        || (selectedTags || []).length > 0
-    property bool tagEntryOpen: false
-    onCurrentPathChanged: tagEntryOpen = false
     /// ACL filter panel (left, "set by the system"): principals of the listed folder, see
     /// ScopeApi.acl_summary. Shown only when the project has an ACLs.md.
     property bool aclPanelVisible: false
@@ -1016,34 +1009,6 @@ Rectangle { // Files panel
                     }
                 }
 
-                // "#": first folder tag here; hidden once tags are in use (they show then).
-                Rectangle {
-                    objectName: "tagEntryButton"
-                    visible: !root.tagsInUse
-                    radius: root.chipRadiusMedium
-                    width: root.topRightButtonSize
-                    height: root.topRightButtonSize
-                    color: root.tagEntryOpen ? root.smallButtonActiveBg : root.smallButtonBg
-                    border.color: root.tagEntryOpen ? root.smallButtonActiveBorder : root.smallButtonBorder
-                    Text {
-                        anchors.centerIn: parent
-                        text: "#"
-                        color: root.smallButtonText
-                        font.pixelSize: Math.round(root.topRightButtonSize * 0.6)
-                        font.bold: true
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            root.tagEntryOpen = !root.tagEntryOpen
-                            if (root.tagEntryOpen) Qt.callLater(function() { newFolderTagInput.forceActiveFocus() })
-                        }
-                    }
-                    ToolTip.visible: tagEntryButtonHover.hovered
-                    ToolTip.delay: 600
-                    ToolTip.text: qsTr("Add folder tag")
-                    HoverHandler { id: tagEntryButtonHover }
-                }
             }
 
             // Zeile 4: Papierkorb des Projekts – nur solange etwas darin liegt.
@@ -1118,7 +1083,8 @@ Rectangle { // Files panel
                 radius: 0
                 border.width: 0
                 color: "transparent"
-                visible: root.tagsInUse || root.tagEntryOpen
+                // Always there: at least the pale tag to name (ghostFolderTag).
+                visible: true
 
                 Column {
                     anchors.fill: parent
@@ -1240,18 +1206,53 @@ Rectangle { // Files panel
                                 }
                             }
 
+                            // A new folder tag: a pale tag without a name. A click names it (the field
+                            // with its suggestions); Enter makes it a tag, and a pale one stands again.
                             Rectangle {
-                                width: parent.width
-                                height: root.tagInputHeightPx
-                                radius: root.tagChipRadius
-                                color: Qt.rgba(1, 1, 1, 0.10)
-                                border.color: Qt.rgba(root.smallButtonBorder.r, root.smallButtonBorder.g, root.smallButtonBorder.b, 0.45)
+                                id: ghostTag
+                                objectName: "ghostFolderTag"
+                                property bool editing: false
+                                x: root.tagChipMargin
+                                width: Math.max(20, tagsColumn.width - (2 * root.tagChipMargin))
+                                height: editing ? root.tagInputHeightPx : root.tagChipHeightPx
+                                radius: root.tagChipRightRadius
+                                topLeftRadius: 0
+                                bottomLeftRadius: 0
+                                color: editing ? Qt.rgba(1, 1, 1, 0.10) : Qt.color("#ffd54f")
+                                opacity: editing ? 1.0 : 0.3
+                                border.width: 1
+                                border.color: editing
+                                    ? Qt.rgba(root.smallButtonBorder.r, root.smallButtonBorder.g, root.smallButtonBorder.b, 0.45)
+                                    : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
                                 z: 20
+
+                                Text {
+                                    visible: !ghostTag.editing
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 6
+                                    text: "#"
+                                    color: TagChipStyle.textColorForBg(Qt.color("#ffd54f"))
+                                    font.pixelSize: root.tagChipFontPx
+                                }
+                                MouseArea {
+                                    visible: !ghostTag.editing
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        ghostTag.editing = true
+                                        newFolderTagInput.forceActiveFocus()
+                                    }
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.delay: 600
+                                    ToolTip.text: qsTr("New folder tag")
+                                }
 
                                 TextField {
                                     id: newFolderTagInput
                                     objectName: "newFolderTagInput"
                                     property bool suppressCompletion: false
+                                    visible: ghostTag.editing
                                     anchors.fill: parent
                                     anchors.leftMargin: 8
                                     anchors.rightMargin: 8
@@ -1274,7 +1275,9 @@ Rectangle { // Files panel
                                         }
                                         suppressCompletion = true
                                         focus = false
+                                        ghostTag.editing = false
                                     }
+                                    onActiveFocusChanged: if (!activeFocus && text.length === 0) ghostTag.editing = false
                                 }
 
                                 Rectangle {
@@ -1740,8 +1743,9 @@ Rectangle { // Files panel
                 fillColor: selected ? Qt.rgba(0.58, 0.60, 0.64, 0.34) : root.itemFillColor
                 strokeColor: selected ? Qt.rgba(0.74, 0.76, 0.80, 0.92) : root.itemBorderColor
                 textColor: root.text
-                // A virtual folder (files grouped by date, nothing on disk): faint.
-                opacity: model.isVirtual ? 0.55 : 1.0
+                // A virtual folder (files grouped by date, nothing on disk): faint; an embryo
+                // (a template folder not born yet): pale, as in the folder rows.
+                opacity: model.isVirtual ? 0.55 : (model.isEmbryo ? root.embryoOpacity : 1.0)
                 textSize: root.baseFont
                 detailColumns: {
                     if (root.itemStyle === "largeIcon") return []

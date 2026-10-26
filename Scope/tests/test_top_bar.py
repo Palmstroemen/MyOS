@@ -68,3 +68,19 @@ def test_choosing_a_filter_by_hand_is_gone():
     for gone in ("def setManualFilter", "def clearManualFilter", "def saveFilter", "def listFilterSaveTargets", "_filter_lens"):
         assert gone not in scope, gone
     assert "openFilterMenu" not in page and "setupFilter" not in page
+
+
+def test_scope_follows_the_embryo_setting():
+    assert "embryoOpacity: 0.4" not in MAIN  # no fixed value any more
+    assert MAIN.count("embryoOpacity: window.embryoOpacity") >= 3  # both rows and the files
+
+
+def test_the_rows_make_the_badges_of_suggestions_pale():
+    browser = (Path(__file__).resolve().parents[1] / "FolderBrowser.qml").read_text(encoding="utf-8")
+    assert browser.count("badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0") >= 5
+    assert MAIN.count("embryoBadgeOpacity: window.embryoBadgeOpacity") == 2
+
+
+def test_the_menu_says_myos_suggestions():
+    browser = (Path(__file__).resolve().parents[1] / "FolderBrowser.qml").read_text(encoding="utf-8")
+    assert 'qsTr("E Embryos")' not in browser and browser.count('qsTr("MyOS suggestions")') == 2

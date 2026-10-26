@@ -32,6 +32,7 @@ Rectangle {
     property string batchText: ""
     /// The folder is a project: a small "P" at the top right of its icon.
     property bool projectBadge: false
+    property real badgeOpacity: 1.0  // a suggested MyOS folder's badge is pale (Setup, General)
     /// The text badge drawn: the folder's own, else "P" for a project without a badge.
     readonly property string shownBatchText: batchText || (projectBadge && !batchSource ? "P" : "")
     readonly property bool shownBatchIsProjectP: !batchText && projectBadge && !batchSource
@@ -376,7 +377,9 @@ Rectangle {
                 sourceSize.height: height
             }
             Item {
+                objectName: "badge"
                 visible: parent.hasBatch
+                opacity: root.badgeOpacity
                 anchors.fill: parent
                 Rectangle {
                     anchors.fill: parent
@@ -478,7 +481,9 @@ Rectangle {
                 sourceSize.height: height
             }
             Item {
+                objectName: "badge"
                 visible: batchSource || shownBatchText
+                opacity: root.badgeOpacity
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: parent.width
                 height: parent.height * TagChips.BATCH_HEIGHT_FRAC

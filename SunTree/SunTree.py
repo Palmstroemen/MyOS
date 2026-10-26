@@ -272,6 +272,11 @@ class SunTreeBackend(QObject):
         may have been changed on the back of Scope since SunTree last appeared."""
         return Settings().group("SunTree")
 
+    @Slot(result=float)
+    def embryoOpacitySetting(self) -> float:
+        """How pale embryos are (General, set on the back of Scope), read afresh."""
+        return float(Settings().get("General/embryoOpacity"))
+
     @Slot(result=bool)
     def homeIfOutside(self) -> bool:
         """SunTree appearing with the CWD outside the project tree goes to the projects root."""

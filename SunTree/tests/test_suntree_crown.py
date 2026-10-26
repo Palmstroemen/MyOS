@@ -310,3 +310,11 @@ def test_the_crown_takes_its_values_from_the_settings_on_appearing(world, window
     geo = _call(window, "crownGeo", 1)
     assert abs(geo["T"] - 0.6 * geo["R"]) < 1e-6
     assert geo["enter"] == 0.8 and geo["leave"] == 0.3
+
+
+def test_suntree_takes_the_embryo_setting_on_appearing(world, window):
+    from core.settings import Settings
+
+    Settings().set("General/embryoOpacity", 0.6)
+    _call(window, "turnedTo")
+    assert abs(_prop(window, "embryoOpacity") - 0.6) < 1e-6

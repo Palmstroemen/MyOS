@@ -14,6 +14,10 @@ from typing import Any, Dict, Optional, Tuple
 SETTINGS: Dict[str, Tuple[type, Any, Any]] = {
     "General/darkTheme": (bool, True, None),
     "General/language": (str, "de", {"de", "en"}),
+    # How pale embryos (template folders not born yet) are, in Scope and SunTree alike.
+    "General/embryoOpacity": (float, 0.4, (0.1, 0.9)),
+    # The badges (€, §, ...) on suggested MyOS folders: their own paleness, half way by default.
+    "General/embryoBadgeOpacity": (float, 0.7, (0.1, 1.0)),
     # Scope's two rows (the projects, the MyOS folders); views of their own are to come.
     "Scope/projectsRow": (bool, True, None),
     "Scope/templatesRow": (bool, True, None),

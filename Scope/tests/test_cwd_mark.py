@@ -61,3 +61,15 @@ def test_on_a_light_theme_the_frame_is_stronger_instead(make_item):
     item = make_item('cwdMark: true; cwdGlow: false; cwdMarkColor: "#5a3d00"')
     assert item.property("shownBorderWidth") == 3
     assert not any(g.isVisible() for g in _glow(item))
+
+
+def test_a_badge_can_be_pale(make_item):
+    item = make_item('batchText: "€"; badgeOpacity: 0.7')
+    badges = [c for c in _walk(item) if c.objectName() == "badge"]
+    assert badges and all(abs(b.opacity() - 0.7) < 1e-6 for b in badges)
+
+
+def _walk(item):
+    yield item
+    for child in item.childItems():
+        yield from _walk(child)

@@ -186,3 +186,32 @@ def test_done_stands_top_left(page):
     done = _named(view, "setupFlipBack").mapToScene(QPointF(0, 0))
     title = _named(view, "setupTitle").mapToScene(QPointF(0, 0))
     assert done.x() < title.x() and abs(done.y() - title.y()) < 20
+
+
+def test_suggested_myos_folders_pale_with_a_live_preview_in_all_three_styles(page):
+    # For the user embryos are "suggested MyOS folders". The preview shows a present one beside
+    # a suggestion in each style, drawn as Scope's rows draw them: the fill and frame pale, the
+    # badge as pale as its own slider says, the name full.
+    from PySide6.QtGui import QColor
+
+    view, _ = page
+    slider = _named(view, "setting_General/embryoOpacity")
+    badges = _named(view, "setting_General/embryoBadgeOpacity")
+    styles = ("text", "smallIcon", "largeIcon")
+    suggestions = [_named(view, "suggestionPreview_" + style) for style in styles]
+    present = [_named(view, "presentPreview_" + style) for style in styles]
+    assert slider is not None and badges is not None and all(suggestions) and all(present)
+    assert [s.property("style") for s in suggestions] == list(styles)
+
+    def fill_alpha(item):
+        return QColor(item.property("fillColor")).alphaF()
+
+    assert all(abs(fill_alpha(s) - 0.4) < 0.01 for s in suggestions)
+    assert all(abs(s.property("badgeOpacity") - 0.7) < 1e-6 for s in suggestions)
+    assert all(fill_alpha(p) > 0.99 and p.property("badgeOpacity") == 1.0 for p in present)
+    slider.setProperty("value", 0.6)
+    badges.setProperty("value", 0.9)
+    QTest.qWait(30)
+    assert all(abs(fill_alpha(s) - 0.6) < 0.01 and abs(s.property("badgeOpacity") - 0.9) < 1e-6 for s in suggestions)
+    root = view.rootObject()
+    assert abs(root.property("embryoOpacity") - 0.6) < 1e-6 and abs(root.property("embryoBadgeOpacity") - 0.9) < 1e-6

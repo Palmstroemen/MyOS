@@ -56,3 +56,14 @@ def test_back_to_the_default(config):
     s.reset("SunTree/lineT")
     assert Settings().get("SunTree/lineT") == 0.7
     assert s.default("SunTree/lineT") == 0.7 and s.limits("SunTree/lineT") == (0.5, 0.85)
+
+
+def test_how_pale_embryos_are_is_one_setting_for_all(config):
+    s = Settings()
+    assert s.get("General/embryoOpacity") == 0.4
+    assert not s.set("General/embryoOpacity", 0.0)  # invisible: refused
+    assert s.set("General/embryoOpacity", 0.6) and Settings().get("General/embryoOpacity") == 0.6
+
+
+def test_the_badges_of_suggestions_have_their_own_setting(config):
+    assert Settings().get("General/embryoBadgeOpacity") == 0.7  # half way to full

@@ -102,6 +102,7 @@ Item { // ROOT
     property real pathProjectOpacity: 0.7
     property real folderProjectOpacity: 0.55
     property real embryoOpacity: 0.4
+    property real embryoBadgeOpacity: 1.0  // the badges of suggestions (Setup, General)
     function _toColorString(value) {
         if (value === null || value === undefined) return ""
         if (typeof value === "string" && value.length > 0) return value
@@ -2466,7 +2467,7 @@ Item { // ROOT
                             visible: showStyleToggle && showEmbryoToggle
                         }
                         MenuItem {
-                            text: qsTr("E Embryos")
+                            text: qsTr("MyOS suggestions")
                             visible: showEmbryoToggle
                             checkable: true
                             checked: showEmbryos
@@ -2681,7 +2682,7 @@ Item { // ROOT
                                     visible: showStyleToggle && showEmbryoToggle
                                 }
                                 MenuItem {
-                                    text: qsTr("E Embryos")
+                                    text: qsTr("MyOS suggestions")
                                     visible: showEmbryoToggle
                                     checkable: true
                                     checked: showEmbryos
@@ -3161,6 +3162,7 @@ Item { // ROOT
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                 projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                 fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: textSoft
@@ -3631,6 +3633,7 @@ Item { // ROOT
                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                     projectBadge: !!(modelData && modelData.isProject)
                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                    badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                     fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                     textColor: textSoft
@@ -4061,6 +4064,7 @@ Item { // ROOT
                                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                                     projectBadge: !!(modelData && modelData.isProject)
                                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                                    badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                                     fillColor: folderFillColorForPath(modelData, previewLevel, fullPath)
                                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel, fullPath)
                                                     textColor: textSoft
@@ -4152,6 +4156,7 @@ Item { // ROOT
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                 projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                 fillColor: folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: textSoft
@@ -4340,6 +4345,7 @@ Item { // ROOT
                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                     projectBadge: !!(modelData && modelData.isProject)
                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                    badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                     fillColor: folderFillColorForPath(modelData, previewLevel + 1, fullPath)
                                     strokeColor: folderStrokeColorForPath(modelData, previewLevel + 1, fullPath)
                                     textColor: textSoft
@@ -4484,6 +4490,7 @@ Item { // ROOT
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                 projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                 textLeftInset: root.effectiveStyle() === "text" ? 8 : 0
                                 fillColor: customColors ? (root._toColorString(customColors.fill) || root.pathButtonFill) : root.pathButtonFill
                                 strokeColor: customColors ? (root._toColorString(customColors.stroke) || root.pathButtonBorder) : root.pathButtonBorder
@@ -4624,6 +4631,7 @@ Item { // ROOT
                                     batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                     projectBadge: !!(modelData && modelData.isProject)
                                     batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                    badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                     fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                     strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                     textColor: root.textSoft
@@ -4744,6 +4752,7 @@ Item { // ROOT
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                 projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: root.textSoft
@@ -4876,6 +4885,7 @@ Item { // ROOT
                                 batchSource: (modelData && modelData.batch) ? modelData.batch : ""
                                 projectBadge: !!(modelData && modelData.isProject)
                                 batchText: (modelData && modelData.batchText) ? modelData.batchText : ""
+                                badgeOpacity: root.itemIsEmbryo(modelData) ? root.embryoBadgeOpacity : 1.0
                                 fillColor: root.folderFillColorForPath(modelData, 0, fullPath)
                                 strokeColor: root.folderStrokeColorForPath(modelData, 0, fullPath)
                                 textColor: root.textSoft

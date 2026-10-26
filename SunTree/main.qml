@@ -14,7 +14,7 @@ ApplicationWindow {
 
     property var foldersModel: []
     property var embryosModel: []
-    property real embryoOpacity: 0.4  // as in Scope
+    property real embryoOpacity: 0.4  // as in Scope; the setting is read on appearing
     property var clipboardModel: []
     property var parentModel: []
     property int hoveredFrameIndex: -1
@@ -453,6 +453,7 @@ ApplicationWindow {
         if (!s) return
         crownLineT = s.lineT; crownInner = s.inner; crownEnter = s.enter; crownLeave = s.leave
         crownLens = s.lens; crownSoftness = s.softness; crownEdge = s.edge
+        embryoOpacity = sunTreeBackend.embryoOpacitySetting()
         crownCache = ({})
     }
     // Per half (-1 left, 1 right): target (where the hand put it), shown (the springs) and

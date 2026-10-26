@@ -19,7 +19,7 @@ Decided on 2026-10-26.
 
 | Tab | Holds | When |
 |---|---|---|
-| General | light / dark, language; later the colour scheme (choose, edit) | step 1; scheme: steps 2, 3 |
+| General | light / dark, language, how pale embryos are - for the user "suggested MyOS folders" (live preview: a present folder beside a suggestion in each style, text, small and large icon, drawn as Scope's rows draw them; Scope follows at once, SunTree when it appears, 2026-10-26), and their badges, with a slider of their own (70 % by default); later the colour scheme (choose, edit) | step 1; scheme: steps 2, 3 |
 | Scope | what Scope's top bar and display menu hold now: folder style, embryos, hidden folders, the files' share, preview | when the top bar goes |
 | Headline | what concerns the docked tool: its tools, docking | with the Headline |
 | SunTree | the crown's values (SunTree/Designdocument Krone.md, 5): line T, inner radius, Enter, Leave, fish-eye, softness, edge | step 1 |
