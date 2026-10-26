@@ -69,6 +69,14 @@ def _call(win, name, *args):
     return value.toVariant() if hasattr(value, "toVariant") else value
 
 
+def _gone(win):
+    """SunTree went away: it fades out first (Designdocument Krone.md), then its window hides."""
+    from PySide6.QtTest import QTest
+
+    QTest.qWait(450)
+    return not win.isVisible()
+
+
 def _prop(win, name):
     value = win.property(name)
     return value.toVariant() if hasattr(value, "toVariant") else value
@@ -174,7 +182,7 @@ def test_the_emergency_exit_beside_the_clipboard_quits(world, window):
     qmlEngine(window).quit.connect(lambda: quits.append(True))
     centre = exit_.mapToScene(QPointF(exit_.width() / 2, exit_.height() / 2))
     QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, centre.toPoint())
-    QGuiApplication.instance().processEvents()
+    QTest.qWait(450)  # it fades out first
     assert quits
 
 

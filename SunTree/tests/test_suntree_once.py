@@ -7,7 +7,7 @@ from PySide6.QtGui import QCursor, QGuiApplication, QWindow
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
-from SunTree.tests.test_suntree_crown import _call, _dive, _prop, suntree, window, world  # noqa: F401
+from SunTree.tests.test_suntree_crown import _call, _dive, _gone, _prop, suntree, window, world  # noqa: F401
 
 RULE = "# Sort\nPattern: {{YYYY}}/{{MM}}\nDateSource: filename\nNewLevelFrom: 2\n"
 
@@ -84,7 +84,7 @@ def test_a_drop_puts_suntree_away_and_leaves_a_notice(world, window, tmp_path):
 
     assert _call(window, "crownDropUrls", ["file://" + str(source)])
 
-    assert not window.isVisible()
+    assert _gone(window)
     notice = _notice(window)
     assert notice.isVisible() and target.name in notice.property("text")
     QTest.qWait(100)
@@ -102,7 +102,7 @@ def test_a_single_click_goes_in_a_double_click_also_away(world, suntree, window)
     assert suntree.cwd() == str(world["noten"]) and window.isVisible()  # to look further
 
     _call(window, "crownClicked", at["x"], at["y"], True)
-    assert suntree.cwd() == str(world["noten"]) and not window.isVisible()
+    assert suntree.cwd() == str(world["noten"]) and _gone(window)
 
 
 def test_putting_on_a_lens_and_taking_it_off_put_suntree_away(world, suntree, window):
@@ -111,11 +111,11 @@ def test_putting_on_a_lens_and_taking_it_off_put_suntree_away(world, suntree, wi
     _call(window, "handMoved", geo["cx"] - geo["ri"] - 5, geo["cy"])  # the left half: 04_Finanz
     at = _prop(window, "crownPointer")
     _call(window, "crownClicked", at["x"], at["y"], True)
-    assert _prop(window, "lensOn") and not window.isVisible()
+    assert _prop(window, "lensOn") and _gone(window)
 
     _shown(window)
     _call(window, "takeOffLens")
-    assert not _prop(window, "lensOn") and not window.isVisible()
+    assert not _prop(window, "lensOn") and _gone(window)
 
 
 # --- appearing under the pointer -------------------------------------------------------------
@@ -200,6 +200,23 @@ def test_the_red_x_brings_the_pointer_back_too_then_quits(world, suntree, window
     QTest.qWait(600)
 
     _call(window, "quitForGood")
-    assert not window.isVisible() and not quits  # first the ride back
+    assert not quits  # first the fade and the ride back
     QTest.qWait(600)
-    assert suntree.lastPointer() == {"x": 30, "y": 40} and quits
+    assert not window.isVisible() and suntree.lastPointer() == {"x": 30, "y": 40} and quits
+
+
+def test_going_away_fades_into_blur(world, suntree, window):
+    # A snapshot at the end, blurring and fading out; only then the window hides, and the
+    # crown is back at rest for the next time.
+    _shown(window)
+    _dive(window, 5)
+    _call(window, "putAway")
+    assert window.isVisible() and _prop(window, "fading")
+    assert _prop(window, "crownActive") == 0  # the pointer is free: it rides back
+    QTest.qWait(150)
+    assert 0 < _prop(window, "fadeProgress") < 1
+
+    assert _gone(window)
+    assert not _prop(window, "fading") and _call(window, "crownHit") is None
+    _shown(window)
+    assert _prop(window, "fadeProgress") == 0  # shows whole again

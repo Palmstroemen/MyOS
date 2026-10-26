@@ -6,7 +6,7 @@ from PySide6.QtGui import QCursor, QGuiApplication, QImage
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
-from SunTree.tests.test_suntree_crown import _call, suntree, window, world  # noqa: F401
+from SunTree.tests.test_suntree_crown import _call, _gone, suntree, window, world  # noqa: F401
 
 
 def _shown(window):
@@ -35,14 +35,14 @@ def test_a_click_beside_the_crown_puts_suntree_away(world, window):
     _shown(window)
     geo = _call(window, "crownGeo", 1)
     _call(window, "crownClicked", geo["cx"] + geo["R"] + 15, geo["cy"] - geo["R"] + 10, False)
-    assert not window.isVisible()
+    assert _gone(window)
 
 
 def test_a_click_in_the_margin_puts_suntree_away(world, window):
     _shown(window)
     QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, QPoint(4, 4))
     QGuiApplication.instance().processEvents()
-    assert not window.isVisible()
+    assert _gone(window)
 
 
 def test_a_click_on_the_crown_or_the_stem_keeps_it(world, window):

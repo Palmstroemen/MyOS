@@ -130,21 +130,47 @@ ApplicationWindow {
 
     /// Cancelling, or an action done: SunTree goes away, and the pointer rides back where
     /// SunTree picked it up. True while it rides.
+    /// It does not vanish at once: a snapshot of it blurs and fades out (fadeOut), meanwhile
+    /// the pointer rides back.
     function putAway() {
+        if (fading) return
         crownRelease(false)
-        visible = false
+        crownTimer.stop()  // the crown stands still for the snapshot
+        fadeOut()
         var back = pickedUpAt
         pickedUpAt = null
-        if (!back) return false
+        if (!back) return
+        ridingBack = true
         sunTreeBackend.glidePointerTo(back.x, back.y, 350)
-        return true
     }
 
-    /// The red X: away as always, and SunTree ends once the pointer is back.
+    property bool fading: false
+    property real fadeProgress: 0  // 0: whole, 1: blurred away
+    property bool ridingBack: false
+
+    function fadeOut() {
+        fadeSnapshot.scheduleUpdate()
+        fading = true
+        fadeAnimation.restart()
+    }
+
+    function fadeDone() {
+        visible = false
+        fading = false
+        fadeProgress = 0
+        crownReset()  // at rest for the next time
+        maybeQuit()
+    }
+
+    /// The red X: away as always, and SunTree ends once it has faded and the pointer is back.
     property bool quitting: false
     function quitForGood() {
         quitting = true
-        if (!putAway()) Qt.quit()
+        putAway()
+    }
+
+    function maybeQuit() {
+        if (quitting && !fading && !ridingBack) Qt.quit()
     }
 
     /// Whether (x, y) in the main area is on the crown (either half, its hollow included) or
@@ -921,7 +947,10 @@ ApplicationWindow {
     Connections {
         target: sunTreeBackend
         function onPointerGlideDone() {
-            if (root.quitting) Qt.quit()
+            if (root.ridingBack) {
+                root.ridingBack = false
+                root.maybeQuit()
+            }
             if (!root.pointerGliding) return
             root.pointerGliding = false
             root.showNow()
@@ -948,7 +977,45 @@ ApplicationWindow {
         }
     }
 
+    NumberAnimation {
+        id: fadeAnimation
+        target: root
+        property: "fadeProgress"
+        from: 0
+        to: 1
+        duration: 300
+        easing.type: Easing.InQuad
+        onFinished: root.fadeDone()
+    }
+
+    ShaderEffectSource {
+        // SunTree's last picture as it goes away; the real one is hidden meanwhile.
+        id: fadeSnapshot
+        anchors.fill: scene
+        sourceItem: scene
+        live: false
+        hideSource: root.fading
+        visible: false
+    }
+
+    MultiEffect {
+        anchors.fill: scene
+        z: 1  // above the scene: it takes the clicks while fading
+        source: fadeSnapshot
+        visible: root.fading
+        autoPaddingEnabled: false
+        blurEnabled: true
+        blurMax: 32
+        blur: root.fadeProgress
+        opacity: 1 - root.fadeProgress
+
+        MouseArea {
+            anchors.fill: parent  // nothing reacts while it fades
+        }
+    }
+
     Item {
+        id: scene
         anchors.fill: parent
 
         MouseArea {
