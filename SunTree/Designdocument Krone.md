@@ -147,7 +147,10 @@ The tree draws its branches inward and makes them part of its stem.
 - **The lens' frame** (✕ and the lens' levels) below it, while a lens is on: it pushes the
   Clipboard up.
 - **The CWD** in the middle (the oval), with the folders drawn into the stem above it as a
-  preview while diving.
+  preview while diving. A folder being drawn in comes down from above into the middle,
+  growing, while the CTD slides one place down and shrinks: the entries keep one place apart
+  at every moment (2026-10-26; before, the preview stood full-size in the oval from the start
+  and lay over the CTD).
 - **The parents** below it, down to the root.
 
 - **Geometry** (2026-10-26): the halves' centres are the centres of the CWD oval's round
@@ -202,6 +205,5 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
   "missing-pynput" and stays a normal window. Its default was "<ctrl>+<alt>+space", which
   pynput rejects ("<space>" is right), so the service failed silently: fixed, and SunTree's
   own service tried during a drag in Xephyr.
-- Drawing in, the preview and the CWD oval overlap restlessly in the middle of the glide.
 - Many folders on one level (a hundred): the fish-eye keeps the one under the pointer
   readable; the others become hairlines. Enough, or a scroll position shown at the edge?

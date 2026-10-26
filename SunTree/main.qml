@@ -873,10 +873,29 @@ ApplicationWindow {
         return out
     }
 
+    /// Where the stem's entries belong (before gliding): slot 0 is the middle, as big as the
+    /// oval; each entry one slot below the one above it. A folder being drawn in (the top
+    /// preview, weight q) comes down from above: its slot is q - 1, so it reaches the middle
+    /// just as the CTD has slid one slot down - never piled on it.
+    function stemPlaces() {
+        var cy = layoutRoot.cwdY + layoutRoot.cwdHeight / 2
+        var ovalH = layoutRoot.cwdHeight, ovalW = layoutRoot.cwdWidth, pillH = 30, gap = 8, pillW = layoutRoot.stackWidth - 16
+        var entries = stemEntries(), out = []
+        var shift = entries.length && entries[0].kind === "preview" ? entries[0].w - 1 : 0
+        for (var i = 0; i < entries.length; i++) {
+            var e = entries[i], slot = i + shift
+            var y = slot < 1 ? cy + slot * (ovalH / 2 + gap + pillH / 2)
+                             : cy + (ovalH / 2 + gap + pillH / 2) + (slot - 1) * (pillH + gap)
+            var big = 1 - Math.min(1, Math.abs(slot))
+            out.push({ e: e, kind: e.kind, weight: e.w, slot: slot, y: y, big: big,
+                       w: pillW + (ovalW - pillW) * big, h: pillH + (ovalH - pillH) * big })
+        }
+        return out
+    }
+
     function stemPaint(ctx, dt) {
         var k = 1 - Math.exp(-dt * crownSoftness)
-        var cx = layoutRoot.centerX, cy = layoutRoot.cwdY + layoutRoot.cwdHeight / 2
-        var ovalH = layoutRoot.cwdHeight, ovalW = layoutRoot.cwdWidth, pillH = 30, gap = 8, pillW = layoutRoot.stackWidth - 16
+        var cx = layoutRoot.centerX
         var hits = []
         // The Clipboard on top: one drops onto it like onto any folder.
         var cbY = layoutRoot.shellTop + 4, cbW = layoutRoot.stackWidth - layoutRoot.clipboardHeight - 6
@@ -888,22 +907,18 @@ ApplicationWindow {
         ctx.fillText("Clipboard (" + clipboardModel.length + ")", layoutRoot.stackX + cbW / 2, cbY + layoutRoot.clipboardHeight / 2)
         hits.push({ kind: "clipboard", path: "", x: layoutRoot.stackX, y: cbY, w: cbW, h: layoutRoot.clipboardHeight })
 
-        var entries = stemEntries(), slot = 0, ops = [], seen = ({})
-        for (var i = 0; i < entries.length; i++) {
-            var e = entries[i]
+        var places = stemPlaces(), ops = [], seen = ({})
+        for (var i = 0; i < places.length; i++) {
+            var pl = places[i], e = pl.e, y = pl.y, w = pl.w, hh = pl.h
             var key = e.kind + ":" + e.path
             seen[key] = true
-            var y = slot < 1 ? cy + slot * (ovalH / 2 + gap + pillH / 2)
-                             : cy + (ovalH / 2 + gap + pillH / 2) + (slot - 1) * (pillH + gap)
             var cur = stemGlide[key]
             if (cur === undefined) cur = stemGlide[e.path] !== undefined ? stemGlide[e.path] : y
             cur += (y - cur) * k
             stemGlide[key] = cur
             if (Math.abs(y - cur) > 0.5) crownTimer.start()
-            var big = 1 - Math.max(0, Math.min(1, slot)), w = pillW + (ovalW - pillW) * big, hh = pillH + (ovalH - pillH) * big
-            ops.push({ e: e, x: cx - w / 2, y: cur - hh / 2, w: w, h: hh, big: big, cy: cur })
+            ops.push({ e: e, x: cx - w / 2, y: cur - hh / 2, w: w, h: hh, big: pl.big, cy: cur })
             if (e.kind !== "preview") hits.push({ kind: e.kind, path: e.path, x: cx - w / 2, y: cur - hh / 2, w: w, h: hh })
-            slot += e.w
         }
         for (var key2 in stemGlide) if (!seen[key2]) delete stemGlide[key2]
         // the deepest last: on top

@@ -262,3 +262,18 @@ def test_the_halves_share_the_centres_of_the_cwd_ovals_ends(window):
     assert right["cx"] - left["cx"] == width - height
     assert _call(window, "cwdOval")["cx"] == (left["cx"] + right["cx"]) / 2
     assert right["cy"] == _call(window, "cwdOval")["cy"]
+
+
+def test_drawing_in_the_stem_entries_never_overlap(world, window):
+    # Halfway through drawing Noten in: the preview comes down from above into the middle
+    # while the CTD slides down - one slot apart at every moment, not piled up in the oval.
+    geo = _call(window, "crownGeo", 1)
+    D = geo["T"] - geo["ri"]
+    _dive(window, 1.5 * D)  # s about T + D/2: q about 0.5
+    for _ in range(30):
+        _call(window, "crownTick", 0.2)
+    places = _call(window, "stemPlaces")
+    kinds = [p["kind"] for p in places]
+    assert kinds[:2] == ["preview", "ctd"] and 0.2 < places[0]["weight"] < 0.8
+    for upper, lower in zip(places, places[1:]):
+        assert upper["y"] + upper["h"] / 2 <= lower["y"] - lower["h"] / 2 + 0.01, (upper, lower)
