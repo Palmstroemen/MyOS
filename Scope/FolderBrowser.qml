@@ -29,10 +29,8 @@ Item { // ROOT
     property bool allowLargeIcons: true
     property bool showModeToggle: true
     property bool showSearchToggle: false
-    property bool showStyleToggle: true
     property bool showThemeToggle: false
     property bool showEmbryos: true
-    property bool showEmbryoToggle: true
     property bool showClipboardButton: true
     property bool showHiddenFolders: false
     property bool searchActive: false
@@ -142,9 +140,6 @@ Item { // ROOT
     signal toggleMode()
     signal toggleSearch()
     signal toggleTheme()
-    signal styleChanged(string style)
-    signal toggleEmbryos()
-    signal toggleShowHiddenFolders()
     signal clipboardRequested()
     signal clipboardDropRequested(string payload)
     signal renameRequested(string fullPath)
@@ -198,6 +193,7 @@ Item { // ROOT
     property bool cwdHoverEnabled: true
     /// When true, show path bar (H: breadcrumb row, V: vertical parent list); when false, use cascade menu on CWD hover.
     property bool usePathBar: true
+    property bool showUpButton: true  // ↑ beside the current folder while the path bar is off
     // Minimal view (M): the cascade ends at the projects root and starts with the CWD itself,
     // so its children open too ("" keeps the whole chain, without the CWD).
     property string cascadeTopPath: ""
@@ -1315,10 +1311,6 @@ Item { // ROOT
     }
     onIndentChanged: scheduleVerticalWidthUpdate()
     onShowModeToggleChanged: scheduleVerticalWidthUpdate()
-    onShowStyleToggleChanged: {
-        scheduleVerticalWidthUpdate()
-        scheduleContentHeightUpdate()
-    }
     onShowSearchToggleChanged: {
         scheduleVerticalWidthUpdate()
         scheduleContentHeightUpdate()
@@ -1574,6 +1566,17 @@ Item { // ROOT
             return full
         }
         return pathPartsDisplay()
+    }
+
+    /// One folder up (the ↑ beside the current folder when the path bar is off): what clicking
+    /// the parent segment of the path bar does.
+    function goUp() {
+        var index = pathPartsDisplay().length - 2
+        if (index < 0) return
+        var parentPath = fullPathForDisplayIndex(index)
+        pathSegmentActivated(index)
+        emitNavigationIntent(parentPath, "single", "pathbar", null)
+        navigateToPathRequested(parentPath)
     }
 
     /// Full path for segment at index in the H-View bar; use with pathPartsDisplayForBar().
@@ -2425,119 +2428,6 @@ Item { // ROOT
                     scheduleVerticalLayoutUpdate()
                     scheduleVerticalWidthUpdate()
                 }
-                Rectangle { // VERTICAL: display options menu (style + embryos)
-                    visible: showStyleToggle || showEmbryoToggle
-                    width: compactButtonHeight
-                    height: compactButtonHeight
-                    radius: TagChips.CHIP_RADIUS_COMPACT
-                    color: pill
-                    border.color: pillBorder
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\u2630"
-                        color: textSoft
-                        font.pixelSize: baseFont
-                        font.bold: true
-                    }
-                    Menu {
-                        id: verticalDisplayMenu
-                        y: parent ? parent.height + 4 : 0
-                        MenuItem {
-                            text: qsTr("T Text")
-                            visible: showStyleToggle
-                            checkable: true
-                            checked: buttonStyle === "text"
-                            onTriggered: styleChanged("text")
-                        }
-                        MenuItem {
-                            text: qsTr("L Large")
-                            visible: showStyleToggle && allowLargeIcons
-                            checkable: true
-                            checked: buttonStyle === "largeIcon"
-                            onTriggered: styleChanged("largeIcon")
-                        }
-                        MenuItem {
-                            text: qsTr("S Small")
-                            visible: showStyleToggle
-                            checkable: true
-                            checked: buttonStyle === "smallIcon"
-                            onTriggered: styleChanged("smallIcon")
-                        }
-                        MenuSeparator {
-                            visible: showStyleToggle && showEmbryoToggle
-                        }
-                        MenuItem {
-                            text: qsTr("MyOS suggestions")
-                            visible: showEmbryoToggle
-                            checkable: true
-                            checked: showEmbryos
-                            onTriggered: toggleEmbryos()
-                        }
-                        MenuItem {
-                            text: qsTr("Show hidden folders")
-                            checkable: true
-                            checked: showHiddenFolders
-                            onTriggered: toggleShowHiddenFolders()
-                        }
-                        MenuSeparator {}
-                        MenuItem {
-                            text: qsTr("P Path bar")
-                            checkable: true
-                            checked: usePathBar
-                            onTriggered: usePathBar = !usePathBar
-                        }
-                        MenuItem {
-                            text: qsTr("Preview")
-                            checkable: true
-                            checked: previewEnabled
-                            onTriggered: previewEnabled = !previewEnabled
-                        }
-                        MenuItem {
-                            text: qsTr("Preview background")
-                            checkable: true
-                            checked: previewShowBackground
-                            onTriggered: previewShowBackground = !previewShowBackground
-                        }
-                        MenuSeparator {}
-                        MenuItem {
-                            text: qsTr("Instant reopen")
-                            checkable: true
-                            checked: previewInstantReopenEnabled
-                            onTriggered: previewInstantReopenEnabled = !previewInstantReopenEnabled
-                        }
-                        MenuItem {
-                            text: qsTr("Tuning: Soft")
-                            onTriggered: {
-                                s2PointerCarryFactor = 0.35
-                                s2CollapseDurationMs = 700
-                                previewReopenStabilizeMs = 280
-                                previewHoverDelayMs = 110
-                            }
-                        }
-                        MenuItem {
-                            text: qsTr("Tuning: Balanced")
-                            onTriggered: {
-                                s2PointerCarryFactor = 0.5
-                                s2CollapseDurationMs = 500
-                                previewReopenStabilizeMs = 220
-                                previewHoverDelayMs = 90
-                            }
-                        }
-                        MenuItem {
-                            text: qsTr("Tuning: Aggressive")
-                            onTriggered: {
-                                s2PointerCarryFactor = 0.7
-                                s2CollapseDurationMs = 380
-                                previewReopenStabilizeMs = 160
-                                previewHoverDelayMs = 60
-                            }
-                        }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: verticalDisplayMenu.popup()
-                    }
-                }
                 Rectangle { // VERTICAL: search toggle button (Lupe)
                     visible: showSearchToggle
                     width: compactButtonHeight
@@ -2627,7 +2517,7 @@ Item { // ROOT
                     }
                 }
 
-                Item {  // HORIZONTAL: left button cluster (burger + search + clipboard)
+                Item {  // HORIZONTAL: left button cluster (search + clipboard)
                     id: rightButtonsHost
                     Layout.preferredWidth: rightButtonsRow.implicitWidth
                     Layout.minimumWidth: rightButtonsRow.implicitWidth
@@ -2640,122 +2530,6 @@ Item { // ROOT
                         spacing: 2
                         Component.onCompleted: scheduleLayoutUpdate()
                         onImplicitWidthChanged: scheduleLayoutUpdate()
-                        Rectangle { // Burger / display options menu
-                            visible: showStyleToggle || showEmbryoToggle
-                            width: compactButtonHeight
-                            height: compactButtonHeight
-                            radius: TagChips.CHIP_RADIUS_COMPACT
-                            color: pill
-                            border.color: pillBorder
-                            Text {
-                                anchors.centerIn: parent
-                                text: "\u2630"
-                                color: textSoft
-                                font.pixelSize: baseFont
-                                font.bold: true
-                            }
-                            Menu {
-                                id: horizontalDisplayMenu
-                                y: parent ? parent.height + 4 : 0
-                                MenuItem {
-                                    text: qsTr("T Text")
-                                    visible: showStyleToggle
-                                    checkable: true
-                                    checked: buttonStyle === "text"
-                                    onTriggered: styleChanged("text")
-                                }
-                                MenuItem {
-                                    text: qsTr("L Large")
-                                    visible: showStyleToggle && allowLargeIcons
-                                    checkable: true
-                                    checked: buttonStyle === "largeIcon"
-                                    onTriggered: styleChanged("largeIcon")
-                                }
-                                MenuItem {
-                                    text: qsTr("S Small")
-                                    visible: showStyleToggle
-                                    checkable: true
-                                    checked: buttonStyle === "smallIcon"
-                                    onTriggered: styleChanged("smallIcon")
-                                }
-                                MenuSeparator {
-                                    visible: showStyleToggle && showEmbryoToggle
-                                }
-                                MenuItem {
-                                    text: qsTr("MyOS suggestions")
-                                    visible: showEmbryoToggle
-                                    checkable: true
-                                    checked: showEmbryos
-                                    onTriggered: toggleEmbryos()
-                                }
-                                MenuItem {
-                                    text: qsTr("Show hidden folders")
-                                    checkable: true
-                                    checked: showHiddenFolders
-                                    onTriggered: toggleShowHiddenFolders()
-                                }
-                                MenuSeparator {}
-                                MenuItem {
-                                    text: qsTr("P Path bar")
-                                    checkable: true
-                                    checked: usePathBar
-                                    onTriggered: usePathBar = !usePathBar
-                                }
-                                MenuItem {
-                                    text: qsTr("Preview")
-                                    checkable: true
-                                    checked: previewEnabled
-                                    onTriggered: previewEnabled = !previewEnabled
-                                }
-                                MenuItem {
-                                    text: qsTr("Preview background")
-                                    checkable: true
-                                    checked: previewShowBackground
-                                    onTriggered: previewShowBackground = !previewShowBackground
-                                }
-                                MenuSeparator {}
-                                MenuItem {
-                                    text: qsTr("Instant reopen")
-                                    checkable: true
-                                    checked: previewInstantReopenEnabled
-                                    onTriggered: previewInstantReopenEnabled = !previewInstantReopenEnabled
-                                }
-                                MenuItem {
-                                    text: qsTr("Tuning: Soft")
-                                    onTriggered: {
-                                        s2PointerCarryFactor = 0.35
-                                        s2SystemPointerCarryFactor = 0.72
-                                        s2CollapseDurationMs = 700
-                                        previewReopenStabilizeMs = 280
-                                        previewHoverDelayMs = 110
-                                    }
-                                }
-                                MenuItem {
-                                    text: qsTr("Tuning: Balanced")
-                                    onTriggered: {
-                                        s2PointerCarryFactor = 0.5
-                                        s2SystemPointerCarryFactor = 0.82
-                                        s2CollapseDurationMs = 500
-                                        previewReopenStabilizeMs = 220
-                                        previewHoverDelayMs = 90
-                                    }
-                                }
-                                MenuItem {
-                                    text: qsTr("Tuning: Aggressive")
-                                    onTriggered: {
-                                        s2PointerCarryFactor = 0.7
-                                        s2SystemPointerCarryFactor = 0.92
-                                        s2CollapseDurationMs = 380
-                                        previewReopenStabilizeMs = 160
-                                        previewHoverDelayMs = 60
-                                    }
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: horizontalDisplayMenu.popup()
-                            }
-                        }
                         Rectangle { // Search toggle button
                             visible: showSearchToggle && showSearchButton
                             width: compactButtonHeight
@@ -3058,13 +2832,47 @@ Item { // ROOT
                     id: cwdCascadeButtonHost
                     visible: !root.usePathBar && !root.verticalView
                     Layout.fillWidth: flowOnSecondLine
-                    Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(cwdCascadeButtonItem.implicitWidth, horizontalPathHostMaxWidth())
+                    Layout.preferredWidth: flowOnSecondLine ? 0 : Math.min(upButton.width + (upButton.visible ? 2 : 0) + cwdCascadeButtonItem.implicitWidth, horizontalPathHostMaxWidth())
                     Layout.maximumWidth: flowOnSecondLine ? -1 : horizontalPathHostMaxWidth()
                     Layout.preferredHeight: effectiveStyle() === "largeIcon" ? largeButtonHeight : compactButtonHeight
+                    Rectangle {
+                        // Without the path bar: one folder up, as its parent segment would; at
+                        // once on each click (two quick clicks, two levels).
+                        id: upButton
+                        objectName: "upButton"
+                        readonly property bool canGoUp: pathPartsDisplay().length >= 2
+                        visible: root.showUpButton
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        width: visible ? compactButtonHeight : 0
+                        height: compactButtonHeight
+                        radius: TagChips.CHIP_RADIUS_COMPACT
+                        color: upMouse.containsMouse && canGoUp ? Qt.lighter(pathButtonFill, 1.2) : pathButtonFill
+                        border.color: pathButtonBorder
+                        opacity: canGoUp ? 1.0 : 0.35
+                        Text {
+                            anchors.centerIn: parent
+                            text: "↑"
+                            color: root.text
+                            font.pixelSize: baseFont + 2
+                            font.bold: true
+                        }
+                        MouseArea {
+                            id: upMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: upButton.canGoUp ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: root.goUp()
+                        }
+                        ToolTip.visible: canGoUp && upMouse.containsMouse
+                        ToolTip.delay: 600
+                        ToolTip.text: qsTr("One folder up")
+                    }
                     FolderItem {
                         id: cwdCascadeButtonItem
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
+                        anchors.left: upButton.right
+                        anchors.leftMargin: upButton.visible ? 2 : 0
                         allowDrops: root.allowDrops
                         y: root.cwdTabDrop
                         label: pathPartsDisplay().length ? pathPartsDisplay()[pathPartsDisplay().length - 1] : "/"

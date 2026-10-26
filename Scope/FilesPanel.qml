@@ -214,7 +214,6 @@ Rectangle { // Files panel
     property int iconSizeLarge: 64
     property int smallIconSize: Math.round(compactButtonHeight * 0.6)
     property int topRightButtonSize: Math.max(24, Math.round(Math.max(compactButtonHeight, 32) * 0.85))
-    property int topRightIconSize: Math.round(topRightButtonSize * 0.84)
     property int gridSpacing: 8
     /** Rahmen um das runde Panel (Hintergrund sichtbar). Halbiert für schlankeren Rahmen. */
     property int filesPanelFrameMargin: 8
@@ -616,6 +615,7 @@ Rectangle { // Files panel
                             model: parent.chips
                             delegate: Rectangle {
                                 id: aclChip
+                                objectName: "aclChip"
                                 readonly property bool selected: root.selectedAclPrincipal === modelData.id
                                 // Same greys as PostFix's ACL sidebar: people lighter than groups.
                                 readonly property color baseColor: modelData.kind === "user" ? "#d6d6d6" : "#b5b5b5"
@@ -631,10 +631,10 @@ Rectangle { // Files panel
                                     ? Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_HOVER_ALPHA)
                                     : Qt.rgba(0, 0, 0, TagChipStyle.CHIP_BORDER_IDLE_ALPHA)
 
-                                // Square left edge (towards the system side), rounded right edge
-                                // pointing into the list, as in PostFix.
-                                topLeftRadius: 0
-                                bottomLeftRadius: 0
+                                // Mirrored to the tags on the right: rounded left edge, square right
+                                // edge towards the list.
+                                topRightRadius: 0
+                                bottomRightRadius: 0
 
                                 Text {
                                     id: aclRightsText
@@ -874,18 +874,16 @@ Rectangle { // Files panel
 
                 // Edit-Button / Exit-Button: immer sichtbar, halbtransparent wenn kein .MyOS
                 Rectangle {
-                    radius: root.chipRadiusMedium
+                    objectName: "myosButton"
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: root.smallButtonBg
-                    border.color: root.smallButtonBorder
+                    color: "transparent"
+                    border.width: 0
                     visible: !root.showLeaveMyosButton
                     opacity: root.hasMyosDirInCwp ? 1 : 0.5
                     Image {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         source: root.iconGear
-                        width: root.topRightIconSize
-                        height: root.topRightIconSize
                         fillMode: Image.PreserveAspectFit
                         sourceSize.width: width
                         sourceSize.height: height
@@ -923,16 +921,14 @@ Rectangle { // Files panel
                 spacing: root.sidePanelButtonSpacing
 
                 Rectangle {
-                    radius: root.chipRadiusMedium
+                    objectName: "foldersButton"
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: root.showFolders ? root.smallButtonActiveBg : root.smallButtonBg
-                    border.color: root.showFolders ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    color: "transparent"
+                    border.width: 0
                     Image {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         source: root.showFolders ? root.iconFolder : root.iconFolderOff
-                        width: root.topRightIconSize
-                        height: root.topRightIconSize
                         fillMode: Image.PreserveAspectFit
                         sourceSize.width: width
                         sourceSize.height: height
@@ -953,21 +949,19 @@ Rectangle { // Files panel
 
                 Rectangle {
                     objectName: "xrayButton"
-                    radius: root.chipRadiusMedium
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: root.xrayActive ? root.smallButtonActiveBg : root.smallButtonBg
-                    border.color: root.xrayActive ? root.smallButtonActiveBorder : root.smallButtonBorder
+                    color: "transparent"
+                    border.width: 0
+                    opacity: root.xrayActive ? 1.0 : 0.5  // on: the film lit
                     ToolTip.visible: xrayMouse.containsMouse
                     ToolTip.delay: 600
                     ToolTip.text: root.xrayActive
                         ? qsTr("X-ray on: files of small folders are shown while the list fits without scrolling")
                         : qsTr("X-ray off")
                     Image {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         source: root.iconFolderXray || root.iconFolderOff
-                        width: root.topRightIconSize
-                        height: root.topRightIconSize
                         fillMode: Image.PreserveAspectFit
                         sourceSize.width: width
                         sourceSize.height: height
@@ -987,18 +981,16 @@ Rectangle { // Files panel
                 spacing: root.sidePanelButtonSpacing
 
                 Rectangle {
-                    radius: root.chipRadiusMedium
+                    objectName: "viewButton"
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: root.smallButtonBg
-                    border.color: root.smallButtonBorder
+                    color: "transparent"
+                    border.width: 0
                     Image {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         source: root.itemStyle === "largeIcon"
                             ? Qt.resolvedUrl("Theme/icons/view_list.svg")
                             : Qt.resolvedUrl("Theme/icons/view_tiles.svg")
-                        width: root.topRightIconSize
-                        height: root.topRightIconSize
                         fillMode: Image.PreserveAspectFit
                         sourceSize.width: width
                         sourceSize.height: height
@@ -1020,16 +1012,13 @@ Rectangle { // Files panel
 
                 Rectangle {
                     objectName: "trashButton"
-                    radius: root.chipRadiusMedium
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
-                    color: root.smallButtonBg
-                    border.color: root.smallButtonBorder
+                    color: "transparent"
+                    border.width: 0
                     Image {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         source: "image://theme/user-trash-full"
-                        width: root.topRightIconSize
-                        height: root.topRightIconSize
                         fillMode: Image.PreserveAspectFit
                         sourceSize.width: width
                         sourceSize.height: height

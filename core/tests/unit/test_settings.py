@@ -67,3 +67,19 @@ def test_how_pale_embryos_are_is_one_setting_for_all(config):
 
 def test_the_badges_of_suggestions_have_their_own_setting(config):
     assert Settings().get("General/embryoBadgeOpacity") == 0.7  # half way to full
+
+
+def test_the_rows_display_settings_for_both_browsers(config):
+    s = Settings()
+    assert s.get("Scope/pathBar") is True and s.get("Scope/preview") is True
+    assert s.get("Scope/previewBackground") is False
+
+
+def test_all_of_the_display_menu_moved_into_the_settings(config):
+    s = Settings()
+    assert s.get("Scope/projectsRow") is False  # off by default (2026-10-26)
+    assert s.get("Scope/showSuggestions") is True and s.get("Scope/showHidden") is False
+    assert s.get("Scope/templatesStyle") == "smallIcon" and s.get("Scope/projectsStyle") == "text"
+    assert not s.set("Scope/templatesStyle", "huge")
+    assert s.get("Scope/instantReopen") is True and s.get("Scope/previewTuning") == "balanced"
+    assert not s.set("Scope/previewTuning", "wild")

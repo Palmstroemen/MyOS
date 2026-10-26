@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QPointF, Qt, QUrl
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtQml import QQmlProperty
 from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
 
@@ -82,3 +83,35 @@ def test_a_new_folder_tag_is_a_pale_tag_to_name(panel):
     asked = panel.rootObject().property("asked")
     assert (asked.toVariant() if hasattr(asked, "toVariant") else asked) == ["Rechnungen"]
     assert ghost.opacity() < 0.5  # pale again for the next
+
+
+def test_the_side_buttons_are_their_icons(panel):
+    # Right of the list the icon is the button: as large as the button, no frame around it.
+    from PySide6.QtGui import QColor
+
+    for name in ("myosButton", "foldersButton", "xrayButton", "viewButton", "trashButton"):
+        button = _named(panel, name)
+        assert button is not None, name
+        assert QColor(button.property("color")).alpha() == 0, name
+        assert QQmlProperty.read(button, "border.width") == 0, name
+        icon = next(i for i in _walk(button) if i is not button and i.property("source") is not None)
+        assert icon.width() == button.width() and icon.height() == button.height(), name
+
+
+def test_the_xray_shows_a_pelvis_on_a_framed_film():
+    svg = (SCOPE_DIR / "Theme" / "icons" / "xray.svg").read_text(encoding="utf-8")
+    assert 'id="pelvis"' in svg and 'id="film"' in svg
+
+
+def test_acl_chips_mirror_the_tags_round_left_square_right(panel):
+    root = _named(panel, "panel")
+    root.setProperty("aclPrincipals", [{"id": "role:team", "principal": "role:team", "kind": "role",
+                                        "name": "Team", "section": "folder", "rights": ["read"]}])
+    root.setProperty("aclPanelVisible", True)
+    QTest.qWait(50)
+    chip = _named(panel, "aclChip")
+    assert chip is not None
+    assert chip.property("topRightRadius") == 0 and chip.property("bottomRightRadius") == 0
+    assert chip.property("topLeftRadius") > 0 and chip.property("bottomLeftRadius") > 0
+    tag = _named(panel, "ghostFolderTag")  # the tags keep theirs: square left, round right
+    assert tag.property("topLeftRadius") == 0 and tag.property("topRightRadius") > 0

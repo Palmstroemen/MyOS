@@ -172,13 +172,10 @@ def test_over_a_slider_its_demo_plays_and_a_click_stops_it(page):
 
 def test_the_scope_tab_switches_the_two_rows(page):
     view, _ = page
-    root = view.rootObject()
     _click(view, _named(view, "tabScope"))
-    _click(view, _named(view, "setupProjectsRow"))
-    _click(view, _named(view, "setupTemplatesRow"))
+    _click(view, _named(view, "checkProjectsRow"))
+    _click(view, _named(view, "checkTemplatesRow"))
     assert _heard(view)[-2:] == ["projectsRow", "templatesRow"]
-    root.setProperty("projectsRowShown", False)
-    assert "OFF" in _named(view, "setupProjectsRow").property("label")
 
 
 def test_done_stands_top_left(page):
@@ -215,3 +212,134 @@ def test_suggested_myos_folders_pale_with_a_live_preview_in_all_three_styles(pag
     assert all(abs(fill_alpha(s) - 0.6) < 0.01 and abs(s.property("badgeOpacity") - 0.9) < 1e-6 for s in suggestions)
     root = view.rootObject()
     assert abs(root.property("embryoOpacity") - 0.6) < 1e-6 and abs(root.property("embryoBadgeOpacity") - 0.9) < 1e-6
+
+
+def test_suggestion_left_present_right_sliders_beside(page):
+    view, _ = page
+    for style in ("text", "smallIcon", "largeIcon"):
+        suggestion = _named(view, "suggestionPreview_" + style).mapToScene(QPointF(0, 0))
+        present = _named(view, "presentPreview_" + style).mapToScene(QPointF(0, 0))
+        assert suggestion.x() < present.x()
+    right_of_examples = _named(view, "presentPreview_largeIcon").mapToScene(QPointF(130, 0)).x()
+    for key in ("General/embryoOpacity", "General/embryoBadgeOpacity"):
+        assert _named(view, "setting_" + key).mapToScene(QPointF(0, 0)).x() > right_of_examples
+
+
+def _left_of(view, example, control):
+    return _named(view, example).mapToScene(QPointF(_named(view, example).width(), 0)).x() <= \
+        _named(view, control).mapToScene(QPointF(0, 0)).x()
+
+
+def test_the_rows_one_example_left_check_items_right(page):
+    # One example, as the rows really look (the path segments pushed together like tabs), shows
+    # what the check items on the right set; each check item is kept for both rows.
+    from core.settings import Settings
+
+    view, _ = page
+    root = view.rootObject()
+    _click(view, _named(view, "tabScope"))
+    example = _named(view, "rowsExample")
+    for name, key, start, shows in (("PathBar", "Scope/pathBar", True, "pathBar"),
+                                    ("Preview", "Scope/preview", True, "preview"),
+                                    ("PreviewBackground", "Scope/previewBackground", False, "previewBackground"),
+                                    ("Suggestions", "Scope/showSuggestions", True, "suggestions"),
+                                    ("Hidden", "Scope/showHidden", False, "hidden")):
+        check = _named(view, "check" + name)
+        assert _left_of(view, "rowsExample", "check" + name)
+        assert check.property("checked") is start and example.property(shows) is start
+        _click(view, check)
+        assert check.property("checked") is (not start) and example.property(shows) is (not start)
+        assert Settings().get(key) is (not start)
+    assert root.property("pathBarOn") is False and root.property("previewBackgroundOn") is True
+
+
+def test_the_styles_of_both_rows(page):
+    from core.settings import Settings
+
+    view, _ = page
+    _click(view, _named(view, "tabScope"))
+    example = _named(view, "rowsExample")
+    assert example.property("folderStyle") == "smallIcon"
+    _click(view, _named(view, "templatesStyle_largeIcon"))
+    assert example.property("folderStyle") == "largeIcon" and Settings().get("Scope/templatesStyle") == "largeIcon"
+    _click(view, _named(view, "projectsStyle_smallIcon"))
+    assert view.rootObject().property("projectsStyle") == "smallIcon" and Settings().get("Scope/projectsStyle") == "smallIcon"
+
+
+def test_rows_and_preview_behaviour(page):
+    from core.settings import Settings
+
+    view, _ = page
+    root = view.rootObject()
+    _click(view, _named(view, "tabScope"))
+    assert root.property("projectsRowShown") is False  # the projects row off by default
+    _click(view, _named(view, "checkInstantReopen"))
+    assert Settings().get("Scope/instantReopen") is False and root.property("instantReopenOn") is False
+    _click(view, _named(view, "tuning_soft"))
+    assert Settings().get("Scope/previewTuning") == "soft"
+    timing = root.property("previewTiming")
+    timing = timing.toVariant() if hasattr(timing, "toVariant") else timing
+    assert timing["hoverDelayMs"] == 110
+
+
+def test_the_sliders_keep_room_beside_the_examples(page):
+    view, _ = page  # 800 px wide
+    for key in ("General/embryoOpacity", "General/embryoBadgeOpacity"):
+        assert _named(view, "setting_" + key).width() >= 120
+
+
+def test_nothing_runs_off_the_right_edge(page):
+    view, _ = page  # 800 px wide
+    for key in ("General/embryoOpacity", "General/embryoBadgeOpacity"):
+        reset = _named(view, "reset_" + key)
+        assert reset.mapToScene(QPointF(reset.width(), 0)).x() <= view.width()
+
+
+def _scene(view, name, x=0, y=0):
+    return _named(view, name).mapToScene(QPointF(x, y))
+
+
+def test_display_on_top_myos_folders_above_projects_with_their_styles(page):
+    # "Display": per row its check item, right of it the row's three folder styles; the MyOS
+    # folders first, as their row is the upper one. Then what both rows show.
+    view, _ = page
+    _click(view, _named(view, "tabScope"))
+    templates, projects = _scene(view, "checkTemplatesRow"), _scene(view, "checkProjectsRow")
+    assert templates.y() < projects.y() < _scene(view, "checkPathBar").y()
+    for check, prefix in (("checkTemplatesRow", "templatesStyle"), ("checkProjectsRow", "projectsStyle")):
+        row = _scene(view, check, 0, _named(view, check).height() / 2)
+        for style in ("text", "smallIcon", "largeIcon"):
+            button = _scene(view, prefix + "_" + style, 0, _named(view, prefix + "_" + style).height() / 2)
+            assert button.x() > row.x() + _named(view, check).width() and abs(button.y() - row.y()) < 4
+
+
+def test_the_example_keeps_one_line_per_row_and_its_rows_touch(page):
+    view, _ = page
+    _click(view, _named(view, "tabScope"))
+    for name in ("checkHidden",):  # path bar is on: path bar, folders with the hidden one
+        _click(view, _named(view, name))
+    for style in ("text", "smallIcon", "largeIcon"):
+        _click(view, _named(view, "templatesStyle_" + style))
+        folders = [i for i in _walk(_named(view, "rowsExample")) if i.objectName().startswith("exampleFolder_")]
+        segments = [i for i in _walk(_named(view, "rowsExample")) if i.objectName().startswith("exampleSegment_")]
+        assert len({round(f.mapToScene(QPointF(0, 0)).y()) for f in folders if f.isVisible()}) == 1, style
+        lowest_segment = max(s.mapToScene(QPointF(0, s.height())).y() for s in segments)
+        top_folder = min(f.mapToScene(QPointF(0, 0)).y() for f in folders if f.isVisible())
+        assert top_folder <= lowest_segment, style  # touching, even overlapping
+
+
+def test_the_scope_tab_fits_the_width(page):
+    view, _ = page  # 800 px wide
+    _click(view, _named(view, "tabScope"))
+    for name in ("templatesStyle_largeIcon", "projectsStyle_largeIcon"):
+        button = _named(view, name)
+        assert button.mapToScene(QPointF(button.width(), 0)).x() <= view.width() - 16, name
+
+
+def test_without_the_path_bar_the_example_shows_up(page):
+    view, _ = page
+    _click(view, _named(view, "tabScope"))
+    assert not _named(view, "exampleUp").isVisible()
+    _click(view, _named(view, "checkPathBar"))
+    up = _named(view, "exampleUp")
+    assert up.isVisible() and up.mapToScene(QPointF(up.width(), 0)).x() <= _scene(view, "exampleSegment_0").x()

@@ -20,7 +20,7 @@ Decided on 2026-10-26.
 | Tab | Holds | When |
 |---|---|---|
 | General | light / dark, language, how pale embryos are - for the user "suggested MyOS folders" (live preview: a present folder beside a suggestion in each style, text, small and large icon, drawn as Scope's rows draw them; Scope follows at once, SunTree when it appears, 2026-10-26), and their badges, with a slider of their own (70 % by default); later the colour scheme (choose, edit) | step 1; scheme: steps 2, 3 |
-| Scope | what Scope's top bar and display menu hold now: folder style, embryos, hidden folders, the files' share, preview | when the top bar goes |
+| Scope | everything the rows' display menus held (the menus are gone, 2026-10-26): left one picture of a row as it really looks (the path bar's segments pushed together like tabs, its folders with a suggestion and a hidden one, the preview below), right check items and choices it follows - the two rows on/off (the projects row off by default; M keeps its CWD button), for both rows alike the path bar, suggested MyOS folders, hidden folders, the preview and its background, the folder style of each row, the preview's behaviour (reopen at once, timing soft / balanced / quick) | built |
 | Headline | what concerns the docked tool: its tools, docking | with the Headline |
 | SunTree | the crown's values (SunTree/Designdocument Krone.md, 5): line T, inner radius, Enter, Leave, fish-eye, softness, edge | step 1 |
 

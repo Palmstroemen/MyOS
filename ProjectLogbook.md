@@ -140,6 +140,17 @@ Kompakter Überblick: `docs/STATUS.md`.
         Blässe der Embryos einstellbar - für den Benutzer "Vorgeschlagene MyOS-Ordner" (Setup, Allgemein, Live-Vorschau
         in allen drei Darstellungen; Scope und SunTree); ihre Badges mit eigenem Regler (Vorgabe 70 %); im Menü heißt
         "E Embryos" jetzt "MyOS-Vorschläge"
+        Pfadleiste, Vorschau, Vorschau-Hintergrund für beide Browser gleich im Setup (Tab Scope, mit Live-Bildern), aus den
+        Anzeige-Menüs heraus; der Projekt-Browser bietet keine MyOS-Vorschläge mehr an (MyOS-Ordner nur links, A3.9)
+        Burger-Menüs beider Zeilen ganz ins Setup (Tab Scope): links EIN Beispiel, wie die Zeilen wirklich aussehen, rechts
+        Häkchen und Auswahlknöpfe - Zeilen an/aus, Pfadleiste, MyOS-Vorschläge, versteckte Ordner, Vorschau, ihr Hintergrund,
+        Ordnerdarstellung je Zeile, Vorschau-Verhalten (sofort wieder öffnen, sanft/ausgewogen/flott); Projekt-Zeile per
+        Vorgabe aus (in M bleibt der CWD-Knopf)
+        FilesPanel rechts: die Knöpfe sind ihre Icons (knopfgroß, ohne Rahmen: Einstellungen, Ordner, Röntgen, Ansicht,
+        Papierkorb); Röntgenbild mit Filmrand, Rippen und Becken; ACL-Chips spiegelbildlich zu den Tags (rund links,
+        eckig rechts)
+        Ohne Pfadleiste: ↑-Knopf links vom aktuellen Ordner (einen Ordner höher, wie Klick aufs Eltern-Segment; sofort
+        bei jedem Klick); M bleibt ohne (dort klettert das CWD-Dropdown); auch im Setup-Beispiel
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
     [x] P-Button: macht den angewählten Ordner, sonst (ohne Auswahl) den angezeigten zum Projekt; durchgestrichenes P macht ein Projekt wieder zum Ordner; P-Badge auf Projektordnern
     [x] Umbenennen in der Ordnerleiste: Feld zeigt den alten Namen (war leer); F2 benennt die Auswahl im FilesPanel um

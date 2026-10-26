@@ -53,7 +53,7 @@ ApplicationWindow {
     property string iconSearch: "image://theme/system-search"
     property string iconFile: "image://theme/text-x-generic"
     property string iconGear: "image://theme/preferences-system"
-    property string folderItemStyle: "text" // text | smallIcon | largeIcon
+    readonly property string folderItemStyle: setupPage.projectsStyle // text | smallIcon | largeIcon (Setup)
     property int iconSizeSmall: Math.round(baseFont * 1.08)
     property int iconSizeLarge: Math.round(64 * 0.8)
     property int compactButtonHeight: 24
@@ -71,7 +71,7 @@ ApplicationWindow {
     property string userButtonStyle: "text"
     property string uiLanguage: "de"
     property string userPath: "/Eigene"
-    property string level2ButtonStyle: "smallIcon"
+    readonly property string level2ButtonStyle: setupPage.templatesStyle  // (Setup)
     // Browser visibility
     property bool projectsBrowserVisible: true
     property bool templatesBrowserVisible: true
@@ -312,9 +312,20 @@ ApplicationWindow {
         filterEntries()
     }
     property string tagMatchMode: "or" // or | and
-    property bool projectsShowEmbryos: false
-    property bool projectsShowHiddenFolders: false
-    property bool templatesShowEmbryos: true
+    // Suggestions are MyOS folders, only on the left (A3.9); the rest is set on the back (Setup).
+    readonly property bool projectsShowEmbryos: false
+    readonly property bool projectsShowHiddenFolders: setupPage.showHiddenOn
+    readonly property bool templatesShowEmbryos: setupPage.showSuggestionsOn
+    onTemplatesShowEmbryosChanged: {
+        standardFolders = listTemplates(templatesListingPath())
+        updateStandardFolders()
+    }
+    onProjectsShowHiddenFoldersChanged: {
+        standardFolders = listTemplates(templatesListingPath())
+        updateStandardFolders()
+        updateSubProjects()
+        updateFiles()
+    }
     property var pendingMoveSources: []
     property string pendingMoveTargetDir: ""
     property string pendingMoveMessage: ""
@@ -2295,15 +2306,13 @@ ApplicationWindow {
             "projectTint",
             "projectTintBorder",
             "showEmbryos",
-            "showSearchToggle",
-            "showStyleToggle"
+            "showSearchToggle"
         ], "templatesBrowser")
         warnIfMissingAny(projectsBrowser, [
             "projectTint",
             "projectTintBorder",
             "showEmbryos",
-            "showSearchToggle",
-            "showStyleToggle"
+            "showSearchToggle"
         ], "projectsBrowser")
         warnIfMissingAny(filesPane, [
             "projectTint",
@@ -2927,10 +2936,17 @@ ApplicationWindow {
             // Minimal view: search and Clipboard are in the tools of the CWD dropdown (the
             // search field still opens here), no menu.
             showSearchButton: !window.minimalView
+            usePathBar: window.minimalView || setupPage.pathBarOn
+            previewEnabled: setupPage.previewOn
+            previewShowBackground: setupPage.previewBackgroundOn
+            previewInstantReopenEnabled: setupPage.instantReopenOn
+            previewHoverDelayMs: setupPage.previewTiming.hoverDelayMs
+            previewReopenStabilizeMs: setupPage.previewTiming.reopenStabilizeMs
+            s2CollapseDurationMs: setupPage.previewTiming.collapseDurationMs
+            s2PointerCarryFactor: setupPage.previewTiming.pointerCarry
+            s2SystemPointerCarryFactor: setupPage.previewTiming.systemPointerCarry
             wrapFolders: !window.minimalView  // M is one line: the folders right of the CWD
             showClipboardButton: !window.minimalView
-            showStyleToggle: !window.minimalView
-            showEmbryoToggle: !window.minimalView
             showThemeToggle: false
             showCreateFolderButton: true
             clipboardHasItems: window.clipboardHasItems
@@ -2980,13 +2996,7 @@ ApplicationWindow {
                 level2SearchText = value
                 updateStandardFolders()
             }
-            onStyleChanged: function(style) { level2ButtonStyle = style }
         onLensFrameClosed: takeOffLens()
-        onToggleEmbryos: {
-            window.templatesShowEmbryos = !window.templatesShowEmbryos
-            standardFolders = listTemplates(templatesListingPath())
-            updateStandardFolders()
-        }
             onPathSegmentActivated: function(index) {
                 show_FilesPanel()
                 var currentPath = templatesListingPath()
@@ -3083,9 +3093,8 @@ ApplicationWindow {
                 onSwitchTheme: window.darkTheme = !window.darkTheme
                 onSwitchLanguage: window.toggleUiLanguage()
                 onToggleHidden: {
-                    window.projectsShowHiddenFolders = !window.projectsShowHiddenFolders
-                    window.updateSubProjects()
-                    window.updateFiles()
+                    setupPage.showHiddenOn = !setupPage.showHiddenOn
+                    setupPage.keep("Scope/showHidden", setupPage.showHiddenOn)
                 }
                 onOpenSetup: {
                     projectsBrowser.closeCwdHoverPanels("tools-setup")
@@ -3128,7 +3137,7 @@ ApplicationWindow {
             markCwd: true  // its line ends at the CWD: it glows (FolderItem.cwdMark)
             cwdHoverTools: window.minimalView ? cwdToolsComponent : null
             cwdGlow: window.darkTheme
-            visible: projectsBrowserVisible
+            visible: projectsBrowserVisible || window.minimalView  // M keeps its CWD button
             maxParents: 10
             path: cwp
             pathDisplayPrefix: cwp
@@ -3136,7 +3145,7 @@ ApplicationWindow {
             pathSegmentMyOS: pathSegmentMyOS
             folders: subProjects
             childrenProvider: function(targetPath, options) { return listRightFolders(targetPath, options) }
-            showEmbryos: window.projectsShowEmbryos
+            showEmbryos: false  // MyOS folders, suggestions too, are only on the left (A3.9)
             showHiddenFolders: window.projectsShowHiddenFolders
             projectTint: window.currentProjectTint
             projectTintBorder: window.currentProjectTint
@@ -3150,12 +3159,19 @@ ApplicationWindow {
             allowDrags: true
             allowDrops: true
             verticalView: verticalProjectView && !window.minimalView
-            usePathBar: !window.minimalView
+            usePathBar: !window.minimalView && setupPage.pathBarOn
+            showUpButton: !window.minimalView  // M climbs through its CWD dropdown
+            previewEnabled: setupPage.previewOn
+            previewShowBackground: setupPage.previewBackgroundOn
+            previewInstantReopenEnabled: setupPage.instantReopenOn
+            previewHoverDelayMs: setupPage.previewTiming.hoverDelayMs
+            previewReopenStabilizeMs: setupPage.previewTiming.reopenStabilizeMs
+            s2CollapseDurationMs: setupPage.previewTiming.collapseDurationMs
+            s2PointerCarryFactor: setupPage.previewTiming.pointerCarry
+            s2SystemPointerCarryFactor: setupPage.previewTiming.systemPointerCarry
             foldersShown: !window.minimalView
             narrowButtons: window.minimalView
             cascadeTopPath: window.minimalView ? window.projectsRootPath : ""
-            showStyleToggle: !window.minimalView
-            showEmbryoToggle: !window.minimalView
             buttonStyle: folderItemStyle
             allowLargeIcons: true
             showModeToggle: !window.minimalView
@@ -3206,16 +3222,6 @@ ApplicationWindow {
             searchActive: window.searchActive
             searchText: window.searchText
             onToggleMode: verticalProjectView = !verticalProjectView
-            onStyleChanged: function(style) { folderItemStyle = style }
-        onToggleEmbryos: {
-            window.projectsShowEmbryos = !window.projectsShowEmbryos
-            updateSubProjects()
-        }
-            onToggleShowHiddenFolders: {
-                window.projectsShowHiddenFolders = !window.projectsShowHiddenFolders
-                updateSubProjects()
-                updateFiles()
-            }
             onToggleSearch: window.searchActive = !window.searchActive
             onSearchTextChanged: {
                 window.searchText = projectsBrowser.searchText

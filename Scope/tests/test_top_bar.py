@@ -81,6 +81,26 @@ def test_the_rows_make_the_badges_of_suggestions_pale():
     assert MAIN.count("embryoBadgeOpacity: window.embryoBadgeOpacity") == 2
 
 
-def test_the_menu_says_myos_suggestions():
+def test_path_bar_and_preview_left_the_menus_for_the_back():
     browser = (Path(__file__).resolve().parents[1] / "FolderBrowser.qml").read_text(encoding="utf-8")
-    assert 'qsTr("E Embryos")' not in browser and browser.count('qsTr("MyOS suggestions")') == 2
+    for gone in ('qsTr("P Path bar")', 'qsTr("Preview background")', 'text: qsTr("Preview")'):
+        assert gone not in browser, gone
+    assert MAIN.count("previewEnabled: setupPage.previewOn") == 2
+    assert MAIN.count("previewShowBackground: setupPage.previewBackgroundOn") == 2
+    assert "usePathBar: !window.minimalView && setupPage.pathBarOn" in MAIN
+    assert "usePathBar: window.minimalView || setupPage.pathBarOn" in MAIN
+
+
+def test_the_projects_browser_offers_no_myos_suggestions():
+    # MyOS folders are only on the left (Perspective Resolver MVP, A3.9); suggestions are MyOS
+    # folders, so the projects browser could never show them.
+    projects = MAIN[MAIN.index("id: projectsBrowser"):]
+    projects = projects[:projects.index("onNavigationRequested")]
+    assert "showEmbryos: false" in projects
+
+
+def test_no_display_menu_any_more():
+    browser = (Path(__file__).resolve().parents[1] / "FolderBrowser.qml").read_text(encoding="utf-8")
+    for gone in ('qsTr("T Text")', 'qsTr("Instant reopen")', 'qsTr("Tuning: Soft")', "horizontalDisplayMenu", "verticalDisplayMenu"):
+        assert gone not in browser, gone
+    assert "visible: projectsBrowserVisible || window.minimalView" in MAIN  # M keeps its CWD button

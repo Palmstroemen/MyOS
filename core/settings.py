@@ -19,8 +19,21 @@ SETTINGS: Dict[str, Tuple[type, Any, Any]] = {
     # The badges (€, §, ...) on suggested MyOS folders: their own paleness, half way by default.
     "General/embryoBadgeOpacity": (float, 0.7, (0.1, 1.0)),
     # Scope's two rows (the projects, the MyOS folders); views of their own are to come.
-    "Scope/projectsRow": (bool, True, None),
+    "Scope/projectsRow": (bool, False, None),  # off by default: suggestions show only on the left
     "Scope/templatesRow": (bool, True, None),
+    # How both rows show themselves: the path bar, the preview of a folder's contents, its
+    # background (they were per row in its display menu).
+    "Scope/pathBar": (bool, True, None),
+    "Scope/preview": (bool, True, None),
+    "Scope/previewBackground": (bool, False, None),
+    # The rest of the display menus: suggested MyOS folders and hidden folders shown, the folder
+    # style of each row, the preview's behaviour (reopening at once, its timing).
+    "Scope/showSuggestions": (bool, True, None),
+    "Scope/showHidden": (bool, False, None),
+    "Scope/templatesStyle": (str, "smallIcon", {"text", "smallIcon", "largeIcon"}),
+    "Scope/projectsStyle": (str, "text", {"text", "smallIcon", "largeIcon"}),
+    "Scope/instantReopen": (bool, True, None),
+    "Scope/previewTuning": (str, "balanced", {"soft", "balanced", "aggressive"}),
     # SunTree's crown (SunTree/Designdocument Krone.md, 5); line and radius as shares of R.
     "SunTree/lineT": (float, 0.7, (0.5, 0.85)),
     "SunTree/inner": (float, 0.2, (0.1, 0.35)),
