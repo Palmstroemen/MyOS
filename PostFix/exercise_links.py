@@ -172,8 +172,11 @@ class ExerciseLauncher(QObject):
         before = self._before() if both and self._can_place else set()
         scope_pid = None
         for argv in commands(action, self._repo_root):
+            # Scope without the "Perspektiven" drive: the tutorial does not use it, and started
+            # at a lesson's project it would mount it inside the tutorial.
+            env = dict(os.environ, MYOS_SCOPE_START_DAEMON="0") if argv[0] != "xdg-open" else None
             try:
-                process = self._popen(argv, cwd=str(self._repo_root), start_new_session=True)
+                process = self._popen(argv, cwd=str(self._repo_root), start_new_session=True, env=env)
             except OSError as error:
                 print(f"[PostFix] could not start {argv[0]}: {error}", file=sys.stderr)
                 continue

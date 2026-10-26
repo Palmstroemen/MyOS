@@ -14,14 +14,23 @@ and lesson 1 opens for the next tester.
    sudo apt install python3-pip ffmpeg wmctrl
    pip install -r requirements-full.txt
    ```
-3. Open the tutorial at every login, and SunTree (lesson 15) ready for Ctrl+Alt+Space:
+   Copying it from a development machine: never copy the lens drive `MyOS_Test/Perspektiven`
+   (a mounted drive), e.g. `rsync -a --exclude Perspektiven`. Testers need no "Projekte":
+   leave `MyOS_Test/Projekte` out or delete it.
+3. The templates (Standard, Person, Development) go to `~/Templates`: MyOS looks for a folder
+   "Templates" upwards from the tutorial copy, and the exercises (suggested folders in lesson 7,
+   "In Projekt verwandeln") need them. They are not in git yet - take `MyOS_Test/Templates`.
+   On an English Linux `~/Templates` is the desktop's folder for new documents: check that it
+   holds MyOS templates only. The Clipboard folder is made next to it by itself.
+4. Open the tutorial at every login, and SunTree (lesson 15) ready for Ctrl+Alt+Space:
    ```
    python3 scripts/testrun.py install
    python3 SunTree/install_autostart.py ~/MyOS-Tutorial/DE
    ```
-4. Make the first copy and open lesson 1: `python3 scripts/testrun.py start`.
-5. Check: lesson 1 shows in PostFix; in lesson 7, "▶ Übung öffnen" opens Scope and the file
-   browser side by side; "💬 Kommentar zu dieser Lektion" opens "Meine Kommentare".
+5. Make the first copy and open lesson 1: `python3 scripts/testrun.py start`.
+6. Check: lesson 1 shows in PostFix; in lesson 7, "▶ Übung öffnen" opens Scope and the file
+   browser side by side, with the pale suggested folders (then the templates are found);
+   "💬 Kommentar zu dieser Lektion" opens "Meine Kommentare".
 
 ## What a tester sees
 
@@ -57,6 +66,9 @@ collect and reset), `python3 scripts/testrun.py prepare` (reset without collecti
   notes) never reaches a tester. Without git the working files are copied.
 - "Bin fertig" and "Kommentar" only work in notes inside such a copy, and "Bin fertig" asks.
 - Exercise links only open folders inside their own lesson.
+- Scope opened by an exercise link starts without the lens drive "Perspektiven" (at a
+  lesson's project it would mount it inside the copy). Should a drive still be mounted in
+  the copy, "Bin fertig" unmounts it before collecting and deleting - or deletes nothing.
 
 ## Known limits
 

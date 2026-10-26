@@ -237,3 +237,14 @@ def test_comment_and_finish_only_work_in_a_tutorial_copy(lesson):
     launcher.open(QUrl("myos:finish"))
     launcher.open(QUrl("myos:comment"))
     assert recorder.started == []
+
+
+def test_scope_from_an_exercise_starts_without_the_lens_drive(lesson):
+    # The tutorial does not use the "Perspektiven" drive; started at a lesson's project,
+    # Scope would mount it inside the tutorial copy, which "Bin fertig" deletes.
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    recorder = _Recorder()
+    launcher = _launcher(lesson, recorder)
+    launcher.open(QUrl("myos:open?scope=Urlaub 2025&files=Urlaub 2025"))
+    scope_env = recorder.envs[0]
+    assert scope_env.get("MYOS_SCOPE_START_DAEMON") == "0"

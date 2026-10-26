@@ -116,6 +116,11 @@ def test_only_windows_of_the_tutorial_copy_are_closed(tmp_path):
     assert not testrun.is_ours(["python3", "/opt/MyOS/Scope/Scope.py", "/home/t/Projekte"], Path("/"), repo, copy)
     assert not testrun.is_ours(["python3", "scripts/testrun.py", "finish"], repo, repo, copy)
     assert not testrun.is_ours(["nemo", "/home/t/MyOS-Tutorial"], repo, repo, copy)
+    # The lens drive's process of a projects root in the copy goes too.
+    daemon = ["python3", "-m", "daemon", "--projects-root", "/home/t/MyOS-Tutorial/DE/Lektion10/Wohnungsrenovierung",
+              "--mount-point", "/home/t/MyOS-Tutorial/DE/Lektion10/Perspektiven"]
+    assert testrun.is_ours(daemon, repo, repo, copy)
+    assert not testrun.is_ours(daemon[:4] + ["/home/t/Projekte"], repo, repo, copy)
 
 
 def test_the_autostart_opens_the_tutorial(machine):
@@ -160,3 +165,44 @@ def test_the_copy_comes_from_the_last_commit_not_from_edited_lessons(tmp_path):
     copied = places.tutorial / "DE" / "Lektion01"
     assert (copied / "Beginne HIER.md").read_text(encoding="utf-8") == "# Hallo!\n"
     assert not (copied / "stray.md").exists()
+
+
+def test_a_drive_mounted_in_the_copy_is_unmounted_before_deleting(machine):
+    # Security: deleting through a mounted drive would delete what it shows. Unmount first;
+    # if that fails, delete nothing.
+    testrun.prepare(machine)
+    drive = machine.tutorial / "DE" / "Lektion10" / "Perspektiven"
+    drive.mkdir()
+    mounted = {str(drive)}
+    calls = []
+
+    def unmount(path):
+        calls.append(path)
+        mounted.discard(str(path))
+        return True
+
+    testrun.prepare(machine, ismount=lambda p: str(p) in mounted, unmount=unmount)
+    assert calls == [drive] and not drive.exists()
+
+    stuck = machine.tutorial / "DE" / "Lektion11" / "Perspektiven"
+    stuck.mkdir()
+    with pytest.raises(testrun.StillMounted):
+        testrun.prepare(machine, ismount=lambda p: p == stuck, unmount=lambda p: False)
+    assert (machine.tutorial / "DE" / "Lektion01" / "Beginne HIER.md").is_file()  # nothing deleted
+
+
+def test_finish_unmounts_before_it_collects(machine):
+    testrun.prepare(machine)
+    drive = machine.tutorial / "DE" / "Lektion10" / "Perspektiven"
+    drive.mkdir()
+    (drive / "shown by the drive.md").write_text("x", encoding="utf-8")
+    mounted = {str(drive)}
+
+    def unmount(path):
+        mounted.discard(str(path))
+        for child in Path(path).iterdir():  # an unmounted drive is an empty folder
+            child.unlink()
+        return True
+
+    result = testrun.finish(machine, ismount=lambda p: str(p) in mounted, unmount=unmount)
+    assert "shown by the drive" not in (result / "Änderungen.md").read_text(encoding="utf-8")

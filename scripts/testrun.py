@@ -56,6 +56,33 @@ class NotATutorialCopy(RuntimeError):
     """The folder to be replaced is not a copy made by this script."""
 
 
+class StillMounted(RuntimeError):
+    """A drive is mounted inside the copy and could not be unmounted."""
+
+
+def _fusermount(path: Path) -> bool:
+    for command in (["fusermount", "-u", str(path)], ["fusermount3", "-u", str(path)], ["umount", str(path)]):
+        try:
+            if subprocess.run(command, capture_output=True, timeout=20).returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False
+
+
+def _unmount_inside(root: Path, ismount, unmount) -> None:
+    """Unmount every drive mounted below root (e.g. a lens drive "Perspektiven")."""
+    # Security: deleting through a mounted drive deletes what it shows - unmount first, and
+    # stop if a drive stays.
+    for folder, subfolders, _files in os.walk(root, topdown=True):
+        for name in list(subfolders):
+            path = Path(folder) / name
+            if ismount(path):
+                subfolders.remove(name)  # never walk into a drive
+                if not unmount(path) or ismount(path):
+                    raise StillMounted(f"{path} is still mounted; the tutorial copy is left as it is")
+
+
 @dataclass(frozen=True)
 class Places:
     repo: Path
@@ -120,12 +147,13 @@ def _build_pristine(places: Places, target: Path) -> None:
     (target / COMMENTS).write_text(COMMENTS_TEXT, encoding="utf-8")
 
 
-def prepare(places: Places) -> None:
+def prepare(places: Places, ismount=os.path.ismount, unmount=_fusermount) -> None:
     """A fresh copy of the tutorial and the programs' settings back to their defaults."""
     if places.tutorial.exists():
         # Security: only ever delete a folder this script made (it holds the marker).
         if not (places.tutorial / MARKER).is_file():
             raise NotATutorialCopy(f"{places.tutorial} is no tutorial copy, it is left alone")
+        _unmount_inside(places.tutorial, ismount, unmount)
         shutil.rmtree(places.tutorial)
     _build_pristine(places, places.tutorial)
     (places.tutorial / MARKER).write_text(json.dumps({"started": _now()}), encoding="utf-8")
@@ -237,22 +265,26 @@ def collect(places: Places, name: str = "") -> Path:
     return result
 
 
-def finish(places: Places, name: str = "") -> Path:
+def finish(places: Places, name: str = "", ismount=os.path.ismount, unmount=_fusermount) -> Path:
     """Collect the tester's work, then make the machine ready for the next one."""
+    if places.tutorial.exists():
+        _unmount_inside(places.tutorial, ismount, unmount)  # collect what is there, not a drive's view
     result = collect(places, name)
-    prepare(places)
+    prepare(places, ismount=ismount, unmount=unmount)
     return result
 
 
 def is_ours(argv: List[str], cwd: Path, repo: Path, copy: Path) -> bool:
-    """Whether a process is Scope or PostFix of this repository showing something of the
-    tutorial copy (by its command line) - other windows on the computer are left alone."""
+    """Whether a process is Scope, PostFix or the lens drive of this repository working on
+    the tutorial copy (by its command line) - other windows on the computer are left alone."""
     programs = {(repo / "Scope" / "Scope.py").resolve(), (repo / "PostFix" / "cli.py").resolve()}
 
     def path_of(arg):
         return (Path(arg) if Path(arg).is_absolute() else Path(cwd) / arg).resolve()
 
     program = any(arg.endswith(("Scope.py", "cli.py")) and path_of(arg) in programs for arg in argv[:3])
+    # The lens drive's process (python3 -m daemon, started by Scope in the repository).
+    program = program or (argv[1:3] == ["-m", "daemon"] and Path(cwd).resolve() == Path(repo).resolve())
     copy = Path(copy).resolve()
     shows_copy = any(path_of(arg) == copy or copy in path_of(arg).parents for arg in argv[1:] if arg)
     return program and shows_copy
