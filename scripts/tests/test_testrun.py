@@ -206,3 +206,16 @@ def test_finish_unmounts_before_it_collects(machine):
 
     result = testrun.finish(machine, ismount=lambda p: str(p) in mounted, unmount=unmount)
     assert "shown by the drive" not in (result / "Änderungen.md").read_text(encoding="utf-8")
+
+
+def test_install_makes_postfix_the_program_for_markdown(machine, tmp_path):
+    # On the test machine a double click on a lesson must open PostFix (links, exercises),
+    # not a plain text editor.
+    data = tmp_path / "share"
+    ran = []
+    entry = testrun.install_postfix_for_markdown(machine, data_home=data, run=lambda argv, **kw: ran.append(argv))
+    text = entry.read_text(encoding="utf-8")
+    assert entry == data / "applications" / "myos-postfix.desktop"
+    assert "PostFix/cli.py" in text and "%f" in text and "MimeType=text/markdown;text/x-markdown;" in text
+    assert ["xdg-mime", "default", "myos-postfix.desktop", "text/markdown"] in ran
+    assert ["xdg-mime", "default", "myos-postfix.desktop", "text/x-markdown"] in ran

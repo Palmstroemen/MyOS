@@ -8,7 +8,7 @@ lesson opens. At the end, the last lesson's link "Bin fertig" collects what the 
 comments, every note changed, added or gone, the settings - into ~/MyOS-Testergebnisse,
 resets everything and opens lesson 1 for the next one.
 
-    python3 scripts/testrun.py install            # once: open the tutorial at login
+    python3 scripts/testrun.py install            # once: tutorial at login, PostFix for .md
     python3 scripts/testrun.py start              # open lesson 1 (a copy is made if missing)
     python3 scripts/testrun.py prepare            # fresh copy, settings reset
     python3 scripts/testrun.py finish [--name N]  # collect, reset, open lesson 1 again
@@ -344,10 +344,29 @@ def install_autostart(places: Places) -> Path:
     return entry
 
 
+def install_postfix_for_markdown(places: Places, data_home: Optional[Path] = None, run=subprocess.run) -> Path:
+    """PostFix as the program for Markdown notes: a double click on a lesson (file browser,
+    Scope) opens it there - with its links and exercises - not in a plain text editor."""
+    data_home = Path(data_home or os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    entry = data_home / "applications" / "myos-postfix.desktop"
+    entry.parent.mkdir(parents=True, exist_ok=True)
+    entry.write_text(
+        "[Desktop Entry]\nType=Application\nName=PostFix\nComment=MyOS notes\n"
+        f"Exec={sys.executable} \"{places.repo / 'PostFix' / 'cli.py'}\" %f\n"
+        "Icon=accessories-text-editor\nTerminal=false\nCategories=Office;\n"
+        "MimeType=text/markdown;text/x-markdown;\n", encoding="utf-8")
+    for mime in ("text/markdown", "text/x-markdown"):
+        try:
+            run(["xdg-mime", "default", entry.name, mime], check=False, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            print(f"xdg-mime is missing: open {mime} with PostFix by hand", file=sys.stderr)
+    return entry
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("install", help="open the tutorial at login")
+    sub.add_parser("install", help="open the tutorial at login, PostFix for Markdown notes")
     sub.add_parser("start", help="open lesson 1 (makes a copy if there is none)")
     sub.add_parser("prepare", help="fresh copy, settings reset")
     finish_cmd = sub.add_parser("finish", help="collect, reset, open lesson 1 again")
@@ -357,6 +376,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     places = Places.default()
     if args.command == "install":
         print(install_autostart(places))
+        print(install_postfix_for_markdown(places))
     elif args.command == "start":
         if copy_root(places.tutorial) != places.tutorial.resolve():
             prepare(places)

@@ -22,7 +22,9 @@ and lesson 1 opens for the next tester.
    "In Projekt verwandeln") need them. They are not in git yet - take `MyOS_Test/Templates`.
    On an English Linux `~/Templates` is the desktop's folder for new documents: check that it
    holds MyOS templates only. The Clipboard folder is made next to it by itself.
-4. Open the tutorial at every login, and SunTree (lesson 15) ready for Ctrl+Alt+Space:
+4. Open the tutorial at every login, PostFix as the program for Markdown notes (a double click on
+   a lesson opens PostFix with its links, not a text editor), and SunTree (lesson 15) ready for
+   Ctrl+Alt+Space:
    ```
    python3 scripts/testrun.py install
    python3 SunTree/install_autostart.py ~/MyOS-Tutorial/DE
