@@ -331,8 +331,6 @@ ApplicationWindow {
     property string pendingOpenWithPath: ""
     property string pendingOpenWithCommand: "xdg-open"
     property var openWithQuickCommands: ["xdg-open", "code", "libreoffice"]
-    property var availableFilters: []
-    property var activeFilter: ({ active: false, name: "", mode: "auto", path: "", chain: [] })
     // The lens as the session describes it (see lensRequest); off: { active: false }.
     property var lensState: ({ active: false })
     // The projects root ("Projekte"): the minimal view's dropdown ends there.
@@ -340,10 +338,6 @@ ApplicationWindow {
     readonly property bool lensOn: !!(lensState && lensState.active)
     // The lens looks into a project (not on the shelf, which comes with the right menu, E4).
     readonly property bool lensInProject: lensOn && !!lensState.project
-    property string manualFilterPath: ""
-    property string filterSaveSourcePath: ""
-    property var filterSaveTargets: []
-    property string pendingFilterNewName: ""
     property string selectionAnchorPath: ""
     property int maxVerticalParents: 4
     property int verticalParentSpacing: 6
@@ -883,14 +877,6 @@ ApplicationWindow {
         if (button) {
             button.text = text
         }
-    }
-
-    /// The active filter, as the back shows it ("Filter: Ausgaben [A]").
-    function filterLabelText() {
-        if (!activeFilter || !activeFilter.active) return qsTr("Filter: Auto")
-        var modeText = String(activeFilter.mode || "auto") === "manual" ? "M" : "A"
-        var stacked = (activeFilter.chain && activeFilter.chain.length > 1) ? " +" : ""
-        return qsTr("Filter") + ": " + String(activeFilter.name || "?") + " [" + modeText + "]" + stacked
     }
 
     function toggleUiLanguage() {
@@ -1901,94 +1887,6 @@ ApplicationWindow {
         return ok
     }
 
-    function refreshFilters(path) {
-        var targetPath = String(path || currentFilesPath())
-        var nextAvailable = []
-        var nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
-        if (hasBackend() && typeof backend.listFilters === "function") {
-            try {
-                nextAvailable = backend.listFilters(targetPath) || []
-            } catch (e0) {
-                nextAvailable = []
-            }
-        }
-        if (hasBackend() && typeof backend.resolveActiveFilter === "function") {
-            try {
-                nextActive = backend.resolveActiveFilter(targetPath) || nextActive
-            } catch (e1) {
-                nextActive = ({ active: false, name: "", mode: "auto", path: "", chain: [] })
-            }
-        }
-        availableFilters = nextAvailable
-        activeFilter = nextActive
-        manualFilterPath = String(nextActive.manualPath || "")
-    }
-
-    function activateFilterPath(path) {
-        var target = String(path || "").trim()
-        if (!hasBackend() || typeof backend.setManualFilter !== "function") {
-            return
-        }
-        if (!target) {
-            if (typeof backend.clearManualFilter === "function") {
-                backend.clearManualFilter()
-            }
-        } else {
-            var ok = backend.setManualFilter(target)
-            if (!ok) {
-                moveReportMessage = qsTr("Filter could not be activated.")
-                moveReportDialog.open()
-            }
-        }
-        showLensOfSession()  // a filter chosen by hand brings its lens and takes it along
-        refreshFilters()
-        updateFiles()
-    }
-
-    function clearManualFilterOverride() {
-        if (hasBackend() && typeof backend.clearManualFilter === "function") {
-            backend.clearManualFilter()
-        }
-        showLensOfSession()
-        refreshFilters()
-        updateFiles()
-    }
-
-    function openActiveFilterSource() {
-        var sourcePath = String(activeFilter.path || "").trim()
-        if (!sourcePath.length) {
-            return
-        }
-        requestOpenWith(sourcePath)
-    }
-
-    function promptFilterSave() {
-        var sourcePath = String(activeFilter.path || "").trim()
-        if (!sourcePath.length || !hasBackend() || typeof backend.listFilterSaveTargets !== "function") {
-            return
-        }
-        filterSaveSourcePath = sourcePath
-        filterSaveTargets = backend.listFilterSaveTargets(cwp, sourcePath) || []
-        pendingFilterNewName = ""
-        filterSaveDialog.open()
-    }
-
-    function applyFilterSave(targetId) {
-        var target = String(targetId || "").trim()
-        if (!target.length || !hasBackend() || typeof backend.saveFilter !== "function") {
-            return
-        }
-        var result = backend.saveFilter(cwp, filterSaveSourcePath, target, pendingFilterNewName)
-        if (result && result.ok) {
-            moveReportMessage = qsTr("Filter saved: %1").arg(String(result.path || ""))
-            moveReportDialog.open()
-            refreshFilters()
-            return
-        }
-        moveReportMessage = qsTr("Filter could not be saved.")
-        moveReportDialog.open()
-    }
-
     /// Number of entries in the trash of the shown project (side panel button).
     property int trashCount: 0
 
@@ -2024,7 +1922,6 @@ ApplicationWindow {
         }
         updateProjectCreateTarget()
         updateClipboardState()
-        refreshFilters(targetPath)
     }
 
     function updateTemplates() {
@@ -2714,10 +2611,6 @@ ApplicationWindow {
 
     OpenWithDialog { id: pendingOpenWithDialog; window: window }
 
-    FilterSaveDialog { id: filterSaveDialog; window: window }
-
-    FilterNameDialog { id: filterNameDialog; window: window }
-
     CreateFolderDialog { id: createFolderDialog; window: window }
 
     MoveSelectedFoldersDialog { id: moveSelectedFoldersDialog; window: window }
@@ -2877,45 +2770,6 @@ ApplicationWindow {
                     ToolTip.visible: minimalViewArea.containsMouse
                     ToolTip.delay: 600
                     ToolTip.text: qsTr("Minimal view: the current folder top left, the path above it on hover")
-                }
-
-                Menu {
-                    id: filterMenu
-
-                    MenuItem {
-                        text: qsTr("Auto follow")
-                        onTriggered: clearManualFilterOverride()
-                    }
-                    MenuItem {
-                        text: qsTr("Open active filter")
-                        enabled: String(activeFilter.path || "").length > 0
-                        onTriggered: openActiveFilterSource()
-                    }
-                    MenuItem {
-                        text: qsTr("Save filter ...")
-                        enabled: String(activeFilter.path || "").length > 0
-                        onTriggered: promptFilterSave()
-                    }
-                    MenuSeparator {}
-                    Instantiator {
-                        model: availableFilters || []
-                        delegate: MenuItem {
-                            required property var modelData
-                            text: {
-                                var item = modelData || ({})
-                                var name = String(item.name || "")
-                                var origin = String(item.originType || "")
-                                var depth = Number(item.depth || 0)
-                                return name + " [" + origin + ", d" + depth + "]"
-                            }
-                            onTriggered: {
-                                var item = modelData || ({})
-                                activateFilterPath(String(item.path || ""))
-                            }
-                        }
-                        onObjectAdded: function(index, object) { filterMenu.insertItem(index + 4, object) }
-                        onObjectRemoved: function(index, object) { filterMenu.removeItem(object) }
-                    }
                 }
 
                 }
@@ -3249,8 +3103,6 @@ ApplicationWindow {
             onSwitchTheme: window.darkTheme = !window.darkTheme
             onSwitchLanguage: window.toggleUiLanguage()
             onFlipBack: window.flipSetup(false)
-            filterLabel: window.filterLabelText()
-            onOpenFilterMenu: filterMenu.popup()
             projectsRowShown: window.projectsBrowserVisible
             templatesRowShown: window.templatesBrowserVisible
             onToggleProjectsRow: {

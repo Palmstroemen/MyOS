@@ -373,8 +373,6 @@ class ScopeApi:
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
         self._desk_service = DeskService()
-        self._manual_filter_path: Optional[Path] = None
-        self._manual_filter_lens: Tuple[str, ...] = ()
         self.myos_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
         self._configure_acl_from_env()
@@ -596,7 +594,6 @@ class ScopeApi:
                 "flatten": False,
                 "groups": [],
                 "chain": [],
-                "manualPath": str(self._manual_filter_path) if self._manual_filter_path else "",
                 "lens": [],
             }
         first_path = effective.layers[0].source_path if effective.layers else None
@@ -608,127 +605,8 @@ class ScopeApi:
             "flatten": bool(effective.config.flatten),
             "groups": list(effective.config.groups or []),
             "chain": effective.explain_chain(),
-            "manualPath": str(self._manual_filter_path) if self._manual_filter_path else "",
-            "lens": list(effective.config.lens),  # put on only when chosen by hand
+            "lens": list(effective.config.lens),
         }
-
-    def set_manual_filter(self, filter_path: str) -> bool:
-        text = str(filter_path or "").strip()
-        if not text:
-            return self.clear_manual_filter()
-        try:
-            resolved = Path(text).expanduser().resolve()
-        except Exception:
-            return False
-        if not resolved.exists() or not resolved.is_file():
-            return False
-        try:
-            # Validate parseability before activating.
-            effective = resolve_effective_filter(resolved.parent, manual=resolved)
-        except Exception:
-            return False
-        self._manual_filter_path = resolved
-        self._manual_filter_lens = tuple(effective.config.lens) if effective else ()
-        return True
-
-    def manual_filter_lens(self) -> Tuple[str, ...]:
-        """The lens of the filter chosen by hand (## Perspective); () = none. The program
-        puts it on through the lens session (Designdocument Perspective Resolver MVP.md, A6)."""
-        return self._manual_filter_lens if self._manual_filter_path else ()
-
-    def clear_manual_filter(self) -> bool:
-        self._manual_filter_path = None
-        self._manual_filter_lens = ()
-        return True
-
-    def list_filter_save_targets(self, path: str, source_path: str) -> List[Dict[str, str]]:
-        target = self._resolve_path(path)
-        source = self._resolve_path(source_path) if str(source_path or "").strip() else None
-        roots = self._resolve_filter_roots_for_target(target)
-        options: List[Dict[str, str]] = []
-        project_root = roots.get("projectRoot")
-        template_root = roots.get("templateRoot")
-        global_root = roots.get("globalRoot")
-        if project_root is not None:
-            options.append(
-                {
-                    "id": "project_local",
-                    "label": "Nur in diesem Projekt",
-                    "targetDir": str(project_root / ".MyOS" / "Filters"),
-                    "exists": "1" if source and source.exists() else "0",
-                }
-            )
-        if source is not None and source.exists():
-            options.append(
-                {
-                    "id": "source_scope",
-                    "label": "Im bisherigen Kontext",
-                    "targetDir": str(source.parent),
-                    "exists": "1",
-                }
-            )
-        if template_root is not None:
-            options.append(
-                {
-                    "id": "template_scope",
-                    "label": "Im Template-Kontext",
-                    "targetDir": str(template_root / ".MyOS" / "Filters"),
-                    "exists": "0",
-                }
-            )
-        if global_root is not None:
-            options.append(
-                {
-                    "id": "global_scope",
-                    "label": "Global in MyOS",
-                    "targetDir": str(global_root / ".MyOS" / "Filters"),
-                    "exists": "0",
-                }
-            )
-        options.append(
-            {
-                "id": "new_named",
-                "label": "Als neue Perspektive speichern",
-                "targetDir": str((project_root or target) / ".MyOS" / "Filters"),
-                "exists": "0",
-            }
-        )
-        return options
-
-    def save_filter(self, path: str, source_path: str, target_id: str, new_name: str = "") -> Dict[str, Any]:
-        target = self._resolve_path(path)
-        source = self._resolve_path(source_path) if str(source_path or "").strip() else None
-        options = self.list_filter_save_targets(str(target), str(source or ""))
-        chosen = None
-        for item in options:
-            if str(item.get("id")) == str(target_id):
-                chosen = item
-                break
-        if chosen is None:
-            return {"ok": False, "reason": "target_not_found", "path": ""}
-        if source is None or not source.exists() or not source.is_file():
-            return {"ok": False, "reason": "source_missing", "path": ""}
-        try:
-            content = source.read_text(encoding="utf-8")
-        except Exception:
-            return {"ok": False, "reason": "source_read_failed", "path": ""}
-
-        target_dir = Path(str(chosen.get("targetDir") or "")).expanduser().resolve()
-        if not str(target_dir):
-            return {"ok": False, "reason": "missing_target_dir", "path": ""}
-        file_name = source.name
-        if str(target_id) == "new_named":
-            cleaned = _clean_entry_name(str(new_name or "").strip(), allow_empty=False)
-            if not cleaned:
-                return {"ok": False, "reason": "invalid_new_name", "path": ""}
-            file_name = cleaned if cleaned.lower().endswith(".md") else f"{cleaned}.md"
-        destination = (target_dir / file_name).resolve()
-        try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(content, encoding="utf-8")
-        except Exception:
-            return {"ok": False, "reason": "write_failed", "path": ""}
-        return {"ok": True, "reason": "written", "path": str(destination)}
 
     def preview_sort_target_for_move(self, source_path: str, target_dir: str) -> Dict[str, Any]:
         """Where a file moved into target_dir would be filed (core.filing); ok only when it
@@ -810,7 +688,6 @@ class ScopeApi:
         roots = self._resolve_filter_roots_for_target(target)
         result = resolve_effective_filter(
             target,
-            manual=self._manual_filter_path,
             template_root=roots.get("templateRoot"),
             project_root=roots.get("projectRoot"),
             global_root=roots.get("globalRoot"),

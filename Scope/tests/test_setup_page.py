@@ -68,7 +68,6 @@ def page(tmp_path, monkeypatch):
         '  onFlipBack: heard = heard.concat(["back"])\n'
         '  onToggleProjectsRow: heard = heard.concat(["projectsRow"])\n'
         '  onToggleTemplatesRow: heard = heard.concat(["templatesRow"])\n'
-        '  onOpenFilterMenu: heard = heard.concat(["filter"])\n'
         '}\n', encoding="utf-8")
     view = QQuickView()
     view.rootContext().setContextProperty("host", host)
@@ -180,17 +179,6 @@ def test_the_scope_tab_switches_the_two_rows(page):
     assert _heard(view)[-2:] == ["projectsRow", "templatesRow"]
     root.setProperty("projectsRowShown", False)
     assert "OFF" in _named(view, "setupProjectsRow").property("label")
-
-
-def test_the_filter_is_on_the_scope_tab(page):
-    view, _ = page
-    root = view.rootObject()
-    root.setProperty("filterLabel", "Filter: Ausgaben [A]")
-    _click(view, _named(view, "tabScope"))
-    button = _named(view, "setupFilter")
-    assert button.property("label") == "Filter: Ausgaben [A]"
-    _click(view, button)
-    assert _heard(view)[-1] == "filter"
 
 
 def test_done_stands_top_left(page):

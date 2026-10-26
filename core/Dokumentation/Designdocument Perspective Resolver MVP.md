@@ -162,6 +162,10 @@ lens does not change the Desk.
   the lens on through the session where one stands, like the gesture; lifting it (or
   choosing another) takes the lens off - only while it is still the filter's, not when the
   user went on with it. An auto filter never puts on a lens.
+  **Taken back** (2026-10-26): choosing a filter by hand, with its menu (open, save to another
+  level), was a step on the way and is gone from Scope and the core - the lens comes by a
+  double click on the MyOS folder. Auto filters work as before (flattening, groups); a
+  `## Perspective` in a filter is read but puts on nothing.
 
 ## A7. Built In Core
 

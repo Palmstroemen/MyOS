@@ -100,6 +100,8 @@ Kompakter Überblick: `docs/STATUS.md`.
         [x] E6 Filter (2026-10-25): "## Perspective" nennt die Brille (04_Finanz/Ausgaben); von Hand gewählt setzt der
             Filter sie auf, wo man steht, und nimmt sie beim Aufheben wieder ab (nur solange es noch seine ist); ein
             Auto-Filter nie. Alte CPD-Schicht entfernt (perspective_resolver.py, ScopeApi perspective_*, Teil B)
+            Zurückgenommen (2026-10-26): die Wahl von Hand samt Menü (öffnen, speichern) ist weg - die Brille kommt per
+            Doppelklick auf den MyOS-Ordner; Auto-Filter bleiben
         [ ] E7 Suche mit Brille über alle Projekte (nur die Abteilungsordner, Spalte "Projekt"; Designdoc A9) -
             zurückgestellt (2026-10-25), bis die Suche im Alltag fehlt; schlank wäre: nur Dateinamen, ein Feld in Scope
     [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein

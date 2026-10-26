@@ -56,3 +56,15 @@ def test_the_flip_turns_the_other_way_both_ways():
     flip = MAIN[MAIN.index("id: setupFlipAnimation"):MAIN.index("function flipSetup(toBack)")]
     assert "from: 0; to: -90" in flip and "from: 90; to: 0" in flip
     assert "toBack ?" not in flip  # no direction of its own for the way back
+
+
+def test_choosing_a_filter_by_hand_is_gone():
+    # A step on the way (E6): the lens comes by a double click on the MyOS folder; filters
+    # still work by themselves (auto), without a menu (Designdocument Perspective Resolver MVP.md).
+    scope = (Path(__file__).resolve().parents[1] / "Scope.py").read_text(encoding="utf-8")
+    page = (Path(__file__).resolve().parents[1] / "SetupPage.qml").read_text(encoding="utf-8")
+    for gone in ("id: filterMenu", "FilterSaveDialog", "FilterNameDialog", "activateFilterPath", "refreshFilters"):
+        assert gone not in MAIN, gone
+    for gone in ("def setManualFilter", "def clearManualFilter", "def saveFilter", "def listFilterSaveTargets", "_filter_lens"):
+        assert gone not in scope, gone
+    assert "openFilterMenu" not in page and "setupFilter" not in page
