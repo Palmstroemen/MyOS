@@ -38,7 +38,7 @@ Kompakter Überblick: `docs/STATUS.md`.
             [x] Halbkreise am Stamm (2026-10-26): Mittelpunkte = Mittelpunkte der Rundungen des CWD-Ovals; Stamm-Knöpfe eckig
             [x] CTD statt CWD in der Mitte (2026-10-26): Klick schaut nur (CTD), Doppelklick setzt das CWD und schließt;
                 Brille nur bewusst; das CWD leuchtet, wo es auftaucht (Oval, Stamm, Krone)
-            [ ] Scope: CWD ebenso leuchtend markieren (Leuchten, Rahmen, fett in der Projektfarbe)
+            [x] Scope: CWD ebenso leuchtend markiert (2026-10-26): Pfadleiste der Projekte und CWD-Knopf; helles Theme: kräftigerer Rahmen
             [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
                 schnellen Ruck oder quer in die andere Hälfte
                 -> weitgehend gelöst durch "eine Handlung, dann weg" (2026-10-26); bleibt: Abbrechen (Esc, Shortcut, Klick daneben)

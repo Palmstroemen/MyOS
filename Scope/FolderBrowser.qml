@@ -95,6 +95,10 @@ Item { // ROOT
     property color lensFrameColor: "#d97706"
     property bool tintPathAsProject: false
     property real cwdOpacity: 1.0
+    // The CWD's mark on the current segment (FolderItem.cwdMark): only where the line's end is
+    // the CWD (the projects' line, not the lens'); cwdGlow off on a light theme.
+    property bool markCwd: false
+    property bool cwdGlow: true
     property real pathProjectOpacity: 0.7
     property real folderProjectOpacity: 0.55
     property real embryoOpacity: 0.4
@@ -369,6 +373,13 @@ Item { // ROOT
             : ""
         if (!isProjectItem && projectColor.length === 0) return ""
         return (typeof hostProjectIconForPath === "function") ? hostProjectIconForPath(path) : ""
+    }
+
+    /// The colour of the CWD's mark: its project's colour, lit up (FBUtils.cwdMarkColor).
+    function cwdMarkColorFor(path) {
+        var color = (hostBackend && typeof hostBackend.effectiveProjectColor === "function")
+            ? String(hostBackend.effectiveProjectColor(path) || "") : ""
+        return FBUtils.cwdMarkColor(color, root.cwdGlow)
     }
 
     function _defaultPathColor(path, isCurrent) {
@@ -2910,6 +2921,9 @@ Item { // ROOT
                                 textSize: baseFont
                                 dimmedStyle: isCurrent
                                 flatBottomCorners: isCurrent
+                                cwdMark: root.markCwd && isCurrent
+                                cwdMarkColor: cwdMark ? root.cwdMarkColorFor(fullPathForSegment) : "#ffffff"
+                                cwdGlow: root.cwdGlow
                                 renaming: root.allowRename && root.renameTargetPath === fullPathForSegment
                                 renameEnabled: root.allowRename
                                 renameText: root.renameDraft
@@ -3057,6 +3071,9 @@ Item { // ROOT
                         textSize: baseFont
                         dimmedStyle: true
                         flatBottomCorners: true
+                        cwdMark: root.markCwd
+                        cwdMarkColor: cwdMark ? root.cwdMarkColorFor(currentFullPath) : "#ffffff"
+                        cwdGlow: root.cwdGlow
                         renaming: false
                         renameEnabled: false
                         onActivate: {

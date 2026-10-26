@@ -73,3 +73,16 @@ function indexRange(from, to) {
     for (var i = from; i < to; i++) out.push(i)
     return out
 }
+
+/// The colour of the CWD's mark (glow and frame), as in SunTree: its project's colour lit up
+/// on a dark theme, darkened on a light one; without a project white, or near black.
+function cwdMarkColor(projectColor, darkTheme) {
+    var m = String(projectColor || "").trim().match(/^#([0-9a-fA-F]{6})$/)
+    if (!m) return darkTheme ? "#ffffff" : "#1a1a1a"
+    var factor = darkTheme ? 1.7 : 0.55, out = "#"
+    for (var i = 0; i < 3; i++) {
+        var c = Math.max(0, Math.min(255, Math.round(parseInt(m[1].substr(i * 2, 2), 16) * factor)))
+        out += (c < 16 ? "0" : "") + c.toString(16)
+    }
+    return out
+}

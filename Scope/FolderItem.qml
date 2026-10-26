@@ -75,6 +75,15 @@ Rectangle {
     property int largeTextSize: textSize
     property bool textBold: false
     property bool largeTextBold: textBold
+    // The CWD's mark, as in SunTree (SunTree/Designdocument Krone.md): light around it in its
+    // project's colour lit up, a bright frame, bold. cwdGlow off (a light theme, where light
+    // does not show): a stronger frame instead.
+    property bool cwdMark: false
+    property color cwdMarkColor: "#ffffff"
+    property bool cwdGlow: true
+    readonly property bool shownBold: textBold || cwdMark
+    readonly property int shownBorderWidth: cwdMark ? (cwdGlow ? 2 : 3) : 1
+    readonly property color shownBorderColor: cwdMark ? cwdMarkColor : strokeColor
     property bool dimmedStyle: false
     property int textYOffset: 0
     property bool renaming: false
@@ -221,7 +230,25 @@ Rectangle {
     }
     height: style === "largeIcon" ? largeHeight : compactHeight
     color: fillColor
-    border.color: strokeColor
+    border.color: shownBorderColor
+    border.width: shownBorderWidth
+
+    Repeater {
+        // The CWD's light: frames widening and fading outward, behind the button.
+        model: [[3, 0.35], [6, 0.18], [10, 0.08]]
+        Rectangle {
+            objectName: "cwdGlow"
+            visible: root.cwdMark && root.cwdGlow
+            z: -1
+            anchors.fill: parent
+            anchors.margins: -modelData[0]
+            radius: root.radius + modelData[0]
+            color: "transparent"
+            border.width: 3
+            border.color: root.cwdMarkColor
+            opacity: modelData[1]
+        }
+    }
 
     Rectangle {
         // Selected-tab overlay: subtle white fade from top to bottom.
@@ -252,26 +279,26 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: 1
-        color: root.strokeColor
+        height: root.shownBorderWidth
+        color: root.shownBorderColor
         z: 0
     }
     Rectangle {
         visible: root.flatBottomCorners
         anchors.left: parent.left
         anchors.bottom: parent.bottom
-        width: 1
+        width: root.shownBorderWidth
         height: Math.max(1, root.radius)
-        color: root.strokeColor
+        color: root.shownBorderColor
         z: 1
     }
     Rectangle {
         visible: root.flatBottomCorners
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        width: 1
+        width: root.shownBorderWidth
         height: Math.max(1, root.radius)
-        color: root.strokeColor
+        color: root.shownBorderColor
         z: 2
     }
 
@@ -321,7 +348,7 @@ Rectangle {
             text: label
             color: textColor
             font.pixelSize: textSize
-            font.bold: textBold
+            font.bold: shownBold
         }
     }
 
@@ -383,7 +410,7 @@ Rectangle {
             text: label
             color: textColor
             font.pixelSize: textSize
-            font.bold: textBold
+            font.bold: shownBold
             // Beside the button-high icon the name is centred; the row is as high as the icon.
             y: (root.edgeIcon ? Math.round((root.smallIconBox - height) / 2) : 0) + textYOffset
             visible: !renaming
@@ -489,7 +516,7 @@ Rectangle {
             text: twoLineLabel(label, 16)
             color: textColor
             font.pixelSize: largeTextSize
-            font.bold: largeTextBold
+            font.bold: largeTextBold || cwdMark
             horizontalAlignment: largeIconAlignLeft ? Text.AlignLeft : Text.AlignHCenter
             width: parent.width
             visible: !renaming
@@ -604,7 +631,7 @@ Rectangle {
         text: label
         visible: false
         font.pixelSize: style === "largeIcon" ? largeTextSize : textSize
-        font.bold: textBold
+        font.bold: shownBold
     }
 
     MouseArea {

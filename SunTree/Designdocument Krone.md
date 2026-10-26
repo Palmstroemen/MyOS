@@ -117,7 +117,10 @@ The tree draws its branches inward and makes them part of its stem.
   lower in the stem when one looks deeper, as a field in the crown when one looks higher -
   light around it in its project's colour lit up (white without one), a bright frame, bold.
   Drawn as strokes widening and fading outward: the canvas' shadowBlur stalled the animations.
-  Scope is to mark its CWD the same way (a later step).
+  Scope marks its CWD the same way (2026-10-26): the current segment of the projects' path
+  line and the CWD button of the minimal view (FolderItem.cwdMark, colour from
+  FBUtils.cwdMarkColor); on a light theme, where light does not show, a stronger frame
+  instead. The lens' line is not marked: its end is the lens' folder, not the CWD.
 
 ## 3. Soft Everywhere
 

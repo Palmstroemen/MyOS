@@ -65,3 +65,13 @@ def test_the_cascade_ends_at_the_projects_root(js):
     chain = ["/home", "/home/u", "/home/u/Projekte", "/home/u/Projekte/Wohnen"]
     assert js("pathsFrom", chain, "/home/u/Projekte") == ["/home/u/Projekte", "/home/u/Projekte/Wohnen"]
     assert js("pathsFrom", chain, "") == chain
+
+
+def test_the_cwd_mark_lights_up_its_project_colour(js):
+    # As in SunTree: the project's colour lit up on a dark theme, darkened on a light one;
+    # without a project white, or near black.
+    assert js("cwdMarkColor", "#406080", True) == "#6da3da"
+    assert js("cwdMarkColor", "#406080", False) == "#233546"
+    assert js("cwdMarkColor", "", True) == "#ffffff"
+    assert js("cwdMarkColor", "", False) == "#1a1a1a"
+    assert js("cwdMarkColor", "#f0f0f0", True) == "#ffffff"  # clamped

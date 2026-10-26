@@ -3377,6 +3377,8 @@ ApplicationWindow {
             debugName: "ProjectsBrowser"
             parent: floatingPool
             z: 8
+            markCwd: true  // its line ends at the CWD: it glows (FolderItem.cwdMark)
+            cwdGlow: window.darkTheme
             visible: projectsBrowserVisible
             maxParents: 10
             path: cwp
