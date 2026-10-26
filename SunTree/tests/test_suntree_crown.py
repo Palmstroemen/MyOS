@@ -250,3 +250,13 @@ def test_up_the_stem_the_folders_are_spat_out(world, suntree, window):
         _call(window, "crownTick", 0.1)
     assert [e["kind"] for e in _call(window, "stemEntries")][0] == "cwd"  # all spat out
     assert _prop(window, "crownHalves")["1"]["shown"] is None  # the crown at rest
+
+
+def test_the_halves_share_the_centres_of_the_cwd_ovals_ends(window):
+    # The crown's half circles are centred where the CWD oval's round ends are (radius: half
+    # its height), so the hollow lies around them; the stem is as wide as the space between.
+    left, right = _call(window, "crownGeo", -1), _call(window, "crownGeo", 1)
+    width, height = _call(window, "cwdOval")["w"], _call(window, "cwdOval")["h"]
+    assert right["cx"] - left["cx"] == width - height
+    assert _call(window, "cwdOval")["cx"] == (left["cx"] + right["cx"]) / 2
+    assert right["cy"] == _call(window, "cwdOval")["cy"]

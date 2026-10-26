@@ -186,6 +186,12 @@ ApplicationWindow {
         return x >= l.cx && x <= r.cx && y >= layoutRoot.shellTop && y <= layoutRoot.shellBottom
     }
 
+    /// The CWD oval in the main area: centre, width, height (its round ends: radius h / 2).
+    function cwdOval() {
+        return { cx: layoutRoot.centerX, cy: layoutRoot.cwdY + layoutRoot.cwdHeight / 2,
+                 w: layoutRoot.cwdWidth, h: layoutRoot.cwdHeight }
+    }
+
     /// The middle of the stem (the CWD) in the window.
     function stemCentre() {
         var o = mainAreaOrigin()
@@ -837,7 +843,7 @@ ApplicationWindow {
         // The Clipboard on top: one drops onto it like onto any folder.
         var cbY = layoutRoot.shellTop + 4, cbW = layoutRoot.stackWidth - layoutRoot.clipboardHeight - 6
         ctx.beginPath()
-        ctx.roundedRect(layoutRoot.stackX, cbY, cbW, layoutRoot.clipboardHeight, 8, 8)
+        ctx.rect(layoutRoot.stackX, cbY, cbW, layoutRoot.clipboardHeight)
         ctx.fillStyle = "#2c3f5d"; ctx.fill()
         ctx.strokeStyle = "#5f7297"; ctx.lineWidth = 1; ctx.stroke()
         ctx.fillStyle = "#e8efff"; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
@@ -869,7 +875,7 @@ ApplicationWindow {
             ctx.save()
             ctx.globalAlpha = Math.min(1, o.e.w * 1.2)
             ctx.beginPath()
-            var rad = o.h / 2 * (0.3 + 0.7 * o.big)
+            var rad = o.h / 2 * o.big  // square pills; the CWD oval round, growing as one glides into it
             ctx.roundedRect(o.x, o.y, o.w, o.h, rad, rad)
             var projectColor = o.e.kind === "cwd" ? (_adjustColor(currentProjectColor, 0.72) || "#2f3d60") : "#324663"
             ctx.fillStyle = o.big > 0.5 ? projectColor : "#324663"
@@ -1100,18 +1106,19 @@ ApplicationWindow {
             id: layoutRoot
             anchors.fill: parent
             anchors.margins: 20
-            property real stackWidth: 170
-            property real stackGap: 14
+            // The stem is as wide as the space between the halves' centres, which are the
+            // centres of the CWD oval's round ends: the hollow lies around them.
+            property real stackWidth: 154
             property real shellDiameter: Math.min(mainArea.height * 0.86, mainArea.width * 0.54)
             property real shellHalfWidth: shellDiameter * 0.5
             property real shellTop: (mainArea.height - shellDiameter) * 0.5
             property real shellBottom: shellTop + shellDiameter
             property real centerX: width * 0.5
             property real stackX: centerX - stackWidth * 0.5
-            property real leftX: stackX - stackGap - shellHalfWidth
-            property real rightX: stackX + stackWidth + stackGap
+            property real leftX: stackX - shellHalfWidth
+            property real rightX: stackX + stackWidth
             property real cwdHeight: 72
-            property real cwdWidth: stackWidth + 56
+            property real cwdWidth: stackWidth + cwdHeight
             property real cwdY: shellTop + shellDiameter * 0.5 - cwdHeight * 0.5
             property real halfOuterRadius: Math.min(shellHalfWidth - 8, shellDiameter * 0.5 - 8)
             property real clipboardHeight: 30
@@ -1225,7 +1232,6 @@ ApplicationWindow {
                     height: layoutRoot.clipboardHeight
                     x: layoutRoot.stackX + layoutRoot.stackWidth - width
                     y: layoutRoot.shellTop + 4
-                    radius: 8
                     color: exitMouse.pressed ? "#d40000" : (exitMouse.containsMouse ? "#ff1e1e" : "#ea0000")
                     border.width: 1
                     border.color: "#ffd2d2"

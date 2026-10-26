@@ -135,6 +135,11 @@ The tree draws its branches inward and makes them part of its stem.
   preview while diving.
 - **The parents** below it, down to the root.
 
+- **Geometry** (2026-10-26): the halves' centres are the centres of the CWD oval's round
+  ends (radius half its height), so the hollow lies around them; the stem is exactly as wide
+  as the space between (154 px, the oval 226 x 72). The stem's buttons are square; only the
+  CWD oval is round, its corners growing as an entry glides into it.
+
 ## 5. Values
 
 Tuned in the sketch, to be tuned further on the real desktop:

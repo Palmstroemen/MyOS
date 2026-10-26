@@ -35,6 +35,7 @@ Kompakter Überblick: `docs/STATUS.md`.
             Feinabstimmung am echten Bildschirm
             [x] Rückweg aus dem Stamm (2026-10-26): Klick auf einen Eltern-Ordner spuckt die Ordner dazwischen aus,
                 die Krone läuft zurück, die Einträge im Stamm gleiten
+            [x] Halbkreise am Stamm (2026-10-26): Mittelpunkte = Mittelpunkte der Rundungen des CWD-Ovals; Stamm-Knöpfe eckig
             [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
                 schnellen Ruck oder quer in die andere Hälfte
                 -> weitgehend gelöst durch "eine Handlung, dann weg" (2026-10-26); bleibt: Abbrechen (Esc, Shortcut, Klick daneben)
