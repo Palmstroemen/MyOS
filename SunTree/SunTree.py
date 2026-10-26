@@ -15,6 +15,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 
 from core.scope_api import ScopeApi
+from core.settings import Settings
 from daemon.lens_link import LensLink
 
 # pynput's syntax: named keys in angle brackets ("<space>", not "space").
@@ -264,6 +265,12 @@ class SunTreeBackend(QObject):
     def projectsRoot(self) -> str:
         """The projects root ("Projekte"); "" outside the projects."""
         return str(self._lens.projects_root or "")
+
+    @Slot(result="QVariantMap")
+    def crownSettings(self) -> dict:
+        """The crown's values from the settings file (core/settings.py), read afresh: they
+        may have been changed on the back of Scope since SunTree last appeared."""
+        return Settings().group("SunTree")
 
     @Slot(result=bool)
     def homeIfOutside(self) -> bool:

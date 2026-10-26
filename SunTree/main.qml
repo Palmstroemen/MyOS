@@ -246,6 +246,7 @@ ApplicationWindow {
 
     /// Scope and SunTree always share the place: turned to, go where Scope went.
     function turnedTo() {
+        applyCrownSettings()
         sunTreeBackend.followPlace()
         sunTreeBackend.homeIfOutside()
         refreshModels()
@@ -444,6 +445,16 @@ ApplicationWindow {
     property real crownLens: 2.2     // the fish-eye at the start of a level
     property real crownSoftness: 10  // spring rate of the shown values, per second
     property real crownEdge: 0.08    // push past a level's end that lets go, as a share of R
+    property real crownEnter: 0.75   // where in the field drawing in begins
+    property real crownLeave: 0.25   // how far into the outer ring it ends
+    // The values come from the settings (core/settings.py), set on the back of Scope.
+    function applyCrownSettings() {
+        var s = sunTreeBackend.crownSettings()
+        if (!s) return
+        crownLineT = s.lineT; crownInner = s.inner; crownEnter = s.enter; crownLeave = s.leave
+        crownLens = s.lens; crownSoftness = s.softness; crownEdge = s.edge
+        crownCache = ({})
+    }
     // Per half (-1 left, 1 right): target (where the hand put it), shown (the springs) and
     // lensK (the fish-eye fading in and out).
     property var crownHalves: ({ "-1": { target: null, shown: null, lensK: 0 }, "1": { target: null, shown: null, lensK: 0 } })
@@ -465,7 +476,7 @@ ApplicationWindow {
         var R = layoutRoot.halfOuterRadius
         var h = crownHalves[side]
         return { ri: crownInner * R, T: crownLineT * R, R: R, lens: crownLens * (h ? h.lensK : 0), speed: 1,
-                 edge: crownEdge * R,
+                 edge: crownEdge * R, enter: crownEnter, leave: crownLeave,
                  cx: side < 0 ? leftHalf.x + leftHalf.width : rightHalf.x, cy: leftHalf.y + leftHalf.height / 2 }
     }
 

@@ -74,8 +74,11 @@ Kompakter Überblick: `docs/STATUS.md`.
             [x] Werkzeuge von M (2026-10-26): Knopfzeile oben im CWD-Dropdown statt Menü - Clipboard, Suche, Hell/Dunkel,
                 Sprache, versteckte Ordner (Scope/CwdTools.qml); M wird ein eigenes, oben angedocktes Werkzeug (kein H, kein E)
             [x] M bleibt eine Zeile (2026-10-26): MyOS-Ordner brechen nicht mehr in eine zweite Zeile um; Mausrad schiebt
-            [ ] Setup-Knopf: Konfigurationsseite (Farbschema wählen/bearbeiten, SunTree-Werte wie Enter/Leave); braucht eine
-                gemeinsame Einstellungsdatei für Scope und SunTree. Später: Anmelden/Ummelden, Abschalten
+            [ ] Setup auf der Rückseite von Scope (Scope/Designdocument Setup.md): ⚙ dreht Scope um; Tabs Allgemein, Scope,
+                Headline, SunTree; eine Einstellungsdatei für alle (core/settings.py, ~/.config/MyOS/MyOS.conf)
+                [x] Schritt 1 (2026-10-26): Umdrehen, Hell/Dunkel und Sprache (bleiben jetzt gespeichert), SunTree-Werte
+                [ ] Schritt 2: Farbschemata wählen  [ ] Schritt 3: bearbeiten  [ ] Schritt 4: Tabs Scope und Headline
+                Später: Anmelden/Ummelden, Abschalten
             [ ] Schritt 2: Auftauchen am oberen Bildschirmrand (Edge-Dock) - zurückgestellt (2026-10-25): im Prototyp reicht
                 das CWD links oben im Scope-Fenster. Später voraussichtlich: volle Bildschirmbreite, Kante über die ganze
                 Breite klappt sofort auf, zu nach ca. 0,5 s ohne Maus im Fenster; Verhältnis zum alten Edge-Dock offen

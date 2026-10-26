@@ -42,6 +42,7 @@ from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
 from core.scope_api import ScopeApi
+from core.settings import Settings
 from daemon.lens_link import LensLink
 
 
@@ -299,6 +300,8 @@ class Backend(QObject):
         # Folder sizes: measured on demand (hover/click on the size column), one task at a
         # time; a new request or cancel bumps the generation so older measurements stop.
         self._settings = QSettings("MyOS", "Scope")
+        # The settings of all MyOS programs (core/settings.py), set on Scope's back.
+        self._shared_settings = Settings()
         self._sizes_pool = QThreadPool(self)
         self._sizes_pool.setMaxThreadCount(1)
         self._sizes_generation = 0
@@ -937,6 +940,27 @@ class Backend(QObject):
     @Slot(result=str)
     def getProjectRoot(self) -> str:
         return self._api.get_project_root() or ""
+
+    # The back of Scope (Scope/Designdocument Setup.md): the one settings file.
+    @Slot(str, result="QVariant")
+    def setting(self, key: str):
+        return self._shared_settings.get(key)
+
+    @Slot(str, "QVariant", result=bool)
+    def setSetting(self, key: str, value) -> bool:
+        return self._shared_settings.set(key, value)
+
+    @Slot(str, result="QVariant")
+    def settingDefault(self, key: str):
+        return self._shared_settings.default(key)
+
+    @Slot(str, result="QVariantList")
+    def settingLimits(self, key: str) -> list:
+        return list(self._shared_settings.limits(key) or [])
+
+    @Slot(str)
+    def resetSetting(self, key: str) -> None:
+        self._shared_settings.reset(key)
 
     @Slot(result=str)
     def currentLanguage(self) -> str:

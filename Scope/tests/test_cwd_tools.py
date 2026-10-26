@@ -12,7 +12,7 @@ from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
 
 SCOPE_DIR = Path(__file__).resolve().parents[1]
-TOOLS = ["toolClipboard", "toolSearch", "toolTheme", "toolLanguage", "toolHidden"]
+TOOLS = ["toolClipboard", "toolSearch", "toolTheme", "toolLanguage", "toolHidden", "toolSetup"]
 
 
 @pytest.fixture
@@ -29,6 +29,7 @@ def tools(tmp_path):
         '  onSwitchTheme: heard = heard.concat(["theme"])\n'
         '  onSwitchLanguage: heard = heard.concat(["language"])\n'
         '  onToggleHidden: heard = heard.concat(["hidden"])\n'
+        '  onOpenSetup: heard = heard.concat(["setup"])\n'
         '}\n', encoding="utf-8")
     view = QQuickView()
     view.setSource(QUrl.fromLocalFile(str(host)))
@@ -62,7 +63,7 @@ def test_each_button_says_what_it_wants(tools):
         _click(tools, name)
     heard = tools.rootObject().property("heard")
     assert (heard.toVariant() if hasattr(heard, "toVariant") else heard) == [
-        "clipboard", "search", "theme", "language", "hidden"]
+        "clipboard", "search", "theme", "language", "hidden", "setup"]
 
 
 def test_the_buttons_show_the_state(tools):

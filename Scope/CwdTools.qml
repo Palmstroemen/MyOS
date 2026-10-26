@@ -30,6 +30,7 @@ Row {
     signal switchTheme()
     signal switchLanguage()
     signal toggleHidden()
+    signal openSetup()
 
     component Tool: Rectangle {
         id: tool
@@ -105,5 +106,11 @@ Row {
         checked: root.hiddenShown
         tip: qsTr("Show hidden folders")
         onActivated: root.toggleHidden()
+    }
+    Tool {
+        objectName: "toolSetup"
+        label: "⚙"
+        tip: qsTr("Setup")
+        onActivated: root.openSetup()
     }
 }

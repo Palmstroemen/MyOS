@@ -293,3 +293,20 @@ def test_a_motion_from_before_the_pull_does_not_throw_the_crown(world, window):
     _call(window, "handMoved", hand["x"] + 6, hand["y"])  # stale: from before the put, 2 px on
     after = _prop(window, "crownHalves")["1"]["target"]["s"]
     assert after - before < 5  # a small step, not the gap to the put pointer
+
+
+def test_the_crown_takes_its_values_from_the_settings_on_appearing(world, window, tmp_path):
+    # Set on the back of Scope (Scope/Designdocument Setup.md), read when SunTree appears.
+    from core.settings import Settings
+
+    geo = _call(window, "crownGeo", 1)
+    assert abs(geo["T"] - 0.7 * geo["R"]) < 1e-6 and geo["enter"] == 0.75  # the defaults
+    settings = Settings()
+    settings.set("SunTree/lineT", 0.6)
+    settings.set("SunTree/enter", 0.8)
+    settings.set("SunTree/leave", 0.3)
+
+    _call(window, "turnedTo")
+    geo = _call(window, "crownGeo", 1)
+    assert abs(geo["T"] - 0.6 * geo["R"]) < 1e-6
+    assert geo["enter"] == 0.8 and geo["leave"] == 0.3

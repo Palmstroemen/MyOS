@@ -17,6 +17,32 @@ ApplicationWindow {
 
     property int baseFont: Qt.application.font.pixelSize
     property bool darkTheme: true
+    // Kept in the settings file (core/settings.py) once read at the start.
+    property bool settingsRead: false
+    onDarkThemeChanged: if (settingsRead && hasBackend() && typeof backend.setSetting === "function") backend.setSetting("General/darkTheme", darkTheme)
+
+    // --- The back: Setup (Scope/Designdocument Setup.md) ------------------------------------
+    // ⚙ turns the window about its vertical axis; at a quarter turn the back takes over.
+    property bool setupShown: false
+    Rotation {
+        id: setupFlip
+        origin.x: window.width / 2
+        origin.y: window.height / 2
+        axis { x: 0; y: 1; z: 0 }
+        angle: 0
+    }
+    SequentialAnimation {
+        id: setupFlipAnimation
+        property bool toBack: true
+        NumberAnimation { target: setupFlip; property: "angle"; from: 0; to: 90; duration: 450; easing.type: Easing.InQuad }
+        ScriptAction { script: window.setupShown = setupFlipAnimation.toBack }
+        NumberAnimation { target: setupFlip; property: "angle"; from: -90; to: 0; duration: 450; easing.type: Easing.OutQuad }
+    }
+    function flipSetup(toBack) {
+        if (setupFlipAnimation.running || setupShown === toBack) return
+        setupFlipAnimation.toBack = toBack
+        setupFlipAnimation.start()
+    }
     property string iconFolder: "image://theme/folder-open"
     property string iconFolderOff: "image://theme/folder"
     property string iconProjectFallback: Qt.resolvedUrl("Theme/icons/project.svg")
@@ -867,12 +893,10 @@ ApplicationWindow {
         var next = uiLanguage === "de" ? "en" : "de"
         if (hasBackend() && typeof backend.setLanguage === "function") {
             backend.setLanguage(next)
-            if (typeof backend.currentLanguage === "function") {
-                uiLanguage = backend.currentLanguage()
-                return
-            }
+            if (typeof backend.currentLanguage === "function") next = backend.currentLanguage()
         }
         uiLanguage = next
+        if (hasBackend() && typeof backend.setSetting === "function") backend.setSetting("General/language", uiLanguage)
     }
 
     function _moveReasonText(code) {
@@ -2305,6 +2329,13 @@ ApplicationWindow {
 
     Component.onCompleted: {
         Qt.application.windowIcon = Qt.resolvedUrl(iconFolder)
+        window.contentItem.transform = [setupFlip]
+        if (hasBackend() && typeof backend.setting === "function") {
+            darkTheme = backend.setting("General/darkTheme") === true
+            var language = String(backend.setting("General/language") || "de")
+            if (typeof backend.setLanguage === "function" && language !== backend.currentLanguage()) backend.setLanguage(language)
+        }
+        settingsRead = true
         if (hasBackend() && typeof backend.currentLanguage === "function") {
             uiLanguage = backend.currentLanguage()
         }
@@ -2826,6 +2857,26 @@ ApplicationWindow {
                     ToolTip.visible: minimalViewArea.containsMouse
                     ToolTip.delay: 600
                     ToolTip.text: qsTr("Minimal view: the current folder top left, the path above it on hover")
+                }
+
+                Rectangle { // Setup: the back of Scope (until the top bar goes)
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: "transparent"
+                    border.width: 0
+                    implicitWidth: setupLabel.implicitWidth + 16
+                    width: implicitWidth
+                    Text {
+                        id: setupLabel
+                        anchors.centerIn: parent
+                        text: "⚙"
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: window.flipSetup(true)
+                    }
                 }
 
                 Rectangle { // Theme Switch
@@ -3413,7 +3464,26 @@ ApplicationWindow {
                     window.updateSubProjects()
                     window.updateFiles()
                 }
+                onOpenSetup: {
+                    projectsBrowser.closeCwdHoverPanels("tools-setup")
+                    window.flipSetup(true)
+                }
             }
+        }
+
+        SetupPage {
+            // The back of Scope: shown from the quarter turn on (flipSetup).
+            parent: window.contentItem
+            anchors.fill: parent
+            z: 100000
+            visible: window.setupShown
+            settings: window.hasBackend() ? backend : null
+            darkTheme: window.darkTheme
+            language: window.uiLanguage
+            baseFont: window.baseFont
+            onSwitchTheme: window.darkTheme = !window.darkTheme
+            onSwitchLanguage: window.toggleUiLanguage()
+            onFlipBack: window.flipSetup(false)
         }
 
         FolderBrowser {  // ProjectsBrowser

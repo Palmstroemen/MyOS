@@ -38,7 +38,7 @@ function phase(s, ri, T) {
 
 /// How far the field reaches when it fills the half: the pointer at T is then at 75 % of it.
 function fieldEnd(geo) {
-    return geo.ri + (geo.T - geo.ri) / (geo.enter || 0.75)
+    return Math.min(geo.R, geo.ri + (geo.T - geo.ri) / (geo.enter || 0.75))  // never beyond the half
 }
 
 /// Where the pointer is when a field has been drawn in: 25 % into the ring outside it - and
