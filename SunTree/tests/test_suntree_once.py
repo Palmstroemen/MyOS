@@ -220,3 +220,18 @@ def test_going_away_fades_into_blur(world, suntree, window):
     assert not _prop(window, "fading") and _call(window, "crownHit") is None
     _shown(window)
     assert _prop(window, "fadeProgress") == 0  # shows whole again
+
+
+def test_while_it_fades_the_crown_does_not_take_the_pointer(world, suntree, window):
+    # The pointer rides back across the fading window: a half must not take it and pull it
+    # into the crown again (it fought the ride back).
+    _shown(window)
+    _call(window, "putAway")
+    geo = _call(window, "crownGeo", 1)
+    _call(window, "handMoved", geo["cx"] + geo["R"] * 0.5, geo["cy"])
+    assert _prop(window, "crownActive") == 0
+
+    assert _gone(window)
+    _shown(window)
+    fade = window.findChild(QQuickItem, "fadeLayer")
+    assert fade.opacity() == 1 and fade.scale() == 1  # whole again for the next time

@@ -48,7 +48,8 @@ Kompakter Überblick: `docs/STATUS.md`.
             mit Rückgängig (auch nach Jahresfilter, geleerte Ordner werden wieder geboren)
         [x] Erscheint mit dem Stamm unter dem Zeiger (2026-10-26); am Bildschirmrand ganz sichtbar, der Zeiger fährt in den Stamm (350 ms), erst dann
             erscheint SunTree; beim Verschwinden fährt der Zeiger zurück, wo er abgeholt wurde
-        [x] Sanft weg (2026-10-26): Momentaufnahme zerläuft in Unschärfe und blendet aus (300 ms)
+        [x] Sanft weg (2026-10-26): Momentaufnahme zerläuft in Unschärfe, blendet aus und zieht sich zum Stamm
+            zusammen (300 ms); ruckelte, weil die Krone den zurückfahrenden Zeiger wieder einfing
         [ ] SunTree übersetzen (.ts fehlt)
         [x] Shortcut während eines Drags kommt an (Xephyr, GTK 3 wie Nemo; Root-Grab und XRecord) - unter Cinnamon noch nicht erprobt
         [x] Globaler Shortcut repariert (2026-10-26): pynput installiert, Vorgabe "<ctrl>+<alt>+<space>" (vorher ungültig, Dienst schlug still fehl)

@@ -152,6 +152,8 @@ ApplicationWindow {
         fadeSnapshot.scheduleUpdate()
         fading = true
         fadeAnimation.restart()
+        fadeOpacity.restart()
+        fadeScale.restart()
     }
 
     function fadeDone() {
@@ -488,6 +490,7 @@ ApplicationWindow {
 
     /// The hand moved the pointer to (x, y) in the main area: take a half, or dive in it.
     function handMoved(x, y) {
+        if (fading) return  // the pointer rides back across it: no half takes it again
         var last = crownPointer || { x: x, y: y }
         var dx = x - last.x, dy = y - last.y
         crownPointer = { x: x, y: y }
@@ -965,6 +968,8 @@ ApplicationWindow {
     }
     // The lens is shared with Scope: coming back, show what it is now.
     onActiveChanged: if (active) turnedTo()
+    // Whole again for the next time (the animators write their end values after they finish).
+    onVisibleChanged: if (visible) { fadeLayer.opacity = 1; fadeLayer.scale = 1 }
 
     Timer {
         id: leftClickDelayTimer
@@ -977,6 +982,9 @@ ApplicationWindow {
         }
     }
 
+    // Going away: the blur on the GUI thread; fading out and drawing together (towards the
+    // stem, the window's centre) as animators on the render thread, smooth even when the GUI
+    // thread is busy for a moment.
     NumberAnimation {
         id: fadeAnimation
         target: root
@@ -986,6 +994,24 @@ ApplicationWindow {
         duration: 300
         easing.type: Easing.InQuad
         onFinished: root.fadeDone()
+    }
+
+    OpacityAnimator {
+        id: fadeOpacity
+        target: fadeLayer
+        from: 1
+        to: 0
+        duration: 300
+        easing.type: Easing.InQuad
+    }
+
+    ScaleAnimator {
+        id: fadeScale
+        target: fadeLayer
+        from: 1
+        to: 0.6
+        duration: 300
+        easing.type: Easing.InQuad
     }
 
     ShaderEffectSource {
@@ -999,18 +1025,21 @@ ApplicationWindow {
     }
 
     MultiEffect {
+        id: fadeLayer
+        objectName: "fadeLayer"
         anchors.fill: scene
         z: 1  // above the scene: it takes the clicks while fading
+        transformOrigin: Item.Center
         source: fadeSnapshot
         visible: root.fading
         autoPaddingEnabled: false
         blurEnabled: true
-        blurMax: 32
+        blurMax: 64  // MultiEffect's most
         blur: root.fadeProgress
-        opacity: 1 - root.fadeProgress
 
         MouseArea {
-            anchors.fill: parent  // nothing reacts while it fades
+            anchors.fill: parent  // nothing reacts while it fades, not even to hovering
+            hoverEnabled: true
         }
     }
 

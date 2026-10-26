@@ -54,9 +54,12 @@ What follows from it:
   at once, its loading held the ride up and it hopped. Going away, the pointer rides back
   where SunTree picked it up; after the red X too, which ends SunTree once it is back.
 - **Fading away** (2026-10-26): SunTree does not vanish at once. A snapshot of it
-  (`ShaderEffectSource`, not live) blurs and fades out over 300 ms, slowly at first; then the
-  window hides and the crown is back at rest. Meanwhile the pointer rides back; nothing
-  reacts to clicks. The red X ends SunTree when both are done.
+  (`ShaderEffectSource`, not live) blurs strongly (blurMax 64), fades out and draws together towards the stem (to
+  60 %) over 300 ms, slowly at first; then the window hides and the crown is back at rest.
+  Fading and drawing together are animators on the render thread, smooth even when the GUI
+  thread is busy. Meanwhile the pointer rides back across the window: nothing there reacts,
+  not even to hovering - a half took the pointer on its way and pulled it into the crown
+  again, which made the first fade jerky. The red X ends SunTree when both are done.
 - The way back out of the stem matters mostly for dropping (one level too deep, out again);
   it does not close SunTree.
 - **The shortcut during a drag** works (tried on 2026-10-26 in Xephyr with a GTK 3 drag
