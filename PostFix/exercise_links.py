@@ -7,8 +7,13 @@ desktop's classic file browser (files=) - Scope on the left half of the screen, 
 browser on the right. Folders are relative to the note shown. PostFix registers the handler
 for "myos" links itself (QDesktopServices); nothing on the system changes, so these links work
 in PostFix only.
+
+On the test machine (scripts/testrun.py) two more: myos:comment opens the tutorial's comment
+note with a heading for the lesson, myos:finish ("Bin fertig") hands the tutorial copy over to
+the test run, which collects the tester's work and starts over.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -18,6 +23,7 @@ from typing import Callable, List, NamedTuple, Optional, Set, Tuple
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from PySide6.QtCore import QObject, QTimer, QUrl, Slot
+from PySide6.QtWidgets import QInputDialog, QLineEdit
 
 SCHEME = "myos"
 PLACE_INTERVAL_MS = 250
@@ -47,6 +53,15 @@ def _inside(base: Path, relative: str) -> Optional[Path]:
     if target != root and root not in target.parents:
         return None
     return target if target.is_dir() else None
+
+
+def command_of(url: str) -> Optional[str]:
+    """"open", "comment" or "finish" of a myos link, None for anything else."""
+    parts = urlsplit(str(url or ""))
+    if parts.scheme != SCHEME:
+        return None
+    command = unquote(parts.path)
+    return command if command in ("open", "comment", "finish") else None
 
 
 def parse(url: str, base: Path) -> Optional[ExerciseAction]:
@@ -136,6 +151,7 @@ class ExerciseLauncher(QObject):
         self._timer.timeout.connect(self.place_tick)
         self._pending = None  # (windows before, scope pid, folder name, tries left)
         self._placed = {}
+        self.confirm_finish = self._ask_finish  # -> (confirmed, name); replaceable in tests
 
     @property
     def placing(self) -> bool:
@@ -144,6 +160,10 @@ class ExerciseLauncher(QObject):
     @Slot(QUrl)
     def open(self, url: QUrl) -> None:
         base = self._base()
+        command = command_of(url.toString())
+        if command in ("comment", "finish"):
+            self._test_run(command, base)
+            return
         action = parse(url.toString(), base) if base is not None else None
         if action is None:
             print(f"[PostFix] exercise link refused: {url.toString()}", file=sys.stderr)
@@ -163,6 +183,41 @@ class ExerciseLauncher(QObject):
             self._pending = (before, scope_pid, action.files.name, PLACE_TRIES)
             self._placed = {}
             self._timer.start()
+
+    def _test_run(self, command: str, base: Optional[Path]) -> None:
+        from scripts import testrun
+
+        # Security: "finish" deletes the tutorial copy - only notes inside a copy made by
+        # scripts/testrun.py (marker in its root) may start it, and only after asking.
+        root = testrun.copy_root(base) if base is not None else None
+        if root is None:
+            print(f"[PostFix] myos:{command} only works in a tutorial copy", file=sys.stderr)
+            return
+        if command == "comment":
+            note = testrun.comment_note(base)
+            argv = [sys.executable, str(self._repo_root / "PostFix" / "cli.py"), str(note)]
+            self._start(argv)
+            return
+        confirmed, name = self.confirm_finish()
+        if not confirmed:
+            return
+        env = dict(os.environ, MYOS_TUTORIAL_DIR=str(root))
+        self._start([sys.executable, str(self._repo_root / "scripts" / "testrun.py"), "finish", "--name", name.strip()],
+                    env=env)
+
+    def _start(self, argv, **kwargs) -> None:
+        try:
+            self._popen(argv, cwd=str(self._repo_root), start_new_session=True, **kwargs)
+        except OSError as error:
+            print(f"[PostFix] could not start {argv[0]}: {error}", file=sys.stderr)
+
+    def _ask_finish(self):
+        name, confirmed = QInputDialog.getText(
+            None, self.tr("Finished"),
+            self.tr("Done with the tutorial? Your notes and comments are collected and the "
+                    "computer is made ready for the next tester.\n\nYour name (optional):"),
+            QLineEdit.Normal, "")
+        return confirmed, name or ""
 
     def place_tick(self) -> None:
         """Once both new windows are there, Scope goes left and the file browser right."""

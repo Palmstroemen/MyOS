@@ -123,6 +123,13 @@ Kompakter Überblick: `docs/STATUS.md`.
     [ ] Taskleiste unter KDE; Programmnamen statt .desktop-Kennungen in Scope
 [ ] RecentFiles
 [ ] Learning MyOS weiter ausbauen
+    [x] Tutorial harmonisiert (2026-10-26): Deutsch durchgehend "du", Englisch 1-16, Ordnernamen wie in der Vorlage,
+        Übungsdaten (Lektion 4, 5, 7, 10, 11; scripts/make_tutorial_data.py), Übungslinks "▶ Übung öffnen" in PostFix
+    [x] Testrechner (2026-10-26, docs/TEST-MACHINE.md): jeder Tester bekommt eine frische Kopie (~/MyOS-Tutorial),
+        "💬 Kommentar" unter jeder Lektion, "✅ Bin fertig" in Lektion 16 sammelt Kommentare und Änderungen nach
+        ~/MyOS-Testergebnisse, setzt alles zurück und öffnet Lektion 1 (scripts/testrun.py)
+    [ ] PostFix: Obsidian-artiges Editieren mit CodeMirror 6 in QtWebEngine - recherchiert 2026-10-26, erst ein
+        Prototyp im Vergleich mit Obsidian
     [ ] Am Ende des Tutorials (Idee 2026-10-24): Bitte an den Nutzer, selbst eine oder mehrere
         Template-Strukturen zu entwerfen: wie er sie in Firmen vorgefunden hat oder für vernünftig hielte,
         und vielleicht eine andere für sich privat

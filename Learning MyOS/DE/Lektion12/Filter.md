@@ -13,3 +13,6 @@ Endlich kannst du nach den Finanzen des letzten Monats mit dem Tag „offen" suc
 Aber seien wir ehrlich: Filter gab es schon immer. Was unsere Standardordner möglich machen, geht noch einen großen Schritt weiter. Und damit kommen wir zu einer ganz zentralen, neuartigen Funktion, die wahrlich Begeisterung auslösen kann.
 
 [Schreiten wir also voran.](<../Lektion13/Perspektiven.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

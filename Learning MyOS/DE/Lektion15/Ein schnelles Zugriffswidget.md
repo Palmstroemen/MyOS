@@ -9,3 +9,6 @@ Danach verschwindet der Fächer wieder. Er ist für genau eine Handlung da – u
 Probier es aus! Der Ordnerfächer ist noch in Entwicklung, aber hier kannst du schon eine kleine Vorschau ausprobieren. Wie er sich verhält, stellst du im Setup von Scope ein (⚙, Reiter SunTree). Wir freuen uns auch hier über deine Rückmeldung.
 
 [Zum Abschluss](<../Lektion16/Abschluss und Zusammenfassung.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

@@ -35,3 +35,6 @@ Vielleicht bleiben ein paar Dateien übrig, die in keinen unserer **Standardordn
 Wir hoffen, du verstehst jetzt das Prinzip unserer **Standardordner**: Sie sind als Vorschlag für dich da, aber es gibt sie erst, wenn du sie tatsächlich benutzt.
 
 Treiben wir die Sache [ein bisschen weiter](<../Lektion08/Tiefe Strukturen.md>).
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

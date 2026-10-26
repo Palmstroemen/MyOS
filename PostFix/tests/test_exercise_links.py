@@ -68,10 +68,11 @@ def test_new_windows_are_told_apart_by_process_and_title():
 
 class _Recorder:
     def __init__(self):
-        self.started, self.ran = [], []
+        self.started, self.ran, self.envs = [], [], []
 
     def popen(self, argv, **kwargs):
         self.started.append(argv)
+        self.envs.append(kwargs.get("env") or {})
         return type("P", (), {"pid": 222})()
 
     def run(self, argv, **kwargs):
@@ -176,4 +177,63 @@ def test_every_exercise_link_of_the_tutorial_opens_a_folder_of_its_lesson():
             links.append((note, target))
     assert len(links) >= 14  # lessons 4, 5, 7, 8 and the sheets of 10, 11, in both languages
     for note, target in links:
-        assert ex.parse(QUrl(target).toString(), note.parent) is not None, (note, target)
+        command = ex.command_of(QUrl(target).toString())
+        assert command is not None, (note, target)
+        if command == "open":
+            assert ex.parse(QUrl(target).toString(), note.parent) is not None, (note, target)
+
+
+def test_every_german_lesson_ends_with_a_comment_link_and_the_last_with_finish():
+    lessons = sorted(p for p in (REPO / "Learning MyOS" / "DE").iterdir() if p.name.startswith("Lektion"))
+    assert len(lessons) == 16
+    for folder in lessons:
+        texts = [n.read_text(encoding="utf-8") for n in folder.glob("*.md")]
+        assert any("(<myos:comment>)" in t for t in texts), folder
+    assert any("(<myos:finish>)" in n.read_text(encoding="utf-8") for n in lessons[-1].glob("*.md"))
+
+
+@pytest.fixture
+def tutorial_copy(tmp_path):
+    # A minimal tutorial copy as scripts/testrun.py makes it (marker in its root).
+    from scripts import testrun
+
+    root = tmp_path / "MyOS-Tutorial"
+    (root / "DE" / "Lektion07" / "Urlaub 2025").mkdir(parents=True)
+    (root / "DE" / "Lektion16").mkdir(parents=True)
+    (root / testrun.MARKER).write_text('{"started": "now"}', encoding="utf-8")
+    return root
+
+
+def test_the_comment_link_opens_the_comment_note_with_a_heading(tutorial_copy):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    recorder = _Recorder()
+    launcher = _launcher(tutorial_copy / "DE" / "Lektion07", recorder)
+    launcher.open(QUrl("myos:comment"))
+    note = tutorial_copy / "Meine Kommentare.md"
+    assert "## Lektion 7" in note.read_text(encoding="utf-8")
+    assert recorder.started == [[sys.executable, str(REPO / "PostFix" / "cli.py"), str(note)]]
+
+
+def test_finish_asks_first_and_then_hands_over_to_the_test_run(tutorial_copy):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    recorder = _Recorder()
+    launcher = _launcher(tutorial_copy / "DE" / "Lektion16", recorder)
+    launcher.confirm_finish = lambda: (False, "")
+    launcher.open(QUrl("myos:finish"))
+    assert recorder.started == []  # not confirmed: nothing happens
+    launcher.confirm_finish = lambda: (True, "Anna")
+    launcher.open(QUrl("myos:finish"))
+    assert recorder.started == [[sys.executable, str(REPO / "scripts" / "testrun.py"), "finish", "--name", "Anna"]]
+    assert recorder.envs[-1]["MYOS_TUTORIAL_DIR"] == str(tutorial_copy.resolve())
+
+
+def test_comment_and_finish_only_work_in_a_tutorial_copy(lesson):
+    # Security: "finish" deletes the copy - a note anywhere else (the repository's lessons,
+    # any note at all) must not be able to start it.
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    recorder = _Recorder()
+    launcher = _launcher(lesson, recorder)
+    launcher.confirm_finish = lambda: (True, "")
+    launcher.open(QUrl("myos:finish"))
+    launcher.open(QUrl("myos:comment"))
+    assert recorder.started == []

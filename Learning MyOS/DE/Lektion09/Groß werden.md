@@ -31,3 +31,6 @@ Wir glauben, die wahre Kraft solcher Vorlagen liegt in einer gewissen Standardis
 So viel zu Vorlagen, Individualisierung, Standardisierung und einem möglichen Vorlagen-Marktplatz in der Zukunft.
 
 [Weiter geht's!](<../Lektion10/Tags.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

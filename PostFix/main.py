@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
                                QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication, QMenu)
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl, QLibraryInfo
 from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
 
@@ -101,6 +101,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
     ):
         super().__init__()
         self._translator: QTranslator | None = None
+        self._qt_translator: QTranslator | None = None  # Qt's own texts (dialog buttons)
         self._language = "de"
         self._i18n_dir = Path(__file__).with_name("i18n")
         self.setWindowTitle(self.tr("PostFix"))
@@ -442,9 +443,10 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         if app is None:
             return False
 
-        if self._translator is not None:
-            app.removeTranslator(self._translator)
-            self._translator = None
+        for attr in ("_translator", "_qt_translator"):
+            if getattr(self, attr, None) is not None:
+                app.removeTranslator(getattr(self, attr))
+                setattr(self, attr, None)
 
         # Source strings are English; other languages load i18n/postfix_<code>.qm.
         if code != "en":
@@ -453,6 +455,11 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             if translator.load(str(qm_path)):
                 app.installTranslator(translator)
                 self._translator = translator
+                # Qt's own texts too, e.g. the buttons of the dialogs PostFix opens.
+                qt_translator = QTranslator(self)
+                if qt_translator.load(f"qtbase_{code}", QLibraryInfo.path(QLibraryInfo.TranslationsPath)):
+                    app.installTranslator(qt_translator)
+                    self._qt_translator = qt_translator
             else:
                 code = "en"
 
@@ -618,9 +625,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             return
         candidate = original.with_name(f"{new_base}{original.suffix}")
         if candidate == original:
-            if hasattr(self.editor, "sync_title_from_filename"):
-                self.editor.sync_title_from_filename(new_base)
-            self._schedule_save()
+            # The name as it was (the field only lost focus): the note stays as it is.
             self._sync_filename_field_from_path(select_all=False)
             return
         if candidate.exists():

@@ -64,3 +64,44 @@ def test_on_editor_text_changed_sets_dirty_and_schedules():
 
     assert w._has_local_changes is True
     assert w._schedule_calls == 1
+
+
+class _NameField:
+    def __init__(self, text):
+        self._text = text
+
+    def text(self):
+        return self._text
+
+
+class _TitleEditor:
+    def __init__(self, path):
+        self.current_path = path
+        self.titles = []
+
+    def sync_title_from_filename(self, title):
+        self.titles.append(title)
+
+
+class _NameWindow:
+    on_filename_edit_finished = PostFixWindow.on_filename_edit_finished
+
+    def __init__(self, path, typed):
+        self.editor = _TitleEditor(path)
+        self.file_name_edit = _NameField(typed)
+        self.saves = 0
+
+    def _schedule_save(self):
+        self.saves += 1
+
+    def _sync_filename_field_from_path(self, select_all=False):
+        pass
+
+
+def test_leaving_the_name_field_unchanged_writes_nothing(tmp_path: Path):
+    # Clicking into the file name and out again must not put a "# Title" into the note.
+    note = tmp_path / "Virtuelle Ordner.md"
+    note.write_text("Text", encoding="utf-8")
+    w = _NameWindow(note, "Virtuelle Ordner")
+    w.on_filename_edit_finished()
+    assert w.editor.titles == [] and w.saves == 0

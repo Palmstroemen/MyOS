@@ -16,3 +16,6 @@ Wir wollen hier noch nicht zu tief einsteigen, aber du kannst sicher sein, dass 
 Was du hoffentlich aus dieser Lektion mitnimmst: Hinter unseren Standardordnern steckt eine tiefe Struktur von Unterordnern, die wir **Vorlage** nennen, und du kannst sie nach Belieben ändern.
 
 [Weiter geht's](<../Lektion09/Groß werden.md>).
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

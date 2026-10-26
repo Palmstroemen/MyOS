@@ -75,3 +75,6 @@ Und **zwei Dinge** solltest du jetzt schon verstehen:
 
 Erleben wir die Magie dieses Systems also live.
 Folge mir zur [nächsten Lektion](<../Lektion07/Virtuelle Ordner.md>).
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

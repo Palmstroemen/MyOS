@@ -9,3 +9,6 @@ Heute könntest du dir das nur einrichten, indem du für jedes deiner Interessen
 In MyOS brauchst du dafür keine Benutzer und keine Passwörter, aber sonst funktioniert es ganz ähnlich – deine Projekte merken sich ihren Arbeitsplatz. Und es funktioniert auch in den Perspektiven: Du bist in deiner dunklen Autowerkstatt und gehst in die Finanzabteilung. Dort hast du ein helles Design eingestellt und findest sofort Textverarbeitung und Tabellenkalkulation in der Taskleiste. Zurück in der Autowerkstatt sind sie wieder weg. Charmant, oder?
 
 [Und noch etwas ...](<../Lektion15/Ein schnelles Zugriffswidget.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

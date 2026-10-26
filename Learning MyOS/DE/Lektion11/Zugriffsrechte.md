@@ -14,3 +14,6 @@ Wir wollen dich hier wirklich nicht mit diesen recht speziellen Dingen langweile
 Wenn du tiefer einsteigen willst, findest du in dieser Lektion eine kleine Musterfirma und [Übungen dazu](<Übungen zu Zugriffsrechten.md>).
 
 [Weiter!](<../Lektion12/Filter.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

@@ -13,3 +13,6 @@ Es zeigt sich langsam, Stück für Stück, wenn du in dieses System hineinwächs
 **Klein anfangen, groß werden, wenn nötig. Alles ist schon da, wenn du es brauchst. Alles bleibt einfach, solange es nicht komplizierter sein muss.**
 
 [Weiter geht's!](<../Lektion03/Ordner.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

@@ -16,3 +16,10 @@ Denk einmal kurz darüber nach, was das bedeuten könnte.
 * Du bekommst wieder den Überblick über deine Daten. Endlich weißt du, wo du Dinge ablegen sollst – so wie es einst die Ordner Bilder, Videos, Musik, Downloads, Dokumente für uns taten, nur viel geschickter.
 * Stell dir vor, Kinder lernen in der Schule nicht, wie man eine Präsentation mit Animationen überlädt, sondern wie sie sich und ihr Leben ordnen und Herr über ihre Daten bleiben.
 * Stell dir vor, die KI weiß sofort, wo sie Informationen, Rechnungen oder Mails findet und wo sie sie ablegen soll. Die Suche nach der letzten Rechnung ist in kürzester Zeit erledigt. Und wenn eine Suche nur noch ein Zehntel des Rechners durchsuchen muss, braucht sie nur ein Zehntel der Energie. Nicht nur bei dir. In ganz Europa, auf der ganzen Welt!
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)
+
+**[✅ Bin fertig – Rechner für den nächsten Tester vorbereiten](<myos:finish>)**
+
+Danke fürs Durchspielen! Deine Kommentare und Notizen werden gesammelt, alle Übungen zurückgesetzt, und der Rechner beginnt wieder bei der ersten Lektion.

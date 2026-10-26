@@ -92,3 +92,6 @@ Sie sind nützlich für kleine Notizen und für große, strukturierte Texte. Du 
 Übrigens: Willst du deine Änderungen **speichern**? Vergiss es. Sie sind schon gespeichert.
 
 Gehen wir also einen Schritt weiter: [zur nächsten Lektion](<../Lektion02/Markdown-Dateien.md>).
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>) – unter jeder Lektion kannst du uns so schreiben, was dir auffällt.

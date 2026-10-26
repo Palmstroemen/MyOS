@@ -8,3 +8,8 @@ mdit-py-plugins
 casbin>=1.43.0
 pydantic>=2.12.5
 # Note: fusepy must be installed system-wide or via apt
+# SunTree: the global shortcut (Ctrl+Alt+Space)
+pynput
+# Pictures: EXIF dates (core/filing.py), the tutorial's example data (scripts/make_tutorial_data.py)
+Pillow
+reportlab  # the tutorial's example PDFs; ffmpeg (apt) makes its videos, wmctrl (apt) places windows

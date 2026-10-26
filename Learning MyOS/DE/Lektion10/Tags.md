@@ -34,3 +34,6 @@ Du organisierst dich mit der Disney-Methode oder nach Eisenhower? Hier hast du d
 Wenn du gern mit Tags experimentierst, findest du in dieser Lektion zwei kleine Projekte und [Übungen dazu](<Übungen zu Tags.md>).
 
 [Weiter!](<../Lektion11/Zugriffsrechte.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

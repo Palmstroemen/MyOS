@@ -66,3 +66,40 @@ def test_german_ui_from_the_translation():
         assert editor.apply_button.text() == "Übernehmen"
     finally:
         app.removeTranslator(translator)
+
+
+def test_in_german_qts_own_buttons_are_german_too():
+    # Dialogs PostFix opens (e.g. "Bin fertig") have Qt's own buttons: "Abbrechen", not "Cancel".
+    import os
+    from pathlib import Path
+
+    from PySide6.QtCore import QCoreApplication, QObject
+    from PySide6.QtWidgets import QApplication
+
+    from PostFix.main import PostFixWindow
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    app = QApplication.instance() or QApplication([])
+
+    class _W(QObject):
+        set_language = PostFixWindow.set_language
+
+        def __init__(self):
+            super().__init__()
+            self._translator = None
+            self._qt_translator = None
+            self._i18n_dir = Path(__file__).resolve().parents[1] / "i18n"
+
+        def retranslate_ui(self):
+            pass
+
+    w = _W()
+    try:
+        assert w.set_language("de")
+        assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "Abbrechen"
+        w.set_language("en")
+        assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "Cancel"
+    finally:
+        for t in (w._translator, w._qt_translator):
+            if t is not None:
+                app.removeTranslator(t)

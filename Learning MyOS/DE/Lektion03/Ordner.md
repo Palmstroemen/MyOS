@@ -11,3 +11,6 @@ Es ist also Zeit für etwas Neues. Vielleicht sollten wir unsere Dateien und Dok
 
 Aber wie könnte das gehen?
 [Lass uns schauen!](<../Lektion04/Urlaub.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

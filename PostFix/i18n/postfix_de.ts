@@ -239,6 +239,23 @@
     </message>
 </context>
 <context>
+    <name>ExerciseLauncher</name>
+    <message>
+        <location filename="../exercise_links.py" line="216"/>
+        <source>Finished</source>
+        <translation>Fertig</translation>
+    </message>
+    <message>
+        <location filename="../exercise_links.py" line="217"/>
+        <source>Done with the tutorial? Your notes and comments are collected and the computer is made ready for the next tester.
+
+Your name (optional):</source>
+        <translation>Fertig mit dem Tutorial? Deine Notizen und Kommentare werden gesammelt, und der Rechner wird für den nächsten Tester vorbereitet.
+
+Dein Name (freiwillig):</translation>
+    </message>
+</context>
+<context>
     <name>ObsidianEmbed</name>
     <message>
         <location filename="../obsidian_embed.py" line="76"/>
@@ -279,25 +296,25 @@
 <context>
     <name>PostFixWindow</name>
     <message>
-        <location filename="../main.py" line="94"/>
-        <location filename="../main.py" line="384"/>
+        <location filename="../main.py" line="106"/>
+        <location filename="../main.py" line="400"/>
         <source>PostFix</source>
         <translation>PostFix</translation>
     </message>
     <message>
-        <location filename="../main.py" line="171"/>
-        <location filename="../main.py" line="405"/>
-        <location filename="../main.py" line="529"/>
+        <location filename="../main.py" line="187"/>
+        <location filename="../main.py" line="421"/>
+        <location filename="../main.py" line="545"/>
         <source>Focus mode</source>
         <translation>Fokusmodus</translation>
     </message>
     <message>
-        <location filename="../main.py" line="403"/>
+        <location filename="../main.py" line="419"/>
         <source>File name</source>
         <translation>Dateiname</translation>
     </message>
     <message>
-        <location filename="../main.py" line="649"/>
+        <location filename="../main.py" line="665"/>
         <source>Style: Auto</source>
         <translation>Stil: Auto</translation>
     </message>
@@ -338,18 +355,18 @@
 <context>
     <name>WindowAclsMixin</name>
     <message>
-        <location filename="../window_acls.py" line="61"/>
-        <location filename="../window_acls.py" line="75"/>
+        <location filename="../window_acls.py" line="57"/>
+        <location filename="../window_acls.py" line="71"/>
         <source>No note is open.</source>
         <translation>Keine Notiz geöffnet.</translation>
     </message>
     <message>
-        <location filename="../window_acls.py" line="83"/>
+        <location filename="../window_acls.py" line="79"/>
         <source>You may not change the rights here.</source>
         <translation>Du darfst die Rechte hier nicht ändern.</translation>
     </message>
     <message>
-        <location filename="../window_acls.py" line="85"/>
+        <location filename="../window_acls.py" line="81"/>
         <source>You would lose your own right to change the rights.</source>
         <translation>Damit würdest du dein eigenes Recht verlieren, Rechte zu ändern.</translation>
     </message>

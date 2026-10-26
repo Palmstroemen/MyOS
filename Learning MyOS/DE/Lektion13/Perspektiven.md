@@ -30,3 +30,6 @@ Und gleichzeitig Übersichten über alle Rechnungen, alle Fotos, alle Videos, al
 Und das funktioniert in MyOS heute schon. Du kannst in jedem deiner Programme beim Speichern den Weg über eine Perspektive nehmen.
 
 [Noch etwas ...](<../Lektion14/Adaptiver Desktop.md>)
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

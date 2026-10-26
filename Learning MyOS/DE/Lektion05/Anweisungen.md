@@ -11,3 +11,6 @@ Jetzt solltest du in deinem Urlaubsordner „Standardordner" sehen – ähnlich 
 Versuche jetzt noch einmal, deine Dateien in diese Ordner zu sortieren. Wenn du dich fragst, wohin deine Fotos gehören: Denk etwas abstrakter an deinen Urlaub. Was sind deine Fotos anderes als die **Dokumentation** dessen, was du erlebt hast? Sie gehören also nach /08_Dokumentation/.
 
 Wenn du fertig bist, geh weiter [zur nächsten Lektion](<../Lektion06/Lies mich.md>).
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)

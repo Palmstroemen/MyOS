@@ -15,3 +15,6 @@ Die Dokumente dieses Urlaubs liegen hier, gleich neben dieser Notiz. Verlass jet
 **[▶ Übung öffnen](<myos:open?scope=.>)** – Scope öffnet sich genau hier.
 Beginne mit einem Ordner für deinen Urlaub, etwa „Urlaub Sommer 2026", und lege darin neue Ordner für die Dinge an, die du zusammenfassen möchtest.
 Wenn du fertig bist, geh weiter zur nächsten Lektion, den [Anweisungen](<../Lektion05/Anweisungen.md>) – oder komm hierher zurück und folge diesem Link.
+
+---
+[💬 Kommentar zu dieser Lektion](<myos:comment>)
