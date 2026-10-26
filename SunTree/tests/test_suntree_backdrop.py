@@ -87,6 +87,8 @@ def test_showing_takes_the_snapshot_behind_the_panel(world, suntree, window):
     calls = []
     suntree._grab = _fake_grab(calls)
     QCursor.setPos(-200, -200)
+    # the pointer free in the middle of a big screen: SunTree shows at once, under it
+    suntree._where = lambda: {"x": 1500, "y": 1000, "sx": 0, "sy": 0, "sw": 3000, "sh": 2000}
     _call(window, "toggleFromHotkey")  # hidden -> shown: the snapshot is taken before
     QGuiApplication.instance().processEvents()
 

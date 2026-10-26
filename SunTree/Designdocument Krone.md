@@ -46,6 +46,13 @@ What follows from it:
   be read (Wayland) only the tint remains.
 - SunTree appears with the stem under the pointer: the hand starts in the hollow and every
   direction is a way into the crown, like a pie menu.
+- **Built** (2026-10-26): on the shortcut SunTree places its window so the CWD in the
+  middle of the stem lies under the pointer, then takes the panel's snapshot and shows. At
+  a screen edge the window stays whole and is pushed aside, and the pointer is pulled into
+  the middle of the stem, as the crown pulls it anyway: not a jump but a ride the eye can
+  follow (350 ms, easing in and out). SunTree shows only when the pointer is there - shown
+  at once, its loading held the ride up and it hopped. Going away, the pointer rides back
+  where SunTree picked it up; after the red X too, which ends SunTree once it is back.
 - The way back out of the stem matters mostly for dropping (one level too deep, out again);
   it does not close SunTree.
 - **The shortcut during a drag** works (tried on 2026-10-26 in Xephyr with a GTK 3 drag
@@ -157,8 +164,6 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
   the ways out. Caught sideways at the first or last folder: solved, pushing on past it lets
   go on every level (1, point 7). What remains is cancelling (the shortcut again, a click
   beside the crown).
-- Appearing under the pointer. Until then a half can take the pointer as soon as SunTree
-  shows, if the pointer happens to be over it.
 - SunTree's texts are not translated yet (no `.ts` for SunTree; the new ones use qsTr).
 - The global shortcut needs `pynput` (installed on 2026-10-26); without it SunTree reports
   "missing-pynput" and stays a normal window. Its default was "<ctrl>+<alt>+space", which

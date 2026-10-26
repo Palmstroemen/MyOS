@@ -9,7 +9,7 @@ from typing import Any, Optional
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from PySide6.QtCore import QObject, Signal, Slot, QUrl, QTimer
+from PySide6.QtCore import QEasingCurve, QObject, QPointF, QVariantAnimation, Signal, Slot, QUrl, QTimer
 from PySide6.QtGui import QGuiApplication, QIcon, QCursor, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
@@ -38,6 +38,16 @@ def grab_screen(x: int, y: int, w: int, h: int) -> QImage:
     if screen is None:
         return QImage()
     return screen.grabWindow(0, x, y, w, h).toImage()
+
+
+def pointer_and_screen() -> dict:
+    """The pointer and the free area of its screen, in global pixels."""
+    at = QCursor.pos()
+    screen = QGuiApplication.screenAt(at) or QGuiApplication.primaryScreen()
+    area = screen.availableGeometry() if screen is not None else None
+    return {"x": at.x(), "y": at.y(),
+            "sx": area.x() if area else 0, "sy": area.y() if area else 0,
+            "sw": area.width() if area else 0, "sh": area.height() if area else 0}
 
 
 class GlobalHotkeyService(QObject):
@@ -104,6 +114,7 @@ class GlobalHotkeyService(QObject):
 class SunTreeBackend(QObject):
     cwdChanged = Signal(str)
     dataChanged = Signal()
+    pointerGlideDone = Signal()
     clipboardPathChanged = Signal(str)
 
     def __init__(self, adapter: MyOSBackendAdapter, start_path: str) -> None:
@@ -120,6 +131,11 @@ class SunTreeBackend(QObject):
         self._last_drop: list = []  # [{from, now}] of the last drop, for undoDrop
         self.backdrop = BackdropProvider()
         self._grab = grab_screen
+        self._where = pointer_and_screen
+        self._glide = QVariantAnimation(self)
+        self._glide.setEasingCurve(QEasingCurve.InOutCubic)  # the eye picks it up and follows
+        self._glide.valueChanged.connect(lambda at: self.pointerTo(round(at.x()), round(at.y())))
+        self._glide.finished.connect(self.pointerGlideDone)
         self._backdrops = 0
         self._ensure_clipboard_dir()
 
@@ -261,6 +277,24 @@ class SunTreeBackend(QObject):
             self.dataChanged.emit()
         place = str(Path(self._last_drop[-1]["now"]).parent) if self._last_drop else target_dir
         return {"count": len(self._last_drop), "place": place}
+
+    @Slot(int, int, int)
+    def glidePointerTo(self, x: int, y: int, ms: int) -> None:
+        """The pointer rides from where it is to (x, y) instead of jumping (SunTree appearing at
+        a screen edge); pointerGlideDone when it is there. Nothing else should run meanwhile:
+        the ride's steps come from the event loop."""
+        self._glide.stop()
+        here = self._where()
+        self._glide.setStartValue(QPointF(here["x"], here["y"]))
+        self._glide.setEndValue(QPointF(x, y))
+        self._glide.setDuration(max(1, int(ms)))
+        self._glide.start()
+
+    @Slot(result="QVariantMap")
+    def pointerAt(self) -> dict:
+        """Where the pointer is ({x, y}) and the free area of its screen ({sx, sy, sw, sh}):
+        SunTree appears with its stem under the pointer."""
+        return self._where()
 
     @Slot(int, int, int, int, result=str)
     def takeBackdrop(self, x: int, y: int, w: int, h: int) -> str:

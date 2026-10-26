@@ -108,23 +108,43 @@ ApplicationWindow {
     }
 
     function toggleFromHotkey() {
-        if (!visible) refreshBackdrop()  // before showing: what lies behind, not SunTree
-        visible = !visible
+        if (pointerGliding) return  // on its way: SunTree shows when it is there
         if (visible) {
-            raise()
-            requestActivate()
-            turnedTo()
+            putAway()
+            return
         }
+        turnedTo()  // the loading first, while the pointer stands: then nothing holds up its ride
+        if (!appearUnderPointer()) showNow()
+    }
+
+    function showNow() {
+        refreshBackdrop()  // before showing: what lies behind, not SunTree
+        visible = true
+        raise()
+        requestActivate()
     }
 
     // One action, then gone (Designdocument Krone.md): a drop, a double click, the lens put
     // on or taken off put SunTree away; a single click only goes in, to look further.
     property real wentInAt: 0  // when a single click last went in: its double click goes away
 
-    /// Cancelling, or an action done: SunTree goes away.
+    /// Cancelling, or an action done: SunTree goes away, and the pointer rides back where
+    /// SunTree picked it up. True while it rides.
     function putAway() {
         crownRelease(false)
         visible = false
+        var back = pickedUpAt
+        pickedUpAt = null
+        if (!back) return false
+        sunTreeBackend.glidePointerTo(back.x, back.y, 350)
+        return true
+    }
+
+    /// The red X: away as always, and SunTree ends once the pointer is back.
+    property bool quitting: false
+    function quitForGood() {
+        quitting = true
+        if (!putAway()) Qt.quit()
     }
 
     /// Whether (x, y) in the main area is on the crown (either half, its hollow included) or
@@ -136,6 +156,39 @@ ApplicationWindow {
         }
         var l = crownGeo(-1), r = crownGeo(1)
         return x >= l.cx && x <= r.cx && y >= layoutRoot.shellTop && y <= layoutRoot.shellBottom
+    }
+
+    /// The middle of the stem (the CWD) in the window.
+    function stemCentre() {
+        var o = mainAreaOrigin()
+        return { x: o.x + layoutRoot.centerX, y: o.y + layoutRoot.cwdY + layoutRoot.cwdHeight / 2 }
+    }
+
+    function mainAreaOrigin() {
+        return { x: layoutRoot.x + mainArea.x, y: layoutRoot.y + mainArea.y }
+    }
+
+    /// The stem under the pointer, the window whole on its screen: where the edge pushes it
+    /// aside, the pointer rides into the middle of the stem (as the crown pulls it anyway) and
+    /// SunTree shows when it is there - showing would hold the ride up, and the eye should
+    /// follow it. True while it rides.
+    function appearUnderPointer() {
+        var at = sunTreeBackend.pointerAt()
+        pickedUpAt = { x: at.x, y: at.y }
+        var stem = stemCentre()
+        var x = at.x - stem.x, y = at.y - stem.y
+        if (at.sw > 0) x = Math.max(at.sx, Math.min(x, at.sx + at.sw - width))
+        if (at.sh > 0) y = Math.max(at.sy, Math.min(y, at.sy + at.sh - height))
+        root.x = Math.round(x)
+        root.y = Math.round(y)
+        crownReset()
+        var o = mainAreaOrigin()
+        crownPointer = { x: stem.x - o.x, y: stem.y - o.y }
+        var put = { x: Math.round(root.x + stem.x), y: Math.round(root.y + stem.y) }
+        if (put.x === at.x && put.y === at.y) return false
+        pointerGliding = true
+        sunTreeBackend.glidePointerTo(put.x, put.y, 350)
+        return true
     }
 
     /// The stem's panel: a snapshot of what lies behind it, drawn blurred.
@@ -351,6 +404,8 @@ ApplicationWindow {
     property var crownHalves: ({ "-1": { target: null, shown: null, lensK: 0 }, "1": { target: null, shown: null, lensK: 0 } })
     property int crownActive: 0      // the half holding the pointer, 0: none
     property int crownLetGo: 0       // the half that let go, until the hand has left it
+    property bool pointerGliding: false  // riding to the stem before SunTree shows
+    property var pickedUpAt: null        // where the pointer was when SunTree was called
     property var crownPointer: null  // where the pointer was last seen or put (main area)
     property var crownCache: ({})
     property var stemGlide: ({})     // shown y of the stem's entries, by path
@@ -865,6 +920,12 @@ ApplicationWindow {
 
     Connections {
         target: sunTreeBackend
+        function onPointerGlideDone() {
+            if (root.quitting) Qt.quit()
+            if (!root.pointerGliding) return
+            root.pointerGliding = false
+            root.showNow()
+        }
         function onDataChanged() { root.refreshModels() }
         function onCwdChanged() { root.refreshModels() }
     }
@@ -1017,8 +1078,8 @@ ApplicationWindow {
                 }
 
                 Rectangle {
-                    // The emergency exit, beside the Clipboard: it quits SunTree, until we
-                    // find it is not needed (one action, then gone; Designdocument Krone.md).
+                    // The emergency exit, beside the Clipboard: it quits SunTree (after the
+                    // pointer's ride back), until we find it is not needed (one action, then gone; Designdocument Krone.md).
                     id: emergencyExit
                     objectName: "emergencyExit"
                     width: layoutRoot.clipboardHeight
@@ -1042,7 +1103,7 @@ ApplicationWindow {
                         id: exitMouse
                         anchors.fill: parent
                         hoverEnabled: true
-                        onClicked: Qt.quit()
+                        onClicked: root.quitForGood()
                     }
                 }
 

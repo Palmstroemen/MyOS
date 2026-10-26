@@ -116,3 +116,90 @@ def test_putting_on_a_lens_and_taking_it_off_put_suntree_away(world, suntree, wi
     _shown(window)
     _call(window, "takeOffLens")
     assert not _prop(window, "lensOn") and not window.isVisible()
+
+
+# --- appearing under the pointer -------------------------------------------------------------
+
+def _pointer_at(suntree, x, y, screen=(0, 0, 3000, 2000)):
+    suntree._where = lambda: {"x": x, "y": y, "sx": screen[0], "sy": screen[1], "sw": screen[2], "sh": screen[3]}
+
+
+def test_the_backend_knows_where_the_pointer_is(suntree):
+    QCursor.setPos(40, 30)
+    where = suntree.pointerAt()
+    assert (where["x"], where["y"]) == (40, 30) and where["sw"] > 0 and where["sh"] > 0
+
+
+def test_suntree_appears_with_the_stem_under_the_pointer(world, suntree, window):
+    _pointer_at(suntree, 1500, 1000)
+    _call(window, "toggleFromHotkey")
+    QGuiApplication.instance().processEvents()
+
+    stem = _call(window, "stemCentre")  # in the window
+    assert (window.x() + stem["x"], window.y() + stem["y"]) == (1500, 1000)
+
+
+def test_the_pointer_glides_to_its_new_place(suntree):
+    _pointer_at(suntree, 0, 0)
+    put = []
+    suntree.pointerTo = lambda x, y: put.append((x, y))
+    done = []
+    suntree.pointerGlideDone.connect(lambda: done.append(True))
+
+    suntree.glidePointerTo(300, 200, 350)
+    QTest.qWait(500)
+
+    assert put[-1] == (300, 200) and done
+    assert len(put) >= 10  # a ride the eye can follow, not a jump
+    distances = [abs(300 - x) + abs(200 - y) for x, y in put]
+    assert distances == sorted(distances, reverse=True)  # straight towards it
+
+
+def test_at_the_screen_edge_it_stays_whole_and_pulls_the_pointer_to_the_stem(world, suntree, window):
+    # A screen just as big as SunTree: it stays at (0, 0), and the pointer, near the edge,
+    # rides into the middle of the stem - as the crown pulls it anyway. SunTree shows only
+    # when it is there: nothing else holds the ride up, so the eye can follow it.
+    _pointer_at(suntree, 30, 40, screen=(0, 0, window.width(), window.height()))
+    _call(window, "toggleFromHotkey")
+    assert _prop(window, "pointerGliding") and not window.isVisible()
+
+    QTest.qWait(600)
+    stem = _call(window, "stemCentre")
+    assert suntree.lastPointer() == {"x": round(stem["x"]), "y": round(stem["y"])}
+    assert window.isVisible() and (window.x(), window.y()) == (0, 0)
+    assert not _prop(window, "pointerGliding")
+
+
+def test_under_the_pointer_it_is_not_pulled(world, suntree, window):
+    _pointer_at(suntree, 1500, 1000)
+    _call(window, "toggleFromHotkey")
+    assert window.isVisible()  # at once
+    QTest.qWait(300)
+    assert suntree.lastPointer() == {"x": 0, "y": 0}  # never put
+
+
+def test_going_away_brings_the_pointer_back_where_it_was_picked_up(world, suntree, window):
+    _pointer_at(suntree, 30, 40, screen=(0, 0, window.width(), window.height()))
+    _call(window, "toggleFromHotkey")
+    QTest.qWait(600)  # rode into the stem, SunTree shows
+    assert window.isVisible() and suntree.lastPointer() != {"x": 30, "y": 40}
+
+    _pointer_at(suntree, 700, 300, screen=(0, 0, window.width(), window.height()))  # the crown moved it
+    _call(window, "putAway")
+    QTest.qWait(600)
+    assert not window.isVisible() and suntree.lastPointer() == {"x": 30, "y": 40}
+
+
+def test_the_red_x_brings_the_pointer_back_too_then_quits(world, suntree, window):
+    from PySide6.QtQml import qmlEngine
+
+    quits = []
+    qmlEngine(window).quit.connect(lambda: quits.append(True))
+    _pointer_at(suntree, 30, 40, screen=(0, 0, window.width(), window.height()))
+    _call(window, "toggleFromHotkey")
+    QTest.qWait(600)
+
+    _call(window, "quitForGood")
+    assert not window.isVisible() and not quits  # first the ride back
+    QTest.qWait(600)
+    assert suntree.lastPointer() == {"x": 30, "y": 40} and quits
