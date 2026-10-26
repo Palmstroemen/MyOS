@@ -2,6 +2,8 @@ Du hast also deine Urlaubsdaten in Ordner sortiert. Das ist gewissermaßen die V
 
 Für diese Lektion haben wir alle deine Dateien und Dokumente wieder in einen einzigen, unsortierten Ordner gepackt: „Urlaub Sommer 2026", gleich neben dieser Notiz. Entschuldige, aber wir hatten einen guten Grund.
 
+**[▶ Übung öffnen](<myos:open?scope=.>)** – Scope öffnet sich hier.
+
 Wähle diesen Ordner aus und schau ins Kontextmenü (Rechtsklick). Dort findest du etwas wie: **In Projekt verwandeln**. Probier es aus!
 
 Jetzt solltest du in deinem Urlaubsordner „Standardordner" sehen – ähnlich wie „Musik" oder „Videos" in alten Betriebssystemen. Du hast einen gewöhnlichen Ordner in einen Projektordner mit einem vordefinierten Satz an Standardordnern verwandelt.

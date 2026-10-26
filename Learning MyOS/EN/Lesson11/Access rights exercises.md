@@ -3,7 +3,7 @@
 In this lesson there is the **Sample Company** with four people: Eva Muster (management), Anna Huber (accounting), Karl Berger (team) and Mia Novak (guest). Who may do what is in one single note: *.MyOS/ACLs.md*.
 
 ## 1. Who may enter here?
-Open the Sample Company in Scope. On the left, under **Access**, you see who may access the folder shown – groups and people, with small arrows: ◂ read, ▸ write. Go into *04_Finance*: now accounting is listed there. Go into *07_Work/Confidential*: the team may not enter here, only the management.
+Open the Sample Company in Scope: **[▶ Open the Sample Company](<myos:open?scope=Sample Company>)**. On the left, under **Access**, you see who may access the folder shown – groups and people, with small arrows: ◂ read, ▸ write. Go into *04_Finance*: now accounting is listed there. Go into *07_Work/Confidential*: the team may not enter here, only the management.
 Scope may tell you: "You are not listed in this project. Who are you?" – leave that for now; in exercise 4 you add yourself.
 
 ## 2. Through the eyes of a group

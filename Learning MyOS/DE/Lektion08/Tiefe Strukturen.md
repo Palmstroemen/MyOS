@@ -1,6 +1,6 @@
 Jetzt, wo du das Prinzip der **vorgeschlagenen Standardordner** verstehst, nehmen wir an, dein Projekt wächst. Dafür nehmen wir ein anderes Projekt: dein kleines Startup, mit dem du den „Fluxkompensator" bauen und verkaufen willst.
 
-Du kreierst also ein Projekt namens „*Fluxkompensator*".
+Du kreierst also ein Projekt namens „*Fluxkompensator*". **[▶ Übung öffnen](<myos:open?scope=.>)**
 Wenn dein Startup wächst, füllen sich deine Standardordner, und du möchtest innerhalb der Ordner genauer ordnen. Vielleicht willst du interne und externe Kommunikation trennen, oder Einnahmen und Ausgaben.
 
 Öffne einen deiner vorgeschlagenen Ordner, etwa /03_Kommunikation/. Du wirst sehen, dass darin **weitere Standardordner** stecken (/intern/ und /extern/), und in anderen Ordnern sogar noch tiefer weitere. Dir steht eine ganze Ordnerstruktur zur Verfügung: eine **virtuelle Struktur aus Standardordnern**, die du für jedes deiner Projekte verwenden kannst, aber nicht musst.

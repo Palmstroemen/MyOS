@@ -1,6 +1,6 @@
 Now that you understand the principle of **suggested standard folders**, let's assume your project grows. Let's take another project for this: your little startup, with which you want to build and sell the "Flux Capacitor".
 
-So you find a project named "*Flux Capacitor*".
+So you create a project named "*Flux Capacitor*". **[▶ Open the exercise](<myos:open?scope=.>)**
 As your startup grows, your standard folders fill up, and you'd like to organize things in more detail inside them. Maybe you want to separate internal and external communication, or income and expenses.
 
 Open one of your suggested folders, say /03_Communication/. You will see that there are **more standard folders** inside (/internal/ and /external/), and in other folders even deeper ones. A whole folder structure is at your disposal: a **virtual structure of standard folders** that you can use for each of your projects, but don't have to.

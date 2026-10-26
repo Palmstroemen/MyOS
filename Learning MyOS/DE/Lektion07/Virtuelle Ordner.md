@@ -3,6 +3,7 @@ Dafür brauchst du einen klassischen Dateibrowser.
 Du findest ihn in der Leiste am unteren Bildschirmrand, ganz links. Sein Symbol sieht aus wie ein Ordner.
 
 Öffne diesen Dateibrowser und geh zum Ordner dieser Lektion: *Learning MyOS/DE/Lektion07*.
+Oder ganz einfach: **[▶ Übung öffnen](<myos:open?scope=.&files=.>)** – links öffnet sich Scope, rechts der klassische Dateibrowser, beide hier im Ordner dieser Lektion.
 Dort findest du einen Ordner namens „Urlaub 2025" voller Dateien.
 Wirf einen kurzen Blick hinein und verlass den Ordner wieder, sodass du ihn von außen siehst.
 

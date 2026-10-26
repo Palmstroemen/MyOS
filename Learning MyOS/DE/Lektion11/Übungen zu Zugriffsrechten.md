@@ -3,7 +3,7 @@
 In dieser Lektion liegt die **Musterfirma** mit vier Menschen: Eva Muster (Geschäftsleitung), Anna Huber (Buchhaltung), Karl Berger (Team) und Mia Novak (Gast). Wer was darf, steht in einer einzigen Notiz: *.MyOS/ACLs.md*.
 
 ## 1. Wer darf hier hinein?
-Öffne die Musterfirma in Scope. Links unter **Zugriff** siehst du, wer auf den angezeigten Ordner zugreifen darf – Gruppen und Menschen, mit kleinen Pfeilen: ◂ lesen, ▸ schreiben. Geh in *04_Finanz*: Jetzt steht dort die Buchhaltung. Geh in *07_Arbeit/Vertraulich*: Hier darf das Team nicht hinein, nur die Geschäftsleitung.
+Öffne die Musterfirma in Scope: **[▶ Musterfirma öffnen](<myos:open?scope=Musterfirma>)**. Links unter **Zugriff** siehst du, wer auf den angezeigten Ordner zugreifen darf – Gruppen und Menschen, mit kleinen Pfeilen: ◂ lesen, ▸ schreiben. Geh in *04_Finanz*: Jetzt steht dort die Buchhaltung. Geh in *07_Arbeit/Vertraulich*: Hier darf das Team nicht hinein, nur die Geschäftsleitung.
 Scope sagt dir vielleicht: „Du bist in diesem Projekt nicht eingetragen. Wer bist du?" – das lässt du für den Moment; in Übung 4 trägst du dich selbst ein.
 
 ## 2. Mit den Augen einer Gruppe

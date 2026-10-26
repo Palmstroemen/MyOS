@@ -12,5 +12,6 @@ But before we do that, let's go on vacation ...
 10. ... a final calculation of the costs.
 
 The documents of this vacation lie right here, next to this note. Now leave this note for a moment and try to organize them into useful folders that you create yourself.
+**[▶ Open the exercise](<myos:open?scope=.>)** – Scope opens right here.
 Start with a folder for your vacation, something like "vacation summer 2026", and inside it create new folders for the things you want to group.
 After you're done, proceed to the next lesson, the [Instructions](<../Lesson05/Instructions.md>) – or come back here and follow this link.

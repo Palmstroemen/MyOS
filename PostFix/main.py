@@ -22,6 +22,7 @@ try:
     from .window_tags import WindowTagsMixin
     from .window_acls import WindowAclsMixin
     from .window_theme import WindowThemeMixin
+    from .exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
 except ImportError:
     from markdown_render import render_markdown
     from ui_panels import TagSidebar, ACLSidebar, BottomToolbar
@@ -30,12 +31,13 @@ except ImportError:
     from window_tags import WindowTagsMixin
     from window_acls import WindowAclsMixin
     from window_theme import WindowThemeMixin
+    from exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
                                QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication, QMenu)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl
-from PySide6.QtGui import QColor, QGuiApplication, QTextDocument, QCursor
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
 
 class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowThemeMixin, QMainWindow):
@@ -63,6 +65,16 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         "settings": "config",
     }
     
+    def _exercise_base(self):
+        """Folder exercise links are relative to: the note shown (lesson links move the
+        preview on to other notes in this window), else the note opened."""
+        preview = getattr(self.editor, "preview", None)
+        source = preview.source() if preview is not None else None
+        if source is not None and source.isLocalFile():
+            return Path(source.toLocalFile()).parent
+        path = getattr(self.editor, "current_path", None)
+        return Path(path).parent if path else None
+
     def __init__(
         self,
         open_path: Path | None = None,
@@ -151,6 +163,10 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         #     obsidian_vault_path=obsidian_vault_path,
         # )
         self.editor = SmartEditor(show_frontmatter=debug)
+        # Exercise links of the tutorial (myos:open?scope=...&files=...): a click opens Scope in
+        # the exercise folder, the file browser beside it (exercise_links.py).
+        self.exercise_launcher = ExerciseLauncher(self._exercise_base, Path(__file__).resolve().parents[1], parent=self)
+        QDesktopServices.setUrlHandler(EXERCISE_SCHEME, self.exercise_launcher, "open")
         self.right_sidebar = TagSidebar()
         self._doc_tags = []
         self._doc_color_defs = []

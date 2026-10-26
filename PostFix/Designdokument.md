@@ -104,6 +104,19 @@ Use portable, file-based formats and compatible registry structures.
 - Obsidian-compatible tag color registry structures.
 - Tag color changes write back to registry data.
 
+## Exercise Links (Learning MyOS)
+
+A lesson says `[▶ Übung öffnen](<myos:open?scope=Urlaub 2025&files=Urlaub 2025>)`: a click
+opens Scope in the exercise folder (`scope=`) and, if the exercise needs it, the desktop's
+classic file browser (`files=`, via `xdg-open`) - with wmctrl (X11) Scope on the left half of
+the screen, the file browser on the right. `PostFix/exercise_links.py`, decided 2026-10-26:
+
+- PostFix registers the handler for `myos` itself (`QDesktopServices.setUrlHandler`); nothing
+  on the system changes, so these links work in PostFix only (Obsidian shows dead links).
+- Folders are relative to the note shown (lesson links move the preview on to other notes).
+- Security: only folders inside the note's own folder; absolute paths and `..` are refused.
+- Every click opens a new Scope window (Scope has no single-instance mode yet).
+
 ## Note Style and Thumbnail Rules
 
 PostFix stores note style intent in frontmatter and the thumbnail pipeline consumes the same semantics.

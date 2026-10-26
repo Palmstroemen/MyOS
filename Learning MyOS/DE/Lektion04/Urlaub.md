@@ -12,5 +12,6 @@ Doch bevor wir das tun, fahren wir auf Urlaub ...
 10. ... eine abschließende Kostenrechnung.
 
 Die Dokumente dieses Urlaubs liegen hier, gleich neben dieser Notiz. Verlass jetzt kurz diese Notiz und versuche, sie in sinnvolle Ordner zu sortieren, die du selbst anlegst.
+**[▶ Übung öffnen](<myos:open?scope=.>)** – Scope öffnet sich genau hier.
 Beginne mit einem Ordner für deinen Urlaub, etwa „Urlaub Sommer 2026", und lege darin neue Ordner für die Dinge an, die du zusammenfassen möchtest.
 Wenn du fertig bist, geh weiter zur nächsten Lektion, den [Anweisungen](<../Lektion05/Anweisungen.md>) – oder komm hierher zurück und folge diesem Link.
