@@ -121,6 +121,9 @@ class SunTreeBackend(QObject):
         super().__init__()
         self._adapter = adapter
         self._cwd = str(Path(start_path).expanduser().resolve())
+        # What SunTree shows in its middle (the CTD): looking around moves it, the CWD - the
+        # place shared with Scope - moves only by an action (a double click).
+        self._ctd = self._cwd
         self._last_pointer = {"x": 0, "y": 0}
         # The lens: the daemon of the projects root, shared with Scope (daemon/lens_link.py).
         # Started when none runs, with the same switch as Scope (MYOS_SCOPE_START_DAEMON=0).
@@ -144,6 +147,31 @@ class SunTreeBackend(QObject):
         return self._cwd
 
     @Slot(result=str)
+    def ctd(self) -> str:
+        return self._ctd
+
+    @Slot(str, result=bool)
+    def showFolder(self, path: str) -> bool:
+        """Look at path: SunTree shows it in its middle; the CWD, the session and the desktop
+        stay as they are."""
+        try:
+            target = Path(path).expanduser().resolve()
+        except Exception:
+            return False
+        if not target.is_dir():
+            return False
+        self._ctd = str(target)
+        self.dataChanged.emit()
+        return True
+
+    @Slot()
+    def showCwd(self) -> None:
+        """Back where one stands (SunTree appearing)."""
+        if self._ctd != self._cwd:
+            self._ctd = self._cwd
+            self.dataChanged.emit()
+
+    @Slot(result=str)
     def clipboardPath(self) -> str:
         return self._clipboard
 
@@ -154,7 +182,7 @@ class SunTreeBackend(QObject):
 
     @Slot(result="QVariantList")
     def listParents(self):
-        parts = Path(self._cwd).parts
+        parts = Path(self._ctd).parts
         if not parts:
             return []
         current = Path(parts[0])
@@ -179,7 +207,7 @@ class SunTreeBackend(QObject):
 
     @Slot(result="QVariantList")
     def listFolders(self):
-        return self.listFoldersAt(self._cwd)
+        return self.listFoldersAt(self._ctd)
 
     @Slot(str, result="QVariantList")
     def listFoldersAt(self, path: str):
@@ -236,7 +264,7 @@ class SunTreeBackend(QObject):
             return False
         if not target.exists() or not target.is_dir():
             return False
-        self._cwd = str(target)
+        self._cwd = self._ctd = str(target)
         self._lens.call("set_cwd", {"path": self._cwd})  # a lens on stays where it is (A3)
         self._lens.update_context(self._cwd)
         self.cwdChanged.emit(self._cwd)
@@ -332,14 +360,14 @@ class SunTreeBackend(QObject):
 
     @Slot(str, result=str)
     def createFolder(self, name: str) -> str:
-        created = self._adapter.create_folder(self._cwd, name) or ""
+        created = self._adapter.create_folder(self._ctd, name) or ""
         if created:
             self.dataChanged.emit()
         return created
 
     @Slot(str, result=str)
     def createNote(self, name: str) -> str:
-        created = self._adapter.create_note(self._cwd, name) or ""
+        created = self._adapter.create_note(self._ctd, name) or ""
         if created:
             self.dataChanged.emit()
         return created

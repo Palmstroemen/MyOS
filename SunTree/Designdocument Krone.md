@@ -107,6 +107,18 @@ The tree draws its branches inward and makes them part of its stem.
 - Both halves: on the left the MyOS folders (born or embryo, embryos pale), on the right the
   other folders. The lens works as before (Designdocument Perspective Resolver MVP.md, A3).
 
+- **Looking, not going: the CTD** (2026-10-26). The middle of SunTree shows the CTD, the
+  folder SunTree shows; on appearing it is the CWD. A single click - in the crown or on the
+  stem - only moves the CTD there (drawn in or spat out); the CWD, Scope and the desktop stay.
+  A double click makes it the CWD and SunTree goes away. A drop lands as before. The lens
+  changes only deliberately: a double click on the left (on, sharper) or its frame (flatter,
+  ✕); a single click on the left only looks into a born folder.
+- **The CWD glows** wherever it shows: as the oval while CTD and CWD are one, as a button
+  lower in the stem when one looks deeper, as a field in the crown when one looks higher -
+  light around it in its project's colour lit up (white without one), a bright frame, bold.
+  Drawn as strokes widening and fading outward: the canvas' shadowBlur stalled the animations.
+  Scope is to mark its CWD the same way (a later step).
+
 ## 3. Soft Everywhere
 
 - All shown values follow their targets with a spring, so nothing jumps.

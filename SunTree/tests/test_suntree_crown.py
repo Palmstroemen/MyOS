@@ -116,13 +116,15 @@ def test_the_pointer_is_pulled_inward(world, suntree, window):
     assert put != {"x": 0, "y": 0}  # put there through the backend (QCursor.setPos)
 
 
-def test_a_click_goes_into_the_folder_under_the_pointer(world, suntree, window):
+def test_a_click_shows_the_folder_under_the_pointer(world, suntree, window):
+    # A single click only looks: the folder becomes the CTD (what SunTree shows in its middle);
+    # the CWD - Scope's place - stays.
     geo = _call(window, "crownGeo", 1)
     _dive(window, 2 * (geo["T"] - geo["ri"]) + 20)
     hit = _call(window, "crownHit")["row"]["path"]
     at = _prop(window, "crownPointer")
     _call(window, "crownClicked", at["x"], at["y"], False)
-    assert suntree.cwd() == hit
+    assert suntree.ctd() == hit and suntree.cwd() == str(world["studio"])
 
 
 def test_a_drop_lands_in_the_folder_under_the_pointer(world, window, tmp_path):
@@ -239,16 +241,16 @@ def test_up_the_stem_the_folders_are_spat_out(world, suntree, window):
 
     _call(window, "crownClicked", hit["x"] + hit["w"] / 2, hit["y"] + hit["h"] / 2, False)
 
-    assert suntree.cwd() == studio
+    assert suntree.ctd() == studio and suntree.cwd() == str(world["noten"] / "2025")  # only looking up
     assert _prop(window, "stemGlide")[studio] == was  # Musikstudio glides from where it was
     stem = [(e["kind"], e["label"]) for e in _call(window, "stemEntries")]
-    assert stem[:3] == [("preview", "2025"), ("preview", "Noten"), ("cwd", "Musikstudio")]
+    assert stem[:3] == [("preview", "2025"), ("preview", "Noten"), ("ctd", "Musikstudio")]
     noten = [e["label"] for e in _call(window, "rightEntries")].index("Noten")
     assert _prop(window, "crownHalves")["1"]["shown"]["lock"] == [noten, 0]  # 2025: first of Noten's
 
     for _ in range(60):
         _call(window, "crownTick", 0.1)
-    assert [e["kind"] for e in _call(window, "stemEntries")][0] == "cwd"  # all spat out
+    assert [e["kind"] for e in _call(window, "stemEntries")][0] == "ctd"  # all spat out
     assert _prop(window, "crownHalves")["1"]["shown"] is None  # the crown at rest
 
 

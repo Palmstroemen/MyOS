@@ -110,7 +110,9 @@ def test_the_gestures_are_scopes(world, suntree, window):
     assert _left(window) == ["Ausgaben"]  # the lens' folder
     assert [row["label"] for row in _call(window, "frameEntries")] == ["04_Finanz"]
 
-    _call(window, "applyLeftClick", 0)  # sharper
+    _call(window, "applyLeftClick", 0)  # a single click only looks: the lens stays
+    assert [row["label"] for row in _call(window, "frameEntries")] == ["04_Finanz"]
+    _call(window, "applyLeftDoubleClick", 0)  # sharper: deliberately
     assert [row["label"] for row in _call(window, "frameEntries")] == ["04_Finanz", "Ausgaben"]
 
     _call(window, "lensRequest", "look_at", {"path": str(studio / "04_Finanz")})  # flatter (the frame)

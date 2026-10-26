@@ -19,7 +19,9 @@ ApplicationWindow {
     property var parentModel: []
     property int hoveredFrameIndex: -1
     property var pendingLeftRow: null
-    property string cwdPath: ""
+    property string cwdPath: ""  // where one stands, shared with Scope: it glows
+    property string ctdPath: ""  // what SunTree shows in its middle: looking around moves it
+    property string cwdGlow: "#ffffff"  // the CWD's project colour, lit up
     property string currentProjectColor: ""
 
     // --- The lens (Designdocument Perspective Resolver MVP.md, Part A) -------------------
@@ -33,8 +35,11 @@ ApplicationWindow {
 
     function refreshModels() {
         cwdPath = String(sunTreeBackend.cwd() || "")
+        ctdPath = String(sunTreeBackend.ctd() || "")
         foldersModel = sunTreeBackend.listFolders()
-        currentProjectColor = String(sunTreeBackend.effectiveProjectColor(cwdPath) || "")
+        currentProjectColor = String(sunTreeBackend.effectiveProjectColor(ctdPath) || "")
+        var own = String(sunTreeBackend.effectiveProjectColor(cwdPath) || "")
+        cwdGlow = own ? (_adjustColor(own, 1.7) || "#ffffff") : "#ffffff"
         var reply = sunTreeBackend.lens("state", {})
         lensState = (reply && reply.ok) ? reply.result : ({ active: false })
         embryosModel = sunTreeBackend.listEmbryosAt(leftListingPath())
@@ -44,9 +49,14 @@ ApplicationWindow {
         if (typeof crownCanvas !== "undefined") crownCanvas.requestPaint()
     }
 
-    /// The left half: the MyOS folders of the CWD; with a lens on, the lens' folder.
+    /// The left half: the MyOS folders of the CTD; with a lens on, the lens' folder.
     function leftListingPath() {
-        return lensInProject ? String(lensState.target || "") : cwdPath
+        return lensInProject ? String(lensState.target || "") : ctdPath
+    }
+
+    /// Whether path is the CWD: it glows wherever it shows (oval, stem, crown).
+    function isCwd(path) {
+        return String(path || "").replace(/\/+$/, "") === cwdPath.replace(/\/+$/, "")
     }
 
     /// Ask the session (look_at, move_to, take_off, ...) and show the lens afterwards.
@@ -114,6 +124,7 @@ ApplicationWindow {
             return
         }
         turnedTo()  // the loading first, while the pointer stands: then nothing holds up its ride
+        sunTreeBackend.showCwd()  // it starts where one stands
         if (!appearUnderPointer()) showNow()
     }
 
@@ -255,7 +266,7 @@ ApplicationWindow {
         if (raw.charAt(0) === "/") {
             return raw
         }
-        var base = String(sunTreeBackend.cwd() || "")
+        var base = String(sunTreeBackend.ctd() || "")
         if (base.endsWith("/")) {
             return base + raw
         }
@@ -300,7 +311,7 @@ ApplicationWindow {
     }
 
     function cwdLeafName() {
-        var cwd = String(cwdPath || "")
+        var cwd = String(ctdPath || "")
         var parts = cwd.split("/").filter(function(p) { return p.length > 0 })
         if (parts.length === 0) {
             return "/"
@@ -309,7 +320,7 @@ ApplicationWindow {
     }
 
     function projectNameFromCwd() {
-        var parsed = parseApdFromPath(String(cwdPath || ""))
+        var parsed = parseApdFromPath(String(ctdPath || ""))
         return parsed.valid ? String(parsed.projectName || "") : ""
     }
 
@@ -399,13 +410,11 @@ ApplicationWindow {
         applyLeftRow(leftEntries()[index])
     }
 
+    /// A single click on the left only looks (an embryo cannot be shown); the lens changes
+    /// only by a double click or on its frame.
     function applyLeftRow(row) {
-        if (!row) return
-        if (lensOn) {
-            lensRequest("look_at", { "path": row.path })
-        } else {
-            sunTreeBackend.enterFolder(row.path)
-        }
+        if (!row || lensOn) return
+        sunTreeBackend.showFolder(row.path)
     }
 
     /// A double click: on a MyOS folder it puts on its lens and the CWD stays; with a lens
@@ -614,15 +623,18 @@ ApplicationWindow {
     function crownClicked(x, y, twice) {
         var hit = crownHit()
         if (twice && !(hit && hit.side < 0)) {
-            // The first click went in already: the second only puts SunTree away.
-            if (Date.now() - wentInAt < 1000) putAway()
+            // The first click looked there already: the second goes there - the CWD - and away.
+            if (Date.now() - wentInAt < 1000) {
+                navigateTo(ctdPath)
+                putAway()
+            }
             return
         }
         for (var i = 0; i < stemHits.length; i++) {
             var s = stemHits[i]
             if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) {
                 wentInAt = Date.now()
-                if (s.kind === "clipboard") sunTreeBackend.setCwd(sunTreeBackend.clipboardPath())
+                if (s.kind === "clipboard") sunTreeBackend.showFolder(sunTreeBackend.clipboardPath())
                 else if (s.kind === "parent") goUpTo(s.path)
                 else sunTreeBackend.refreshAll()
                 return
@@ -636,11 +648,11 @@ ApplicationWindow {
         if (hit.side > 0) {
             glideIntoStem(hit.row.path)
             crownReset()
-            navigateTo(hit.row.path)
+            sunTreeBackend.showFolder(hit.row.path)
             return
         }
-        // The left half as before: a click goes in (a lens: flatter or sharper), a double
-        // click puts on the lens.
+        // The left half: a click looks into a born folder, a double click puts on its lens
+        // (with a lens on: sharper).
         if (twice) {
             leftClickDelayTimer.stop()
             pendingLeftRow = null
@@ -703,19 +715,19 @@ ApplicationWindow {
     /// crown starts as if one had dived from the parent down to the old CWD and runs back to
     /// rest, as when letting go (Designdocument Krone.md, 3).
     function goUpTo(path) {
-        var from = cwdPath
+        var from = ctdPath
         for (var key in stemGlide) {
             var at = key.indexOf(":")
             if (at > 0) stemGlide[key.slice(at + 1)] = stemGlide[key]  // the same folder, another kind
         }
         crownReset()
-        navigateTo(path)
+        sunTreeBackend.showFolder(path)
         spitOut(from)
     }
 
     /// The crown as if dived from the CWD down to the folder from; it runs back to rest.
     function spitOut(from) {
-        var base = cwdPath.replace(/\/+$/, "")
+        var base = ctdPath.replace(/\/+$/, "")
         if (from.indexOf(base + "/") !== 0) return
         var names = from.slice(base.length + 1).split("/").filter(function(n) { return n.length > 0 })
         for (var side = 1; side >= -1; side -= 2) {
@@ -757,11 +769,25 @@ ApplicationWindow {
         ctx.closePath()
     }
 
-    function crownLabel(ctx, side, cx, cy, r0, r1, a0, a1, text, alpha) {
+    /// The CWD's light around the current path: strokes widening and fading outward (the
+    /// canvas' shadowBlur is far too slow - it stalled the animations).
+    function glowStroke(ctx, alpha) {
+        var rings = [[12, 0.10], [8, 0.18], [5, 0.30], [2, 1.0]]
+        ctx.save()
+        ctx.strokeStyle = cwdGlow
+        for (var i = 0; i < rings.length; i++) {
+            ctx.lineWidth = rings[i][0]
+            ctx.globalAlpha = rings[i][1] * alpha
+            ctx.stroke()
+        }
+        ctx.restore()
+    }
+
+    function crownLabel(ctx, side, cx, cy, r0, r1, a0, a1, text, alpha, bold) {
         var mid = (a0 + a1) / 2, arc = (a1 - a0) * Math.PI / 180 * (r0 + r1) / 2, width = r1 - r0 - 18
         if (alpha < 0.05 || arc < 13 || width < 26) return
         ctx.save()
-        ctx.font = "12px sans-serif"
+        ctx.font = (bold ? "bold " : "") + "12px sans-serif"
         var t = text
         while (t.length > 2 && ctx.measureText(t).width > width) t = t.slice(0, t.length - 2) + "…"
         var a = mid * Math.PI / 180, r = r0 + 10
@@ -783,6 +809,7 @@ ApplicationWindow {
         crownSector(ctx, side, g.cx, g.cy, 0, g.R + 6, -90, 90)
         ctx.fillStyle = side < 0 ? "#273847" : "#2d3750"
         ctx.fill()
+        var glowing = []
         for (var r = 0; r < rings.length; r++) {
             var ring = rings[r], a = ring.start
             for (var i = 0; i < ring.items.length; i++) {
@@ -806,8 +833,16 @@ ApplicationWindow {
                 ctx.stroke()
                 ctx.setLineDash([])
                 ctx.globalAlpha = 1
-                crownLabel(ctx, side, g.cx, g.cy, ring.r0, ring.r1, a0, a1, row.label, ring.labels * (embryo ? 0.7 : 1))
+                var cwd = isCwd(row.path)
+                if (cwd) glowing.push({ r0: ring.r0, r1: ring.r1, a0: a0, a1: a1, alpha: ring.alpha })
+                crownLabel(ctx, side, g.cx, g.cy, ring.r0, ring.r1, a0, a1, row.label, ring.labels * (embryo ? 0.7 : 1), cwd)
             }
+        }
+        // The CWD glows, drawn last so no neighbour covers its light.
+        for (var k = 0; k < glowing.length; k++) {
+            var gl = glowing[k]
+            crownSector(ctx, side, g.cx, g.cy, gl.r0, gl.r1, gl.a0, gl.a1)
+            glowStroke(ctx, gl.alpha)
         }
     }
 
@@ -825,13 +860,16 @@ ApplicationWindow {
                 if (k === st.L && st.ph !== 2) break
                 var row = crownRows(side, h.shown.lock.slice(0, k))[h.shown.lock[k]]
                 if (!row) break
-                dive.push({ label: row.label, path: row.path, w: k < st.L ? 1 : Crown.smooth(st.q), kind: "preview" })
+                dive.push({ label: row.label, path: row.path, w: k < st.L ? 1 : Crown.smooth(st.q), kind: "preview",
+                           glow: isCwd(row.path) })
             }
             out = out.concat(dive.reverse())
         }
-        out.push({ label: cwdLeafName(), sub: projectNameFromCwd(), path: cwdPath, w: 1, kind: "cwd" })
+        out.push({ label: cwdLeafName(), sub: projectNameFromCwd(), path: ctdPath, w: 1, kind: "ctd", glow: isCwd(ctdPath) })
         var parents = centerStackEntries()
-        for (var i = 0; i < parents.length; i++) out.push({ label: parents[i].label, path: parents[i].path, w: 1, kind: "parent" })
+        for (var i = 0; i < parents.length; i++) {
+            out.push({ label: parents[i].label, path: parents[i].path, w: 1, kind: "parent", glow: isCwd(parents[i].path) })
+        }
         return out
     }
 
@@ -877,16 +915,20 @@ ApplicationWindow {
             ctx.beginPath()
             var rad = o.h / 2 * o.big  // square pills; the CWD oval round, growing as one glides into it
             ctx.roundedRect(o.x, o.y, o.w, o.h, rad, rad)
-            var projectColor = o.e.kind === "cwd" ? (_adjustColor(currentProjectColor, 0.72) || "#2f3d60") : "#324663"
+            var projectColor = o.e.kind === "ctd" ? (_adjustColor(currentProjectColor, 0.72) || "#2f3d60") : "#324663"
             ctx.fillStyle = o.big > 0.5 ? projectColor : "#324663"
             ctx.fill()
-            ctx.lineWidth = o.big > 0.5 ? 2 : 1
-            ctx.strokeStyle = o.big > 0.5 ? (_adjustColor(currentProjectColor, 1.1) || "#9cb7f0") : "#6d82a8"
-            ctx.setLineDash(o.e.kind === "preview" ? [5, 4] : [])
-            ctx.stroke()
-            ctx.setLineDash([])
+            if (o.e.glow) {
+                glowStroke(ctx, ctx.globalAlpha)  // the CWD: light around it, a bright frame, bold
+            } else {
+                ctx.lineWidth = o.big > 0.5 ? 2 : 1
+                ctx.strokeStyle = o.big > 0.5 ? (_adjustColor(currentProjectColor, 1.1) || "#9cb7f0") : "#6d82a8"
+                ctx.setLineDash(o.e.kind === "preview" ? [5, 4] : [])
+                ctx.stroke()
+                ctx.setLineDash([])
+            }
             ctx.fillStyle = "#dbe5ff"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
-            ctx.font = (o.big > 0.5 ? "bold 13px " : "12px ") + "sans-serif"
+            ctx.font = (o.big > 0.5 || o.e.glow ? "bold " : "") + (o.big > 0.5 ? "13px " : "12px ") + "sans-serif"
             ctx.fillText(o.e.label, cx, o.cy - (o.big > 0.5 && o.e.sub ? 7 : 0))
             if (o.big > 0.5 && o.e.sub) {
                 ctx.font = "11px sans-serif"; ctx.fillStyle = "#b7c8ef"

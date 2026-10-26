@@ -94,15 +94,47 @@ def test_a_drop_puts_suntree_away_and_leaves_a_notice(world, window, tmp_path):
     assert source.exists() and not notice.isVisible()
 
 
-def test_a_single_click_goes_in_a_double_click_also_away(world, suntree, window):
+def test_a_single_click_looks_a_double_click_goes_there_and_away(world, suntree, window):
     _shown(window)
     _dive(window, 5)  # Noten under the pointer
     at = _prop(window, "crownPointer")
     _call(window, "crownClicked", at["x"], at["y"], False)
-    assert suntree.cwd() == str(world["noten"]) and window.isVisible()  # to look further
+    assert suntree.ctd() == str(world["noten"]) and window.isVisible()  # to look further
+    assert suntree.cwd() == str(world["studio"])  # Scope's place untouched
 
     _call(window, "crownClicked", at["x"], at["y"], True)
     assert suntree.cwd() == str(world["noten"]) and _gone(window)
+
+
+def test_looking_leaves_the_shared_place_alone(world, suntree):
+    assert suntree.showFolder(str(world["noten"]))
+    assert suntree.ctd() == str(world["noten"]) and suntree.cwd() == str(world["studio"])
+    assert suntree.lens("state", {})["result"]["cwd"] == str(world["studio"])  # the session's
+    assert [f["name"] for f in suntree.listFolders()] == ["2025", "2026"]  # SunTree shows it
+    assert not suntree.showFolder(str(world["noten"] / "missing"))
+
+    suntree.showCwd()  # appearing again: back where one stands
+    assert suntree.ctd() == str(world["studio"])
+    assert suntree.setCwd(str(world["noten"])) and suntree.ctd() == str(world["noten"])
+
+
+def test_the_cwd_glows_wherever_it_shows(world, suntree, window):
+    # In the middle while one looks where one stands; lower in the stem once one looks deeper.
+    _shown(window)
+    ctd = next(e for e in _call(window, "stemEntries") if e["kind"] == "ctd")
+    assert ctd["glow"]
+    suntree.showFolder(str(world["noten"]))
+    _call(window, "refreshModels")
+    stem = {e["path"]: e for e in _call(window, "stemEntries")}
+    assert not stem[str(world["noten"])]["glow"] and stem[str(world["studio"])]["glow"]
+    assert _call(window, "isCwd", str(world["studio"]))  # in the crown, too (drawn glowing)
+
+
+def test_appearing_again_shows_where_one_stands(world, suntree, window):
+    suntree.showFolder(str(world["noten"]))
+    _pointer_at(suntree, 1500, 1000)
+    _call(window, "toggleFromHotkey")
+    assert suntree.ctd() == str(world["studio"])
 
 
 def test_putting_on_a_lens_and_taking_it_off_put_suntree_away(world, suntree, window):
