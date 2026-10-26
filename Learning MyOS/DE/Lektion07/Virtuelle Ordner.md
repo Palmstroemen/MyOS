@@ -2,7 +2,7 @@ Lass mich dir etwas Magie zeigen.
 Dafür brauchst du einen klassischen Dateibrowser.
 Du findest ihn in der Leiste am unteren Bildschirmrand, ganz links. Sein Symbol sieht aus wie ein Ordner.
 
-Öffne diesen Dateibrowser und geh zu ...
+Öffne diesen Dateibrowser und geh zum Ordner dieser Lektion: *Learning MyOS/DE/Lektion07*.
 Dort findest du einen Ordner namens „Urlaub 2025" voller Dateien.
 Wirf einen kurzen Blick hinein und verlass den Ordner wieder, sodass du ihn von außen siehst.
 

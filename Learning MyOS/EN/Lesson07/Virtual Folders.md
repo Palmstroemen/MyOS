@@ -2,7 +2,7 @@ Let me show you some magic.
 For this you need a classic file browser.
 You find it in the dock at the bottom of the screen, on the far left. Its symbol looks like a folder.
 
-Open this file browser and navigate to ...
+Open this file browser and navigate to the folder of this lesson: *Learning MyOS/EN/Lesson07*.
 There you find a folder called "vacation 2025" full of files.
 Have a brief look inside, and leave the folder again so you see it from the outside.
 

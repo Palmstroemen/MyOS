@@ -1,6 +1,6 @@
 So you have organized your vacation data into folders. That's kind of the past. Now let's have a brief look at the future.
 
-For this lesson we have put all your files and documents back into a single, unsorted folder. Sorry for that, but we had a good reason.
+For this lesson we have put all your files and documents back into a single, unsorted folder: "vacation summer 2026", right next to this note. Sorry for that, but we had a good reason.
 
 Select this folder and open its context menu (right-click). You will find something like: **Turn into a project**. Give it a try!
 

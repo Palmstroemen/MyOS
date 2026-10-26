@@ -1,6 +1,6 @@
 Du hast also deine Urlaubsdaten in Ordner sortiert. Das ist gewissermaßen die Vergangenheit. Jetzt werfen wir einen kurzen Blick in die Zukunft.
 
-Für diese Lektion haben wir alle deine Dateien und Dokumente wieder in einen einzigen, unsortierten Ordner gepackt. Entschuldige, aber wir hatten einen guten Grund.
+Für diese Lektion haben wir alle deine Dateien und Dokumente wieder in einen einzigen, unsortierten Ordner gepackt: „Urlaub Sommer 2026", gleich neben dieser Notiz. Entschuldige, aber wir hatten einen guten Grund.
 
 Wähle diesen Ordner aus und schau ins Kontextmenü (Rechtsklick). Dort findest du etwas wie: **In Projekt verwandeln**. Probier es aus!
 
