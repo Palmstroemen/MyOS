@@ -85,6 +85,16 @@ the small fan, then the three that are no line; a line under each says what it d
    (Dark, Light).
 3. Colour schemes to edit: change colours, keep them as a scheme of one's own.
 4. The **Scope** and **Headline** tabs, as the top bar is taken away.
+   Begun (2026-10-26): light/dark and the language left the top bar (they are on General); the
+   two rows (projects, MyOS folders) are switched on the Scope tab and kept in the settings
+   file (`Scope/projectsRow`, `Scope/templatesRow`) - views of their own are to come; "Files
+   50 %" (a transparency test) is gone with the files panel's half transparency; "Give project
+   a theme" and "Enable sorting" (slipped in from development) are gone - a sort rule is now
+   put in by hand (`.MyOS/Sort.md`). Then (2026-10-26): the filter moved to the Scope tab (a
+   button showing the active filter opens its menu), narrow mode is gone, the edge-dock switch
+   is gone (its code waits for the Headline). Left in the bar: ⚙, far left, and M. (⚙ cannot go
+   into the window's title bar: the window manager draws it; a title bar of Scope's own would
+   have to redo moving, resizing and snapping - perhaps with the Headline.)
 
 ## 5. Open
 

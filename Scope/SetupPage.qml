@@ -11,6 +11,9 @@ Rectangle {
     property var settings: null
     property bool darkTheme: true
     property string language: "de"
+    property bool projectsRowShown: true
+    property bool templatesRowShown: true
+    property string filterLabel: ""
     property int baseFont: 13
     property color textColor: darkTheme ? "#e8efff" : "#1a2233"
     property color mutedColor: darkTheme ? "#9fb0cc" : "#4a5670"
@@ -28,6 +31,9 @@ Rectangle {
     signal switchTheme()
     signal switchLanguage()
     signal flipBack()
+    signal toggleProjectsRow()
+    signal toggleTemplatesRow()
+    signal openFilterMenu()
 
     color: panelColor
 
@@ -213,8 +219,32 @@ Rectangle {
             }
 
             ColumnLayout {  // Scope
+                spacing: 12
+                RowLayout {
+                    spacing: 12
+                    Text { text: qsTr("Rows"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
+                    Pill {
+                        objectName: "setupProjectsRow"
+                        label: qsTr("Projects") + " " + (root.projectsRowShown ? qsTr("ON") : qsTr("OFF"))
+                        onActivated: root.toggleProjectsRow()
+                    }
+                    Pill {
+                        objectName: "setupTemplatesRow"
+                        label: qsTr("MyOS folders") + " " + (root.templatesRowShown ? qsTr("ON") : qsTr("OFF"))
+                        onActivated: root.toggleTemplatesRow()
+                    }
+                }
+                RowLayout {
+                    spacing: 12
+                    Text { text: qsTr("Filter"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
+                    Pill {
+                        objectName: "setupFilter"
+                        label: root.filterLabel
+                        onActivated: root.openFilterMenu()
+                    }
+                }
                 Text {
-                    text: qsTr("Scope's settings come here as its top bar is taken away.")
+                    text: qsTr("Views of their own come here later.")
                     color: root.mutedColor
                     font.pixelSize: root.baseFont
                 }

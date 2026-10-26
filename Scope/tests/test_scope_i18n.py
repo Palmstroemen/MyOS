@@ -65,4 +65,4 @@ def test_examples_of_the_german_ui():
 
     assert translator.translate("FilesPanel", "Size") == "Größe"
     assert translator.translate("FilesPanel", "Exceptions") == "Ausnahmen"
-    assert translator.translate("main", "Projects") == "Projekte"
+    assert translator.translate("SetupPage", "Projects") == "Projekte"  # the rows, on the back

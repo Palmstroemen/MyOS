@@ -66,6 +66,9 @@ def page(tmp_path, monkeypatch):
         '  onSwitchTheme: heard = heard.concat(["theme"])\n'
         '  onSwitchLanguage: heard = heard.concat(["language"])\n'
         '  onFlipBack: heard = heard.concat(["back"])\n'
+        '  onToggleProjectsRow: heard = heard.concat(["projectsRow"])\n'
+        '  onToggleTemplatesRow: heard = heard.concat(["templatesRow"])\n'
+        '  onOpenFilterMenu: heard = heard.concat(["filter"])\n'
         '}\n', encoding="utf-8")
     view = QQuickView()
     view.rootContext().setContextProperty("host", host)
@@ -166,3 +169,25 @@ def test_over_a_slider_its_demo_plays_and_a_click_stops_it(page):
     QTest.mouseMove(view, at)  # ... and back: it shows again
     QTest.qWait(100)
     assert preview.property("demo") == "lens"
+
+
+def test_the_scope_tab_switches_the_two_rows(page):
+    view, _ = page
+    root = view.rootObject()
+    _click(view, _named(view, "tabScope"))
+    _click(view, _named(view, "setupProjectsRow"))
+    _click(view, _named(view, "setupTemplatesRow"))
+    assert _heard(view)[-2:] == ["projectsRow", "templatesRow"]
+    root.setProperty("projectsRowShown", False)
+    assert "OFF" in _named(view, "setupProjectsRow").property("label")
+
+
+def test_the_filter_is_on_the_scope_tab(page):
+    view, _ = page
+    root = view.rootObject()
+    root.setProperty("filterLabel", "Filter: Ausgaben [A]")
+    _click(view, _named(view, "tabScope"))
+    button = _named(view, "setupFilter")
+    assert button.property("label") == "Filter: Ausgaben [A]"
+    _click(view, button)
+    assert _heard(view)[-1] == "filter"

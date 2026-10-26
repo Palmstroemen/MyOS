@@ -14,6 +14,9 @@ from typing import Any, Dict, Optional, Tuple
 SETTINGS: Dict[str, Tuple[type, Any, Any]] = {
     "General/darkTheme": (bool, True, None),
     "General/language": (str, "de", {"de", "en"}),
+    # Scope's two rows (the projects, the MyOS folders); views of their own are to come.
+    "Scope/projectsRow": (bool, True, None),
+    "Scope/templatesRow": (bool, True, None),
     # SunTree's crown (SunTree/Designdocument Krone.md, 5); line and radius as shares of R.
     "SunTree/lineT": (float, 0.7, (0.5, 0.85)),
     "SunTree/inner": (float, 0.2, (0.1, 0.35)),

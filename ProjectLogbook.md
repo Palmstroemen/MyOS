@@ -25,7 +25,7 @@ Kompakter Überblick: `docs/STATUS.md`.
 
 [x] Jahresfilter: /Jahr/Monat/-Ablage automatisch (core/filing.py, Designdocument Sort.md):
     Regel im Ordner selbst, flach → virtuell → echt ab NewLevelFrom, Ablage durch Nachholen statt Beobachter, echtes EXIF
-    [ ] Regel bequem einrichten (heute: Knopf "Enable sorting" im aktuellen Ordner oder von Hand); myls zeigt virtuelle Ebenen noch nicht
+    [ ] Regel bequem einrichten (der Knopf "Enable sorting" ist mit der oberen Leiste weg, 2026-10-26: vorerst von Hand); myls zeigt virtuelle Ebenen noch nicht
 [ ] SunTree: nur zum Ablegen - zeigt Ordner, keine Dateien, keine Suche (entschieden 2026-10-25)
     [ ] Weiche Krone (SunTree/Designdocument Krone.md, Skizze SunTree/prototype/Krone.html): Feld wächst nach außen,
         ab der Linie T (0,7 R) in den Stamm gesaugt, Zeiger nach innen gezogen; Rückweg ebenso weich
@@ -79,6 +79,9 @@ Kompakter Überblick: `docs/STATUS.md`.
                 [x] Schritt 1 (2026-10-26): Umdrehen, Hell/Dunkel und Sprache (bleiben jetzt gespeichert), SunTree-Werte
                 [x] Kleine Krone im SunTree-Tab (2026-10-26): leuchtende Grenzlinien, Tauchgang bei jeder Änderung
                 [ ] Schritt 2: Farbschemata wählen  [ ] Schritt 3: bearbeiten  [ ] Schritt 4: Tabs Scope und Headline
+                [~] Obere Leiste leeren (2026-10-26): Hell/Dunkel, Sprache weg (Allgemein); Zeilen an/aus im Tab Scope;
+                    "Dateien 50%", "Projekt mit Thema versehen", "Ordnung aktivieren", "Schmal", Edge-Dock-Schalter entfernt;
+                    Filter im Tab Scope; bleiben: ⚙ ganz links und M (eine Zeile per Vorgabe aus: vorerst nicht)
                 Später: Anmelden/Ummelden, Abschalten
             [ ] Schritt 2: Auftauchen am oberen Bildschirmrand (Edge-Dock) - zurückgestellt (2026-10-25): im Prototyp reicht
                 das CWD links oben im Scope-Fenster. Später voraussichtlich: volle Bildschirmbreite, Kante über die ganze

@@ -30,7 +30,6 @@ Rectangle { // Files panel
     property real uPanelTintMix: 0.65
     property real projectTintOpacity: 1.0
     property bool allowDrags: true
-    property bool halfTransparent: false
     property bool showFolders: false
     property var availableTags: []
     property var folderTags: []
@@ -278,7 +277,6 @@ Rectangle { // Files panel
     border.width: 0
     implicitWidth: 280
     implicitHeight: 200
-    opacity: halfTransparent ? 0.5 : 1
 
     signal requestMore()
     signal filterChanged(bool showFolders)

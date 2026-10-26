@@ -71,8 +71,6 @@ ApplicationWindow {
     // Browser visibility
     property bool projectsBrowserVisible: true
     property bool templatesBrowserVisible: true
-    property bool filesPanelHalfTransparent: false
-    property bool schmalMode: false
     // Edge-Dock mode (projects-only, X11-first): collapsed | expanded | expandedWithFiles
     property bool edgeDockEnabled: false
     property string edgeDockState: "expanded"
@@ -353,7 +351,6 @@ ApplicationWindow {
         dynamicRoles: true
     }
 
-
     FolderListModel {
         id: fsModel
         showDirs: true
@@ -546,12 +543,10 @@ ApplicationWindow {
     }
 
     function show_FilesPanel() {
-        filesPanelHalfTransparent = false
         filesPaneVisible = true
         if (edgeDockEnabled) edgeDockState = "expandedWithFiles"
     }
     function hide_FilesPanel() {
-        filesPanelHalfTransparent = true
         filesPaneVisible = false
         if (edgeDockEnabled) edgeDockState = "expanded"
     }
@@ -887,6 +882,14 @@ ApplicationWindow {
         if (button) {
             button.text = text
         }
+    }
+
+    /// The active filter, as the back shows it ("Filter: Ausgaben [A]").
+    function filterLabelText() {
+        if (!activeFilter || !activeFilter.active) return qsTr("Filter: Auto")
+        var modeText = String(activeFilter.mode || "auto") === "manual" ? "M" : "A"
+        var stacked = (activeFilter.chain && activeFilter.chain.length > 1) ? " +" : ""
+        return qsTr("Filter") + ": " + String(activeFilter.name || "?") + " [" + modeText + "]" + stacked
     }
 
     function toggleUiLanguage() {
@@ -2334,6 +2337,8 @@ ApplicationWindow {
             darkTheme = backend.setting("General/darkTheme") === true
             var language = String(backend.setting("General/language") || "de")
             if (typeof backend.setLanguage === "function" && language !== backend.currentLanguage()) backend.setLanguage(language)
+            projectsBrowserVisible = backend.setting("Scope/projectsRow") === true
+            templatesBrowserVisible = backend.setting("Scope/templatesRow") === true
         }
         settingsRead = true
         if (hasBackend() && typeof backend.currentLanguage === "function") {
@@ -2702,7 +2707,6 @@ ApplicationWindow {
         }
     }
 
-
     FolderMoveConfirmDialog { id: folderMoveConfirmDialog; window: window }
 
     MoveReportDialog { id: moveReportDialog; window: window }
@@ -2739,11 +2743,6 @@ ApplicationWindow {
     BatchRenameDialog { id: batchRenameDialog; window: window }
 
     DeleteEntriesDialog { id: deleteEntriesDialog; window: window }
-
-    onSchmalModeChanged: {
-        if (schmalMode) hide_FilesPanel()
-        else show_FilesPanel()
-    }
 
     onEdgeDockStateChanged: {
         if (edgeDockEnabled) {
@@ -2834,6 +2833,26 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     width: parent.width
                     spacing: 8
+                Rectangle { // Setup: the back of Scope, far left
+                    radius: TagChips.CHIP_RADIUS_MEDIUM
+                    height: compactButtonHeight
+                    color: "transparent"
+                    border.width: 0
+                    implicitWidth: setupLabel.implicitWidth + 16
+                    width: implicitWidth
+                    Text {
+                        id: setupLabel
+                        anchors.centerIn: parent
+                        text: "⚙"
+                        color: theme.smallButtonText
+                        font.pixelSize: baseFont
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: window.flipSetup(true)
+                    }
+                }
+
                 Rectangle { // Minimal view (M)
                     radius: TagChips.CHIP_RADIUS_MEDIUM
                     height: compactButtonHeight
@@ -2857,94 +2876,6 @@ ApplicationWindow {
                     ToolTip.visible: minimalViewArea.containsMouse
                     ToolTip.delay: 600
                     ToolTip.text: qsTr("Minimal view: the current folder top left, the path above it on hover")
-                }
-
-                Rectangle { // Setup: the back of Scope (until the top bar goes)
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: "transparent"
-                    border.width: 0
-                    implicitWidth: setupLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: setupLabel
-                        anchors.centerIn: parent
-                        text: "⚙"
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: window.flipSetup(true)
-                    }
-                }
-
-                Rectangle { // Theme Switch
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: "transparent"
-                    border.width: 0
-                    implicitWidth: themeSwitchLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: themeSwitchLabel
-                        anchors.centerIn: parent
-                        text: darkTheme ? qsTr("Light") : qsTr("Dark")
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: darkTheme = !darkTheme
-                    }
-                }
-
-                Rectangle { // Language toggle
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: "transparent"
-                    border.width: 0
-                    implicitWidth: languageToggleLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: languageToggleLabel
-                        anchors.centerIn: parent
-                        text: uiLanguage.toUpperCase()
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: toggleUiLanguage()
-                    }
-                }
-
-                Rectangle { // Filter toggle
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: activeFilter.active ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
-                    border.width: 0
-                    implicitWidth: filterToggleLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: filterToggleLabel
-                        anchors.centerIn: parent
-                        text: {
-                            if (!activeFilter || !activeFilter.active) {
-                                return qsTr("Filter: Auto")
-                            }
-                            var modeText = String(activeFilter.mode || "auto") === "manual" ? "M" : "A"
-                            var stacked = (activeFilter.chain && activeFilter.chain.length > 1) ? " +" : ""
-                            return qsTr("Filter") + ": " + String(activeFilter.name || "?") + " [" + modeText + "]" + stacked
-                        }
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                        elide: Text.ElideRight
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: filterMenu.open()
-                    }
                 }
 
                 Menu {
@@ -2986,172 +2917,6 @@ ApplicationWindow {
                     }
                 }
 
-                Rectangle { // Projects browser visibility toggle
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: projectsBrowserVisible ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
-                    border.width: 0
-                    implicitWidth: projectsToggleLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: projectsToggleLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Projects") + " " + (projectsBrowserVisible ? qsTr("ON") : qsTr("OFF"))
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: projectsBrowserVisible = !projectsBrowserVisible
-                    }
-                }
-
-                Rectangle { // Templates browser visibility toggle
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: templatesBrowserVisible ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
-                    border.width: 0
-                    implicitWidth: templatesToggleLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: templatesToggleLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Templates") + " " + (templatesBrowserVisible ? qsTr("ON") : qsTr("OFF"))
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: templatesBrowserVisible = !templatesBrowserVisible
-                    }
-                }
-
-                Rectangle { // Files panel opacity toggle
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: filesPanelHalfTransparent ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
-                    border.width: 0
-                    implicitWidth: filesOpacityToggleLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: filesOpacityToggleLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Files 50%")
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: filesPanelHalfTransparent = !filesPanelHalfTransparent
-                    }
-                }
-
-                Rectangle { // Schmal-Modus: 50% bei Aktivierung und wenn Maus Fenster verlässt
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: schmalMode ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
-                    border.width: 0
-                    implicitWidth: schmalModeLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: schmalModeLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Narrow")
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: schmalMode = !schmalMode
-                    }
-                }
-
-                Rectangle { // Edge-Dock: oberste Zeile nur Projekte; Klick auf obere Leiste klappt ein/aus
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: edgeDockEnabled ? Qt.rgba(theme.smallButtonActiveBg.r, theme.smallButtonActiveBg.g, theme.smallButtonActiveBg.b, 0.28) : "transparent"
-                    border.width: 0
-                    implicitWidth: edgeDockLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: edgeDockLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Edge dock")
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: edgeDockEnabled = !edgeDockEnabled
-                    }
-                }
-
-                Rectangle { // Ensure Desk.md in current project
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: "transparent"
-                    border.width: 0
-                    implicitWidth: deskThemeLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: deskThemeLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Give project a theme")
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            if (!hasBackend() || typeof backend.ensureProjectConfig !== "function") {
-                                return
-                            }
-                            var result = backend.ensureProjectConfig(cwp, "Desk.md")
-                            if (!result || !result.ok) {
-                                moveReportMessage = qsTr("Desk.md could not be created.")
-                            } else {
-                                moveReportMessage = qsTr("Desk.md is ready in the current project.")
-                            }
-                            moveReportDialog.open()
-                        }
-                    }
-                }
-
-                Rectangle { // Give the folder shown a sort rule (core/filing.py)
-                    radius: TagChips.CHIP_RADIUS_MEDIUM
-                    height: compactButtonHeight
-                    color: "transparent"
-                    border.width: 0
-                    implicitWidth: sortActivateLabel.implicitWidth + 16
-                    width: implicitWidth
-                    Text {
-                        id: sortActivateLabel
-                        anchors.centerIn: parent
-                        text: qsTr("Enable sorting")
-                        color: theme.smallButtonText
-                        font.pixelSize: baseFont
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            if (!hasBackend() || typeof backend.enableSorting !== "function") {
-                                return
-                            }
-                            var folder = currentFilesPath()
-                            var result = backend.enableSorting(folder) || ({})
-                            moveReportMessage = result.ok
-                                ? qsTr("\"%1\" now sorts by date into years and months, once it holds more than 20 files (rule: .MyOS/Sort.md).").arg(PathUtils.basename(folder))
-                                : result.reason === "exists"
-                                ? qsTr("\"%1\" already has a sort rule (.MyOS/Sort.md).").arg(PathUtils.basename(folder))
-                                : result.reason === "no_project"
-                                ? qsTr("Sorting works only inside projects.")
-                                : qsTr("The sort rule could not be created.")
-                            moveReportDialog.open()
-                            updateFiles()
-                        }
-                    }
-                }
-                
                 }
             }
 
@@ -3210,7 +2975,6 @@ ApplicationWindow {
                         }
                     }
                 }
-
 
                 ColumnLayout { // Layout PH_TV
                     id: case_PH_TV
@@ -3484,6 +3248,18 @@ ApplicationWindow {
             onSwitchTheme: window.darkTheme = !window.darkTheme
             onSwitchLanguage: window.toggleUiLanguage()
             onFlipBack: window.flipSetup(false)
+            filterLabel: window.filterLabelText()
+            onOpenFilterMenu: filterMenu.popup()
+            projectsRowShown: window.projectsBrowserVisible
+            templatesRowShown: window.templatesBrowserVisible
+            onToggleProjectsRow: {
+                window.projectsBrowserVisible = !window.projectsBrowserVisible
+                if (window.hasBackend()) backend.setSetting("Scope/projectsRow", window.projectsBrowserVisible)
+            }
+            onToggleTemplatesRow: {
+                window.templatesBrowserVisible = !window.templatesBrowserVisible
+                if (window.hasBackend()) backend.setSetting("Scope/templatesRow", window.templatesBrowserVisible)
+            }
         }
 
         FolderBrowser {  // ProjectsBrowser
@@ -3677,7 +3453,6 @@ ApplicationWindow {
             panelAlt: theme.panelAlt
             pillBorder: theme.pillBorder
             backgroundColor: theme.filesPaneBackground
-            halfTransparent: filesPanelHalfTransparent
             templatesBrowserWidth: templatesBrowser.implicitWidth
             projectsBrowserWidth: projectsBrowser.implicitWidth
             iconFolder: window.iconFolder
