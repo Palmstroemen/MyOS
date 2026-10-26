@@ -171,10 +171,6 @@ class SunTreeBackend(QObject):
     def listClipboardEntries(self):
         return self._adapter.list_entries(self._clipboard)
 
-    @Slot(result="QVariantList")
-    def listFilters(self):
-        return self._adapter.list_filters(self._cwd)
-
     # The lens (Designdocument Perspective Resolver MVP.md, Part A): SunTree only asks the
     # session, as Scope does; it builds no lens paths itself.
     @Slot(str, "QVariantMap", result="QVariantMap")
@@ -247,14 +243,6 @@ class SunTreeBackend(QObject):
             self.dataChanged.emit()
         return created
 
-    @Slot(str, result=str)
-    def createClipboardNote(self, name: str) -> str:
-        self._ensure_clipboard_dir()
-        created = self._adapter.create_note(self._clipboard, name) or ""
-        if created:
-            self.dataChanged.emit()
-        return created
-
     @Slot()
     def refreshAll(self) -> None:
         self._lens.update_context(self._cwd)
@@ -298,9 +286,6 @@ class MyOSBackendAdapter:
 
     def list_entries(self, path: str) -> list:
         return self._api.list_entries(path)
-
-    def list_filters(self, path: str) -> list:
-        return self._api.list_filters(path)
 
     def get_effective_project_color(self, path: str) -> Optional[str]:
         return self._api.get_effective_project_color(path)

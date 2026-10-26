@@ -9,7 +9,8 @@
 //
 // Angles are degrees in a half's own frame: -90 at the top, 0 outward, 90 at the bottom.
 // A level's u is a continuous folder index (folder i covers [i, i + 1)); lock[k] is the
-// folder of level k drawn into the stem (the way down).
+// folder of level k drawn into the stem (the way down); over is how far the hand has pushed
+// on past the first or last folder, towards the stem (pixels, negative at the top).
 
 function clamp(x, a, b) {
     return Math.max(a, Math.min(b, x))
@@ -108,7 +109,7 @@ function uAtAngle(n, th, lens) {
 /// A half taken at distance s and angle th, with n folders on its first level (the
 /// fish-eye starts flat, so the even layout places the pointer).
 function start(s, th, n) {
-    return { s: s, u: [clamp((th + 90) / 180 * n, 0, n - 1e-4)], lock: [], released: false }
+    return { s: s, u: [clamp((th + 90) / 180 * n, 0, n - 1e-4)], lock: [], over: 0, released: false }
 }
 
 /// Where the pointer is drawn for a state: {r, th, L, ph, index} - index is the folder
@@ -131,13 +132,15 @@ function pointer(state, geo, childCount) {
 }
 
 function copyState(state) {
-    return { s: state.s, u: state.u.slice(), lock: state.lock.slice(), released: !!state.released }
+    return { s: state.s, u: state.u.slice(), lock: state.lock.slice(), over: state.over || 0,
+             released: !!state.released }
 }
 
 /// The hand moved by dr (outward) and dt (along the half, downward) pixels. childCount(way)
 /// gives the number of folders below the way of folder indices. Returns the new state;
-/// released: the half lets go of the pointer (back into the hollow, or over the top or
-/// bottom edge while the first field is still small).
+/// released: the half lets go of the pointer - back into the hollow, or pushed on past the
+/// first or last folder of any level by geo.edge pixels (towards the stem, where one is
+/// otherwise caught sideways); moving back from the end starts the push again.
 function move(state, dr, dt, geo, childCount) {
     var next = copyState(state)
     var st = phase(state.s, geo.ri, geo.T)
@@ -149,7 +152,11 @@ function move(state, dr, dt, geo, childCount) {
     // Along the half: scroll through the level.
     var slot = Math.PI * geo.R * 0.55 / n / (geo.speed || 1)
     var u = (next.u[level] !== undefined ? next.u[level] : n / 2) + dt / slot
-    if (level === 0 && st.ph <= 1 && st.p < 0.25 && (u < -0.15 || u > n + 0.15)) {
+    var over = next.over
+    if (u < 0) next.over = Math.min(0, over) + u * slot
+    else if (u > n) next.over = Math.max(0, over) + (u - n) * slot
+    else next.over = 0
+    if (Math.abs(next.over) > (geo.edge || 0.08 * geo.R)) {
         next.released = true
         return next
     }

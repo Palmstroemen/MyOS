@@ -15,11 +15,8 @@ ApplicationWindow {
     property var embryosModel: []
     property real embryoOpacity: 0.4  // as in Scope
     property var clipboardModel: []
-    property var filtersModel: []
     property var parentModel: []
-    property string selectedFilterName: ""
     property int hoveredFrameIndex: -1
-    property int hoveredTopIndex: -1
     property var pendingLeftRow: null
     property string cwdPath: ""
     property string currentProjectColor: ""
@@ -41,7 +38,6 @@ ApplicationWindow {
         lensState = (reply && reply.ok) ? reply.result : ({ active: false })
         embryosModel = sunTreeBackend.listEmbryosAt(leftListingPath())
         clipboardModel = sunTreeBackend.listClipboardEntries()
-        filtersModel = sunTreeBackend.listFilters()
         parentModel = sunTreeBackend.listParents()
         crownCache = ({})
         if (typeof crownCanvas !== "undefined") crownCanvas.requestPaint()
@@ -231,22 +227,6 @@ ApplicationWindow {
         return _adjustColor(source, 0.82)
     }
 
-    function topBandEntries() {
-        var rows = []
-        for (var i = 0; i < filtersModel.length; i++) {
-            var p = filtersModel[i]
-            rows.push({
-                kind: "filter",
-                label: String((p && p.name) ? p.name : "Filter")
-            })
-        }
-        rows.push({
-            kind: "clipboardCreate",
-            label: "Dummy Ablage"
-        })
-        return rows
-    }
-
     function centerStackEntries() {
         var rows = parentModel || []
         var out = []
@@ -334,10 +314,12 @@ ApplicationWindow {
     property real crownInner: 0.2    // ri as a share of R
     property real crownLens: 2.2     // the fish-eye at the start of a level
     property real crownSoftness: 10  // spring rate of the shown values, per second
+    property real crownEdge: 0.08    // push past a level's end that lets go, as a share of R
     // Per half (-1 left, 1 right): target (where the hand put it), shown (the springs) and
     // lensK (the fish-eye fading in and out).
     property var crownHalves: ({ "-1": { target: null, shown: null, lensK: 0 }, "1": { target: null, shown: null, lensK: 0 } })
     property int crownActive: 0      // the half holding the pointer, 0: none
+    property int crownLetGo: 0       // the half that let go, until the hand has left it
     property var crownPointer: null  // where the pointer was last seen or put (main area)
     property var crownCache: ({})
     property var stemGlide: ({})     // shown y of the stem's entries, by path
@@ -347,6 +329,7 @@ ApplicationWindow {
         var R = layoutRoot.halfOuterRadius
         var h = crownHalves[side]
         return { ri: crownInner * R, T: crownLineT * R, R: R, lens: crownLens * (h ? h.lensK : 0), speed: 1,
+                 edge: crownEdge * R,
                  cx: side < 0 ? leftHalf.x + leftHalf.width : rightHalf.x, cy: leftHalf.y + leftHalf.height / 2 }
     }
 
@@ -400,7 +383,12 @@ ApplicationWindow {
             for (var side = -1; side <= 1; side += 2) {
                 var g = crownGeo(side), p = crownPolar(side, x, y)
                 var n = crownRows(side, []).length
-                if (n > 0 && p.lx > 0 && p.r >= g.ri && p.r <= g.R && Math.abs(p.th) <= 90) {
+                var inside = n > 0 && p.lx > 0 && p.r >= g.ri && p.r <= g.R && Math.abs(p.th) <= 90
+                if (crownLetGo === side) {
+                    if (inside) continue  // it let go here: not caught again at once
+                    crownLetGo = 0
+                }
+                if (inside) {
                     var h = crownHalves[side]
                     h.target = Crown.start(p.r, p.th, n)
                     h.shown = { s: p.r, u: h.target.u.slice(), lock: [] }
@@ -417,7 +405,7 @@ ApplicationWindow {
         var dr = lx * Math.cos(a) + ly * Math.sin(a), dt = -lx * Math.sin(a) + ly * Math.cos(a)
         var next = Crown.move(half.target, dr, dt, geo, count)
         if (next.released) {
-            crownRelease()
+            crownRelease(true)
             return
         }
         if (next.lock.join("/") !== half.target.lock.join("/")) {
@@ -428,9 +416,12 @@ ApplicationWindow {
         crownTimer.start()
     }
 
-    /// The half lets go: the crown runs back softly, the pointer is free.
-    function crownRelease() {
+    /// The half lets go: the crown runs back softly, the pointer is free. holdOff: the hand
+    /// is still on the half (past a level's end, Esc), which takes it again only after the
+    /// hand has left it.
+    function crownRelease(holdOff) {
         if (crownActive === 0) return
+        crownLetGo = holdOff ? crownActive : 0
         var h = crownHalves[crownActive]
         h.target = { s: 0, u: h.target.u, lock: h.target.lock, released: true }
         crownActive = 0
@@ -440,6 +431,7 @@ ApplicationWindow {
     /// Back to rest at once (a new CWD: the folders changed).
     function crownReset() {
         crownActive = 0
+        crownLetGo = 0
         crownHalves = ({ "-1": { target: null, shown: null, lensK: 0 }, "1": { target: null, shown: null, lensK: 0 } })
         crownCache = ({})
         crownCanvas.requestPaint()
@@ -654,14 +646,14 @@ ApplicationWindow {
         var ovalH = layoutRoot.cwdHeight, ovalW = layoutRoot.cwdWidth, pillH = 30, gap = 8, pillW = layoutRoot.stackWidth - 16
         var hits = []
         // The Clipboard on top: one drops onto it like onto any folder.
-        var cbY = layoutRoot.shellTop + 4
+        var cbY = layoutRoot.shellTop + 4, cbW = layoutRoot.stackWidth - layoutRoot.clipboardHeight - 6
         ctx.beginPath()
-        ctx.roundedRect(layoutRoot.stackX, cbY, layoutRoot.stackWidth, layoutRoot.clipboardHeight, 8, 8)
+        ctx.roundedRect(layoutRoot.stackX, cbY, cbW, layoutRoot.clipboardHeight, 8, 8)
         ctx.fillStyle = "#2c3f5d"; ctx.fill()
         ctx.strokeStyle = "#5f7297"; ctx.lineWidth = 1; ctx.stroke()
         ctx.fillStyle = "#e8efff"; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
-        ctx.fillText("Clipboard (" + clipboardModel.length + ")", cx, cbY + layoutRoot.clipboardHeight / 2)
-        hits.push({ kind: "clipboard", path: "", x: layoutRoot.stackX, y: cbY, w: layoutRoot.stackWidth, h: layoutRoot.clipboardHeight })
+        ctx.fillText("Clipboard (" + clipboardModel.length + ")", layoutRoot.stackX + cbW / 2, cbY + layoutRoot.clipboardHeight / 2)
+        hits.push({ kind: "clipboard", path: "", x: layoutRoot.stackX, y: cbY, w: cbW, h: layoutRoot.clipboardHeight })
 
         var entries = stemEntries(), slot = 0, ops = [], seen = ({})
         for (var i = 0; i < entries.length; i++) {
@@ -730,7 +722,7 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Escape"
-        onActivated: crownRelease()
+        onActivated: crownRelease(true)
     }
 
     Shortcut {
@@ -772,7 +764,6 @@ ApplicationWindow {
             id: layoutRoot
             anchors.fill: parent
             anchors.margins: 20
-            property real topBandHeight: 42
             property real stackWidth: 170
             property real stackGap: 14
             property real shellDiameter: Math.min(mainArea.height * 0.86, mainArea.width * 0.54)
@@ -789,109 +780,10 @@ ApplicationWindow {
             property real halfOuterRadius: Math.min(shellHalfWidth - 8, shellDiameter * 0.5 - 8)
             property real clipboardHeight: 30
 
-            Rectangle {
-                id: topBand
-                x: 0
-                y: 0
-                width: parent.width
-                height: layoutRoot.topBandHeight
-                radius: 10
-                color: "#1a2230"
-                border.width: 1
-                border.color: "#324667"
-
-                Flickable {
-                    anchors.left: parent.left
-                    anchors.right: closeButton.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.leftMargin: 5
-                    anchors.rightMargin: 8
-                    anchors.topMargin: 5
-                    anchors.bottomMargin: 5
-                    contentWidth: topRow.implicitWidth
-                    contentHeight: topRow.height
-                    clip: true
-                    interactive: contentWidth > width
-
-                    Row {
-                        id: topRow
-                        spacing: 6
-                        height: parent.height
-
-                        Repeater {
-                            model: topBandEntries()
-                            delegate: Rectangle {
-                                property var rowData: modelData
-                                width: Math.max(100, labelItem.implicitWidth + 18)
-                                height: 30
-                                radius: 8
-                                color: hoveredTopIndex === index ? "#496a97" : "#2c3f5d"
-                                border.width: 1
-                                border.color: hoveredTopIndex === index ? "#9ec2ff" : "#5f7297"
-
-                                Text {
-                                    id: labelItem
-                                    anchors.centerIn: parent
-                                    text: String((rowData && rowData.label) ? rowData.label : "")
-                                    color: "#e8efff"
-                                    font.pixelSize: 12
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onEntered: hoveredTopIndex = index
-                                    onExited: if (hoveredTopIndex === index) hoveredTopIndex = -1
-                                    onClicked: {
-                                        var kind = String((rowData && rowData.kind) ? rowData.kind : "")
-                                        if (kind === "filter") {
-                                            selectedFilterName = String(rowData.label || "")
-                                        } else if (kind === "clipboardPath") {
-                                            sunTreeBackend.setCwd(sunTreeBackend.clipboardPath())
-                                        } else if (kind === "clipboardCreate") {
-                                            sunTreeBackend.createClipboardNote("capture-" + Date.now() + ".md")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: closeButton
-                    width: 30
-                    height: 30
-                    anchors.right: parent.right
-                    anchors.rightMargin: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 8
-                    color: closeMouse.pressed ? "#d40000" : (closeMouse.containsMouse ? "#ff1e1e" : "#ea0000")
-                    border.width: 1
-                    border.color: "#ffd2d2"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "X"
-                        color: "#ffffff"
-                        font.bold: true
-                        font.pixelSize: 13
-                    }
-
-                    MouseArea {
-                        id: closeMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: Qt.quit()
-                    }
-                }
-            }
-
             Item {
                 id: mainArea
                 x: 0
-                y: topBand.y + topBand.height + 14
+                y: 0
                 width: parent.width
                 height: parent.height - y
 
@@ -914,6 +806,7 @@ ApplicationWindow {
 
                 Canvas {
                     id: crownCanvas
+                    objectName: "crownCanvas"
                     anchors.fill: parent
                     antialiasing: true
                     onPaint: crownPaint(getContext("2d"))
@@ -937,6 +830,36 @@ ApplicationWindow {
                     onPositionChanged: function(drag) { handMoved(drag.x, drag.y) }
                     onExited: crownRelease()
                     onDropped: function(drop) { crownDropped(drop) }
+                }
+
+                Rectangle {
+                    // The emergency exit, beside the Clipboard: it quits SunTree, until we
+                    // find it is not needed (one action, then gone; Designdocument Krone.md).
+                    id: emergencyExit
+                    objectName: "emergencyExit"
+                    width: layoutRoot.clipboardHeight
+                    height: layoutRoot.clipboardHeight
+                    x: layoutRoot.stackX + layoutRoot.stackWidth - width
+                    y: layoutRoot.shellTop + 4
+                    radius: 8
+                    color: exitMouse.pressed ? "#d40000" : (exitMouse.containsMouse ? "#ff1e1e" : "#ea0000")
+                    border.width: 1
+                    border.color: "#ffd2d2"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "X"
+                        color: "#ffffff"
+                        font.bold: true
+                        font.pixelSize: 13
+                    }
+
+                    MouseArea {
+                        id: exitMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: Qt.quit()
+                    }
                 }
 
                 Rectangle {

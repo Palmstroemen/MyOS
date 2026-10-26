@@ -63,9 +63,11 @@ The tree draws its branches inward and makes them part of its stem.
    and the neighbouring field grows past it (following the field strictly, the pointer would
    fly across the half at every change).
 6. **Folders without subfolders** grow to the whole half but are not drawn in.
-7. **Letting go.** The pointer is free again back in the stem's hollow, over the top or bottom
-   edge while the first field is still small, or with Esc; the crown then runs back softly
-   through all levels.
+7. **Letting go.** The pointer is free again back in the stem's hollow, with Esc, or pushed on
+   past the first or last folder of any level, towards the stem (2026-10-26: before, one was
+   caught there sideways). The push adds up over small moves; moving back from the end starts
+   it again, so a nudge while scrolling does not let go. The crown then runs back softly
+   through all levels, and the half takes the pointer again only after the hand has left it.
 
 ## 2. What It Does
 
@@ -87,9 +89,10 @@ The tree draws its branches inward and makes them part of its stem.
 
 ## 4. The Stem From Top to Bottom
 
-- **The Clipboard** sits at the top of the stem (2026-10-25), not in the top band: the
-  multiclipboard, where every copy lands and which travels into all projects. One drops onto
-  it like onto any folder.
+- **The Clipboard** sits at the top of the stem (2026-10-25): the multiclipboard, where every
+  copy lands and which travels into all projects. One drops onto it like onto any folder.
+  Beside it the red X, an emergency exit that quits SunTree, until we find it is not needed.
+  The top band (filter buttons, "Dummy Ablage", development helpers) is gone (2026-10-26).
 - **The lens' frame** (✕ and the lens' levels) below it, while a lens is on: it pushes the
   Clipboard up.
 - **The CWD** in the middle (the oval), with the folders drawn into the stem above it as a
@@ -107,6 +110,7 @@ Tuned in the sketch, to be tuned further on the real desktop:
 | Lens | 2.2 | strength of the fish-eye at the start of a level |
 | Softness | 10 /s | spring rate of the shown values |
 | Scrolling | 1.0 | folders per hand movement along the ring |
+| Edge | 0.08 R | push past a level's first or last folder that lets go |
 
 One level takes 2 (T - ri) of hand movement outward: half of it growing, half drawing in.
 
@@ -134,7 +138,9 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
   small, or with Esc. Ways out, perhaps combined: over the top or bottom edge on every
   level; a strong, fast move (pulling away on purpose); across the stem into the other half.
   Mostly solved by "one action, then gone" (2026-10-26): the drop, the click and the lens are
-  the ways out. What remains is cancelling (Esc, the shortcut again, a click beside the crown).
+  the ways out. Caught sideways at the first or last folder: solved, pushing on past it lets
+  go on every level (1, point 7). What remains is cancelling (the shortcut again, a click
+  beside the crown).
 - SunTree closing itself after an action, the notice with undo, appearing under the pointer.
 - The global shortcut needs `pynput` (installed on 2026-10-26); without it SunTree reports
   "missing-pynput" and stays a normal window. Its default was "<ctrl>+<alt>+space", which
@@ -145,4 +151,3 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
 - Drawing in, the preview and the CWD oval overlap restlessly in the middle of the glide.
 - Many folders on one level (a hundred): the fish-eye keeps the one under the pointer
   readable; the others become hairlines. Enough, or a scroll position shown at the edge?
-- The top band (filters) in the moving crown.

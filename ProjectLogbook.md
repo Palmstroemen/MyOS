@@ -36,6 +36,9 @@ Kompakter Überblick: `docs/STATUS.md`.
             [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
                 schnellen Ruck oder quer in die andere Hälfte
                 -> weitgehend gelöst durch "eine Handlung, dann weg" (2026-10-26); bleibt: Abbrechen (Esc, Shortcut, Klick daneben)
+                [x] Seitlich gefangen am ersten und letzten Ordner (2026-10-26): über das Ende hinaus drücken lässt los, auf jeder
+                    Ebene (summiert, 0,08 R); die Hälfte greift erst wieder, wenn die Hand sie verlassen hat
+            [x] Obere Leiste weg (Filterknöpfe, "Dummy Ablage" - Entwicklungshilfen); das X als Notausgang neben dem Clipboard
     [ ] Eine Handlung, dann weg (2026-10-26, Designdokument Krone): Ablegen, CWD, Brille, Clipboard, Ordner in Scope öffnen;
         danach schließt SunTree; Hinweis mit Rückgängig; erscheint mit dem Stamm unter dem Zeiger
         [x] Shortcut während eines Drags kommt an (Xephyr, GTK 3 wie Nemo; Root-Grab und XRecord) - unter Cinnamon noch nicht erprobt

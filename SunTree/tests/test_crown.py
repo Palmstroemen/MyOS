@@ -157,3 +157,23 @@ def test_the_rings_while_drawn_in(js):
 def test_a_deeper_level_lists_the_way_down(js):
     rings = _layout(js, {"s": 400, "u": [0.5, 0.5], "lock": [0], "released": False})
     assert rings[0]["way"] == [0] and [len(r["items"]) for r in rings][0] == 3  # Aufträge's folders
+
+
+def test_over_the_end_of_a_level_lets_go_on_every_level(js):
+    # Aufträge drawn in, its 3 folders fill the half: pushing on past the first one, towards
+    # the stem, in many small steps lets go (the push adds up), not one small nudge.
+    deep = js.walk(js("start", 60, -60, 3), [[5, 0]] * 61)
+    assert deep["lock"] == [0] and not deep["released"]
+    top = dict(deep, u=[deep["u"][0], 0.01])  # at the first folder
+    nudge = js.walk(top, [[0, -2]] * 3)
+    assert not nudge["released"]
+    pushed = js.walk(top, [[0, -2]] * 15)
+    assert pushed["released"]
+
+
+def test_moving_back_from_the_end_starts_the_push_again(js):
+    deep = js.walk(js("start", 60, -60, 3), [[5, 0]] * 61)
+    top = js.walk(dict(deep, u=[deep["u"][0], 0.01]), [[0, -2]] * 8)  # half way to letting go
+    assert not top["released"]
+    back = js.walk(top, [[0, 4]] + [[0, -2]] * 8)
+    assert not back["released"]

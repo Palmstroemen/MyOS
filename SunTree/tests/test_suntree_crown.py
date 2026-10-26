@@ -2,6 +2,7 @@
 moving outward a folder grows, beyond the line T it is drawn into the stem and the pointer
 is pulled inward; a click goes into the folder under the pointer, a drop puts files there."""
 
+import math
 from pathlib import Path
 
 import pytest
@@ -130,7 +131,82 @@ def test_a_drop_lands_in_the_folder_under_the_pointer(world, window, tmp_path):
 def test_letting_go_runs_the_crown_back(world, window):
     geo = _call(window, "crownGeo", 1)
     _dive(window, geo["T"] - geo["ri"])
-    _call(window, "crownRelease")
+    _call(window, "crownRelease", False)
     for _ in range(40):
         _call(window, "crownTick", 0.2)
     assert _prop(window, "crownActive") == 0 and _call(window, "crownHit") is None
+
+
+def _texts(window):
+    from PySide6.QtQuick import QQuickItem
+
+    return [str(item.property("text")) for item in window.findChildren(QQuickItem)
+            if isinstance(item.property("text"), str)]
+
+
+def test_no_top_band_only_the_stem(world, window):
+    # The development helpers (filter buttons, "Dummy Ablage") are gone; SunTree is the crown
+    # and its stem.
+    filters = world["studio"] / ".MyOS" / "Filters"
+    filters.mkdir()
+    (filters / "Ausgaben.md").write_text("## Perspective 04_Finanz/Ausgaben\n")
+    _call(window, "refreshModels")
+    texts = _texts(window)
+    assert "Dummy Ablage" not in texts and "Ausgaben" not in texts
+
+
+def test_the_emergency_exit_beside_the_clipboard_quits(world, window):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtQml import qmlEngine
+    from PySide6.QtQuick import QQuickItem
+    from PySide6.QtTest import QTest
+
+    window.show()
+    QGuiApplication.instance().processEvents()
+    clipboard = next(h for h in _prop(window, "stemHits") if h["kind"] == "clipboard")
+    exit_ = window.findChild(QQuickItem, "emergencyExit")
+    at = exit_.mapToScene(QPointF(0, 0))
+    canvas = window.findChild(QQuickItem, "crownCanvas").mapToScene(QPointF(0, 0))
+    assert abs(at.y() - canvas.y() - clipboard["y"]) < 1  # on the Clipboard's line
+    assert at.x() - canvas.x() >= clipboard["x"] + clipboard["w"]  # to its right
+
+    quits = []
+    qmlEngine(window).quit.connect(lambda: quits.append(True))
+    centre = exit_.mapToScene(QPointF(exit_.width() / 2, exit_.height() / 2))
+    QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, centre.toPoint())
+    QGuiApplication.instance().processEvents()
+    assert quits
+
+
+def test_past_the_last_folder_into_the_stem(world, window):
+    # Noten fills the right half and is drawn in; its folders 2025 and 2026 fill it. Moving on
+    # sideways past the first folder, towards the stem, lets go; the half does not take the
+    # pointer again until the hand has left it.
+    geo = _dive(window, 2 * (_call(window, "crownGeo", 1)["T"] - _call(window, "crownGeo", 1)["ri"]) + 20)
+
+    def polar():
+        at = _prop(window, "crownPointer")
+        return _call(window, "crownPolar", 1, at["x"], at["y"])
+
+    while polar()["th"] > -80:  # up the half to the first folder, 2025
+        at = _prop(window, "crownPointer")
+        p = polar()
+        a = math.radians(p["th"])
+        _call(window, "handMoved", at["x"] + 3 * math.sin(a), at["y"] - 3 * math.cos(a))
+        for _ in range(3):
+            _call(window, "crownTick", 0.2)
+    assert _prop(window, "crownActive") == 1 and _call(window, "crownHit")["row"]["label"] == "2025"
+    for _ in range(60):
+        at = _prop(window, "crownPointer")
+        _call(window, "handMoved", at["x"] - 4, at["y"])  # sideways to the stem
+        for _ in range(3):
+            _call(window, "crownTick", 0.2)
+        if _prop(window, "crownActive") == 0:
+            break
+    assert _prop(window, "crownActive") == 0
+    at = _prop(window, "crownPointer")
+    _call(window, "handMoved", at["x"] + 1, at["y"] + 1)  # still on the half's edge
+    assert _prop(window, "crownActive") == 0
+    _call(window, "handMoved", geo["cx"] - 40, geo["cy"])  # in the stem
+    _call(window, "handMoved", geo["cx"] + geo["ri"] + 5, geo["cy"])  # and back into the half
+    assert _prop(window, "crownActive") == 1
