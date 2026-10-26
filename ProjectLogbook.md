@@ -35,6 +35,11 @@ Kompakter Überblick: `docs/STATUS.md`.
             Stamm (ausspucken), Feinabstimmung am echten Bildschirm
             [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
                 schnellen Ruck oder quer in die andere Hälfte
+                -> weitgehend gelöst durch "eine Handlung, dann weg" (2026-10-26); bleibt: Abbrechen (Esc, Shortcut, Klick daneben)
+    [ ] Eine Handlung, dann weg (2026-10-26, Designdokument Krone): Ablegen, CWD, Brille, Clipboard, Ordner in Scope öffnen;
+        danach schließt SunTree; Hinweis mit Rückgängig; erscheint mit dem Stamm unter dem Zeiger
+        [x] Shortcut während eines Drags kommt an (Xephyr, GTK 3 wie Nemo; Root-Grab und XRecord) - unter Cinnamon noch nicht erprobt
+        [x] Globaler Shortcut repariert (2026-10-26): pynput installiert, Vorgabe "<ctrl>+<alt>+<space>" (vorher ungültig, Dienst schlug still fehl)
 [ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
     Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
     [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [x] E3 Scope an der Sitzung  [x] E3b Pfadleiste mit Rahmen (CLD)  [x] E3c Desk der Abteilung (Template gewinnt, Änderungen ins Template)

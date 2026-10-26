@@ -6,6 +6,38 @@ MyOS folders on the left, the other folders on the right, and the stem in the mi
 CWD and its parents). The crown makes it move softly: one reaches deep folders by moving the
 mouse outward, without clicking through levels.
 
+**One action, then gone** (2026-10-26). SunTree is a grip, not a window: a shortcut calls it,
+one does one thing, and it disappears. Every action is also the way out, so one is not caught
+in it. Uses, all of this shape:
+
+1. **Dropping files** - drag files (from Nemo, a browser, Scope), call SunTree, find the
+   folder, drop; on an embryo it is born by it. Perhaps copying instead of moving with a key
+   held at the drop.
+2. **Changing the CWD** - double-click a folder; Scope follows, as the place is shared.
+3. **Putting a lens on or taking it off** - a filter or a perspective.
+4. **Collecting into the Clipboard** - files from several places dropped one after another
+   onto the Clipboard at the top of the stem, each a short call of its own.
+5. **Dropping from the Clipboard** - an entry dragged from the Clipboard into a folder of the
+   crown, all inside SunTree.
+6. **Opening a folder** - Scope opens exactly there (middle click or a key): a quick jump to a
+   place, not only a change of the CWD.
+7. **Only looking** - where am I, which lens is on? The one use without an action, so
+   cancelling must always work: Esc, the shortcut again, a click beside the crown.
+
+What follows from it:
+
+- After the action SunTree is gone, so one no longer sees where the files went: a short
+  notice ("3 files -> Belege/03"), perhaps with undo, so a wrong drop is not annoying.
+- SunTree appears with the stem under the pointer: the hand starts in the hollow and every
+  direction is a way into the crown, like a pie menu.
+- The way back out of the stem matters mostly for dropping (one level too deep, out again);
+  it does not close SunTree.
+- **The shortcut during a drag** works (tried on 2026-10-26 in Xephyr with a GTK 3 drag
+  source, as Nemo): both a passive key grab on the root window (how desktop shortcuts are
+  bound) and an XRecord listener (how pynput's `GlobalHotKeys` listens) get Ctrl+Alt+Space
+  while the drag is held, and the drag goes on; so does SunTree's own service. Not yet tried
+  under Cinnamon itself.
+
 Decided on 2026-10-25 with a clickable sketch: `SunTree/prototype/Krone.html` (open it in a
 browser; the artifact "SunTree Krone" is the same page). The arithmetic is
 `SunTree/js/Crown.js`, tested in `SunTree/tests/test_crown.py`.
@@ -101,6 +133,13 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
   lets go only back in the hollow, over the top or bottom edge while the first field is
   small, or with Esc. Ways out, perhaps combined: over the top or bottom edge on every
   level; a strong, fast move (pulling away on purpose); across the stem into the other half.
+  Mostly solved by "one action, then gone" (2026-10-26): the drop, the click and the lens are
+  the ways out. What remains is cancelling (Esc, the shortcut again, a click beside the crown).
+- SunTree closing itself after an action, the notice with undo, appearing under the pointer.
+- The global shortcut needs `pynput` (installed on 2026-10-26); without it SunTree reports
+  "missing-pynput" and stays a normal window. Its default was "<ctrl>+<alt>+space", which
+  pynput rejects ("<space>" is right), so the service failed silently: fixed, and SunTree's
+  own service tried during a drag in Xephyr.
 - The way back out of the stem (spitting folders out) is not built yet; a parent clicked
   in the stem is gone into at once.
 - Drawing in, the preview and the CWD oval overlap restlessly in the middle of the glide.

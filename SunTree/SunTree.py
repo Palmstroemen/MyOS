@@ -16,6 +16,9 @@ from PySide6.QtQml import QQmlApplicationEngine
 from core.scope_api import ScopeApi
 from daemon.lens_link import LensLink
 
+# pynput's syntax: named keys in angle brackets ("<space>", not "space").
+DEFAULT_HOTKEY = "<ctrl>+<alt>+<space>"
+
 
 class GlobalHotkeyService(QObject):
     activated = Signal()
@@ -325,7 +328,7 @@ def main() -> int:
     api = ScopeApi(start_path)
     adapter = MyOSBackendAdapter(api)
     backend = SunTreeBackend(adapter, start_path)
-    hotkey = os.environ.get("SUNTREE_HOTKEY", "<ctrl>+<alt>+space")
+    hotkey = os.environ.get("SUNTREE_HOTKEY", DEFAULT_HOTKEY)
     hotkey_service = GlobalHotkeyService(hotkey)
     requested_hidden = os.environ.get("SUNTREE_START_HIDDEN", "1") not in {"0", "false", "no"}
     start_hidden = requested_hidden and hotkey_service.status() == "active"
