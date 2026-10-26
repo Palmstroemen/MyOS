@@ -1,6 +1,7 @@
 """The tools row at the top of M's dropdown below the CWD (Scope/CwdTools.qml): what would hide
 behind a menu lies there as buttons - Clipboard, search, light/dark, language, hidden folders
-(Designdocument Perspective Resolver MVP.md, E4)."""
+(Designdocument Perspective Resolver MVP.md, E4). The search is no tool here: its magnifier stands
+in the line, right of the CWD (a click in the dropdown closed it before the field showed)."""
 
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
 
 SCOPE_DIR = Path(__file__).resolve().parents[1]
-TOOLS = ["toolClipboard", "toolSearch", "toolTheme", "toolLanguage", "toolHidden", "toolSetup"]
+TOOLS = ["toolClipboard", "toolTheme", "toolLanguage", "toolHidden", "toolSetup"]
 
 
 @pytest.fixture
@@ -25,7 +26,6 @@ def tools(tmp_path):
         'CwdTools { id: t; objectName: "tools"; buttonSize: 28; baseFont: 13\n'
         '  property var heard: []\n'
         '  onOpenClipboard: heard = heard.concat(["clipboard"])\n'
-        '  onOpenSearch: heard = heard.concat(["search"])\n'
         '  onSwitchTheme: heard = heard.concat(["theme"])\n'
         '  onSwitchLanguage: heard = heard.concat(["language"])\n'
         '  onToggleHidden: heard = heard.concat(["hidden"])\n'
@@ -63,7 +63,7 @@ def test_each_button_says_what_it_wants(tools):
         _click(tools, name)
     heard = tools.rootObject().property("heard")
     assert (heard.toVariant() if hasattr(heard, "toVariant") else heard) == [
-        "clipboard", "search", "theme", "language", "hidden", "setup"]
+        "clipboard", "theme", "language", "hidden", "setup"]
 
 
 def test_the_buttons_show_the_state(tools):
@@ -77,3 +77,7 @@ def test_the_buttons_show_the_state(tools):
     assert _button(tools, "toolLanguage").property("label") == "DE"
     root.setProperty("hiddenShown", False)
     assert not _button(tools, "toolHidden").property("checked")
+
+
+def test_the_search_is_no_tool_of_the_dropdown(tools):
+    assert _button(tools, "toolSearch") is None

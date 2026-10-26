@@ -2933,9 +2933,9 @@ ApplicationWindow {
             showModeToggle: !window.minimalView
             narrowButtons: window.minimalView
             showSearchToggle: true
-            // Minimal view: search and Clipboard are in the tools of the CWD dropdown (the
-            // search field still opens here), no menu.
-            showSearchButton: !window.minimalView
+            // Minimal view: the magnifier stays in the line, right of the CWD (in the dropdown a
+            // click closed it before the field showed); the Clipboard is in its tools.
+            showSearchButton: true
             usePathBar: window.minimalView || setupPage.pathBarOn
             previewEnabled: setupPage.previewOn
             previewShowBackground: setupPage.previewBackgroundOn
@@ -3071,7 +3071,6 @@ ApplicationWindow {
                 pillBorder: theme.pillBorder
                 pillActive: theme.smallButtonActiveBg
                 textColor: theme.text
-                iconSearch: window.iconSearch
                 clipboardHasItems: window.clipboardHasItems
                 darkTheme: window.darkTheme
                 language: window.uiLanguage
@@ -3085,10 +3084,6 @@ ApplicationWindow {
                     if (!payload) return
                     window.dropToClipboard(payload)
                     drop.acceptProposedAction()
-                }
-                onOpenSearch: {
-                    projectsBrowser.closeCwdHoverPanels("tools-search")
-                    window.level2SearchActive = true
                 }
                 onSwitchTheme: window.darkTheme = !window.darkTheme
                 onSwitchLanguage: window.toggleUiLanguage()

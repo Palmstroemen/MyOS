@@ -151,6 +151,8 @@ Kompakter Überblick: `docs/STATUS.md`.
         eckig rechts)
         Ohne Pfadleiste: ↑-Knopf links vom aktuellen Ordner (einen Ordner höher, wie Klick aufs Eltern-Segment; sofort
         bei jedem Klick); M bleibt ohne (dort klettert das CWD-Dropdown); auch im Setup-Beispiel
+        M: Lupe aus dem CWD-Dropdown in die Zeile rechts vom CWD geholt (im Dropdown schloss der Klick es, ohne dass das
+        Suchfeld zu sehen war); Klick öffnet das Feld mit Fokus, erneuter Klick schließt es
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
     [x] P-Button: macht den angewählten Ordner, sonst (ohne Auswahl) den angezeigten zum Projekt; durchgestrichenes P macht ein Projekt wieder zum Ordner; P-Badge auf Projektordnern
     [x] Umbenennen in der Ordnerleiste: Feld zeigt den alten Namen (war leer); F2 benennt die Auswahl im FilesPanel um

@@ -16,7 +16,6 @@ Row {
     property color pillBorder: "#5f7297"
     property color pillActive: "#496a97"
     property color textColor: "#e8efff"
-    property string iconSearch: ""
     property real emptyOpacity: 0.45
 
     property bool clipboardHasItems: false
@@ -26,7 +25,6 @@ Row {
 
     signal openClipboard()
     signal clipboardDrop(var drop)
-    signal openSearch()
     signal switchTheme()
     signal switchLanguage()
     signal toggleHidden()
@@ -80,13 +78,6 @@ Row {
             anchors.fill: parent
             onDropped: function(drop) { root.clipboardDrop(drop) }
         }
-    }
-    Tool {
-        objectName: "toolSearch"
-        label: "⌕"
-        iconSource: root.iconSearch
-        tip: qsTr("Search")
-        onActivated: root.openSearch()
     }
     Tool {
         objectName: "toolTheme"
