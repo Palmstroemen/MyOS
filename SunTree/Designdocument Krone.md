@@ -200,7 +200,6 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
   the ways out. Caught sideways at the first or last folder: solved, pushing on past it lets
   go on every level (1, point 7). What remains is cancelling (the shortcut again, a click
   beside the crown).
-- SunTree's texts are not translated yet (no `.ts` for SunTree; the new ones use qsTr).
 - The global shortcut needs `pynput` (installed on 2026-10-26); without it SunTree reports
   "missing-pynput" and stays a normal window. Its default was "<ctrl>+<alt>+space", which
   pynput rejects ("<space>" is right), so the service failed silently: fixed, and SunTree's

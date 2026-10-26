@@ -904,7 +904,7 @@ ApplicationWindow {
         ctx.fillStyle = "#2c3f5d"; ctx.fill()
         ctx.strokeStyle = "#5f7297"; ctx.lineWidth = 1; ctx.stroke()
         ctx.fillStyle = "#e8efff"; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
-        ctx.fillText("Clipboard (" + clipboardModel.length + ")", layoutRoot.stackX + cbW / 2, cbY + layoutRoot.clipboardHeight / 2)
+        ctx.fillText(qsTr("Clipboard (%1)").arg(clipboardModel.length), layoutRoot.stackX + cbW / 2, cbY + layoutRoot.clipboardHeight / 2)
         hits.push({ kind: "clipboard", path: "", x: layoutRoot.stackX, y: cbY, w: cbW, h: layoutRoot.clipboardHeight })
 
         var places = stemPlaces(), ops = [], seen = ({})

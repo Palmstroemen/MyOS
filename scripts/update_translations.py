@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Update the UI translations of Scope and PostFix.
+Update the UI translations of Scope, PostFix and SunTree.
 
 Source strings in the code (qsTr / tr) are English; every other language is a
 translation in <app>/i18n/<app>_<lang>.ts. This script extracts the strings from the code
@@ -8,7 +8,7 @@ into the .ts files (existing translations are kept, new strings come in as "unfi
 and compiles the .qm files the apps load. Translate unfinished strings in the .ts
 (e.g. with Qt Linguist) and run it again.
 
-    python3 scripts/update_translations.py [scope|postfix ...]
+    python3 scripts/update_translations.py [scope|postfix|suntree ...]
 """
 
 import subprocess
@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APPS = {
     "scope": (["Scope/*.qml", "Scope/Dialogs/*.qml", "Scope/js/*.js"], ["de"]),
     "postfix": (["PostFix/*.py"], ["de"]),
+    "suntree": (["SunTree/*.qml", "SunTree/js/*.js"], ["de"]),
 }
 
 
@@ -42,7 +43,7 @@ def update(app: str) -> None:
 
 
 def app_dir(app: str) -> str:
-    return {"scope": "Scope", "postfix": "PostFix"}[app]
+    return {"scope": "Scope", "postfix": "PostFix", "suntree": "SunTree"}[app]
 
 
 def main(argv) -> int:

@@ -10,6 +10,9 @@ from SunTree.tests.test_suntree_crown import _call, _gone, suntree, window, worl
 
 
 def _shown(window):
+    # Earlier tests leave the real pointer anywhere; over a half it would take it as soon as
+    # the window shows, and a click beside would land on a folder instead.
+    QCursor.setPos(-200, -200)
     window.show()
     QGuiApplication.instance().processEvents()
     assert window.isVisible()

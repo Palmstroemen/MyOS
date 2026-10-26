@@ -9,7 +9,7 @@ from typing import Any, Optional
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from PySide6.QtCore import QEasingCurve, QObject, QPointF, QVariantAnimation, Signal, Slot, QUrl, QTimer
+from PySide6.QtCore import QEasingCurve, QObject, QPointF, QTranslator, QVariantAnimation, Signal, Slot, QUrl, QTimer
 from PySide6.QtGui import QGuiApplication, QIcon, QCursor, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
@@ -38,6 +38,19 @@ def grab_screen(x: int, y: int, w: int, h: int) -> QImage:
     if screen is None:
         return QImage()
     return screen.grabWindow(0, x, y, w, h).toImage()
+
+
+def install_translator(app: QGuiApplication, code: str = "de") -> Optional[QTranslator]:
+    """SunTree in the language code: the strings in the code are English, other languages
+    load i18n/suntree_<code>.qm (as Scope). The installed translator, or None (English, or
+    no translation)."""
+    if code == "en":
+        return None
+    translator = QTranslator(app)
+    if not translator.load(str(Path(__file__).with_name("i18n") / f"suntree_{code}.qm")):
+        return None
+    app.installTranslator(translator)
+    return translator
 
 
 def pointer_and_screen() -> dict:
@@ -438,6 +451,7 @@ def main() -> int:
 
     app = QGuiApplication(sys.argv)
     app.setApplicationName("SunTree")
+    install_translator(app, "de")  # German, as Scope starts
     icon_path = REPO_ROOT / "Scope" / "Theme" / "icons" / "folder.svg"
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))

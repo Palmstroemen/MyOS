@@ -57,7 +57,7 @@ Kompakter Überblick: `docs/STATUS.md`.
             erscheint SunTree; beim Verschwinden fährt der Zeiger zurück, wo er abgeholt wurde
         [x] Sanft weg (2026-10-26): Momentaufnahme zerläuft in Unschärfe, blendet aus und zieht sich zum Stamm
             zusammen (300 ms); ruckelte, weil die Krone den zurückfahrenden Zeiger wieder einfing
-        [ ] SunTree übersetzen (.ts fehlt)
+        [x] SunTree übersetzt (2026-10-26): SunTree/i18n/suntree_de.ts wie bei Scope, scripts/update_translations.py suntree
         [x] Shortcut während eines Drags kommt an (Xephyr, GTK 3 wie Nemo; Root-Grab und XRecord) - unter Cinnamon noch nicht erprobt
         [x] Globaler Shortcut repariert (2026-10-26): pynput installiert, Vorgabe "<ctrl>+<alt>+<space>" (vorher ungültig, Dienst schlug still fehl)
 [ ] Perspektiven (Brille): Verhalten festgelegt (Designdocument Perspective Resolver MVP.md, Teil A, 2026-10-22);
