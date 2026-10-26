@@ -25,6 +25,42 @@ Decided on 2026-10-26.
 
 Each value shows its default and can be set back to it.
 
+**The small crown** (2026-10-26): left on the SunTree tab, a half crown with sample folders,
+drawn with SunTree's own arithmetic (`Scope/CrownPreview.qml` on `SunTree/js/Crown.js`). Softly
+glowing lines show the borders - inner radius (grey), line T (amber), where drawing in begins
+(the field's edge, turquoise) and where it ends (the next level's start, magenta); each slider
+has a dot in its line's colour. The exit at the edge is the rim running on past the first and
+last folder, towards the stem (green).
+
+One plays with it oneself (2026-10-26, a dive played at every change confused): the hand over
+it moves the pointer as in SunTree - from the hollow out to the rim through a level and a half,
+up and down through the folders - and the fan follows with the softness set; the hand shows
+as a ring, the pointer SunTree would put as a dot. Moving a border
+plays nothing, the line just moves. Over a slider its demo plays, in a loop: for the borders
+the pointer goes where the value counts and the line pulses; over the magnifier the fan
+breathes open and closed around the value set; over softness the hand (a ring) glides up and
+down and the fan with its pointer follows - far behind and not to the ends when soft, close
+to the hand when direct (jumps showed too little: the fan had caught up before the next); over the exit the pointer goes to the first folder
+and the green rim pulses. Taking a slider stops it - the fan just follows the slider - and it
+stays quiet until the mouse has left the row. A new value never starts anything by itself.
+Half the stem is hinted on its left, the CWD oval's round end in the hollow, so one sees at
+once what it is.
+
+**Words for the user** (2026-10-26): crown, drawing in and line T mean nothing to the user. On
+the tab SunTree is "the folder fan for quick dropping" and drawing in is "the change"; the
+design documents keep their words. The sliders go from the inside out, as their lines lie in
+the small fan, then the three that are no line; a line under each says what it does:
+
+| Setting | Name | Says |
+|---|---|---|
+| inner | Size of the middle | the empty middle at the stem: every level starts there, back there the fan lets go |
+| leave | Landing | how far among the subfolders one already is after the change |
+| lineT | Way per level | how far the mouse moves outward until the folder fills the fan and one goes a level deeper |
+| enter | Change begins | how deep in the folder the pointer is when the change into its subfolders begins |
+| lens | Magnifier | how much the folder under the pointer is enlarged already at the start of a level |
+| softness | Softness | how fast everything follows the hand (not in the small fan) |
+| edge | Exit at the edge | how far one pushes past the first or last folder until the fan lets go (not in the small fan) |
+
 ## 3. One Settings File for All
 
 - `~/.config/MyOS/MyOS.conf` (QSettings "MyOS"/"MyOS"), groups `General`, `Scope`, `Headline`,

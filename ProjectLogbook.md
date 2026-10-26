@@ -77,6 +77,7 @@ Kompakter Überblick: `docs/STATUS.md`.
             [ ] Setup auf der Rückseite von Scope (Scope/Designdocument Setup.md): ⚙ dreht Scope um; Tabs Allgemein, Scope,
                 Headline, SunTree; eine Einstellungsdatei für alle (core/settings.py, ~/.config/MyOS/MyOS.conf)
                 [x] Schritt 1 (2026-10-26): Umdrehen, Hell/Dunkel und Sprache (bleiben jetzt gespeichert), SunTree-Werte
+                [x] Kleine Krone im SunTree-Tab (2026-10-26): leuchtende Grenzlinien, Tauchgang bei jeder Änderung
                 [ ] Schritt 2: Farbschemata wählen  [ ] Schritt 3: bearbeiten  [ ] Schritt 4: Tabs Scope und Headline
                 Später: Anmelden/Ummelden, Abschalten
             [ ] Schritt 2: Auftauchen am oberen Bildschirmrand (Edge-Dock) - zurückgestellt (2026-10-25): im Prototyp reicht

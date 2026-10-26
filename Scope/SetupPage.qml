@@ -18,6 +18,12 @@ Rectangle {
     property color pill: darkTheme ? "#2c3f5d" : "#dfe3f0"
     property color pillBorder: darkTheme ? "#5f7297" : "#c6ccdf"
     property alias currentTab: tabs.currentIndex
+    // The small fan's demo: the slider row under the mouse - until its slider is taken; then
+    // the fan follows the slider, quiet until the mouse has left the row.
+    property string hoveredDemo: ""
+    property string quieted: ""
+    property int slidersHeld: 0
+    readonly property string demo: slidersHeld > 0 || hoveredDemo === quieted ? "" : hoveredDemo
 
     signal switchTheme()
     signal switchLanguage()
@@ -57,15 +63,39 @@ Rectangle {
         }
     }
 
-    // One value of the settings file as a slider, with its default.
-    component SettingSlider: RowLayout {
+    // One value of the settings file as a slider, with its default and a line saying what it
+    // does.
+    component SettingSlider: ColumnLayout {
         id: row
         property string key: ""
         property string label: ""
+        property string help: ""
         property string unit: ""   // "%" shows shares as percent, "R" as shares of the radius
+        property color mark: "transparent"  // the colour of its line in the small crown
+        property alias value: slider.value
         property real stored: root.settings ? Number(root.settings.setting(key)) : 0
         property var limits: root.settings ? root.settings.settingLimits(key) : [0, 1]
+        readonly property string demo: key.split("/").pop()
+        spacing: 2
+        HoverHandler {
+            onHoveredChanged: {
+                if (hovered) root.hoveredDemo = row.demo
+                else {
+                    if (root.hoveredDemo === row.demo) root.hoveredDemo = ""
+                    if (root.quieted === row.demo) root.quieted = ""
+                }
+            }
+        }
+        RowLayout {
+        objectName: "row_" + row.key
         spacing: 12
+        Layout.fillWidth: true
+        Rectangle {
+            width: 10
+            height: 10
+            radius: 5
+            color: row.mark
+        }
         Text {
             text: row.label
             color: root.textColor
@@ -80,6 +110,10 @@ Rectangle {
             value: row.stored
             stepSize: (to - from) / 100
             Layout.fillWidth: true
+            onPressedChanged: {
+                root.slidersHeld += pressed ? 1 : -1
+                if (pressed) root.quieted = row.demo
+            }
             onValueChanged: {
                 if (!root.settings || Math.abs(value - row.stored) < 1e-9) return
                 if (root.settings.setSetting(row.key, value)) row.stored = value
@@ -101,6 +135,17 @@ Rectangle {
                 row.stored = Number(root.settings.setting(row.key))
                 slider.value = row.stored
             }
+        }
+        }
+        Text {
+            objectName: "help_" + row.key
+            text: row.help
+            color: root.mutedColor
+            font.pixelSize: root.baseFont - 1
+            wrapMode: Text.WordWrap
+            leftPadding: 22
+            Layout.fillWidth: true
+            Layout.bottomMargin: 6
         }
     }
 
@@ -185,21 +230,55 @@ Rectangle {
                 Item { Layout.fillHeight: true }
             }
 
-            ColumnLayout {  // SunTree: the crown (SunTree/Designdocument Krone.md, 5)
-                spacing: 8
-                Text {
-                    text: qsTr("SunTree reads these when it appears next.")
-                    color: root.mutedColor
-                    font.pixelSize: root.baseFont
+            RowLayout {  // SunTree: the crown (SunTree/Designdocument Krone.md, 5)
+                spacing: 24
+                CrownPreview {
+                    // What the values do, at once: SunTree's arithmetic on sample folders.
+                    id: crownPreview
+                    objectName: "crownPreview"
+                    Layout.preferredWidth: 220
+                    Layout.preferredHeight: 420
+                    Layout.alignment: Qt.AlignTop
+                    darkTheme: root.darkTheme
+                    lineT: lineTSlider.value
+                    inner: innerSlider.value
+                    enter: enterSlider.value
+                    leave: leaveSlider.value
+                    lens: lensSlider.value
+                    softness: softnessSlider.value
+                    edge: edgeSlider.value
+                    demo: root.demo
                 }
-                SettingSlider { key: "SunTree/lineT"; label: qsTr("Line T"); unit: "R"; Layout.fillWidth: true }
-                SettingSlider { key: "SunTree/inner"; label: qsTr("Inner radius"); unit: "R"; Layout.fillWidth: true }
-                SettingSlider { key: "SunTree/enter"; label: qsTr("Drawing in begins at"); unit: "%"; Layout.fillWidth: true }
-                SettingSlider { key: "SunTree/leave"; label: qsTr("Drawing in ends at"); unit: "%"; Layout.fillWidth: true }
-                SettingSlider { key: "SunTree/lens"; label: qsTr("Fish-eye"); Layout.fillWidth: true }
-                SettingSlider { key: "SunTree/softness"; label: qsTr("Softness"); Layout.fillWidth: true }
-                SettingSlider { key: "SunTree/edge"; label: qsTr("Letting go at the end"); unit: "R"; Layout.fillWidth: true }
-                Item { Layout.fillHeight: true }
+                ColumnLayout {
+                    spacing: 8
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
+                    // For the user: SunTree is "the folder fan", drawing in is "the change" (the
+                    // design documents keep crown and drawing in). From the inside out, as the
+                    // lines lie in the small crown; then the three that are no line.
+                    Text {
+                        text: qsTr("The folder fan for quick dropping. It reads these when it appears next. Move the mouse through the small fan on the left: it answers as the real one does. Over a slider it shows what the slider changes.")
+                        color: root.mutedColor
+                        font.pixelSize: root.baseFont
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: 8
+                    }
+                    SettingSlider { id: innerSlider; key: "SunTree/inner"; label: qsTr("Size of the middle"); unit: "R"; mark: crownPreview.innerColor; Layout.fillWidth: true
+                        help: qsTr("The empty middle at the stem: every level starts there, and back there the fan lets go.") }
+                    SettingSlider { id: leaveSlider; key: "SunTree/leave"; label: qsTr("Landing"); unit: "%"; mark: crownPreview.leaveColor; Layout.fillWidth: true
+                        help: qsTr("How far among the subfolders you already are after the change.") }
+                    SettingSlider { id: lineTSlider; key: "SunTree/lineT"; label: qsTr("Way per level"); unit: "R"; mark: crownPreview.lineColor; Layout.fillWidth: true
+                        help: qsTr("How far you move the mouse outward until the folder fills the whole fan and you go one level deeper.") }
+                    SettingSlider { id: enterSlider; key: "SunTree/enter"; label: qsTr("Change begins"); unit: "%"; mark: crownPreview.enterColor; Layout.fillWidth: true
+                        help: qsTr("How deep in the folder the pointer is when the change into its subfolders begins.") }
+                    SettingSlider { id: lensSlider; key: "SunTree/lens"; label: qsTr("Magnifier"); Layout.fillWidth: true
+                        help: qsTr("How much the folder under the pointer is enlarged already at the start of a level.") }
+                    SettingSlider { id: softnessSlider; key: "SunTree/softness"; label: qsTr("Softness"); Layout.fillWidth: true
+                        help: qsTr("How fast everything follows the hand: smaller is softer, larger is more direct.") }
+                    SettingSlider { id: edgeSlider; key: "SunTree/edge"; label: qsTr("Exit at the edge"); unit: "R"; mark: crownPreview.exitColor; Layout.fillWidth: true
+                        help: qsTr("How far you push past the first or last folder until the fan lets go (the rim running on, green).") }
+                }
             }
         }
     }

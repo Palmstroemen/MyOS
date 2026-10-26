@@ -114,3 +114,55 @@ def test_suntree_values_go_to_the_settings_file(page):
 
     _click(view, _named(view, "reset_SunTree/enter"))
     assert Settings().get("SunTree/enter") == 0.75 and slider.property("value") == 0.75
+
+
+def test_the_small_crown_follows_the_sliders(page):
+    view, _ = page
+    _click(view, _named(view, "tabSunTree"))
+    preview = _named(view, "crownPreview")
+    assert preview is not None and preview.property("enter") == 0.75
+    _named(view, "setting_SunTree/enter").setProperty("value", 0.9)
+    QTest.qWait(30)
+    assert abs(preview.property("enter") - 0.9) < 1e-9
+
+
+ORDER = ["SunTree/inner", "SunTree/leave", "SunTree/lineT", "SunTree/enter",
+         "SunTree/lens", "SunTree/softness", "SunTree/edge"]
+
+
+def test_the_sliders_go_from_the_inside_out_each_explained(page):
+    # In the order their lines lie in the small crown, then the three that are no line; a
+    # line under each says what it does (the user does not know "crown" or "drawing in").
+    view, _ = page
+    _click(view, _named(view, "tabSunTree"))
+    sliders = [_named(view, "setting_" + key) for key in ORDER]
+    ys = [s.mapToScene(QPointF(0, 0)).y() for s in sliders]
+    assert ys == sorted(ys)
+    for key in ORDER:
+        help_line = _named(view, "help_" + key)
+        assert help_line is not None and help_line.isVisible() and len(help_line.property("text")) > 20
+
+
+def test_over_a_slider_its_demo_plays_and_a_click_stops_it(page):
+    from PySide6.QtCore import QPoint
+    view, _ = page
+    _click(view, _named(view, "tabSunTree"))
+    preview = _named(view, "crownPreview")
+    label = _named(view, "row_SunTree/lens")
+    at = label.mapToScene(QPointF(label.width() / 2, label.height() / 2)).toPoint()
+    QTest.mouseMove(view, at)
+    QTest.qWait(100)
+    assert preview.property("demo") == "lens"
+    slider = _named(view, "setting_SunTree/lens")
+    press = slider.mapToScene(QPointF(slider.width() / 2, slider.height() / 2)).toPoint()
+    QTest.mousePress(view, Qt.LeftButton, Qt.NoModifier, press)
+    QTest.qWait(50)
+    assert preview.property("demo") == ""  # following the slider now
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, press)
+    QTest.qWait(50)
+    assert preview.property("demo") == ""  # and stays quiet while the mouse is on the row
+    QTest.mouseMove(view, QPoint(5, 5))  # away ...
+    QTest.qWait(50)
+    QTest.mouseMove(view, at)  # ... and back: it shows again
+    QTest.qWait(100)
+    assert preview.property("demo") == "lens"

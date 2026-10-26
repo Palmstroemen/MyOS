@@ -941,114 +941,149 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>SetupPage</name>
     <message>
-        <location filename="../SetupPage.qml" line="97"/>
+        <location filename="../SetupPage.qml" line="131"/>
         <source>Default</source>
         <translation>Standard</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="115"/>
+        <location filename="../SetupPage.qml" line="160"/>
         <source>Setup</source>
         <translation>Setup</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="123"/>
+        <location filename="../SetupPage.qml" line="168"/>
         <source>Done</source>
         <translation>Fertig</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="131"/>
+        <location filename="../SetupPage.qml" line="176"/>
         <source>General</source>
         <translation>Allgemein</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="132"/>
+        <location filename="../SetupPage.qml" line="177"/>
         <source>Scope</source>
         <translation>Scope</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="133"/>
+        <location filename="../SetupPage.qml" line="178"/>
         <source>Headline</source>
         <translation>Headline</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="134"/>
+        <location filename="../SetupPage.qml" line="179"/>
         <source>SunTree</source>
         <translation>SunTree</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="146"/>
+        <location filename="../SetupPage.qml" line="191"/>
         <source>Appearance</source>
         <translation>Darstellung</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="149"/>
+        <location filename="../SetupPage.qml" line="194"/>
         <source>Light</source>
         <translation>Hell</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="149"/>
+        <location filename="../SetupPage.qml" line="194"/>
         <source>Dark</source>
         <translation>Dunkel</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="155"/>
+        <location filename="../SetupPage.qml" line="200"/>
         <source>Language</source>
         <translation>Sprache</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="163"/>
+        <location filename="../SetupPage.qml" line="208"/>
         <source>Colour schemes come here next.</source>
         <translation>Farbschemata kommen als Nächstes hierher.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="172"/>
+        <location filename="../SetupPage.qml" line="217"/>
         <source>Scope&apos;s settings come here as its top bar is taken away.</source>
         <translation>Die Einstellungen von Scope kommen hierher, wenn die obere Leiste wegfällt.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="181"/>
+        <location filename="../SetupPage.qml" line="226"/>
         <source>The Headline&apos;s settings come here with the Headline.</source>
         <translation>Die Einstellungen der Headline kommen mit der Headline hierher.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="191"/>
-        <source>SunTree reads these when it appears next.</source>
-        <translation>SunTree liest diese Werte, wenn es das nächste Mal erscheint.</translation>
+        <location filename="../SetupPage.qml" line="278"/>
+        <source>How fast everything follows the hand: smaller is softer, larger is more direct.</source>
+        <translation>Wie schnell alles der Hand folgt: kleiner ist weicher, größer ist direkter.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="195"/>
-        <source>Line T</source>
-        <translation>Linie T</translation>
+        <location filename="../SetupPage.qml" line="280"/>
+        <source>How far you push past the first or last folder until the fan lets go (the rim running on, green).</source>
+        <translation>Wie weit du über den ersten oder letzten Ordner hinausschiebst, bis der Fächer loslässt (der weiterlaufende Rand, grün).</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="196"/>
-        <source>Inner radius</source>
-        <translation>Innenradius</translation>
+        <location filename="../SetupPage.qml" line="267"/>
+        <source>Size of the middle</source>
+        <translation>Größe der Mitte</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="197"/>
-        <source>Drawing in begins at</source>
-        <translation>Einsaugen beginnt bei</translation>
+        <location filename="../SetupPage.qml" line="260"/>
+        <source>The folder fan for quick dropping. It reads these when it appears next. Move the mouse through the small fan on the left: it answers as the real one does. Over a slider it shows what the slider changes.</source>
+        <translation>Der Ordner-Fächer zum schnellen Ablegen. Er liest diese Werte, wenn er das nächste Mal erscheint. Fahre links mit der Maus durch den kleinen Fächer: Er antwortet wie der echte. Über einem Regler zeigt er, was der Regler verändert.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="198"/>
-        <source>Drawing in ends at</source>
-        <translation>Einsaugen endet bei</translation>
+        <location filename="../SetupPage.qml" line="268"/>
+        <source>The empty middle at the stem: every level starts there, and back there the fan lets go.</source>
+        <translation>Die leere Mitte am Stamm: Dort beginnt jede Ebene, und dorthin zurück lässt der Fächer los.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="199"/>
-        <source>Fish-eye</source>
-        <translation>Fischauge</translation>
+        <location filename="../SetupPage.qml" line="269"/>
+        <source>Landing</source>
+        <translation>Landung</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="200"/>
+        <location filename="../SetupPage.qml" line="270"/>
+        <source>How far among the subfolders you already are after the change.</source>
+        <translation>Wie weit du nach dem Wechsel schon zwischen den Unterordnern stehst.</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="271"/>
+        <source>Way per level</source>
+        <translation>Weg pro Ebene</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="272"/>
+        <source>How far you move the mouse outward until the folder fills the whole fan and you go one level deeper.</source>
+        <translation>Wie weit du die Maus nach außen bewegst, bis der Ordner den ganzen Fächer füllt und du eine Ebene tiefer gehst.</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="273"/>
+        <source>Change begins</source>
+        <translation>Wechsel beginnt</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="274"/>
+        <source>How deep in the folder the pointer is when the change into its subfolders begins.</source>
+        <translation>Wie tief im Ordner der Zeiger steht, wenn der Wechsel in seine Unterordner beginnt.</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="275"/>
+        <source>Magnifier</source>
+        <translation>Lupe</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="276"/>
+        <source>How much the folder under the pointer is enlarged already at the start of a level.</source>
+        <translation>Wie stark der Ordner unter dem Zeiger schon am Anfang einer Ebene vergrößert wird.</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="279"/>
+        <source>Exit at the edge</source>
+        <translation>Ausgang am Rand</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="277"/>
         <source>Softness</source>
         <translation>Weichheit</translation>
-    </message>
-    <message>
-        <location filename="../SetupPage.qml" line="201"/>
-        <source>Letting go at the end</source>
-        <translation>Loslassen am Ende</translation>
     </message>
 </context>
 <context>
