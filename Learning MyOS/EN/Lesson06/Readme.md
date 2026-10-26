@@ -25,6 +25,10 @@ Now check whether the standard folders fit. You will probably always need:
 * 05_Legal – contracts, insurance, legal cases
 * 08_Documentation – maybe the best photos and videos of a person
 
+Why these odd numbers in front of the names?
+1. So the folders sort in an order we like – not just alphabetically.
+2. So you recognize them at a glance as our standard folders, even among your own folders.
+
 For people, there might be more, like:
 * health
 * education

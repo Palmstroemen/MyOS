@@ -25,6 +25,10 @@ Prüfe jetzt, ob die Standardordner passen. Vermutlich brauchst du immer:
 * 05_Rechtliches – Verträge, Versicherungen, Rechtsfälle
 * 08_Dokumentation – vielleicht die schönsten Fotos und Videos eines Menschen
 
+Warum diese merkwürdigen Nummern vor den Namen?
+1. Damit sich die Ordner in einer Reihenfolge sortieren, die uns gefällt – und nicht einfach nach dem Alphabet.
+2. Damit du sie auf einen Blick als unsere Standardordner erkennst, auch zwischen deinen eigenen Ordnern.
+
 Bei Menschen kommt vielleicht noch anderes dazu, etwa:
 * Gesundheit
 * Bildung
