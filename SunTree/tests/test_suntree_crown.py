@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 
 import pytest
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QCursor, QGuiApplication
 
 
 def _project(path: Path) -> Path:
@@ -218,3 +218,35 @@ def test_past_the_last_folder_into_the_stem(world, window):
     _call(window, "handMoved", geo["cx"] - 40, geo["cy"])  # in the stem
     _call(window, "handMoved", geo["cx"] + geo["ri"] + 5, geo["cy"])  # and back into the half
     assert _prop(window, "crownActive") == 1
+
+
+def _stem_hit(win, kind, path):
+    return next(h for h in _prop(win, "stemHits") if h["kind"] == kind and h["path"] == path)
+
+
+def test_up_the_stem_the_folders_are_spat_out(world, suntree, window):
+    # Standing in Noten/2025, a click on Musikstudio lower in the stem: Noten and 2025 do not
+    # vanish, they are pushed up the stem and spat out into the crown, which runs back to rest.
+    from PySide6.QtTest import QTest
+
+    QCursor.setPos(-200, -200)
+    suntree.setCwd(str(world["noten"] / "2025"))
+    window.show()
+    QTest.qWait(100)
+    studio = str(world["studio"])
+    hit = _stem_hit(window, "parent", studio)
+    was = _prop(window, "stemGlide")["parent:" + studio]
+
+    _call(window, "crownClicked", hit["x"] + hit["w"] / 2, hit["y"] + hit["h"] / 2, False)
+
+    assert suntree.cwd() == studio
+    assert _prop(window, "stemGlide")[studio] == was  # Musikstudio glides from where it was
+    stem = [(e["kind"], e["label"]) for e in _call(window, "stemEntries")]
+    assert stem[:3] == [("preview", "2025"), ("preview", "Noten"), ("cwd", "Musikstudio")]
+    noten = [e["label"] for e in _call(window, "rightEntries")].index("Noten")
+    assert _prop(window, "crownHalves")["1"]["shown"]["lock"] == [noten, 0]  # 2025: first of Noten's
+
+    for _ in range(60):
+        _call(window, "crownTick", 0.1)
+    assert [e["kind"] for e in _call(window, "stemEntries")][0] == "cwd"  # all spat out
+    assert _prop(window, "crownHalves")["1"]["shown"] is None  # the crown at rest

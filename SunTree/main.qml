@@ -617,7 +617,7 @@ ApplicationWindow {
             if (x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h) {
                 wentInAt = Date.now()
                 if (s.kind === "clipboard") sunTreeBackend.setCwd(sunTreeBackend.clipboardPath())
-                else if (s.kind === "parent") navigateTo(s.path)
+                else if (s.kind === "parent") goUpTo(s.path)
                 else sunTreeBackend.refreshAll()
                 return
             }
@@ -690,6 +690,49 @@ ApplicationWindow {
         sunTreeBackend.undoDrop()
         noticeTimer.stop()
         dropNotice.visible = false
+    }
+
+    /// Up the stem to a parent, the way back of drawing in: the stem's entries glide to their
+    /// new places, and the folders between the parent and the CWD come out of the stem - the
+    /// crown starts as if one had dived from the parent down to the old CWD and runs back to
+    /// rest, as when letting go (Designdocument Krone.md, 3).
+    function goUpTo(path) {
+        var from = cwdPath
+        for (var key in stemGlide) {
+            var at = key.indexOf(":")
+            if (at > 0) stemGlide[key.slice(at + 1)] = stemGlide[key]  // the same folder, another kind
+        }
+        crownReset()
+        navigateTo(path)
+        spitOut(from)
+    }
+
+    /// The crown as if dived from the CWD down to the folder from; it runs back to rest.
+    function spitOut(from) {
+        var base = cwdPath.replace(/\/+$/, "")
+        if (from.indexOf(base + "/") !== 0) return
+        var names = from.slice(base.length + 1).split("/").filter(function(n) { return n.length > 0 })
+        for (var side = 1; side >= -1; side -= 2) {
+            var way = []
+            for (var i = 0; i < names.length; i++) {
+                var rows = crownRows(side, way), found = -1
+                for (var j = 0; j < rows.length; j++) {
+                    if (String(rows[j].path).replace(/\/+$/, "").split("/").pop() === names[i]) { found = j; break }
+                }
+                if (found < 0) break
+                way.push(found)
+            }
+            if (way.length !== names.length) continue
+            var g = crownGeo(side), u = []
+            for (var k = 0; k < way.length; k++) u.push(way[k] + 0.5)
+            u.push(crownRows(side, way).length / 2)
+            var h = crownHalves[side]
+            h.shown = { s: g.ri + way.length * 2 * (g.T - g.ri), u: u, lock: way.slice() }
+            h.target = { s: 0, u: u.slice(), lock: way.slice(), released: true }
+            h.lensK = 1
+            crownTimer.start()
+            return
+        }
     }
 
     /// A folder gone into glides from where it was into the stem.

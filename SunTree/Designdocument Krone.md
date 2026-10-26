@@ -116,6 +116,12 @@ The tree draws its branches inward and makes them part of its stem.
   jump either. The folders between it and the CWD are pushed up the stem and spat out into
   the crown, the reverse of drawing in: the clicked parent becomes the CWD, the folder one
   came from opens as a field of it, and the crown settles at its first level.
+- **Built** (2026-10-26): going up, the crown starts as if one had dived from the parent
+  down to the old CWD and runs back to rest as when letting go; the stem shows the folders on
+  the way as previews above the new CWD while they come out. The stem's entries glide: the
+  parent from its place into the oval, the old CWD from the oval to its preview. The half is
+  the one the way lies in (right, or left for MyOS folders); where the way is not in the crown
+  (a lens on), SunTree goes up as before.
 
 ## 4. The Stem From Top to Bottom
 
@@ -176,8 +182,6 @@ One level takes 2 (T - ri) of hand movement outward: half of it growing, half dr
   "missing-pynput" and stays a normal window. Its default was "<ctrl>+<alt>+space", which
   pynput rejects ("<space>" is right), so the service failed silently: fixed, and SunTree's
   own service tried during a drag in Xephyr.
-- The way back out of the stem (spitting folders out) is not built yet; a parent clicked
-  in the stem is gone into at once.
 - Drawing in, the preview and the CWD oval overlap restlessly in the middle of the glide.
 - Many folders on one level (a hundred): the fish-eye keeps the one under the pointer
   readable; the others become hairlines. Enough, or a scroll position shown at the edge?

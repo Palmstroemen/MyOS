@@ -31,8 +31,10 @@ Kompakter Überblick: `docs/STATUS.md`.
         ab der Linie T (0,7 R) in den Stamm gesaugt, Zeiger nach innen gezogen; Rückweg ebenso weich
         [x] Schritt 1: Designdokument und Skizze  [x] Schritt 2: Rechnung SunTree/js/Crown.js mit Tests
         [~] Schritt 3: QML mit echten Ordnern (2026-10-25): Krone in einer Canvas, Zeiger gezogen (QCursor.setPos, auch
-            beim Drag unter X11 erprobt), Stamm gezeichnet mit Clipboard oben, Klick und Ablegen; offen: Rückweg aus dem
-            Stamm (ausspucken), Feinabstimmung am echten Bildschirm
+            beim Drag unter X11 erprobt), Stamm gezeichnet mit Clipboard oben, Klick und Ablegen; offen:
+            Feinabstimmung am echten Bildschirm
+            [x] Rückweg aus dem Stamm (2026-10-26): Klick auf einen Eltern-Ordner spuckt die Ordner dazwischen aus,
+                die Krone läuft zurück, die Einträge im Stamm gleiten
             [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
                 schnellen Ruck oder quer in die andere Hälfte
                 -> weitgehend gelöst durch "eine Handlung, dann weg" (2026-10-26); bleibt: Abbrechen (Esc, Shortcut, Klick daneben)
