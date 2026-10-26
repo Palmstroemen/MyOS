@@ -40,6 +40,7 @@ Kompakter Überblick: `docs/STATUS.md`.
                 Brille nur bewusst; das CWD leuchtet, wo es auftaucht (Oval, Stamm, Krone)
             [x] Scope: CWD ebenso leuchtend markiert (2026-10-26): Pfadleiste der Projekte und CWD-Knopf; helles Theme: kräftigerer Rahmen
             [x] Übergang im Stamm (2026-10-26): die Vorschau kommt von oben, das CTD rutscht nach unten, nichts überlappt
+            [x] Grenze überholt den Zeiger (2026-10-26): Einsaugen ab 75 % des Feldes bis 25 % in den äußeren Ring
             [ ] Man ist in der Krone gefangen (2026-10-25): loslassen über den Rand auf jeder Ebene, mit einem
                 schnellen Ruck oder quer in die andere Hälfte
                 -> weitgehend gelöst durch "eine Handlung, dann weg" (2026-10-26); bleibt: Abbrechen (Esc, Shortcut, Klick daneben)

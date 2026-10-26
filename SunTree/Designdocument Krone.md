@@ -84,8 +84,11 @@ The tree draws its branches inward and makes them part of its stem.
    whole half (180°).
 3. **Drawn in.** Beyond T the hand moves on outward, but the pointer is pulled inward: the
    field shrinks into the stem's hollow, its subfolders take the whole ring, and the folder
-   appears in the stem. When the field is gone, the next level starts as the first did, with
-   the pointer at the inner radius.
+   appears in the stem. The border sweeps past the pointer (2026-10-26): drawing in starts
+   with the pointer at 75 % of the field (the field then reaches out to fieldEnd, beyond T)
+   and ends with it 25 % into the outer ring; the next level starts right there. Until the
+   border has passed it the pointer is on the field, then on the subfolder under it. (Before,
+   the pointer stuck to the border until it had drawn in completely - one felt held up at it.)
 4. **Back.** Moving inward runs everything backwards: the pointer is pushed outward, the
    folder comes out of the stem and becomes a field again.
 5. **Up and down** within a ring scrolls through all folders of the level: the neighbouring
@@ -165,6 +168,8 @@ Tuned in the sketch, to be tuned further on the real desktop:
 | Value | Default | Meaning |
 |-------|---------|---------|
 | Line T | 0.7 R | where the field fills the half and drawing in begins (0.5 R was the first idea; 0.7 R felt better) |
+| Enter | 75 % | where in the field the pointer is when drawing in begins (the field reaches out to ri + (T - ri) / 0.75) |
+| Leave | 25 % | how far into the outer ring the pointer is when drawing in ends; the next level starts there |
 | Inner radius ri | 0.2 R | the stem's hollow; each level starts there |
 | Lens | 2.2 | strength of the fish-eye at the start of a level |
 | Softness | 10 /s | spring rate of the shown values |

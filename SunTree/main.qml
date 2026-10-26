@@ -609,11 +609,10 @@ ApplicationWindow {
         var h = crownHalves[crownActive]
         if (!h.shown) return null
         var geo = crownGeo(crownActive)
-        var st = Crown.phase(h.shown.s, geo.ri, geo.T)
         var rings = Crown.layout(h.shown, geo, function(way) { return crownRows(crownActive, way) })
         for (var i = 0; i < rings.length; i++) {
-            var ring = rings[i]
-            if ((st.ph === 1 && ring.kind === "field") || (st.ph === 2 && ring.kind === "kids" && ring.under)) {
+            var ring = rings[i]  // the ring the pointer is in: the field, or once the border
+            if (ring.point) {    // has passed it, the subfolders drawing in brings
                 return ring.hi >= 0 ? { side: crownActive, row: ring.items[ring.hi] } : null
             }
         }

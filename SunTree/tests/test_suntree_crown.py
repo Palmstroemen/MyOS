@@ -108,10 +108,10 @@ def test_a_folder_grows_and_is_drawn_in(world, window):
 
 def test_the_pointer_is_pulled_inward(world, suntree, window):
     geo = _call(window, "crownGeo", 1)
-    _dive(window, geo["T"] - geo["ri"] + 30)  # 30 px beyond the line
+    _dive(window, geo["T"] - geo["ri"] + 60)  # 60 px beyond the line
     pointer = _prop(window, "crownPointer")
     r = _call(window, "crownPolar", 1, pointer["x"], pointer["y"])["r"]
-    assert r < geo["T"] - 10  # pulled back inside the line, while the hand went beyond it
+    assert r < geo["T"] - 20  # pulled back inside the line, while the hand went beyond it
     put = suntree.lastPointer()
     assert put != {"x": 0, "y": 0}  # put there through the backend (QCursor.setPos)
 

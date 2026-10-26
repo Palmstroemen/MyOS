@@ -4,8 +4,13 @@
 //
 // One coordinate s runs through all levels of a half. Each level is [ri, T) - the field
 // under the pointer grows until it fills the half (phase 1, p) - and [T, T + D) - the field
-// is drawn into the stem while the pointer is pulled back to ri (phase 2, q); D = T - ri.
-// Below ri (level 0 only) the pointer is in the stem's hollow (phase 0).
+// is drawn into the stem (phase 2, q); D = T - ri. Below ri (level 0 only) the pointer is in
+// the stem's hollow (phase 0).
+//
+// The border sweeps past the pointer (2026-10-26): drawing in starts with the pointer at
+// 75 % of the field (its edge then is fieldEnd, beyond T) and ends with it 25 % into the
+// outer ring (levelStart), where the next level starts. Before, the pointer stuck to the
+// border until it had drawn in completely.
 //
 // Angles are degrees in a half's own frame: -90 at the top, 0 outward, 90 at the bottom.
 // A level's u is a continuous folder index (folder i covers [i, i + 1)); lock[k] is the
@@ -31,22 +36,39 @@ function phase(s, ri, T) {
     return { L: L, v: v, ph: 2, p: 1, q: (v - T) / D }
 }
 
-/// The pointer's distance from the centre: the hand's while growing, pulled back from T
-/// to ri while the field is drawn in.
-function pointerRadius(s, ri, T) {
-    var st = phase(s, ri, T)
-    if (st.ph < 2) return st.v
-    return suckRadius(st.q, ri, T)
+/// How far the field reaches when it fills the half: the pointer at T is then at 75 % of it.
+function fieldEnd(geo) {
+    return geo.ri + (geo.T - geo.ri) / (geo.enter || 0.75)
 }
 
-/// Outer edge of the growing field: R at first, T when it fills the half.
-function fieldRadius(p, R, T) {
-    return R - (R - T) * smooth(p)
+/// Where the pointer is when a field has been drawn in: 25 % into the ring outside it - and
+/// where the next level starts.
+function levelStart(geo) {
+    return geo.ri + (geo.leave || 0.25) * (geo.R - geo.ri)
 }
 
-/// Outer edge of the field being drawn in: T at first, ri when it is gone.
-function suckRadius(q, ri, T) {
-    return T - (T - ri) * smooth(q)
+/// The pointer's distance from the centre: on level 0 the hand's while growing (from ri), on
+/// deeper levels from levelStart to T; while drawn in it goes from T back to levelStart, and
+/// the border overtakes it on the way.
+function pointerRadius(s, geo) {
+    var st = phase(s, geo.ri, geo.T)
+    if (st.ph === 0) return st.v
+    var start = levelStart(geo)
+    if (st.ph === 1) {
+        var from = st.L === 0 ? geo.ri : start
+        return from + (geo.T - from) * st.p
+    }
+    return geo.T - (geo.T - start) * smooth(st.q)
+}
+
+/// Outer edge of the growing field: R at first, end (fieldEnd) when it fills the half.
+function fieldRadius(p, R, end) {
+    return R - (R - end) * smooth(p)
+}
+
+/// Outer edge of the field being drawn in: end (fieldEnd) at first, ri when it is gone.
+function suckRadius(q, ri, end) {
+    return end - (end - ri) * smooth(q)
 }
 
 /// Angular spans (summing to 180) of n folders: a fish-eye of strength lens around u that
@@ -123,12 +145,12 @@ function pointer(state, geo, childCount) {
         var uc = state.u[st.L + 1] !== undefined ? state.u[st.L + 1] : kids / 2
         var csp = spans(kids, uc, 0, geo.lens)
         var th2 = angleAt(csp, uc)
-        return { r: suckRadius(st.q, geo.ri, geo.T), th: th2, L: st.L, ph: 2, index: indexAt(csp, th2) }
+        return { r: pointerRadius(state.s, geo), th: th2, L: st.L, ph: 2, index: indexAt(csp, th2) }
     }
     var u = state.u[st.L] !== undefined ? state.u[st.L] : n / 2
     var sp = spans(n, u, st.p, geo.lens)
     var th = pointerAngle(sp, u, st.p)
-    return { r: st.v, th: th, L: st.L, ph: st.ph, index: indexAt(sp, th) }
+    return { r: pointerRadius(state.s, geo), th: th, L: st.L, ph: st.ph, index: indexAt(sp, th) }
 }
 
 function copyState(state) {
@@ -183,11 +205,12 @@ function move(state, dr, dt, geo, childCount) {
 }
 
 /// The rings a half shows for a state: [{kind, way, items, r0, r1, start, sp, alpha, labels,
-/// hi, under}]. childrenOf(way) gives the folders below a way of folder indices (any
+/// hi, under, point}]. childrenOf(way) gives the folders below a way of folder indices (any
 /// objects; the rings carry them through). kind "base" (no field grows), "field" (the level
 /// the pointer is on, or the one being drawn in) or "kids" (subfolders: of each field in
 /// its slice while growing, of the field drawn in on the whole half); hi is the folder the
-/// pointer is on in a field, under marks the subfolders of that folder.
+/// pointer is on in a field, under marks the subfolders of that folder, point the ring the
+/// pointer is in.
 function layout(state, geo, childrenOf) {
     var st = phase(state.s, geo.ri, geo.T)
     var way = state.lock.slice(0, st.L)
@@ -195,16 +218,16 @@ function layout(state, geo, childrenOf) {
     var u = state.u[st.L] !== undefined ? state.u[st.L] : n / 2
     if (st.ph === 0 || n === 0) {
         return [{ kind: "base", way: way, items: items, r0: geo.ri, r1: geo.R, start: -90,
-                  sp: spans(n, u, 0, geo.lens), alpha: 1, labels: 1, hi: -1, under: false }]
+                  sp: spans(n, u, 0, geo.lens), alpha: 1, labels: 1, hi: -1, under: false, point: false }]
     }
     var rings = []
     if (st.ph === 1) {
         var e = smooth(st.p)
         var sp = spans(n, u, st.p, geo.lens), starts = startsOf(sp)
-        var Ro = fieldRadius(st.p, geo.R, geo.T)
+        var Ro = fieldRadius(st.p, geo.R, fieldEnd(geo))
         var th = pointerAngle(sp, u, st.p), hi = indexAt(sp, th)
         rings.push({ kind: "field", way: way, items: items, r0: geo.ri, r1: Ro, start: -90, sp: sp,
-                     alpha: 1, labels: 1, hi: hi, under: false })
+                     alpha: 1, labels: 1, hi: hi, under: false, point: true })
         for (var i = 0; i < n; i++) {
             var kidWay = way.concat([i]), kids = childrenOf(kidWay)
             if (!kids.length || sp[i] < 0.5) continue
@@ -213,21 +236,22 @@ function layout(state, geo, childrenOf) {
             var csp = spans(kids.length, uc, 0, under ? geo.lens : 0)
             for (var j = 0; j < csp.length; j++) csp[j] = csp[j] * sp[i] / 180
             rings.push({ kind: "kids", way: kidWay, items: kids, r0: Ro, r1: geo.R, start: starts[i], sp: csp,
-                         alpha: clamp(e * 1.6, 0, 1), labels: e, hi: -1, under: under })
+                         alpha: clamp(e * 1.6, 0, 1), labels: e, hi: -1, under: under, point: false })
         }
         return rings
     }
     // Drawn in: the field fills the half and shrinks into the stem; its subfolders take over.
     var q = smooth(st.q), locked = clamp(state.lock[st.L] !== undefined ? state.lock[st.L] : Math.floor(u), 0, n - 1)
-    var Rp = suckRadius(st.q, geo.ri, geo.T)
+    var Rp = suckRadius(st.q, geo.ri, fieldEnd(geo))
+    var inField = pointerRadius(state.s, geo) < Rp
     var was = spans(n, u, 1, geo.lens), full = smooth(st.q * 5), psp = []
     for (var k = 0; k < n; k++) psp.push((1 - full) * was[k] + full * (k === locked ? 180 : 0))
     rings.push({ kind: "field", way: way, items: items, r0: geo.ri, r1: Rp, start: -90, sp: psp,
-                 alpha: 1 - q * 0.5, labels: 1 - q, hi: locked, under: false })
+                 alpha: 1 - q * 0.5, labels: 1 - q, hi: locked, under: false, point: inField })
     var downWay = way.concat([locked]), down = childrenOf(downWay)
     var ud = state.u[st.L + 1] !== undefined ? state.u[st.L + 1] : down.length / 2
     var dsp = spans(down.length, ud, 0, geo.lens)
     rings.push({ kind: "kids", way: downWay, items: down, r0: Rp, r1: geo.R, start: -90, sp: dsp,
-                 alpha: 1, labels: 1, hi: indexAt(dsp, angleAt(dsp, ud)), under: true })
+                 alpha: 1, labels: 1, hi: indexAt(dsp, angleAt(dsp, ud)), under: true, point: !inField })
     return rings
 }

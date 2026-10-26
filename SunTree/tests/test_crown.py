@@ -72,13 +72,28 @@ def test_one_coordinate_runs_through_the_levels(js):
     assert (nxt["L"], nxt["ph"], nxt["p"]) == (1, 1, 0)
 
 
-def test_the_pointer_is_pulled_inward_beyond_the_line(js):
-    # Growing it follows the hand; beyond T it goes back to ri while the hand goes on.
-    radii = [js("pointerRadius", s, 60, 210) for s in (60, 150, 209.9, 210, 285, 359.9, 360, 400)]
-    assert radii[0] == 60 and radii[1] == 150
-    assert abs(radii[2] - 210) < 0.2 and radii[3] == 210
-    assert 60 < radii[4] < 210
-    assert abs(radii[5] - 60) < 0.2 and radii[6] == 60 and radii[7] == 100
+def _pointer_r(js, s):
+    return js.evaluate(f"pointerRadius({s}, geo)")
+
+
+def test_the_border_sweeps_past_the_pointer(js):
+    # Drawing in starts with the pointer at 75 % of the field (ri..its edge) and ends with it
+    # 25 % into the outer ring (ri..R): the border overtakes it, it does not stick to it.
+    # ri = 60, T = 210, R = 300: the field reaches out to 260 = ri + (T - ri) / 0.75; the next
+    # level starts at 120 = ri + 0.25 (R - ri).
+    assert js.evaluate("fieldEnd(geo)") == 260 and js.evaluate("levelStart(geo)") == 120
+    assert _pointer_r(js, 60) == 60 and _pointer_r(js, 135) == 135  # level 0: with the hand
+    assert _pointer_r(js, 210) == 210  # drawing in starts: 75 % of 60..260
+    assert _pointer_r(js, 285) == 165  # halfway, pulled inward
+    assert abs(_pointer_r(js, 359.99) - 120) < 0.1 and _pointer_r(js, 360) == 120  # no jump
+    assert _pointer_r(js, 435) == 165  # level 1 grows from 120 to the line again
+
+
+def test_the_pointer_is_in_the_field_first_then_among_its_subfolders(js):
+    early = _layout(js, {"s": 225, "u": [1.5, 6], "lock": [1], "released": False})  # q = 0.1
+    late = _layout(js, {"s": 345, "u": [1.5, 6], "lock": [1], "released": False})  # q = 0.9
+    assert [r["kind"] for r in early if r["point"]] == ["field"]
+    assert [r["kind"] for r in late if r["point"]] == ["kids"]
 
 
 def test_the_field_grows_to_the_whole_half(js):
