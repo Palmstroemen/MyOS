@@ -176,6 +176,12 @@ Rectangle { // Files panel
     signal openMyosFolder()
     signal leaveMyosFolder()
     signal createProject()
+    /// Context menu on one folder: make it a project, or an ordinary folder again.
+    signal createProjectAtRequested(string path)
+    signal removeProjectAtRequested(string path)
+    /// What the context menu offers for a folder: "create", "remove" or "" (set by the window).
+    property var projectActionFor: function(path) { return "" }
+    property string contextProjectAction: ""
     signal createMyosAndEnter()
     signal xrayClicked()
     /// X-ray view on (button highlighted); see visibleCapacity.
@@ -465,6 +471,8 @@ Rectangle { // Files panel
             if (!isPathEmbryo(contextTargetSelection[r])) real.push(contextTargetSelection[r])
         }
         contextTargetRealSelection = real
+        contextProjectAction = (contextTargetIsDir && !contextTargetIsEmbryo && contextTargetSelection.length === 1)
+            ? String(projectActionFor(contextTargetPath) || "") : ""
         itemContextMenu.x = mouseX
         itemContextMenu.y = mouseY
         itemContextMenu.open()
@@ -834,23 +842,29 @@ Rectangle { // Files panel
                     color: root.canCreateProject ? root.pButtonActiveColor : root.smallButtonBg
                     border.color: root.canCreateProject ? root.pButtonActiveColor : root.smallButtonBorder
                     opacity: root.canCreateProject || root.canRemoveProject ? 1 : 0.5
+                    // The italic "P" of the project badges on the folders.
                     Text {
+                        id: pButtonLetter
+                        objectName: "pButtonLetter"
                         anchors.centerIn: parent
                         text: "P"
                         color: root.canCreateProject ? "#ffffff" : root.smallButtonText
                         font.pixelSize: Math.round(root.baseFont * 0.9)
                         font.bold: true
-                    }
-                    // Crossed out: the project can become an ordinary folder again. A drawn
-                    // stroke, the font's strikeout line was hardly visible.
-                    Rectangle {
-                        visible: root.canRemoveProject
-                        anchors.centerIn: parent
-                        width: parent.width * 1.05
-                        height: Math.max(2, Math.round(parent.height * 0.1))
-                        radius: height / 2
-                        rotation: -45
-                        color: "#d64f4f"
+                        font.italic: true
+                        // Crossed out: the project can become an ordinary folder again. A drawn
+                        // stroke over the letter only (the font's strikeout line was hardly
+                        // visible), against the letter's slant.
+                        Rectangle {
+                            objectName: "pButtonStrike"
+                            visible: root.canRemoveProject
+                            anchors.centerIn: parent
+                            width: pButtonLetter.contentHeight * 0.95
+                            height: Math.max(2, Math.round(pButtonLetter.contentHeight * 0.12))
+                            radius: height / 2
+                            rotation: 45
+                            color: "#d64f4f"
+                        }
                     }
                     MouseArea {
                         id: pButtonMouse
@@ -2039,6 +2053,21 @@ Rectangle { // Files panel
             text: qsTr("Open with ...")
             enabled: (!root.contextTargetIsDir && root.contextTargetFileSelection.length === 1)
             onTriggered: root.openWithRequested(root.contextTargetFileSelection[0])
+        }
+        MenuSeparator {}
+        MenuItem {
+            objectName: "projectMenuItem"
+            // The P button's two actions, for the folder clicked.
+            text: root.contextProjectAction === "remove"
+                ? qsTr("Make “%1” an ordinary folder again").arg(root.contextTargetPath.split("/").pop())
+                : root.contextProjectAction === "create"
+                ? qsTr("Make “%1” a project").arg(root.contextTargetPath.split("/").pop())
+                : qsTr("Make a project")
+            enabled: root.contextProjectAction.length > 0
+            onTriggered: {
+                if (root.contextProjectAction === "create") root.createProjectAtRequested(root.contextTargetPath)
+                else if (root.contextProjectAction === "remove") root.removeProjectAtRequested(root.contextTargetPath)
+            }
         }
         MenuSeparator {}
         MenuItem {

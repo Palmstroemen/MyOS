@@ -435,6 +435,25 @@ ApplicationWindow {
         updateStandardFolders()
     }
 
+    /// Make target a project (P button, or the context menu on a folder).
+    function createProjectAt(target) {
+        if (target.length === 0 || !hasBackend() || typeof backend.createProject !== "function") return
+        var shownFolder = target === currentFilesPath()
+        if (!backend.createProject(target)) return
+        // The folder shown became a project: be in it, like after a double click.
+        if (shownFolder) {
+            setCwp(target, "filesPane.createProject")
+            commitCTD(target)
+        }
+        updateSubProjects()
+        if (typeof backend.setContext === "function") backend.setContext(cwp)
+        updateFiles()
+        updateTemplates()
+        standardFolders = listTemplates(templatesListingPath())
+        updateStandardFolders()
+        updateProjectCreateTarget()
+    }
+
     onSelectedEntryPathsChanged: updateProjectCreateTarget()
 
     function setCwp(path, reason) {
@@ -3362,6 +3381,14 @@ ApplicationWindow {
             projectCreateTarget: window.projectCreateTarget
             projectRemoveTarget: window.projectRemoveTarget
             onRemoveProject: window.removeProjectAt(window.projectRemoveTarget, false)
+            projectActionFor: function(path) {
+                if (!hasBackend() || typeof backend.canCreateProject !== "function") return ""
+                if (backend.canCreateProject(path)) return "create"
+                if (typeof backend.canRemoveProject === "function" && backend.canRemoveProject(path)) return "remove"
+                return ""
+            }
+            onCreateProjectAtRequested: function(path) { window.createProjectAt(path) }
+            onRemoveProjectAtRequested: function(path) { window.removeProjectAt(path, false) }
             hasMyosDirInCwp: window.hasMyosInCwp
             showLeaveMyosButton: window.isInsideMyosFolder
             availableTags: window.availableTags
@@ -3503,29 +3530,7 @@ ApplicationWindow {
                 commitCTD(parent)
                 clearSearchAfterNavigate()
             }
-            onCreateProject: {
-                var target = window.projectCreateTarget
-                if (target.length > 0 && hasBackend() && typeof backend.createProject === "function") {
-                    var shownFolder = target === currentFilesPath()
-                    var ok = backend.createProject(target)
-                    if (ok) {
-                        // The folder shown became a project: be in it, like after a double click.
-                        if (shownFolder) {
-                            setCwp(target, "filesPane.createProject")
-                            commitCTD(target)
-                        }
-                        updateSubProjects()
-                        if (typeof backend.setContext === "function") {
-                            backend.setContext(cwp)
-                        }
-                        updateFiles()
-                        updateTemplates()
-                        var listingPathAfterCreate = templatesListingPath()
-                        standardFolders = listTemplates(listingPathAfterCreate)
-                        updateStandardFolders()
-                    }
-                }
-            }
+            onCreateProject: window.createProjectAt(window.projectCreateTarget)
         }
     }
 }

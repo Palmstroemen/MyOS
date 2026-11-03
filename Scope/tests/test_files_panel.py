@@ -1,6 +1,6 @@
 """The files panel (Scope/FilesPanel.qml): embryos among the folders are pale as everywhere,
-the X-ray button looks like an X-ray, and a new folder tag is a pale tag without a name that
-one clicks to name."""
+the X-ray button looks like an X-ray, a new folder tag is a pale tag without a name that
+one clicks to name, and a folder becomes a project by the P button or its context menu."""
 
 import os
 from pathlib import Path
@@ -34,6 +34,7 @@ def panel(tmp_path):
         f'import QtQuick 2.15\nimport "{SCOPE_DIR.as_uri()}"\n'
         'Item { width: 1000; height: 640\n'
         '  property var asked: []\n'
+        '  property var made: []\n'
         '  ListModel { id: files\n'
         '    ListElement { name: "Real"; isDir: true; isEmbryo: false; isVirtual: false; path: "/x/Real" }\n'
         '    ListElement { name: "Embryo"; isDir: true; isEmbryo: true; isVirtual: false; path: "/x/Embryo" }\n'
@@ -41,6 +42,8 @@ def panel(tmp_path):
         '  }\n'
         '  FilesPanel { objectName: "panel"; anchors.fill: parent; itemsModel: files; showFolders: true\n'
         '    currentPath: "/x"\n'
+        '    projectActionFor: function(path) { return path === "/x/Real" ? "create" : "" }\n'
+        '    onCreateProjectAtRequested: function(path) { parent.made = parent.made.concat([path]) }\n'
         '    onAddFolderTagRequested: function(tag) { parent.asked = parent.asked.concat([tag]) } }\n'
         '}\n', encoding="utf-8")
     view = QQuickView()
@@ -115,3 +118,48 @@ def test_acl_chips_mirror_the_tags_round_left_square_right(panel):
     assert chip.property("topLeftRadius") > 0 and chip.property("bottomLeftRadius") > 0
     tag = _named(panel, "ghostFolderTag")  # the tags keep theirs: square left, round right
     assert tag.property("topLeftRadius") == 0 and tag.property("topRightRadius") > 0
+
+
+def _variant(value):
+    return value.toVariant() if hasattr(value, "toVariant") else value
+
+
+def _menu_item(view, name):
+    return next((i for i in _walk(view.contentItem()) if i.objectName() == name), None)
+
+
+def _right_click(view, label):
+    entry = _entry(view, label)
+    centre = entry.mapToScene(QPointF(entry.width() / 2, entry.height() / 2)).toPoint()
+    QTest.mouseClick(view, Qt.RightButton, Qt.NoModifier, centre)
+    QTest.qWait(100)
+
+
+def test_the_context_menu_makes_a_folder_a_project(panel):
+    _right_click(panel, "Real")
+    item = _menu_item(panel, "projectMenuItem")
+    assert item is not None and item.isVisible() and item.isEnabled()
+    assert "Real" in item.property("text")
+    centre = item.mapToScene(QPointF(item.width() / 2, item.height() / 2)).toPoint()
+    QTest.mouseClick(panel, Qt.LeftButton, Qt.NoModifier, centre)
+    QTest.qWait(50)
+    assert _variant(panel.rootObject().property("made")) == ["/x/Real"]
+
+
+def test_an_embryo_cannot_become_a_project_by_the_menu(panel):
+    _right_click(panel, "Embryo")
+    item = _menu_item(panel, "projectMenuItem")
+    assert item is not None and not item.isEnabled()
+
+
+def test_the_p_button_is_italic_and_its_strike_crosses_only_the_letter(panel):
+    letter = _named(panel, "pButtonLetter")
+    assert QQmlProperty.read(letter, "font.italic") is True
+    root = _named(panel, "panel")
+    root.setProperty("projectRemoveTarget", "/x/Real")
+    QTest.qWait(50)
+    strike = _named(panel, "pButtonStrike")
+    button = _named(panel, "pButton")
+    assert strike.isVisible()
+    assert strike.width() < button.width() * 0.8  # the letter, not the whole button
+    assert strike.width() <= letter.property("contentHeight")
