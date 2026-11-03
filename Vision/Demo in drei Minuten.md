@@ -1,7 +1,8 @@
 # Demo in drei Minuten
 
 Das Drehbuch für eine kurze Vorführung von MyOS, live oder als Video. Stand 3. November 2026.
-Es zeigt nur, was heute funktioniert. Aus derselben Geschichte entstehen später der Schnellstart
+Es zeigt nur, was heute funktioniert; am 3. November einmal ganz durchgespielt (Xephyr, mit den
+Daten aus `scripts/make_demo_data.py`). Aus derselben Geschichte entstehen später der Schnellstart
 vor dem Kurs und die Methode auf einer Seite ([Roadmap](../Roadmap.md)).
 
 ## Worum es geht
@@ -22,20 +23,29 @@ einmal, beim Laufwerk, weil es so heißt.
 **Bildschirm:** links Scope, rechts Nemo, nebeneinander. Rechts ist „die Vergangenheit“, links
 „die Zukunft“; dieses Bild trägt die ganze Demo.
 
-**Demo-Daten** (ein eigener Projekte-Ordner, nicht der Alltag):
+**Demo-Daten** (ein eigener Ordner, nicht der Alltag), vor jeder Vorführung frisch:
+
+    python3 scripts/make_demo_data.py ~/Demo
+
+Ein kurzer Pfad: Scope zeigt die Pfadleiste ab `/`, bei einem langen Pfad rutschen die Projekte
+aus dem Bild. Das Skript baut neu, wo schon eine Demo lag, und lässt jeden anderen Ordner in Ruhe.
+Darin:
 - `Downloads` mit etwa 30 gemischten Dateien: Rechnungen als PDF, Fotos, ein Vertrag, Notizen.
 - `Projekte/Urlaub 2025`: ein gewöhnlicher Ordner, noch kein Projekt, mit fünf Dateien, darunter
   eine Hotelrechnung und zwei Fotos.
 - `Projekte/Familie`, `Projekte/Job`, `Projekte/Auto`: Projekte, deren `04_Finanz` schon ein paar
   Rechnungen hält, damit die Brille etwas zu zeigen hat.
 - `Projekte/Wohnen`: ein Projekt ohne `04_Finanz`.
-- In LibreOffice offen und noch nicht gespeichert: `Rechnung Heizung 2025.odt`.
+- `Downloads/Rechnung Heizung 2025.odt`, in LibreOffice geöffnet.
+- `Templates/Standard`: die Vorlage, ohne Zugriffsrechte (sonst zeigt Scope links ein
+  Zugriffs-Panel und sperrt Aktionen).
 
 **Zustand vor dem Start:**
-- Scope läuft im Projekte-Ordner, keine Brille auf.
-- Das Laufwerk „Perspektiven“ liegt neben `Projekte` (Scope startet es).
-- Die FilesPanel-Ansicht zeigt große Symbole, die blassen Ordner oben.
-- Nemo steht in `Projekte/Urlaub 2025`.
+- Scope läuft in `~/Demo/Projekte`, keine Brille auf. Das Laufwerk „Perspektiven“ liegt dann
+  neben `Projekte`; Nemo und der Speichern-Dialog von LibreOffice führen es unter „Geräte“.
+- In Scope eingestellt: die Projektzeile an (⚙ → Scope), im Dateibereich Ordner an und
+  Röntgenansicht aus (Knöpfe rechts). Mit Röntgen zeigt Scope statt `Urlaub 2025` dessen Dateien.
+- Nemo steht in `Downloads`.
 
 ## Die Szenen
 
@@ -48,41 +58,47 @@ einmal, beim Laufwerk, weil es so heißt.
 
 ### 2. Ordner, die warten (0:20–0:45)
 
-- **Bild:** Scope zeigt `Urlaub 2025`, ein gewöhnlicher Ordner mit fünf Dateien.
-- **Handgriff:** den Ordner auswählen, auf **P** klicken („zum Projekt machen“).
-- **Was passiert:** Oben erscheinen blasse Standardordner: `01_Info`, `04_Finanz`,
-  `08_Dokumentation` und weitere. Rechts in Nemo ändert sich nichts.
+- **Bild:** Scope zeigt `Projekte`: Auto, Familie, Job, Wohnen mit P, dazu `Urlaub 2025` ohne.
+  Nemo wechselt nach `Projekte/Urlaub 2025`: fünf Dateien.
+- **Handgriff:** `Urlaub 2025` auswählen, auf **P** klicken („zum Projekt machen“; auch per
+  Rechtsklick). Dann Doppelklick hinein.
+- **Was passiert:** Der Ordner bekommt sein P. Drinnen stehen oben blasse Standardordner:
+  `01_Info`, `04_Finanz`, `08_Dokumentation` und weitere. Rechts in Nemo ändert sich nichts.
 - **Text:** „Jetzt ist es ein Projekt. Siehst du die blassen Ordner? Die gibt es noch nicht. Rechts,
   im gewöhnlichen Dateibrowser, ist nichts passiert. Sie warten nur.“
 
 ### 3. Ein Ordner wird geboren (0:45–1:20)
 
-- **Handgriff:** die Hotelrechnung auf den blassen Ordner `04_Finanz` ziehen.
+- **Handgriff:** die Hotelrechnung auf den blassen Ordner `04_Finanz` ziehen. Erst ein Stück
+  zur Seite, dann hinauf: Wer senkrecht losfährt, scrollt die Liste, statt die Datei zu ziehen.
 - **Was passiert:** Links wird `04_Finanz` kräftig, rechts in Nemo taucht er auf, mit der
   Rechnung darin.
-- **Handgriff:** die zwei Fotos auf `08_Dokumentation` ziehen. Derselbe Effekt.
+- **Handgriff:** das Strandfoto auf `08_Dokumentation` ziehen. Derselbe Effekt.
 - **Text:** „Ich habe keinen Ordner angelegt. Er ist da, wenn ich ihn brauche. Und er heißt in
   jedem Projekt gleich: `04_Finanz`. Das versteht auch der Computer, ganz ohne KI.“
 
 ### 4. Die Brille (1:20–2:00)
 
-- **Handgriff:** in Scope zu `Familie` wechseln, Doppelklick auf `04_Finanz`.
-- **Was passiert:** Die Pfadleiste zeigt den Rahmen `Familie › [✕ 04_Finanz]`, das FilesPanel die
-  Rechnungen der Familie.
-- **Handgriff:** in der Projektzeile Doppelklick auf `Job`, dann auf `Auto`.
-- **Was passiert:** Die Brille geht mit. Man bleibt in den Finanzen und wechselt nur das Projekt.
+- **Handgriff:** in Scope zu `Familie` wechseln, in der MyOS-Zeile Doppelklick auf `04_Finanz`.
+- **Was passiert:** Die Pfadleiste zeigt den Rahmen `Familie [✕ 04_Finanz]`, Scope wird grau
+  (der Desk der Finanzabteilung), der Dateibereich zeigt Ausgaben und Einnahmen der Familie.
+- **Handgriff:** in der Projektzeile Doppelklick auf `Projekte`, dann auf `Job`.
+- **Was passiert:** Die Brille geht mit: `Job [✕ 04_Finanz]`. Auf `Projekte` dazwischen ist der
+  Rahmen kurz weg (das Regal kommt mit E4); nicht kommentieren, gleich weiter.
+  Achtung: Ein Doppelklick auf ein Projekt im *Dateibereich* nimmt die Brille ab.
 - **Text:** „Das ist die Brille des Buchhalters. Ich bleibe in den Finanzen und gehe durch meine
   Projekte.“
 - **Handgriff:** in Nemo zu `Perspektiven/04_Finanz/Projekte` gehen.
-- **Was passiert:** Familie, Job, Auto und Urlaub 2025 liegen nebeneinander, jeweils nur mit ihren
-  Finanzen.
+- **Was passiert:** Auto, Familie, Job, Urlaub 2025 und Wohnen liegen nebeneinander, darin nur
+  ihre Finanzen. Wohnen nicht öffnen: Ohne `04_Finanz` zeigt das Laufwerk dort das Projekt
+  selbst, mit Grundriss und Notizen.
 - **Text:** „Und so sieht es jedes Programm: alle Rechnungen, nach Projekten sortiert. Ich musste
   die Projekte nirgends ein zweites Mal anlegen.“
 
 ### 5. Jedes Programm kann es (2:00–2:40)
 
-- **Handgriff:** in LibreOffice „Speichern unter“, dann `Perspektiven/04_Finanz/Projekte/Wohnen`
-  wählen und speichern.
+- **Handgriff:** in LibreOffice „Speichern unter“, links „Perspektiven“, dann `04_Finanz`,
+  `Projekte`, `Wohnen` und speichern.
 - **Was passiert:** In Scope (oder Nemo) unter `Projekte/Wohnen` ist `04_Finanz` neu geboren, die
   Rechnung liegt darin.
 - **Text:** „LibreOffice weiß nichts von MyOS. Ich habe nur den Weg über die Finanzen genommen. Die
@@ -117,6 +133,10 @@ Es kommt nicht vor, weil es ablenkt oder noch nicht fertig ist:
   eingehängt. LibreOffice zuerst schließen.
 - **Die blassen Ordner stehen nicht oben:** Die Rasteransicht übernimmt noch die Sortierung der
   Listenansicht (Logbuch). Vorher in der Listenansicht nach Namen sortieren.
+- **Zwei Laufwerke „Perspektiven“:** Läuft daneben ein Scope auf anderen Projekten, haben Nemo und
+  LibreOffice zwei davon. Für die Vorführung nur das Demo-Scope laufen lassen.
+- **Scope beenden:** über das Fenster. Ein von außen beendetes Scope (SIGTERM) lässt das Laufwerk
+  stehen.
 
 ## Für die Videofassung
 

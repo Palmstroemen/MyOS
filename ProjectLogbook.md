@@ -73,6 +73,9 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
     Umsetzung: eine Sitzung im Daemon, FUSE zeigt den ganzen umgedrehten Baum, QML/SunTree ohne eigenen Pfadbau
     [x] E1 Sitzung im Kern  [x] E2 Laufwerk "Perspektiven" + Daemon  [x] E3 Scope an der Sitzung  [x] E3b Pfadleiste mit Rahmen (CLD)  [x] E3c Desk der Abteilung (Template gewinnt, Änderungen ins Template)
         [ ] E4 Minimalansicht M mit Pfad-Dropdown (Hover), Regal = Projekte einer Ebene nach rechts
+            Demo (2026-11-03): heute geht die Brille nur über die Projektzeile mit, zwei Doppelklicks
+            ("Projekte", dann das Projekt), dazwischen ist der Rahmen weg; ein Doppelklick auf ein Projekt im
+            Dateibereich nimmt sie ab
             [x] Schritt 1: Knopf M, eine Zeile, Dropdown bis "Projekte", Kaskade nach rechts; schmale Knöpfe, 1x Suche und Clipboard
             [x] Clipboard (Multiclipboard, wandert in alle Projekte mit) als kleiner Icon-Knopf: in den Werkzeugen von M
             [x] Werkzeuge von M (2026-10-26): Knopfzeile oben im CWD-Dropdown statt Menü - Clipboard, Suche, Hell/Dunkel,
@@ -108,6 +111,11 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             Doppelklick auf den MyOS-Ordner; Auto-Filter bleiben
         [ ] E7 Suche mit Brille über alle Projekte (nur die Abteilungsordner, Spalte "Projekt"; Designdoc A9) -
             zurückgestellt (2026-10-25), bis die Suche im Alltag fehlt; schlank wäre: nur Dateinamen, ein Feld in Scope
+    [ ] Laufwerk bleibt eingehängt, wenn Scope von außen beendet wird (SIGTERM; 2026-11-03, Demo): Scope fragt
+        den Daemon nur beim Schließen übers Fenster; der Daemon musste selbst beendet werden
+    [ ] Laufwerk: ein Projekt ohne Abteilungsordner zeigt unter 04_Finanz/Projekte/<Projekt> das Projekt selbst
+        (v1.1-Fallback, damit Speichern dort den Ordner gebiert) - in der Buchhalter-Ansicht sieht man so Grundriss
+        und Notizen von Wohnen; besser leer zeigen und trotzdem dorthin speichern lassen? (2026-11-03, Demo)
     [ ] MyOS-Dienst (Konzept A9, 2026-10-23): Laufwerk mit der Anmeldung statt mit Scope; eingehängt wie ein
         Netzlaufwerk unter /run/user/<uid>/myos, neben "Projekte" nur ein Symlink (sonst ist alles doppelt);
         Suchen in der Perspektive (Scope über alle Projekte, Spalte "Projekt"). Vorher bei dir prüfen:
@@ -170,6 +178,11 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
     [ ] FilesPanel Rasteransicht immer nach Name aufsteigend (oben MyOS-Ordner und Embryos, darunter Unterprojekte
         und andere Ordner); heute übernimmt sie die Spaltensortierung der Listenansicht, ohne sie anzuzeigen
     [x] FilesPanel: Embryos erscheinen nicht halbtransparent (sollten sie, wie in den Ordnerleisten)
+    [x] FilesPanel: blasse Ordner, P und Projektfarben fehlten eine ganze Sitzung, wenn die erste Liste nur Dateien
+        hielt (2026-11-03, beim Durchspielen der Demo): jede Zeile trägt jetzt alle Rollen (FormatUtils.listRow)
+    [ ] FilesPanel: eine Datei senkrecht nach oben ziehen scrollt die Liste statt sie zu ziehen (seitlich
+        losfahren geht) - gefunden beim Durchspielen der Demo (2026-11-03)
+    [ ] FilesPanel: der Ordner-Schalter merkt sich seinen Zustand nicht über einen Neustart (Röntgen schon)
 [ ] PostFix UI verfeinern und Exporter bauen
     [x] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
     [x] ACL-Panel: Embryos zählen nicht mit (ein Schalter dafür wird nicht gebraucht)

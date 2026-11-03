@@ -19,7 +19,7 @@ and lesson 1 opens for the next tester.
    leave `MyOS_Test/Projekte` out or delete it.
 3. The templates (Standard, Person, Development) go to `~/Templates`: MyOS looks for a folder
    "Templates" upwards from the tutorial copy, and the exercises (suggested folders in lesson 7,
-   "In Projekt verwandeln") need them. They are not in git yet - take `MyOS_Test/Templates`.
+   the P button) need them. They are not in git yet - take `MyOS_Test/Templates`.
    On an English Linux `~/Templates` is the desktop's folder for new documents: check that it
    holds MyOS templates only. The Clipboard folder is made next to it by itself.
 4. Open the tutorial at every login, PostFix as the program for Markdown notes (a double click on
