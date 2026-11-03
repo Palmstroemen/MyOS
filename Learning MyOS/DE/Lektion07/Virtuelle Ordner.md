@@ -10,7 +10,7 @@ Wirf einen kurzen Blick hinein und verlass den Ordner wieder, sodass du ihn von 
 Am besten legst du diesen Dateibrowser auf die rechte Bildschirmhälfte und unseren auf die linke, damit du beide nebeneinander siehst.
 
 Im linken Dateibrowser siehst du denselben Ordner. Er ist vielleicht ein kleines Projekt mit nur ein paar Dateien. Aber wenn dein kleines Projekt wächst, möchtest du ihm vielleicht etwas Struktur geben.
-Ein Rechtsklick auf deinen Ordner im linken Dateibrowser öffnet ein Kontextmenü mit: **In Projekt verwandeln**.
+Wähle deinen Ordner im linken Dateibrowser aus und klick rechts oben im Dateibereich auf den Knopf **P**: „zum Projekt machen“. Oder mit einem Rechtsklick auf den Ordner.
 
 Links hat sich das Symbol deines Ordners geändert. Es zeigt jetzt, dass er zu einem „erweiterten" Projektordner geworden ist.
 

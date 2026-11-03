@@ -4,7 +4,7 @@ For this lesson we have put all your files and documents back into a single, uns
 
 **[▶ Open the exercise](<myos:open?scope=.>)** – Scope opens here.
 
-Select this folder and open its context menu (right-click). You will find something like: **Turn into a project**. Give it a try!
+Select this folder. At the top right of the file area, the **P** button lights up: “make it a project”. Click it and give it a try! (A right-click on the folder offers the same.)
 
 Now you should see "standard folders" inside your vacation folder – similar to "Music" or "Videos" in old operating systems. You have turned an ordinary folder into a project folder with a predefined set of standard folders.
 

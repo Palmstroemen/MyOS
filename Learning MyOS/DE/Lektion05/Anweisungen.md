@@ -4,7 +4,7 @@ Für diese Lektion haben wir alle deine Dateien und Dokumente wieder in einen ei
 
 **[▶ Übung öffnen](<myos:open?scope=.>)** – Scope öffnet sich hier.
 
-Wähle diesen Ordner aus und schau ins Kontextmenü (Rechtsklick). Dort findest du etwas wie: **In Projekt verwandeln**. Probier es aus!
+Wähle diesen Ordner aus. Rechts oben im Dateibereich leuchtet jetzt der Knopf **P** auf: „zum Projekt machen“. Klick darauf und probier es aus! (Dasselbe findest du auch mit einem Rechtsklick auf den Ordner.)
 
 Jetzt solltest du in deinem Urlaubsordner „Standardordner" sehen – ähnlich wie „Musik" oder „Videos" in alten Betriebssystemen. Du hast einen gewöhnlichen Ordner in einen Projektordner mit einem vordefinierten Satz an Standardordnern verwandelt.
 

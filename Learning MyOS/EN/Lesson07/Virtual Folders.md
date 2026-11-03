@@ -10,7 +10,7 @@ Have a brief look inside, and leave the folder again so you see it from the outs
 Best place this file browser on the right half of your screen and ours on the left half, so you can see them side by side.
 
 In the left file browser you see the same folder. It might be a small project with just a few files. But as your small project grows, you may want to give it some structure.
-A right-click on your folder in the left file browser opens a context menu with: **Turn into a project**.
+Select your folder in the left file browser and click the **P** button at the top right of the file area: “make it a project”. Or right-click the folder.
 
 On the left, the symbol of your folder has changed. It now shows that it has become an "enhanced" project folder.
 
