@@ -283,6 +283,8 @@ def is_ours(argv: List[str], cwd: Path, repo: Path, copy: Path) -> bool:
         return (Path(arg) if Path(arg).is_absolute() else Path(cwd) / arg).resolve()
 
     program = any(arg.endswith(("Scope.py", "cli.py")) and path_of(arg) in programs for arg in argv[:3])
+    # Scope starts PostFix as a module (python3 -m PostFix.main) in the repository.
+    program = program or (argv[1:3] == ["-m", "PostFix.main"] and Path(cwd).resolve() == Path(repo).resolve())
     # The lens drive's process (python3 -m daemon, started by Scope in the repository).
     program = program or (argv[1:3] == ["-m", "daemon"] and Path(cwd).resolve() == Path(repo).resolve())
     copy = Path(copy).resolve()

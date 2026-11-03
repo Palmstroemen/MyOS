@@ -104,6 +104,23 @@ Use portable, file-based formats and compatible registry structures.
 - Obsidian-compatible tag color registry structures.
 - Tag color changes write back to registry data.
 
+## One PostFix For All Notes
+
+`PostFix/single_instance.py`, decided 2026-11-03 (the new editor in QtWebEngine costs about
+300 MB per program; one program shares it):
+
+- A later start (Scope, a double click, an exercise link) hands its note to the PostFix already
+  running and ends - in plain Python before loading Qt, in about half a second. The running
+  one opens the note in a window of its own, or brings its window to the front.
+- One PostFix per user, display and settings folder (`XDG_CONFIG_HOME`): tests and test
+  harnesses with settings of their own never reach the user's. `MYOS_POSTFIX_SINGLE=0` turns it off.
+- Security: the connection lies in the user's private runtime folder (`$XDG_RUNTIME_DIR`,
+  owner-only socket); only existing `.md` files are taken.
+- A closed note's window is really gone (`WA_DeleteOnClose`); the program ends with the last.
+- On SIGTERM ("Bin fertig" on the test machine) every note is closed as by the user: pending
+  edits saved, the connection removed.
+- Exercise links: one handler for all windows, which hands each click to the window it came from.
+
 ## Changes From Outside
 
 A note open in PostFix may change on disk meanwhile (another program, a sync, Scope, a test

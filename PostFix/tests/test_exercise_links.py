@@ -163,9 +163,6 @@ def test_links_are_relative_to_the_note_shown(tmp_path):
     assert window._exercise_base() is None
 
 
-def test_postfix_registers_the_handler():
-    main = (REPO / "PostFix" / "main.py").read_text(encoding="utf-8")
-    assert "QDesktopServices.setUrlHandler(EXERCISE_SCHEME, self.exercise_launcher, \"open\")" in main
 
 
 def test_every_exercise_link_of_the_tutorial_opens_a_folder_of_its_lesson():
@@ -260,3 +257,32 @@ def test_the_tutorials_pictures_need_no_qt_add_ons():
         for target in re.findall(r"!\[[^\]]*\]\(<?([^)>|]+)>?\)", text):
             assert target.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".svg")), (note, target)
             assert (note.parent / target).is_file(), (note, target)
+
+
+def test_with_several_notes_a_link_goes_to_the_window_it_was_clicked_in():
+    # One PostFix for all notes: one handler for "myos" links, which hands each click to the
+    # window it came from (the active one), so the lesson folder is that note's.
+    from PostFix import main as pm
+
+    class Launcher:
+        def __init__(self):
+            self.urls = []
+
+        def open(self, url):
+            self.urls.append(url.toString())
+
+    class Note:
+        def __init__(self):
+            self.exercise_launcher = Launcher()
+
+    lesson4, lesson7 = Note(), Note()
+    pm.remember_active(lesson4)
+    pm.remember_active(lesson7)  # clicked into lesson 7 last
+    pm.EXERCISE_ROUTER.open(QUrl("myos:open?scope=."))
+    assert lesson7.exercise_launcher.urls == ["myos:open?scope=."] and lesson4.exercise_launcher.urls == []
+
+
+def test_postfix_registers_one_handler_for_all_windows():
+    main = (REPO / "PostFix" / "main.py").read_text(encoding="utf-8")
+    assert main.count("QDesktopServices.setUrlHandler(") == 1
+    assert "QDesktopServices.setUrlHandler(EXERCISE_SCHEME, EXERCISE_ROUTER, \"open\")" in main

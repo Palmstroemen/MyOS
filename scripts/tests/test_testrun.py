@@ -116,6 +116,8 @@ def test_only_windows_of_the_tutorial_copy_are_closed(tmp_path):
     assert not testrun.is_ours(["python3", "/opt/MyOS/Scope/Scope.py", "/home/t/Projekte"], Path("/"), repo, copy)
     assert not testrun.is_ours(["python3", "scripts/testrun.py", "finish"], repo, repo, copy)
     assert not testrun.is_ours(["nemo", "/home/t/MyOS-Tutorial"], repo, repo, copy)
+    # Scope starts PostFix as a module; with one PostFix for all notes that one counts too.
+    assert testrun.is_ours(["python3", "-m", "PostFix.main", lesson], repo, repo, copy)
     # The lens drive's process of a projects root in the copy goes too.
     daemon = ["python3", "-m", "daemon", "--projects-root", "/home/t/MyOS-Tutorial/DE/Lektion10/Wohnungsrenovierung",
               "--mount-point", "/home/t/MyOS-Tutorial/DE/Lektion10/Perspektiven"]

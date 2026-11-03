@@ -4,6 +4,7 @@ PostFix - Main Application Entry Point
 Builds UI directly in Python without .ui files for full control.
 """
 import subprocess
+import weakref
 import sys
 import tempfile
 import re
@@ -38,9 +39,38 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
                                QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication, QMenu)
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl, QLibraryInfo, QFileSystemWatcher
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl, QLibraryInfo, QFileSystemWatcher, QObject, Slot
 from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
+
+class _ExerciseRouter(QObject):
+    """The one handler of "myos" links for all notes of this PostFix: a click goes to the
+    window it was clicked in (the active one), whose note the lesson folder belongs to."""
+
+    @Slot(QUrl)
+    def open(self, url):
+        window = active_window()
+        if window is not None:
+            window.exercise_launcher.open(url)
+
+
+EXERCISE_ROUTER = _ExerciseRouter()
+_last_active = None
+
+
+def remember_active(window):
+    global _last_active
+    _last_active = weakref.ref(window)
+
+
+def active_window():
+    """The note window the user is in: Qt's active window, else the one activated last."""
+    app = QApplication.instance()
+    current = app.activeWindow() if app is not None else None
+    if current is not None and hasattr(current, "exercise_launcher"):
+        return current
+    return _last_active() if _last_active is not None else None
+
 
 class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowThemeMixin, QMainWindow):
     """Main application window."""
@@ -169,7 +199,9 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         # Exercise links of the tutorial (myos:open?scope=...&files=...): a click opens Scope in
         # the exercise folder, the file browser beside it (exercise_links.py).
         self.exercise_launcher = ExerciseLauncher(self._exercise_base, Path(__file__).resolve().parents[1], parent=self)
-        QDesktopServices.setUrlHandler(EXERCISE_SCHEME, self.exercise_launcher, "open")
+        # One handler for all windows of this PostFix: the router hands each click on.
+        QDesktopServices.setUrlHandler(EXERCISE_SCHEME, EXERCISE_ROUTER, "open")
+        remember_active(self)
         self.right_sidebar = TagSidebar()
         self._doc_tags = []
         self._doc_color_defs = []
@@ -861,6 +893,11 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         y_permille = int(((geom.y() - available.y()) / max(1, available.height())) * 1000)
         self.editor.update_window_metadata(geom.width(), geom.height(), x_permille, y_permille)
         self._save_current_document()
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.ActivationChange and self.isActiveWindow():
+            remember_active(self)  # exercise links go to the note clicked last
+        super().changeEvent(event)
 
     def closeEvent(self, event):
         self._save_current_document()
