@@ -1,0 +1,21 @@
+{
+  "name": "myos-postfix-editor",
+  "private": true,
+  "description": "PostFix's Markdown editor: CodeMirror 6 with an Obsidian-like live preview, bundled into one file for QtWebEngine.",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/editor.js --bundle --format=iife --global-name=MyOSEditor --minify --outfile=dist/editor.bundle.js"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.8.1",
+    "@codemirror/lang-markdown": "6.3.2",
+    "@codemirror/language": "6.11.0",
+    "@codemirror/state": "6.5.2",
+    "@codemirror/view": "6.36.8",
+    "@lezer/highlight": "1.2.1",
+    "@lezer/markdown": "1.4.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.4"
+  }
+}
