@@ -3,6 +3,7 @@
 PostFix - Main Application Entry Point
 Builds UI directly in Python without .ui files for full control.
 """
+import os
 import subprocess
 import weakref
 import sys
@@ -25,6 +26,7 @@ try:
     from .window_theme import WindowThemeMixin
     from .exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
     from .live_file import conflict_copy_path, merge3
+    from . import editor_host
 except ImportError:
     from markdown_render import render_markdown
     from ui_panels import TagSidebar, ACLSidebar, BottomToolbar
@@ -35,6 +37,7 @@ except ImportError:
     from window_theme import WindowThemeMixin
     from exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
     from live_file import conflict_copy_path, merge3
+    import editor_host
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
@@ -70,6 +73,43 @@ def active_window():
     if current is not None and hasattr(current, "exercise_launcher"):
         return current
     return _last_active() if _last_active is not None else None
+
+
+def editor_enabled() -> bool:
+    """The CodeMirror editor (editor_host.py) instead of the line editor; switched on for now."""
+    return os.environ.get("MYOS_POSTFIX_EDITOR", "").strip().lower() == "codemirror"
+
+
+def _window_for_note(note: str):
+    for widget in QApplication.topLevelWidgets():
+        if isinstance(widget, PostFixWindow) and widget._editor_key() == note:
+            return widget
+    return None
+
+
+def _editor_changed(note: str, body: str):
+    window = _window_for_note(note)
+    if window is not None:
+        window.editor.set_body(body)  # saved, merged, tagged as any edit
+
+
+def _editor_link(note: str, href: str):
+    window = _window_for_note(note)
+    if window is not None:
+        window.follow_link(href)
+
+
+_editor_hooked = False
+
+
+def _editor():
+    global _editor_hooked
+    host = editor_host.shared()
+    if not _editor_hooked:
+        host.changed.connect(_editor_changed)
+        host.linkClicked.connect(_editor_link)
+        _editor_hooked = True
+    return host
 
 
 class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowThemeMixin, QMainWindow):
@@ -591,6 +631,9 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         self._after_reload()
 
     def _after_reload(self):
+        host = editor_host._shared
+        if host is not None and host.owner() is self.editor:
+            host.set_doc(self._editor_key(), self.editor.body())
         self._watch_current_file()
         self._sync_note_style_selector_from_document()
         self._reload_tag_context()
@@ -897,10 +940,78 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
     def changeEvent(self, event):
         if event.type() == QEvent.ActivationChange and self.isActiveWindow():
             remember_active(self)  # exercise links go to the note clicked last
+            self._take_editor()  # the note being edited gets the one editor
         super().changeEvent(event)
+
+    def _editor_key(self) -> str:
+        path = getattr(self.editor, "current_path", None)
+        return str(Path(path).resolve()) if path else f"unsaved-{id(self)}"
+
+    def _take_editor(self):
+        """The one editor moves into this note; the note it leaves shows its rendering again."""
+        if not editor_enabled():
+            return
+        host = _editor()
+        if host.owner() is self.editor:
+            return
+        path = getattr(self.editor, "current_path", None)
+        self.editor.suspend_preview()
+        host.attach(self.editor, self._editor_key(), self.editor.body(),
+                    Path(path).parent if path else Path.home(),
+                    on_leave=self.editor.resume_preview, background=self.editor.current_bg)
+
+    def follow_link(self, href: str):
+        """A link clicked in the editor: notes open here, exercise links and web pages as usual."""
+        href = str(href or "").strip()
+        if not href or href.startswith("#"):
+            return
+        if href.startswith(EXERCISE_SCHEME + ":"):
+            self.exercise_launcher.open(QUrl(href))
+            return
+        if "://" in href or href.startswith("mailto:"):
+            QDesktopServices.openUrl(QUrl(href))
+            return
+        current = getattr(self.editor, "current_path", None)
+        base = Path(current).parent if current else Path.cwd()
+        target = (base / QUrl.fromPercentEncoding(href.split("#")[0].encode("utf-8"))).resolve()
+        if target.suffix.lower() == ".md" and target.is_file():
+            self.open_note_in_place(target)
+        elif target.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+
+    def open_note_in_place(self, path: Path):
+        """Another note in this window (a link followed), saved and watched as the first."""
+        self._save_current_document()
+        path = Path(path)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return
+        tracking = self._track_local_changes
+        self._track_local_changes = False
+        try:
+            self._disk_text = text
+            self.editor.load_markdown(text)
+            self.editor.set_path(path)
+        finally:
+            self._track_local_changes = tracking
+        self._set_clean_document_state()
+        self._watch_current_file()
+        self._sync_filename_field_from_path(select_all=False)
+        self._sync_note_style_selector_from_document()
+        self._reload_tag_context()
+        self._reload_acl_context()
+        host = editor_host._shared
+        if host is not None and host.owner() is self.editor:
+            host.attach(self.editor, self._editor_key(), self.editor.body(), path.parent,
+                        on_leave=self.editor.resume_preview, background=self.editor.current_bg)
 
     def closeEvent(self, event):
         self._save_current_document()
+        host = editor_host._shared
+        if host is not None:
+            host.release(self.editor)  # the editor lives on for the other notes
+            host.drop(self._editor_key())
         super().closeEvent(event)
 
     def print_to_printer(self, printer_name: str):

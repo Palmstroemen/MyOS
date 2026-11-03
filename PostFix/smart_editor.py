@@ -54,6 +54,9 @@ class SmartEditor(QWidget):
         self._last_preview_scroll = 0
         self._last_tag_jump_token = ""
         self._last_tag_jump_idx = -1
+        # While the one editor (editor_host.py) lies over this note, its rendering is not redrawn
+        # on every keystroke; tags still follow. Drawn again when the editor moves on.
+        self._preview_suspended = False
         self.setup_ui()
         self.apply_background(self.current_bg, update_frontmatter=False, animate=False)
         self.render_preview()
@@ -176,7 +179,37 @@ class SmartEditor(QWidget):
     def _on_source_changed(self):
         if self._syncing_focus:
             return
+        if self._preview_suspended:
+            body = self.body()
+            self.tagsChanged.emit(self.extract_tags(body))
+            self.colorDefinitionsChanged.emit(self.extract_color_definitions(body))
+            return
         self.render_preview(sync_focus=not self._editing_focus)
+
+    def suspend_preview(self):
+        self._preview_suspended = True
+
+    def resume_preview(self):
+        self._preview_suspended = False
+        self.render_preview()
+
+    def preview_suspended(self) -> bool:
+        return self._preview_suspended
+
+    def body(self) -> str:
+        """The note without its front matter (what the editor shows)."""
+        text = self.source_edit.toPlainText()
+        return self.metadata.split_frontmatter(text)[1] if self.show_frontmatter else text
+
+    def set_body(self, body: str):
+        """The note's body as typed in the editor; the front matter stays."""
+        if self.show_frontmatter:
+            meta, _old = self.metadata.split_frontmatter(self.source_edit.toPlainText())
+            text = self.metadata.build_frontmatter(meta, body) if meta else body
+        else:
+            text = body
+        if text != self.source_edit.toPlainText():
+            self.source_edit.setPlainText(text)
 
     def extract_tags(self, body: str):
         filtered_lines = []

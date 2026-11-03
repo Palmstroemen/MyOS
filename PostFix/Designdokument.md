@@ -121,6 +121,24 @@ Use portable, file-based formats and compatible registry structures.
   edits saved, the connection removed.
 - Exercise links: one handler for all windows, which hands each click to the window it came from.
 
+## One Editor For All Notes (in the works)
+
+`PostFix/editor_host.py`, behind `MYOS_POSTFIX_EDITOR=codemirror` (off by default). Measured: every
+further CodeMirror page costs 40-80 MB and leaks some when dropped; moving one page between
+windows takes 40-120 ms. So one page serves all notes of a PostFix:
+
+- The note being edited (the window last activated) gets the editor, laid over its rendering;
+  the others show their rendering (step 3 will make that light in the very same look).
+- Every note keeps its own text, cursor, selection and undo history in the page (one
+  CodeMirror state per note); changes from outside go into that state without being reported back
+  as typing.
+- PostFix keeps the front matter; the editor only sees the body. Typed text goes through the
+  usual save (merge with changes from outside, conflict copy).
+- Links in the editor: notes open in the same window, other files with their program, myos links
+  as exercise links.
+- The editor leaves a note before it is deleted (window closed or deleted), so it lives on for
+  the others; the page itself is deleted before Qt ends (otherwise QtWebEngine crashes on exit).
+
 ## Changes From Outside
 
 A note open in PostFix may change on disk meanwhile (another program, a sync, Scope, a test

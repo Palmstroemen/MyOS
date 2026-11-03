@@ -5,7 +5,7 @@
 
 import { EditorState, StateField, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration, WidgetType, keymap, drawSelection } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab, undo } from "@codemirror/commands";
 import { markdown, markdownLanguage, markdownKeymap } from "@codemirror/lang-markdown";
 import { ensureSyntaxTree, syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
@@ -270,47 +270,101 @@ function wrapWith(mark) {
 
 // --- The editor PostFix talks to --------------------------------------------------------------
 
-export function create(parent, { doc = "", onChange = () => {}, onLink = () => {} } = {}) {
-  const view = new EditorView({
-    parent,
-    state: EditorState.create({
-      doc,
-      extensions: [
-        history(),
-        drawSelection(),
-        EditorView.lineWrapping,
-        markdown({ base: markdownLanguage }),
-        syntaxHighlighting(markdownHighlight),
-        livePreview,
-        theme,
-        keymap.of([{ key: "Mod-b", run: wrapWith("**") }, { key: "Mod-i", run: wrapWith("*") },
-                   ...markdownKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
-        EditorView.updateListener.of((update) => { if (update.docChanged) onChange(update.state.doc.toString()); }),
-        EditorView.domEventHandlers({
-          mousedown: (event) => {
-            const link = event.target.closest && event.target.closest(".cm-md-link");
-            if (!link) return false;
-            event.preventDefault();  // a click follows the link; the cursor stays where it was
-            onLink(link.getAttribute("data-href"));
-            return true;
-          },
-        }),
-      ],
+// One editor for all notes of a PostFix: show(id, doc, base) puts a note into it. Each note keeps
+// a state of its own - text, cursor, selection and its own undo history - so Ctrl+Z in one note
+// never takes back an edit made in another.
+export function createHost(parent, { onChange = () => {}, onLink = () => {} } = {}) {
+  let current = null;
+  const states = new Map();
+  const extensions = [
+    history(),
+    drawSelection(),
+    EditorView.lineWrapping,
+    markdown({ base: markdownLanguage }),
+    syntaxHighlighting(markdownHighlight),
+    livePreview,
+    theme,
+    keymap.of([{ key: "Mod-b", run: wrapWith("**") }, { key: "Mod-i", run: wrapWith("*") },
+               ...markdownKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged && current !== null && !update.transactions.some((t) => t.isUserEvent("outside"))) {
+        onChange(current, update.state.doc.toString());
+      }
     }),
-  });
+    EditorView.domEventHandlers({
+      mousedown: (event) => {
+        const link = event.target.closest && event.target.closest(".cm-md-link");
+        if (!link) return false;
+        event.preventDefault();  // a click follows the link; the cursor stays where it was
+        onLink(current, link.getAttribute("data-href"));
+        return true;
+      },
+    }),
+  ];
+  const view = new EditorView({ parent, state: EditorState.create({ doc: "", extensions }) });
+
+  // A change from outside: only the part that differs is replaced, so the cursor stays put.
+  function outsideChange(state, text) {
+    const old = state.doc.toString();
+    if (text === old) return null;
+    let start = 0;
+    while (start < old.length && start < text.length && old[start] === text[start]) start++;
+    let endOld = old.length, endNew = text.length;
+    while (endOld > start && endNew > start && old[endOld - 1] === text[endNew - 1]) { endOld--; endNew--; }
+    return { changes: { from: start, to: endOld, insert: text.slice(start, endNew) }, userEvent: "outside" };
+  }
+
+  function setBase(base) {
+    // Pictures and links of a note are relative to its folder.
+    if (!base) return;
+    let element = document.querySelector("base");
+    if (!element) { element = document.createElement("base"); document.head.prepend(element); }
+    element.href = base;
+  }
+
   return {
     view,
-    getDoc: () => view.state.doc.toString(),
-    // A change from outside: only the part that differs is replaced, so the cursor stays put.
-    setDoc: (text) => {
-      const current = view.state.doc.toString();
-      if (text === current) return;
-      let start = 0;
-      while (start < current.length && start < text.length && current[start] === text[start]) start++;
-      let endOld = current.length, endNew = text.length;
-      while (endOld > start && endNew > start && current[endOld - 1] === text[endNew - 1]) { endOld--; endNew--; }
-      view.dispatch({ changes: { from: start, to: endOld, insert: text.slice(start, endNew) }, userEvent: "outside" });
+    show(id, doc, base) {
+      if (current !== null) states.set(current, view.state);
+      setBase(base);
+      let state = states.get(id);
+      if (!state) state = EditorState.create({ doc, extensions });
+      else {
+        const change = outsideChange(state, doc);
+        if (change) state = state.update(change).state;
+      }
+      current = id;
+      view.setState(state);
     },
+    setDoc(id, text) {
+      if (id === current) {
+        const change = outsideChange(view.state, text);
+        if (change) view.dispatch(change);
+      } else if (states.has(id)) {
+        const change = outsideChange(states.get(id), text);
+        if (change) states.set(id, states.get(id).update(change).state);
+      }
+    },
+    getDoc: (id) => (id === current ? view.state.doc.toString() : states.has(id) ? states.get(id).doc.toString() : null),
+    drop(id) { states.delete(id); if (id === current) current = null; },
+    current: () => current,
     focus: () => view.focus(),
   };
+}
+
+// One note only (the prototype window, PostFix/cm_prototype.py).
+export function create(parent, { doc = "", onChange = () => {}, onLink = () => {} } = {}) {
+  const host = createHost(parent, { onChange: (_id, text) => onChange(text), onLink: (_id, href) => onLink(href) });
+  host.show("note", doc);
+  return {
+    view: host.view,
+    getDoc: () => host.getDoc("note"),
+    setDoc: (text) => host.setDoc("note", text),
+    focus: () => host.focus(),
+  };
+}
+
+// Undo once in the note shown (tests; the keys do the same).
+export function undoOnce(host) {
+  return undo(host.view);
 }
