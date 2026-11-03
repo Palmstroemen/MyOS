@@ -16,9 +16,11 @@ class _DummyWindow:
     _save_current_document = PostFixWindow._save_current_document
     _on_editor_text_changed = PostFixWindow._on_editor_text_changed
     _set_clean_document_state = PostFixWindow._set_clean_document_state
+    _reconcile_with_disk = PostFixWindow._reconcile_with_disk
 
     def __init__(self, path: Path, content: str):
         self.editor = _DummyEditor(path, content)
+        self._disk_text = path.read_text(encoding="utf-8") if path.exists() else None
         self._track_local_changes = True
         self._has_local_changes = False
         self._scope_sync_calls = 0

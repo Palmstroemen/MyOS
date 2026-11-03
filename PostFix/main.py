@@ -23,6 +23,7 @@ try:
     from .window_acls import WindowAclsMixin
     from .window_theme import WindowThemeMixin
     from .exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
+    from .live_file import conflict_copy_path, merge3
 except ImportError:
     from markdown_render import render_markdown
     from ui_panels import TagSidebar, ACLSidebar, BottomToolbar
@@ -32,11 +33,12 @@ except ImportError:
     from window_acls import WindowAclsMixin
     from window_theme import WindowThemeMixin
     from exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
+    from live_file import conflict_copy_path, merge3
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QGridLayout, QPushButton, QLabel,
                                QSpacerItem, QSizePolicy, QFrame,
                                QGraphicsOpacityEffect, QStackedLayout, QLineEdit, QComboBox, QApplication, QMenu)
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl, QLibraryInfo
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QPoint, QEvent, QRect, QTimer, QTranslator, QUrl, QLibraryInfo, QFileSystemWatcher
 from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QTextDocument, QCursor
 from PySide6.QtPrintSupport import QPrinter
 
@@ -216,6 +218,16 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self._save_current_document)
+        # The note as it was last read from or written to disk; a change from outside shows at
+        # once and is merged with unsaved edits, never written over (live_file.py).
+        self._disk_text = None
+        self._file_watcher = QFileSystemWatcher(self)
+        self._file_watcher.fileChanged.connect(lambda _path: self._reload_timer.start())
+        self._file_watcher.directoryChanged.connect(lambda _path: self._reload_timer.start())
+        self._reload_timer = QTimer(self)
+        self._reload_timer.setSingleShot(True)
+        self._reload_timer.setInterval(150)  # a program writing in several steps settles first
+        self._reload_timer.timeout.connect(self._reconcile_with_disk)
         self._scope_sync_timer = QTimer(self)
         self._scope_sync_timer.setSingleShot(True)
         self._scope_sync_timer.timeout.connect(self._sync_scope_tags_from_document)
@@ -384,9 +396,11 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         # Connect signals
         self.connect_signals()
         if open_path and open_path.exists() and hasattr(self.editor, "load_markdown"):
-            self.editor.load_markdown(open_path.read_text(encoding="utf-8"))
+            self._disk_text = open_path.read_text(encoding="utf-8")
+            self.editor.load_markdown(self._disk_text)
             if hasattr(self.editor, "set_path"):
                 self.editor.set_path(open_path)
+            self._watch_current_file()
         auto_rename = bool(open_path and open_path.stem.lower().startswith("new note"))
         self.set_language(ui_language)
         if auto_rename:
@@ -505,15 +519,90 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             return False
         if not self._has_local_changes:
             return False
+        # Never write over a change from outside: merge it in first (or keep both on a conflict).
+        self._reconcile_with_disk()
+        if not self._has_local_changes or not Path(path).exists():
+            return False  # merged away, or the note was deleted elsewhere: not written back
         # Finalize scoped tag list using stable editor state at save time.
         self._sync_scope_tags_from_document()
         try:
             content = self.editor.get_markdown()
             path.write_text(content, encoding="utf-8")
+            self._disk_text = content
             self._set_clean_document_state()
             return True
         except OSError:
             return False
+
+    def _watch_current_file(self):
+        """Watch the open note (and its folder: many programs replace a file instead of
+        writing it, and the watch on the old file ends with it)."""
+        watcher = getattr(self, "_file_watcher", None)
+        path = getattr(self.editor, "current_path", None)
+        if watcher is None or not path:
+            return
+        old = watcher.files() + watcher.directories()
+        if old:
+            watcher.removePaths(old)
+        for target in (Path(path), Path(path).parent):
+            if target.exists():
+                watcher.addPath(str(target))
+
+    def _load_from_disk(self, text: str):
+        """Show text as the note's content without counting it as a change of the user's."""
+        tracking = self._track_local_changes
+        self._track_local_changes = False
+        try:
+            self.editor.load_markdown(text)
+        finally:
+            self._track_local_changes = tracking
+        self._after_reload()
+
+    def _after_reload(self):
+        self._watch_current_file()
+        self._sync_note_style_selector_from_document()
+        self._reload_tag_context()
+
+    def _notify(self, text: str):
+        print(f"[PostFix] {text}", file=sys.stderr)
+        from PySide6.QtWidgets import QToolTip
+
+        QToolTip.showText(self.mapToGlobal(self.rect().center()), text, self)
+
+    def _reconcile_with_disk(self) -> bool:
+        """Take in a change from outside: shown at once without local edits, merged with
+        them otherwise; on a conflict the file keeps the change from outside and the local
+        version is kept beside it. True when the note changed from outside."""
+        path = getattr(self.editor, "current_path", None)
+        if not path or self._disk_text is None:
+            return False
+        try:
+            disk = Path(path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False  # gone or unreadable: nothing to take in (and nothing written back)
+        if disk == self._disk_text:
+            return False  # nothing new, or our own save
+        mine = self.editor.get_markdown()
+        if not self._has_local_changes or mine == self._disk_text:
+            self._disk_text = disk
+            self._load_from_disk(disk)
+            self._set_clean_document_state()
+            return True
+        merged, conflict = merge3(self._disk_text, mine, disk)
+        self._disk_text = disk
+        if conflict:
+            copy = conflict_copy_path(Path(path))
+            try:
+                copy.write_text(mine, encoding="utf-8")
+            except OSError:
+                pass
+            self._load_from_disk(disk)
+            self._set_clean_document_state()
+            self._notify(self.tr("Changed elsewhere at the same place. Your version is kept beside it: %1").replace("%1", copy.name))
+            return True
+        self._load_from_disk(merged)
+        self._has_local_changes = merged != disk  # what is merged in still has to be saved
+        return True
         
     def toggle_maximize(self):
         """Toggle between normal and maximized window state."""
@@ -637,6 +726,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             self._sync_filename_field_from_path(select_all=True)
             return
         self.editor.set_path(candidate)
+        self._watch_current_file()
         if hasattr(self.editor, "sync_title_from_filename"):
             self.editor.sync_title_from_filename(new_base)
         self._schedule_save()

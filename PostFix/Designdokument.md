@@ -104,6 +104,21 @@ Use portable, file-based formats and compatible registry structures.
 - Obsidian-compatible tag color registry structures.
 - Tag color changes write back to registry data.
 
+## Changes From Outside
+
+A note open in PostFix may change on disk meanwhile (another program, a sync, Scope, a test
+machine's reset). `PostFix/live_file.py`, decided 2026-11-03 after PostFix wrote its older copy
+of lesson 7 back on closing:
+
+- PostFix watches the note (and its folder: many programs replace a file instead of writing it).
+- Without unsaved edits a change from outside shows at once, like in Google Docs.
+- With unsaved edits both are merged line by line against the version both started from
+  (three-way merge): a moved window (its place lives in the note's front matter) and a paragraph
+  added elsewhere both survive.
+- A real conflict (the same lines changed differently): the file keeps the version from outside,
+  PostFix's own goes beside it as "<name> (Konflikt).md", and a short notice says so.
+- Every save reconciles first; a note deleted elsewhere is not written back.
+
 ## Exercise Links (Learning MyOS)
 
 A lesson says `[▶ Übung öffnen](<myos:open?scope=Urlaub 2025&files=Urlaub 2025>)`: a click

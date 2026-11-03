@@ -241,12 +241,12 @@
 <context>
     <name>ExerciseLauncher</name>
     <message>
-        <location filename="../exercise_links.py" line="216"/>
+        <location filename="../exercise_links.py" line="219"/>
         <source>Finished</source>
         <translation>Fertig</translation>
     </message>
     <message>
-        <location filename="../exercise_links.py" line="217"/>
+        <location filename="../exercise_links.py" line="220"/>
         <source>Done with the tutorial? Your notes and comments are collected and the computer is made ready for the next tester.
 
 Your name (optional):</source>
@@ -296,25 +296,30 @@ Dein Name (freiwillig):</translation>
 <context>
     <name>PostFixWindow</name>
     <message>
-        <location filename="../main.py" line="106"/>
-        <location filename="../main.py" line="400"/>
+        <location filename="../main.py" line="109"/>
+        <location filename="../main.py" line="415"/>
         <source>PostFix</source>
         <translation>PostFix</translation>
     </message>
     <message>
-        <location filename="../main.py" line="187"/>
-        <location filename="../main.py" line="421"/>
-        <location filename="../main.py" line="545"/>
+        <location filename="../main.py" line="190"/>
+        <location filename="../main.py" line="436"/>
+        <location filename="../main.py" line="641"/>
         <source>Focus mode</source>
         <translation>Fokusmodus</translation>
     </message>
     <message>
-        <location filename="../main.py" line="419"/>
+        <location filename="../main.py" line="434"/>
         <source>File name</source>
         <translation>Dateiname</translation>
     </message>
     <message>
-        <location filename="../main.py" line="665"/>
+        <location filename="../main.py" line="601"/>
+        <source>Changed elsewhere at the same place. Your version is kept beside it: %1</source>
+        <translation>An derselben Stelle anderswo geändert. Deine Fassung liegt daneben: %1</translation>
+    </message>
+    <message>
+        <location filename="../main.py" line="760"/>
         <source>Style: Auto</source>
         <translation>Stil: Auto</translation>
     </message>
