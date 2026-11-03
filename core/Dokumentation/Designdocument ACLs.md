@@ -224,6 +224,11 @@ pictogram `◂` read, `▸` write, `x`, `c`, `d`), inherited rights shown as suc
   are the human view of it. Later MyOS links both and shows where they disagree (a card
   without a line in `# Users` or the other way round); adding a person can then also
   create the card.
+- **Suggested folders follow enforcement** (decided 2026-11-03): with `MYOS_ACL_MODE` off
+  (the default) or `monitor`, everyone sees a project's suggested folders and may give them
+  life, also a person its `ACLs.md` does not list; only with `enforce` do the rights hide
+  them and refuse a birth. Before, they were hidden as soon as an `ACLs.md` existed - so a
+  project made from a template with example users showed none to anyone else.
 - **Protection, honestly:** on a foreign computer anyone could claim to be someone, and a
   USB stick (FAT32) has no rights at all: MyOS ACLs say who *should* do what and prevent
   mistakes; they do not stop intent there. Open: authentication, and when exporting to a

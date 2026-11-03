@@ -432,13 +432,14 @@ def test_project_with_broken_template(mount_garten):
 
 
 def test_acl_embryo_visibility(monkeypatch):
-    """Embryos are only shown when write is allowed by ACLs."""
+    """With ACLs enforced, embryos are only shown when write is allowed."""
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir) / "AclProject"
         _create_test_project(project_root, "Standard")
         _write_acl_policy(project_root)
 
         monkeypatch.setenv("MYOS_ROLES", "info")
+        monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
 
         layer = Blueprint(project_root)
         entries = layer.readdir("/", None)
@@ -449,13 +450,14 @@ def test_acl_embryo_visibility(monkeypatch):
 
 
 def test_acl_birth_denied_without_write(monkeypatch):
-    """Birth is blocked when ACLs exist but role has no write."""
+    """With ACLs enforced, birth is blocked when the role has no write."""
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir) / "AclProject"
         _create_test_project(project_root, "Standard")
         _write_acl_policy(project_root)
 
         monkeypatch.setenv("MYOS_ROLES", "info")
+        monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
 
         layer = Blueprint(project_root)
 
@@ -466,13 +468,14 @@ def test_acl_birth_denied_without_write(monkeypatch):
 
 
 def test_acl_no_roles_no_embryos(monkeypatch):
-    """When ACLs exist and no roles resolve, embryos are hidden."""
+    """With ACLs enforced and no roles resolved, embryos are hidden."""
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir) / "AclProject"
         _create_test_project(project_root, "Standard")
         _write_acl_policy(project_root)
 
         monkeypatch.delenv("MYOS_ROLES", raising=False)
+        monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
 
         layer = Blueprint(project_root)
         entries = layer.readdir("/", None)
@@ -480,6 +483,28 @@ def test_acl_no_roles_no_embryos(monkeypatch):
         assert "admin" not in entries
         assert "info" not in entries
         assert "kommunikation" not in entries
+
+
+@pytest.mark.parametrize("mode", [None, "off", "monitor"])
+def test_without_enforcement_everyone_sees_the_suggestions(monkeypatch, mode):
+    """Suggested folders follow ACL enforcement like the rest of Scope: off by default (and
+    in monitor mode, which only records), a person the project's ACLs.md does not list
+    still sees them - e.g. a tester in a project made from the Standard template."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir) / "AclProject"
+        _create_test_project(project_root, "Standard")
+        _write_acl_policy(project_root)
+
+        monkeypatch.delenv("MYOS_ROLES", raising=False)
+        if mode is None:
+            monkeypatch.delenv("MYOS_ACL_MODE", raising=False)
+        else:
+            monkeypatch.setenv("MYOS_ACL_MODE", mode)
+
+        layer = Blueprint(project_root)
+        entries = layer.readdir("/", None)
+
+        assert {"admin", "info", "kommunikation"} <= set(entries)
 
 def test_deeply_nested_project(mount_webseite):
     """Testet tief verschachtelte Projekte."""

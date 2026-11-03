@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 from fuse import FUSE, FuseOSError, Operations
 from core.project import ProjectConfig
 from core.acl import ACLPolicy
+from core.acl_enforcement import configured_mode
 from core.identity import person_in
 from core.filing import sorted_folder_for, virtual_groups
 
@@ -349,9 +350,14 @@ class Blueprint(Operations):
     def _can_write_embryo(self, rel_path: str) -> bool:
         """
         Return True if the current roles allow write access to this embryo path.
-        If no roles are resolved, do not enforce ACLs.
+        Suggested folders follow ACL enforcement like the rest of Scope: off (the default)
+        or monitor, everyone sees them - also a person the project's ACLs.md does not list.
         """
         if not self.acl_enabled:
+            return True
+        # Security: only with enforcement on do the rights hide suggestions and refuse births;
+        # otherwise ACLs say who should do what, as everywhere else (Designdocument ACLs.md).
+        if configured_mode() != "enforce":
             return True
         if not self.acl_roles:
             return False

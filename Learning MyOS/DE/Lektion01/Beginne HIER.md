@@ -70,7 +70,7 @@ Markdown ist einfach zu benutzen und sehr schnell, wenn du Ideen und Gedanken fe
 Markdown kann auch ...
 #### Bilder
 
-![ein Lama|300](lama.webp)
+![ein Lama|300](lama.jpg)
 
 #### Tabellen
 

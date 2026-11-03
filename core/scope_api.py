@@ -33,7 +33,7 @@ from core.project_unmake import ProjectHasOwnSettings, can_unmake, unmake_projec
 from core.xray import xray_listing
 from core import trash
 from core.project import find_config_in_parents
-from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService
+from core.acl_enforcement import ACLCheckRequest, ACLCheckResult, ACLEnforcementService, configured_mode
 from core.desk import DeskConfig
 from core.desk_service import DeskService
 from core.perspective import (
@@ -953,9 +953,7 @@ class ScopeApi:
             return
 
     def _configure_acl_from_env(self) -> None:
-        mode = str(os.environ.get("MYOS_ACL_MODE") or "off").strip().lower()
-        if mode not in {"off", "monitor", "enforce"}:
-            mode = "off"
+        mode = configured_mode()
 
         if mode == "off":
             self._acl_enforcement = None

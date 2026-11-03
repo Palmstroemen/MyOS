@@ -70,7 +70,7 @@ Markdown is easy to use and very fast for capturing ideas and thoughts.
 Markdown can also do ...
 #### Images
 
-![a llama|300](lama.webp)
+![a llama|300](lama.jpg)
 
 #### Tables
 

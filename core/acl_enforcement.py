@@ -8,6 +8,17 @@ from core.acl import ACLAuthorizer
 
 AuditSink = Callable[[Dict[str, object]], None]
 
+MODES = ("off", "monitor", "enforce")
+
+
+def configured_mode() -> str:
+    """The ACL mode set for this run (MYOS_ACL_MODE): off (default), monitor or enforce.
+    Scope's checks and the suggested folders both follow it."""
+    import os
+
+    mode = str(os.environ.get("MYOS_ACL_MODE") or "off").strip().lower()
+    return mode if mode in MODES else "off"
+
 
 @dataclass(frozen=True)
 class ACLCheckRequest:

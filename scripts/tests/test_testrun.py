@@ -219,3 +219,25 @@ def test_install_makes_postfix_the_program_for_markdown(machine, tmp_path):
     assert "PostFix/cli.py" in text and "%f" in text and "MimeType=text/markdown;text/x-markdown;" in text
     assert ["xdg-mime", "default", "myos-postfix.desktop", "text/markdown"] in ran
     assert ["xdg-mime", "default", "myos-postfix.desktop", "text/x-markdown"] in ran
+
+
+def test_the_tutorial_is_its_own_root_and_its_folders_can_become_projects(machine, monkeypatch):
+    # Next to the projects no project lies above the tutorial: it brings its own root
+    # (Standard template, no ACLs - everyone may see it), so "In Projekt verwandeln" works in
+    # lessons 5, 7 and 8 and the new project shows its suggested folders.
+    from core.scope_api import ScopeApi
+
+    monkeypatch.delenv("MYOS_ACL_MODE", raising=False)
+    monkeypatch.delenv("MYOS_ROLES", raising=False)
+    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    shutil.copytree(testrun.REPO_ROOT / "core" / "tests" / "unit" / "test_lab" / "Templates",
+                    machine.tutorial.parent / "Templates")
+    testrun.prepare(machine)
+    root = machine.tutorial / ".MyOS"
+    assert (root / "Project.md").is_file() and not (root / "ACLs.md").exists()
+    assert "Standard" in (root / "Templates.md").read_text(encoding="utf-8")
+
+    vacation = machine.tutorial / "DE" / "Lektion05" / "Urlaub Sommer 2026"
+    assert ScopeApi(str(vacation.parent)).create_project(str(vacation))
+    names = [e["name"] for e in ScopeApi(str(vacation)).list_children(str(vacation), True, False)]
+    assert {"admin", "info", "kommunikation"} <= set(names)

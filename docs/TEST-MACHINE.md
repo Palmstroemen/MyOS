@@ -36,6 +36,10 @@ and lesson 1 opens for the next tester.
 
 ## What a tester sees
 
+The tutorial is its own root (`Learning MyOS/.MyOS`: Standard template, no ACLs - everyone
+may see it), so "In Projekt verwandeln" works in the lessons although no "Projekte" lies
+above it. Example rights only come where a lesson needs them (lesson 11).
+
 - PostFix with lesson 1 of the copy (`~/MyOS-Tutorial`, German). The repository is never
   touched.
 - Under every lesson "💬 Kommentar zu dieser Lektion": it opens the note "Meine Kommentare"

@@ -248,3 +248,15 @@ def test_scope_from_an_exercise_starts_without_the_lens_drive(lesson):
     launcher.open(QUrl("myos:open?scope=Urlaub 2025&files=Urlaub 2025"))
     scope_env = recorder.envs[0]
     assert scope_env.get("MYOS_SCOPE_START_DAEMON") == "0"
+
+
+def test_the_tutorials_pictures_need_no_qt_add_ons():
+    # WebP and friends need Qt's image format add-ons, which a test machine may lack (the
+    # lama of lesson 1 stayed empty there): pictures in notes are PNG, JPEG, GIF or SVG.
+    import re
+
+    for note in (REPO / "Learning MyOS").rglob("*.md"):
+        text = note.read_text(encoding="utf-8")
+        for target in re.findall(r"!\[[^\]]*\]\(<?([^)>|]+)>?\)", text):
+            assert target.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".svg")), (note, target)
+            assert (note.parent / target).is_file(), (note, target)
