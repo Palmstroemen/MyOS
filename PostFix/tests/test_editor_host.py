@@ -18,14 +18,26 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
-@pytest.fixture
-def host(app):
+@pytest.fixture(scope="module")
+def page(app):
+    # One page for all tests, as for all notes of a PostFix: pages made and deleted one after
+    # another crash QtWebEngine now and then.
     from PostFix.editor_host import EditorHost
 
     editor = EditorHost()
     assert _wait(app, lambda: editor.ready, 20), "the editor page did not load"
     yield editor
     editor.shutdown()
+
+
+@pytest.fixture
+def host(app, page):
+    yield page
+    if page.owner() is not None:
+        page.release(page.owner())
+    for note in ("a.md", "b.md"):
+        page.drop(note)  # the next test starts with notes new to the editor
+    _wait(app, lambda: False, 0.1)
 
 
 def _wait(app, condition, seconds=5):
@@ -59,7 +71,7 @@ def test_typed_text_reaches_python_with_its_note(app, host, tmp_path):
     _wait(app, lambda: False, 0.2)
     _type(app, host, "X")
     assert _wait(app, lambda: changes)
-    assert changes[-1] == ("a.md", "XHallo")
+    assert changes[-1] == ("a.md", "HalloX")  # a note new to the editor: the cursor at its end
 
 
 def test_each_note_keeps_its_own_undo(app, host, tmp_path):
@@ -70,11 +82,11 @@ def test_each_note_keeps_its_own_undo(app, host, tmp_path):
     host.attach(b, "b.md", "Zweite", tmp_path)
     _wait(app, lambda: False, 0.2)
     _type(app, host, "B")
-    host.attach(a, "a.md", "AErste", tmp_path)
+    host.attach(a, "a.md", "ErsteA", tmp_path)
     _wait(app, lambda: False, 0.2)
     _js(app, host, "MyOSEditor.undoOnce(window.host)")
     assert _js(app, host, "window.host.getDoc('a.md')") == "Erste"
-    assert _js(app, host, "window.host.getDoc('b.md')") == "BZweite"  # untouched by a's undo
+    assert _js(app, host, "window.host.getDoc('b.md')") == "ZweiteB"  # untouched by a's undo
 
 
 def test_a_change_from_outside_is_not_reported_back_as_typing(app, host, tmp_path):
@@ -103,7 +115,7 @@ def test_the_editor_moves_between_notes_and_outlives_a_closed_one(app, host, tmp
 def test_a_link_reports_its_note(app, host, tmp_path):
     links = []
     host.linkClicked.connect(lambda note, href: links.append((note, href)))
-    host.attach(QWidget(), "a.md", "Text\n\n[weiter](<../Lektion02/Markdown-Dateien.md>)", tmp_path)  # cursor away from it
+    host.attach(QWidget(), "a.md", "Text\n\n[weiter](<../Lektion02/Markdown-Dateien.md>)\n\nEnde", tmp_path)  # cursor away from it
     _wait(app, lambda: False, 0.3)
     _js(app, host, "window.host.view.contentDOM.querySelector('.cm-md-link')"
                    ".dispatchEvent(new MouseEvent('mousedown', {bubbles: true}))")

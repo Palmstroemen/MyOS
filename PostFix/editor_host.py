@@ -25,6 +25,13 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         --bg: #ffffff; --body: "Inter", "Segoe UI", system-ui, sans-serif; --mono: "JetBrains Mono", monospace; }
 html, body { margin: 0; height: 100%; background: var(--bg); }
 #editor { height: 100%; }
+/* The scroll bar of PostFix's rendering (smart_editor.py), as wide: both lay out alike. */
+::-webkit-scrollbar { width: 11px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.047); border-radius: 5px; margin: 2px 0;
+  border-right: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: rgba(40,40,40,0.43); border-radius: 5px; min-height: 22px;
+  border-right: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(40,40,40,0.57); }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>__BUNDLE__</script>
@@ -35,6 +42,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
   window.host = MyOSEditor.createHost(document.getElementById("editor"), {
     onChange: (note, text) => bridge.changed(note, text),
     onLink: (note, href) => bridge.link(note, href),
+    onScroll: (note, line, offset) => bridge.scrolled(note, line, offset),
   });
   bridge.ready();
 });
@@ -54,6 +62,10 @@ class _Bridge(QObject):
     def link(self, note: str, href: str):
         self._host.linkClicked.emit(note, href)
 
+    @Slot(str, int, float)
+    def scrolled(self, note: str, line: int, offset: float):
+        self._host._tops[note] = (line, offset)
+
     @Slot()
     def ready(self):
         self._host._on_ready()
@@ -71,6 +83,7 @@ class EditorHost(QObject):
         self._pending = []
         self._owner = None
         self._watched = set()
+        self._tops: dict = {}  # note -> (first line in view, its offset), as the page reports
         self._on_leave: Optional[Callable[[], None]] = None
         self.view = QWebEngineView()
         self.view.hide()
@@ -80,6 +93,11 @@ class EditorHost(QObject):
         self.view.page().setWebChannel(self._channel)
         bundle = BUNDLE.read_text(encoding="utf-8").replace("</script", "<\\/script")
         self.view.setHtml(PAGE.replace("__BUNDLE__", bundle), QUrl.fromLocalFile(str(BUNDLE.parent) + "/"))
+        # The fonts the light rendering uses too (light_view.fonts), so both look the same.
+        from . import light_view
+        body, mono = light_view.fonts()
+        self._run(f"document.documentElement.style.setProperty('--body', {json.dumps(json.dumps(body))});"
+                  f"document.documentElement.style.setProperty('--mono', {json.dumps(json.dumps(mono))})")
 
     # --- talking to the page ------------------------------------------------------------------
 
@@ -98,8 +116,10 @@ class EditorHost(QObject):
     # --- notes ----------------------------------------------------------------------------------
 
     def attach(self, widget, note: str, body: str, base_dir, on_leave: Optional[Callable[[], None]] = None,
-               background: Optional[str] = None):
-        """Show note's body in the editor, laid over widget (the note's rendering)."""
+               background: Optional[str] = None, place: Optional[dict] = None):
+        """Show note's body in the editor, laid over widget (the note's rendering). place: where
+        the rendering was - {line, offset} of its first line in view, {x, y} of a click (in
+        widget's coordinates) for the cursor, text typed meanwhile."""
         if self._owner is not None and self._owner is not widget:
             self._let_go(self._owner)
             if self._on_leave is not None:
@@ -114,23 +134,35 @@ class EditorHost(QObject):
         self._owner = widget
         self._on_leave = on_leave
         self.view.setParent(widget)
-        self.view.setGeometry(widget.rect())
+        self.view.setGeometry(self._area(widget))
         self.view.show()
         self.view.raise_()
         base = QUrl.fromLocalFile(str(Path(base_dir).resolve()) + "/").toString()
         if background:
             self._run(f"document.documentElement.style.setProperty('--bg', {json.dumps(background)})")
-        self._run(f"window.host.show({json.dumps(note)}, {json.dumps(body)}, {json.dumps(base)}); window.host.focus()")
+        self._run(f"window.host.show({json.dumps(note)}, {json.dumps(body)}, {json.dumps(base)}, "
+                  f"{json.dumps(place)}); window.host.focus()")
         self.view.setFocus()
 
     def owner(self):
         return self._owner
+
+    @staticmethod
+    def _area(widget):
+        # The part of the note the editor covers: its rendering when the note says so.
+        area = getattr(widget, "editor_area", None)
+        return area() if callable(area) else widget.rect()
+
+    def top_of(self, note: str):
+        """(first line in view, its offset) of note in the editor, as last reported, or None."""
+        return self._tops.get(note)
 
     def set_doc(self, note: str, body: str):
         """A change from outside (the file, a merge): into the note's state, not reported back."""
         self._run(f"window.host.setDoc({json.dumps(note)}, {json.dumps(body)})")
 
     def drop(self, note: str):
+        self._tops.pop(note, None)
         self._run(f"window.host.drop({json.dumps(note)})")
 
     def release(self, widget):
@@ -149,8 +181,8 @@ class EditorHost(QObject):
         self._watched = set()
 
     def eventFilter(self, watched, event):
-        if watched is self._owner and event.type() == QEvent.Resize:
-            self.view.setGeometry(watched.rect())
+        if watched is self._owner and event.type() in (QEvent.Resize, QEvent.LayoutRequest):
+            self.view.setGeometry(self._area(watched))
         elif event.type() == QEvent.DeferredDelete and watched in self._watched:
             self.release(self._owner)
         return False
@@ -173,12 +205,31 @@ def shared() -> EditorHost:
     global _shared
     if _shared is None:
         _shared = EditorHost()
-        atexit.register(_shutdown_shared)
+        if not _retired:
+            atexit.register(_shutdown_shared)
     return _shared
+
+
+_retired: list = []
 
 
 def _shutdown_shared():
     global _shared
+    for host in [_shared] + _retired:
+        if host is not None:
+            host.shutdown()
+    _shared = None
+    _retired.clear()
+
+
+def forget_shared():
+    """Tests: start over as a PostFix that has not edited yet. The page is put aside, deleted
+    on exit: pages deleted one after another while Qt runs crash QtWebEngine (measured)."""
+    global _shared
     if _shared is not None:
-        _shared.shutdown()
+        if _shared.owner() is not None:
+            _shared.release(_shared.owner())
+        _retired.append(_shared)
         _shared = None
+        if len(_retired) == 1:
+            atexit.register(_shutdown_shared)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QEvent, QRect, Signal, QVariantAnimation, QPoint, QUrl
 from PySide6.QtGui import QColor, QTextCursor
-from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QPlainTextEdit, QFrame, QTextBrowser
+from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QPlainTextEdit, QFrame
 
 try:
     from .markdown_render import (
@@ -14,12 +14,14 @@ try:
         extract_block_line_anchors,
     )
     from .metadata import MetadataManager
+    from .light_view import LightBrowser
 except ImportError:
     from markdown_render import (
         render_markdown,
         extract_block_line_anchors,
     )
     from metadata import MetadataManager
+    from light_view import LightBrowser
 
 
 class SmartEditor(QWidget):
@@ -27,6 +29,11 @@ class SmartEditor(QWidget):
 
     tagsChanged = Signal(list)
     colorDefinitionsChanged = Signal(list)
+    # In the editor's look (set_light_look): the note shown as the editor (CodeMirror) would, the
+    # editor itself loaded only when wanted - a click or a key in the text asks for it, with
+    # where (see edit_place); a link clicked is followed without it.
+    editRequested = Signal(dict)
+    linkRequested = Signal(str)
 
     MODE_FOCUS = "Focus Mode"
     MODE_PREVIEW = MODE_FOCUS
@@ -57,6 +64,7 @@ class SmartEditor(QWidget):
         # While the one editor (editor_host.py) lies over this note, its rendering is not redrawn
         # on every keystroke; tags still follow. Drawn again when the editor moves on.
         self._preview_suspended = False
+        self.light_look = False
         self.setup_ui()
         self.apply_background(self.current_bg, update_frontmatter=False, animate=False)
         self.render_preview()
@@ -72,8 +80,9 @@ class SmartEditor(QWidget):
         self.source_edit.textChanged.connect(self._on_source_changed)
         self.source_edit.hide()
 
-        self.preview = QTextBrowser()
+        self.preview = LightBrowser()
         self.preview.setOpenExternalLinks(True)
+        self.preview.installEventFilter(self)  # keys, in the editor's look
         self.preview.setFrameStyle(QFrame.NoFrame)
         self.preview.viewport().installEventFilter(self)
         self.preview.verticalScrollBar().valueChanged.connect(self._sync_index_scroll)
@@ -152,7 +161,38 @@ class SmartEditor(QWidget):
         else:
             self.focus_edit.hide()
 
+    def set_light_look(self, on: bool):
+        """Show the note as the editor (CodeMirror) does: light_view, line for line."""
+        self.light_look = on
+        self.preview.setOpenLinks(not on)
+        self.apply_editor_background(QColor(self.current_bg))  # no padding: the look brings its own
+        self.render_preview()
+
+    def editor_area(self) -> QRect:
+        """Where the editor lies over this note: exactly over the rendering (editor_host.py)."""
+        return QRect(self.preview.mapTo(self, QPoint(0, 0)), self.preview.size())
+
+    def edit_place(self, pos: QPoint = None, text: str = "") -> dict:
+        """Where the editor should take over: the first line in view, a click (where it lies in
+        the rendering, which the editor covers) and what was typed."""
+        line, offset = self.preview.top_line()
+        place = {"line": line, "offset": offset}
+        if pos is not None:
+            at = self.preview.viewport().mapTo(self.preview, pos)  # the editor lies over the rendering
+            place.update(x=at.x(), y=at.y())
+        if text:
+            place["text"] = text
+        return place
+
     def render_preview(self, sync_focus: bool = True):
+        if self.light_look:
+            body = self.body()
+            base_dir = Path(self.current_path).parent if self.current_path else None
+            self.preview.show_note(body, base_dir)
+            self.tagsChanged.emit(self.extract_tags(body))
+            self.colorDefinitionsChanged.emit(self.extract_color_definitions(body))
+            self.apply_background(self.current_bg, update_frontmatter=False)
+            return
         text = self.source_edit.toPlainText()
         _, body = self.metadata.split_frontmatter(text)
         scroll_value = self.preview.verticalScrollBar().value()
@@ -189,9 +229,12 @@ class SmartEditor(QWidget):
     def suspend_preview(self):
         self._preview_suspended = True
 
-    def resume_preview(self):
+    def resume_preview(self, top=None):
+        """The editor moved on: the rendering again, at top = (line, offset) where it was."""
         self._preview_suspended = False
         self.render_preview()
+        if top is not None and self.light_look:
+            self.preview.scroll_to_line(*top)
 
     def preview_suspended(self) -> bool:
         return self._preview_suspended
@@ -753,6 +796,9 @@ class SmartEditor(QWidget):
         if focus_widget is None or preview_widget is None or index_widget is None:
             return super().eventFilter(watched, event)
 
+        if self.light_look and self._light_event(watched, event):
+            return True
+
         if watched is preview_widget.viewport() and event.type() == QEvent.Resize:
             if focus_widget.isVisible() and self._active_focus_idx >= 0:
                 self._position_focus_overlay()
@@ -809,6 +855,28 @@ class SmartEditor(QWidget):
             focus_widget.setFocus()
             return True
         return super().eventFilter(watched, event)
+
+    def _light_event(self, watched, event) -> bool:
+        """In the editor's look: a link clicked is followed, a click or a key elsewhere in the
+        text asks for the editor. True when handled."""
+        viewport = self.preview.viewport()
+        kind = event.type()
+        if watched is viewport and kind == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            pos = event.position().toPoint()
+            href = self.preview.anchorAt(pos)
+            if href:
+                self.linkRequested.emit(href)
+            else:
+                self.editRequested.emit(self.edit_place(pos))
+            return True
+        if watched is viewport and kind in (QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick):
+            return True
+        if watched is self.preview and kind == QEvent.KeyPress:
+            text = "\n" if event.key() in (Qt.Key_Return, Qt.Key_Enter) else event.text()
+            if text and (text == "\n" or text.isprintable()) and not event.modifiers() & (Qt.ControlModifier | Qt.AltModifier):
+                self.editRequested.emit(self.edit_place(text=text))
+                return True
+        return False
 
     def _line_index_from_preview_pos(self, pos: QPoint) -> int:
         count = len(self._focus_spans)
@@ -922,7 +990,7 @@ class SmartEditor(QWidget):
             f"""
             QTextBrowser {{
                 background-color: {color_hex};
-                padding: 12px;
+                padding: {0 if self.light_look else 12}px;
                 border: none;
             }}
             .ofm-callout {{

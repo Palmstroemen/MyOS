@@ -270,10 +270,11 @@ function wrapWith(mark) {
 
 // --- The editor PostFix talks to --------------------------------------------------------------
 
-// One editor for all notes of a PostFix: show(id, doc, base) puts a note into it. Each note keeps
-// a state of its own - text, cursor, selection and its own undo history - so Ctrl+Z in one note
-// never takes back an edit made in another.
-export function createHost(parent, { onChange = () => {}, onLink = () => {} } = {}) {
+// One editor for all notes of a PostFix: show(id, doc, base, place) puts a note into it. Each note
+// keeps a state of its own - text, cursor, selection and its own undo history - so Ctrl+Z in one
+// note never takes back an edit made in another. onScroll reports the first line in view, so the
+// light rendering PostFix shows meanwhile can take over where the editor was.
+export function createHost(parent, { onChange = () => {}, onLink = () => {}, onScroll = () => {} } = {}) {
   let current = null;
   const states = new Map();
   const extensions = [
@@ -303,6 +304,56 @@ export function createHost(parent, { onChange = () => {}, onLink = () => {} } = 
   ];
   const view = new EditorView({ parent, state: EditorState.create({ doc: "", extensions }) });
 
+  // The first line starting in view (0 = the first line) and how far below the top it starts.
+  function topLine() {
+    const top = view.scrollDOM.scrollTop;
+    const pad = view.documentPadding.top;
+    let block = view.lineBlockAtHeight(Math.max(0, top - pad));
+    if (block.top + pad < top - 0.5 && block.to < view.state.doc.length) block = view.lineBlockAt(block.to + 1);
+    return [view.state.doc.lineAt(block.from).number - 1, block.top + pad - top];
+  }
+  let scrollTimer = null;
+  view.scrollDOM.addEventListener("scroll", () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => { if (current !== null) onScroll(current, ...topLine()); }, 80);
+  });
+
+  // Where the light rendering was: the same line at the same height, the cursor where it was
+  // clicked, what was typed meanwhile typed in.
+  function place({ line = 0, offset = 0, x = null, y = null, text = "" } = {}) {
+    const doc = view.state.doc;
+    const start = doc.line(Math.min(Math.max(line + 1, 1), doc.lines)).from;
+    let done = false;
+    const settle = (pos) => {
+      if (done) return;
+      done = true;
+      if (pos !== null && pos !== undefined) view.dispatch({ selection: { anchor: pos } });
+      if (text) view.dispatch(view.state.replaceSelection(text), { userEvent: "input" });
+      onScroll(current, ...topLine());
+    };
+    const click = () => view.requestMeasure({  // the letter clicked, in the scrolled view
+      read: () => {
+        const box = view.scrollDOM.getBoundingClientRect();
+        return view.posAtCoords({ x: box.left + x, y: box.top + y }, false);
+      },
+      write: (pos) => setTimeout(() => settle(pos)),  // no dispatch while measuring
+    });
+    // The line's top (a heading's padding included) where the rendering had it - twice: lines
+    // far away have estimated heights until scrolled to and measured. (scrollIntoView aligns the
+    // letter, not the line.)
+    const scroll = (again) => view.requestMeasure({
+      read: () => view.lineBlockAt(start).top + view.documentPadding.top - offset,
+      write: (top) => {
+        view.scrollDOM.scrollTop = top;
+        if (again) scroll(false);
+        else if (x !== null) click();
+      },
+    });
+    scroll(true);
+    if (x === null) settle(null);  // typed only: the cursor stays where it was
+    else setTimeout(() => settle(start), 400);  // a frame the browser holds back: the line clicked
+  }
+
   // A change from outside: only the part that differs is replaced, so the cursor stays put.
   function outsideChange(state, text) {
     const old = state.doc.toString();
@@ -324,17 +375,19 @@ export function createHost(parent, { onChange = () => {}, onLink = () => {} } = 
 
   return {
     view,
-    show(id, doc, base) {
+    show(id, doc, base, where) {
       if (current !== null) states.set(current, view.state);
       setBase(base);
       let state = states.get(id);
-      if (!state) state = EditorState.create({ doc, extensions });
+      // A note new to the editor: the cursor at its end (where one goes on writing).
+      if (!state) state = EditorState.create({ doc, selection: { anchor: doc.length }, extensions });
       else {
         const change = outsideChange(state, doc);
         if (change) state = state.update(change).state;
       }
       current = id;
       view.setState(state);
+      if (where) place(where);
     },
     setDoc(id, text) {
       if (id === current) {
@@ -362,6 +415,11 @@ export function create(parent, { doc = "", onChange = () => {}, onLink = () => {
     setDoc: (text) => host.setDoc("note", text),
     focus: () => host.focus(),
   };
+}
+
+// Scrolls line (0 = the first) to the top (tests).
+export function scrollToLine(view, line) {
+  return EditorView.scrollIntoView(view.state.doc.line(line + 1).from, { y: "start", yMargin: 0 });
 }
 
 // Undo once in the note shown (tests; the keys do the same).

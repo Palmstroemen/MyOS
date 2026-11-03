@@ -99,16 +99,16 @@ def _editor_link(note: str, href: str):
         window.follow_link(href)
 
 
-_editor_hooked = False
+_editor_hooked = None  # the editor whose signals reach the windows
 
 
 def _editor():
     global _editor_hooked
     host = editor_host.shared()
-    if not _editor_hooked:
+    if _editor_hooked is not host:
         host.changed.connect(_editor_changed)
         host.linkClicked.connect(_editor_link)
-        _editor_hooked = True
+        _editor_hooked = host
     return host
 
 
@@ -236,6 +236,11 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         #     obsidian_vault_path=obsidian_vault_path,
         # )
         self.editor = SmartEditor(show_frontmatter=debug)
+        if editor_enabled():
+            # Read in the editor's look; the editor itself (a browser page) only once wanted.
+            self.editor.set_light_look(True)
+            self.editor.editRequested.connect(self._take_editor)
+            self.editor.linkRequested.connect(self.follow_link)
         # Exercise links of the tutorial (myos:open?scope=...&files=...): a click opens Scope in
         # the exercise folder, the file browser beside it (exercise_links.py).
         self.exercise_launcher = ExerciseLauncher(self._exercise_base, Path(__file__).resolve().parents[1], parent=self)
@@ -940,25 +945,41 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
     def changeEvent(self, event):
         if event.type() == QEvent.ActivationChange and self.isActiveWindow():
             remember_active(self)  # exercise links go to the note clicked last
-            self._take_editor()  # the note being edited gets the one editor
+            if editor_host._shared is not None:
+                # Loaded once: the editor follows the note being edited - after this event:
+                # moved while Qt activates the window, QtWebEngine crashes (measured in X).
+                QTimer.singleShot(0, self._take_editor_if_active)
         super().changeEvent(event)
 
     def _editor_key(self) -> str:
         path = getattr(self.editor, "current_path", None)
         return str(Path(path).resolve()) if path else f"unsaved-{id(self)}"
 
-    def _take_editor(self):
-        """The one editor moves into this note; the note it leaves shows its rendering again."""
+    def _take_editor(self, place: dict = None):
+        """The one editor moves into this note - where its rendering was (place: the first line
+        in view, a click, what was typed; see SmartEditor.edit_place); the note it leaves shows
+        its rendering again."""
         if not editor_enabled():
             return
         host = _editor()
         if host.owner() is self.editor:
             return
         path = getattr(self.editor, "current_path", None)
+        if place is None:
+            place = self.editor.edit_place()
         self.editor.suspend_preview()
         host.attach(self.editor, self._editor_key(), self.editor.body(),
                     Path(path).parent if path else Path.home(),
-                    on_leave=self.editor.resume_preview, background=self.editor.current_bg)
+                    on_leave=self._editor_left, background=self.editor.current_bg, place=place)
+
+    def _take_editor_if_active(self):
+        if self.isActiveWindow():
+            self._take_editor()
+
+    def _editor_left(self):
+        """The editor moved on: the rendering again, scrolled as the editor was."""
+        host = editor_host._shared
+        self.editor.resume_preview(host.top_of(self._editor_key()) if host is not None else None)
 
     def follow_link(self, href: str):
         """A link clicked in the editor: notes open here, exercise links and web pages as usual."""
@@ -1004,7 +1025,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         host = editor_host._shared
         if host is not None and host.owner() is self.editor:
             host.attach(self.editor, self._editor_key(), self.editor.body(), path.parent,
-                        on_leave=self.editor.resume_preview, background=self.editor.current_bg)
+                        on_leave=self._editor_left, background=self.editor.current_bg)
 
     def closeEvent(self, event):
         self._save_current_document()

@@ -127,8 +127,11 @@ Use portable, file-based formats and compatible registry structures.
 further CodeMirror page costs 40-80 MB and leaks some when dropped; moving one page between
 windows takes 40-120 ms. So one page serves all notes of a PostFix:
 
-- The note being edited (the window last activated) gets the editor, laid over its rendering;
-  the others show their rendering (step 3 will make that light in the very same look).
+- A note that is only read never loads the editor: it shows its light rendering (below). A
+  click or a key in the text loads it (about 0.5 s, once) - the cursor at the letter clicked,
+  what was typed meanwhile typed in; a link clicked is followed without it. Once loaded, the
+  editor follows the window activated (moved after the activation event: moved during it,
+  QtWebEngine crashes in X).
 - Every note keeps its own text, cursor, selection and undo history in the page (one
   CodeMirror state per note); changes from outside go into that state without being reported back
   as typing.
@@ -138,6 +141,27 @@ windows takes 40-120 ms. So one page serves all notes of a PostFix:
   as exercise links.
 - The editor leaves a note before it is deleted (window closed or deleted), so it lives on for
   the others; the page itself is deleted before Qt ends (otherwise QtWebEngine crashes on exit).
+
+### The light rendering (`light_render.py`, `light_view.py`)
+
+What the editor shows with the cursor elsewhere, drawn by Qt (a QTextBrowser): line for line
+like CodeMirror (an empty line is an empty line), Markdown marks hidden, the editor's fonts,
+sizes, colours and widths. Measured against the real editor side by side in Xephyr (screen
+photos, line by line): text lines within 0-1 px, same line breaks. What it took:
+
+- One font for both sides, resolved by PostFix (`system-ui` may resolve differently).
+- Qt sets text at the top of a line, the browser centres it: each line moved by the difference;
+  Qt knows no negative margins, so the line before gets shorter instead.
+- The browser lays out in 64ths of a pixel (26.4 -> 26.390625 px per line).
+- CodeMirror wraps with `white-space: break-spaces`: a zero-width break after every space makes
+  Qt count a space at a line's end too.
+- Code backgrounds, quote bars and rules painted over the full line; check boxes drawn as the
+  browser's; tables, empty cells, pictures (as high as the line) measured one by one.
+- The editor page gets PostFix's scroll bar, so both have the same width to lay out in.
+
+Switching keeps the place: the rendering hands its first line in view (and its offset) to the
+editor, the editor reports its own back while scrolling; the rendering takes it over when the
+editor leaves.
 
 ## Changes From Outside
 
