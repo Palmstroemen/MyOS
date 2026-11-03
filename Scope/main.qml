@@ -1836,31 +1836,11 @@ ApplicationWindow {
         filterEntries()
     }
 
-    /// ListModel exposes to delegates only the roles present when it was first filled,
-    /// so every row carries the size roles from the start (-1 = not measured yet).
-    function _withSizeRoles(entry) {
-        var row = {}
-        for (var key in entry) {
-            row[key] = entry[key]
-        }
-        if (row.sizeBytes === undefined || row.sizeBytes === null) row.sizeBytes = -1
-        if (row.folderSizeBytes === undefined || row.folderSizeBytes === null) row.folderSizeBytes = -1
-        if (row.folderSizeComplete === undefined || row.folderSizeComplete === null) row.folderSizeComplete = false
-        if (row.modifiedTs === undefined || row.modifiedTs === null) row.modifiedTs = -1
-        if (row.accessedTs === undefined || row.accessedTs === null) row.accessedTs = -1
-        row.tagsText = FormatUtils.tagsText(entry.tags)
-        if (row.typeName === undefined || row.typeName === null) row.typeName = ""
-        if (row.permissions === undefined || row.permissions === null) row.permissions = ""
-        if (row.owner === undefined || row.owner === null) row.owner = ""
-        if (row.group === undefined || row.group === null) row.group = ""
-        return row
-    }
-
     function appendNextChunk() {
         if (fileItemsOffset >= fileItemsRaw.length) return
         var end = Math.min(fileItemsRaw.length, fileItemsOffset + fileItemsChunk)
         for (var i = fileItemsOffset; i < end; i++) {
-            filesModel.append(_withSizeRoles(fileItemsRaw[i]))
+            filesModel.append(FormatUtils.listRow(fileItemsRaw[i]))
         }
         fileItemsOffset = end
     }

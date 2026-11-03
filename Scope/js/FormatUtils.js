@@ -130,6 +130,28 @@ function tagsText(tags) {
     return parts.join(" ")
 }
 
+/// What a row of the FilesPanel's list model starts with: a ListModel exposes to delegates
+/// only the roles present when it was first filled (dynamicRoles too), so every row carries
+/// every role the panel reads. A first listing of files alone (x-ray, folders hidden) left
+/// later folders without isEmbryo and isProject: no pale folders, no P for a whole session.
+var _LIST_ROLE_DEFAULTS = {
+    sizeBytes: -1, folderSizeBytes: -1, folderSizeComplete: false, modifiedTs: -1, accessedTs: -1,
+    typeName: "", permissions: "", owner: "", group: "",
+    isEmbryo: false, isProject: false, isVirtual: false, projectColor: "", xrayVia: "",
+    thumb: "", batch: "", batchText: "", iconName: "",
+    originPath: "", filterGroup: "", filterActive: false
+}
+
+function listRow(entry) {
+    var row = {}
+    for (var key in entry) row[key] = entry[key]
+    for (var role in _LIST_ROLE_DEFAULTS) {
+        if (row[role] === undefined || row[role] === null) row[role] = _LIST_ROLE_DEFAULTS[role]
+    }
+    row.tagsText = tagsText(entry.tags)
+    return row
+}
+
 /// ls -l mode grouped for reading: file type (d folder, - file, l link), then the rights
 /// of owner, group and others, e.g. "drwxr-xr-x" -> "d rwx r-x r-x".
 function formatPermissions(mode) {
