@@ -23,6 +23,10 @@ Kompakter Überblick: `docs/STATUS.md`.
 
 ## 🚀 Aktuelle Prioritäten (Roadmap)
 
+Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes / Später) steht in
+[Roadmap.md](Roadmap.md); hier die laufenden Aufgaben.
+
+
 [x] Jahresfilter: /Jahr/Monat/-Ablage automatisch (core/filing.py, Designdocument Sort.md):
     Regel im Ordner selbst, flach → virtuell → echt ab NewLevelFrom, Ablage durch Nachholen statt Beobachter, echtes EXIF
     [ ] Regel bequem einrichten (der Knopf "Enable sorting" ist mit der oberen Leiste weg, 2026-10-26: vorerst von Hand); myls zeigt virtuelle Ebenen noch nicht

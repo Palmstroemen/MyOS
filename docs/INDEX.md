@@ -7,6 +7,7 @@
 | [../README.md](../README.md) | Project overview, quick start |
 | [../Designdokument.md](../Designdokument.md) | Contributor entry point, architecture, design principles |
 | [../ProjectLogbook.md](../ProjectLogbook.md) | Operational roadmap, learnings, open questions |
+| [../Roadmap.md](../Roadmap.md) | Strategic roadmap: lessons from earlier attempts, what comes now, next, later |
 
 ## Status & Security
 
