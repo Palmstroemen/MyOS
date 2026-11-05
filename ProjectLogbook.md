@@ -208,6 +208,12 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
 [ ] Distribution erstellen
 [ ] Demo virtualisieren (Remote-Desktop-Setup) zum Code-Schutz
 [ ] Vielsprachigkeit vorbereiten (i18n/L10n)
+[ ] Mailprogramm und Pfad (Idee 2026-11-05): ein Vorteil des einheitlichen Pfads. Beim Versenden erzeugt
+    das Mailprogramm aus dem Pfad den Zusatz im Dateinamen ("2025 Rechnung Excalibur Projekt 203456-2 Obere Leitstelle"),
+    den die Leute heute von Hand schreiben, damit die Datei auch außerhalb ihres Ordners zuzuordnen bleibt. Umgekehrt
+    liest es solche Zusätze bei eingehenden Dateien und legt sie gleich im richtigen Projekt ab. Auch ein Teil hilft schon:
+    Steht nur `/04_Finanz/Eingangsrechnungen` dabei, ist der Ordner klar, aber nicht das Projekt; dann fragt es nach oder
+    schlägt per KI aus dem Kontext eines vor. Kommt die Projektnummer mit, umso besser.
 [ ] Obsidian-MyOS-Plugin
 [ ] MyOS auf einer Cloud (Idee 2026-11-05): Basisfunktionen als Plugin im Webclient, ohne Scope, SunTree und PostFix.
     Reihenfolge: erst OpenCloud oder ownCloud Infinite Scale (dasselbe Erweiterungssystem, klar dokumentiert), dann

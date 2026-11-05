@@ -34,7 +34,7 @@ Lege nie alle neun auf Vorrat an, sonst stehst du vor lauter leeren Ordnern. Fü
 
 ## Und der Überblick?
 
-Wo sind jetzt alle Rechnungen von 2025? Such im Dateimanager nach `04_Finanz`: Du bekommst die Finanzen jedes Projekts, Projekt für Projekt. Und im Pfad steckt deine Projektstruktur: Bei `Projekte/Familie/04_Finanz` siehst du sofort, wozu eine Rechnung gehört. Weil der Name überall gleich ist, musst du dafür nichts vorbereiten. Was noch lose im Projekt liegt, siehst du hier nicht. Spätestens wenn du den Überblick brauchst, ist es Zeit für den Ordner.
+Wo sind jetzt alle Rechnungen von 2025? Such im Dateimanager nach `04_Finanz`: Du bekommst die Finanzen jedes Projekts, Projekt für Projekt. Und im Pfad steckt deine Projektstruktur: Bei `Projekte/Familie/04_Finanz` siehst du sofort, wozu eine Rechnung gehört. Namen wie `2025 Rechnung Excalibur Projekt 203456-2 Obere Leitstelle` kannst du dir sparen: Das Projekt steht schon im Pfad. Weil der Name überall gleich ist, musst du dafür nichts vorbereiten. Was noch lose im Projekt liegt, siehst du hier nicht. Spätestens wenn du den Überblick brauchst, ist es Zeit für den Ordner.
 
 Genauso bei den Fotos: Früher lagen sie in einem Ordner `Fotos`, und du musstest darin deine Projekte von Hand nachbauen: `2025 Urlaub`, `2025 Ausflug Schneeberg` und so weiter. Jetzt liegen sie beim Projekt, und die Suche nach `08_Dokumentation` führt dich zu ihnen, in genau der Ordnung deiner Projekte, wie du sie kennst.
 
