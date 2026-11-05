@@ -209,6 +209,19 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
 [ ] Demo virtualisieren (Remote-Desktop-Setup) zum Code-Schutz
 [ ] Vielsprachigkeit vorbereiten (i18n/L10n)
 [ ] Obsidian-MyOS-Plugin
+[ ] MyOS auf einer Cloud (Idee 2026-11-05): Basisfunktionen als Plugin im Webclient, ohne Scope, SunTree und PostFix.
+    Reihenfolge: erst OpenCloud oder ownCloud Infinite Scale (dasselbe Erweiterungssystem, klar dokumentiert), dann
+    Nextcloud (eigenes Plugin); nicht ownCloud Classic (Support endet laut Wiki im Januar 2027)
+    [ ] Kurzer Versuch: Test-Instanz per Docker, Demo-Daten hinein; wie verhält sich `.MyOS` im Web und per Sync-Client?
+        Dabei prüfen: Laufwerk "Perspektiven" im Sync-Ordner, `.TagsHere.json` und `.MyOS/Trash` (Konflikte?), Vorlagen
+        in einem geteilten `Templates`-Ordner
+    [ ] Kleinster Prototyp: eine Ordneransicht zeigt blasse Ordner, eine hineingezogene Datei gebärt den Ordner. Zeigt,
+        ob die Andockstellen reichen (Zeilen in die normale Dateiliste einfügen scheint nicht vorgesehen, ungeprüft)
+    [ ] Dateiformat als kurze Beschreibung mit Testfällen für Python und JavaScript, bevor die Logik doppelt entsteht
+        (zugleich der plattform-unabhängige Kern der Roadmap)
+    [ ] Danach: Perspektiven als eigener Eintrag in der linken Leiste. Das Laufwerk fällt im Browser weg.
+    [ ] Zugriffsrechte nicht im ersten Schritt: eine Browser-Erweiterung kann `ACLs.md` nicht erzwingen; auf dem Server
+        lösen oder auf die Freigaben der Cloud abbilden
 ### Nice to have
 [ ] Ordner-Organisation neu
 ---
