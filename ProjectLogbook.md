@@ -175,8 +175,8 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
     [x] FilesPanel: Doppelklick auf einen Ordner wechselt noch nicht in diesen Ordner
     [x] P-Button: macht den angewählten Ordner, sonst (ohne Auswahl) den angezeigten zum Projekt; durchgestrichenes P macht ein Projekt wieder zum Ordner; P-Badge auf Projektordnern
     [x] Umbenennen in der Ordnerleiste: Feld zeigt den alten Namen (war leer); F2 benennt die Auswahl im FilesPanel um
-    [ ] FilesPanel Rasteransicht immer nach Name aufsteigend (oben MyOS-Ordner und Embryos, darunter Unterprojekte
-        und andere Ordner); heute übernimmt sie die Spaltensortierung der Listenansicht, ohne sie anzuzeigen
+    [x] FilesPanel Rasteransicht immer nach Name aufsteigend (oben MyOS-Ordner und Embryos, darunter Unterprojekte
+        und andere Ordner, dann Dateien; 2026-11-05); die Spaltensortierung gilt nur noch für die Listenansicht
     [x] FilesPanel: Embryos erscheinen nicht halbtransparent (sollten sie, wie in den Ordnerleisten)
     [x] FilesPanel: blasse Ordner, P und Projektfarben fehlten eine ganze Sitzung, wenn die erste Liste nur Dateien
         hielt (2026-11-03, beim Durchspielen der Demo): jede Zeile trägt jetzt alle Rollen (FormatUtils.listRow)
@@ -184,7 +184,7 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         zieht jetzt nur noch Dateien, gescrollt wird mit Rad und Touch (Flickable.acceptedButtons, ab Qt 6.9)
     [x] FilesPanel: in einer gescrollten Liste wurde die falsche Datei gezogen, die Scrollposition zählte
         doppelt (2026-11-05)
-    [ ] FilesPanel: der Ordner-Schalter merkt sich seinen Zustand nicht über einen Neustart (Röntgen schon)
+    [x] FilesPanel: der Ordner-Schalter merkt sich seinen Zustand über einen Neustart (2026-11-05)
 [ ] PostFix UI verfeinern und Exporter bauen
     [x] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)
     [x] ACL-Panel: Embryos zählen nicht mit (ein Schalter dafür wird nicht gebraucht)

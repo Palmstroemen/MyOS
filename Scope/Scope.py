@@ -511,6 +511,15 @@ class Backend(QObject):
     def setFilesXray(self, enabled: bool) -> None:
         self._settings.setValue("filesXray", bool(enabled))
 
+    @Slot(result=bool)
+    def filesShowFolders(self) -> bool:
+        """Folders among the entries of the FilesPanel; on by default: the pale folders are the first thing to see."""
+        return str(self._settings.value("filesShowFolders", "true")).lower() not in ("false", "0")
+
+    @Slot(bool)
+    def setFilesShowFolders(self, enabled: bool) -> None:
+        self._settings.setValue("filesShowFolders", bool(enabled))
+
     @Slot(int, bool)
     def setXrayView(self, budget: int, folders_shown: bool) -> None:
         """Entries the FilesPanel shows without scrolling (0: x-ray off) and whether it shows

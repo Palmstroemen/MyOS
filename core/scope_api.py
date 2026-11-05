@@ -342,6 +342,7 @@ class FileEntry(TypedDict):
 
 class FileEntryWithOptionalEmbryo(FileEntry, total=False):
     isEmbryo: bool
+    isStandard: bool
     sizeBytes: int
     modifiedTs: float
     accessedTs: float
@@ -1299,6 +1300,14 @@ class ScopeApi:
                     if batch_info["batchText"]:
                         entry["batchText"] = batch_info["batchText"]
                     entries.append(entry)
+        context_root, context_blueprint = self._resolve_context_for_target(target)
+        if context_blueprint and context_root and is_within(target, context_root):
+            rel = "" if target == context_root else str(target.relative_to(context_root))
+            for entry in entries:
+                if entry.get("isDir") and not entry.get("isEmbryo") and self._is_template_path(
+                    context_blueprint, f"{rel}/{entry['name']}" if rel else entry["name"]
+                ):
+                    entry["isStandard"] = True  # a MyOS folder already born
         # File-browser style order: folders first, then files, both alphabetic.
         entries.sort(key=lambda item: (not bool(item.get("isDir")), str(item.get("name", "")).lower()))
         groups = virtual_groups(target)

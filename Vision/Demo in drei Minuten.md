@@ -130,8 +130,6 @@ Es kommt nicht vor, weil es ablenkt oder noch nicht fertig ist:
 - **Das Laufwerk fehlt in Nemo:** Scope wurde nach Nemo neu gestartet. Nemo einmal neu laden.
 - **Nach der Demo hängt das Laufwerk noch:** Solange LibreOffice die Datei offen hat, bleibt es
   eingehängt. LibreOffice zuerst schließen.
-- **Die blassen Ordner stehen nicht oben:** Die Rasteransicht übernimmt noch die Sortierung der
-  Listenansicht (Logbuch). Vorher in der Listenansicht nach Namen sortieren.
 - **Zwei Laufwerke „Perspektiven“:** Läuft daneben ein Scope auf anderen Projekten, haben Nemo und
   LibreOffice zwei davon. Für die Vorführung nur das Demo-Scope laufen lassen.
 - **Scope beenden:** über das Fenster. Ein von außen beendetes Scope (SIGTERM) lässt das Laufwerk

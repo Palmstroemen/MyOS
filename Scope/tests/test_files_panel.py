@@ -262,3 +262,33 @@ def test_the_wheel_still_scrolls_the_list(dragging):
     QGuiApplication.sendEvent(dragging, wheel)
     QTest.qWait(400)
     assert grid.property("contentY") > 0
+
+
+@pytest.fixture
+def backend(tmp_path, monkeypatch):
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    monkeypatch.setenv("MYOS_SCOPE_START_DAEMON", "0")
+    monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    import Scope.Scope as S
+    from core.scope_api import ScopeApi
+    app = QGuiApplication.instance() or QGuiApplication([])
+    made = S.Backend(ScopeApi(str(tmp_path)), app, QQmlApplicationEngine())
+    assert not Path(made._settings.fileName()).is_relative_to(Path.home() / ".config")  # never the real settings
+    made._settings.remove("filesShowFolders")
+    return made
+
+
+def test_the_folders_switch_is_remembered(backend):
+    assert backend.filesShowFolders() is True  # on until switched off
+    backend.setFilesShowFolders(False)
+    assert backend.filesShowFolders() is False
+    backend.setFilesShowFolders(True)
+    assert backend.filesShowFolders() is True
+
+
+def test_the_window_reads_and_writes_the_folders_switch():
+    main = (SCOPE_DIR / "main.qml").read_text(encoding="utf-8")
+    assert "filesPane.showFolders = backend.filesShowFolders()" in main
+    handler = main.split("onShowFoldersChanged:", 1)[1].split("onLeaveMyosFolder:", 1)[0]
+    assert "backend.setFilesShowFolders(filesPane.showFolders)" in handler

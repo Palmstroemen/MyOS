@@ -1618,7 +1618,7 @@ ApplicationWindow {
             }
             filtered = aclFiltered
         }
-        fileItemsRaw = ListSort.sortEntries(filtered, filesSortKey, filesSortAscending)
+        fileItemsRaw = filesItemStyle === "largeIcon" ? ListSort.sortForGrid(filtered) : ListSort.sortEntries(filtered, filesSortKey, filesSortAscending)
         for (var m = 0; m < fileItemsRaw.length; m++) {
             var path = entryPath(fileItemsRaw[m])
             if (path.length > 0 && (!fileItemsRaw[m].path || fileItemsRaw[m].path.length === 0)) {
@@ -2260,6 +2260,9 @@ ApplicationWindow {
         }
         if (hasBackend() && typeof backend.filesXray === "function") {
             xrayEnabled = backend.filesXray()
+        }
+        if (hasBackend() && typeof backend.filesShowFolders === "function") {
+            filesPane.showFolders = backend.filesShowFolders()
         }
         if (hasBackend() && typeof backend.filesListColumns === "function") {
             filesListColumns = backend.filesListColumns()
@@ -3336,6 +3339,7 @@ ApplicationWindow {
                 if (hasBackend() && typeof backend.setFilesViewStyle === "function") {
                     backend.setFilesViewStyle(window.filesItemStyle)
                 }
+                filterEntries()  // each view has its own order
             }
             compactButtonHeight: window.compactButtonHeight
             largeButtonHeight: window.largeButtonHeight
@@ -3504,7 +3508,10 @@ ApplicationWindow {
                 window.applyXrayView()
             }
             onVisibleCapacityChanged: if (window.xrayEnabled) xrayLayoutTimer.restart()
-            onShowFoldersChanged: if (window.xrayEnabled) window.applyXrayView()
+            onShowFoldersChanged: {
+                if (hasBackend() && typeof backend.setFilesShowFolders === "function") backend.setFilesShowFolders(filesPane.showFolders)
+                if (window.xrayEnabled) window.applyXrayView()
+            }
             onLeaveMyosFolder: {
                 var parent = parentOfPath(currentFilesPath())
                 commitCTD(parent)

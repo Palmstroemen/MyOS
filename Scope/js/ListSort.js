@@ -61,6 +61,19 @@ function compareEntries(a, b, key, ascending) {
     return _byName(a, b) * direction
 }
 
+function _gridRank(entry) {
+    if (!entry.isDir) return 2
+    return (entry.isEmbryo || entry.isStandard) ? 0 : 1
+}
+
+/// The grid view has no columns: always by name, MyOS folders (born or pale) on top,
+/// then subprojects and other folders, then files.
+function sortForGrid(entries) {
+    var list = (entries || []).slice(0)
+    list.sort(function(a, b) { return (_gridRank(a) - _gridRank(b)) || _byName(a, b) })
+    return list
+}
+
 /// Sorted copy of entries; the entry objects themselves are shared, not copied.
 function sortEntries(entries, key, ascending) {
     var list = (entries || []).slice(0)
