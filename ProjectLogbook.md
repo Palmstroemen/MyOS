@@ -180,8 +180,10 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
     [x] FilesPanel: Embryos erscheinen nicht halbtransparent (sollten sie, wie in den Ordnerleisten)
     [x] FilesPanel: blasse Ordner, P und Projektfarben fehlten eine ganze Sitzung, wenn die erste Liste nur Dateien
         hielt (2026-11-03, beim Durchspielen der Demo): jede Zeile trägt jetzt alle Rollen (FormatUtils.listRow)
-    [ ] FilesPanel: eine Datei senkrecht nach oben ziehen scrollt die Liste statt sie zu ziehen (seitlich
-        losfahren geht) - gefunden beim Durchspielen der Demo (2026-11-03)
+    [x] FilesPanel: eine Datei senkrecht ziehen scrollte die Liste statt sie zu ziehen (2026-11-05): die Maus
+        zieht jetzt nur noch Dateien, gescrollt wird mit Rad und Touch (Flickable.acceptedButtons, ab Qt 6.9)
+    [x] FilesPanel: in einer gescrollten Liste wurde die falsche Datei gezogen, die Scrollposition zählte
+        doppelt (2026-11-05)
     [ ] FilesPanel: der Ordner-Schalter merkt sich seinen Zustand nicht über einen Neustart (Röntgen schon)
 [ ] PostFix UI verfeinern und Exporter bauen
     [x] ACL-Chip anklicken: Rechte ändern (nur wer `change` hat)

@@ -6,9 +6,9 @@ import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QPointF, Qt, QUrl
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtQml import QQmlProperty
+from PySide6.QtCore import QPoint, QPointF, Qt, QUrl
+from PySide6.QtGui import QGuiApplication, QWheelEvent
+from PySide6.QtQml import QQmlApplicationEngine, QQmlProperty
 from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
 
@@ -163,3 +163,102 @@ def test_the_p_button_is_italic_and_its_strike_crosses_only_the_letter(panel):
     assert strike.isVisible()
     assert strike.width() < button.width() * 0.8  # the letter, not the whole button
     assert strike.width() <= letter.property("contentHeight")
+
+
+@pytest.fixture
+def dragging(tmp_path):
+    """A panel in a real window (the drag ghost lives in its overlay), with more rows than fit."""
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    QGuiApplication.instance() or QGuiApplication([])
+    qml = tmp_path / "host.qml"
+    qml.write_text(
+        f'import QtQuick 2.15\nimport QtQuick.Controls 2.15\nimport "{SCOPE_DIR.as_uri()}"\n'
+        'ApplicationWindow { width: 1000; height: 640; visible: true\n'
+        '  property var moved: []\n'
+        '  property var boxed: []\n'
+        '  ListModel { id: files\n'
+        '    ListElement { name: "Target"; isDir: true; isEmbryo: true; isVirtual: false; path: "/x/Target" }\n'
+        '    Component.onCompleted: { for (var i = 0; i < 60; i++)\n'
+        '      append({name: "f" + i, isDir: false, isEmbryo: false, isVirtual: false, path: "/x/f" + i}) }\n'
+        '  }\n'
+        '  FilesPanel { objectName: "panel"; anchors.fill: parent; itemsModel: files; showFolders: true\n'
+        '    currentPath: "/x"; allowDrags: true\n'
+        '    onSelectionBoxApplied: function(paths, additive) { boxed = paths }\n'
+        '    onMoveEntriesRequested: function(payload, target) {\n'
+        '      moved = moved.concat([payload + " -> " + target]) } }\n'
+        '}\n', encoding="utf-8")
+    engine = QQmlApplicationEngine()
+    engine.load(QUrl.fromLocalFile(str(qml)))
+    assert engine.rootObjects()
+    window = engine.rootObjects()[0]
+    QTest.qWait(200)
+    yield window
+    window.close()
+
+
+def _row_centre(window, label):
+    entry = next(i for i in _walk(window.contentItem()) if i.property("label") == label and i.property("itemPath") is not None)
+    return entry.mapToScene(QPointF(entry.width() / 2, entry.height() / 2)).toPoint()
+
+
+def _grid(window):
+    panel = next(i for i in _walk(window.contentItem()) if i.objectName() == "panel")
+    return next(i for i in _walk(panel) if i.metaObject().className().startswith("QQuickGridView"))
+
+
+def _drag_path(window, points):
+    """Press at the first point, move through the others, release at the last."""
+    QTest.mousePress(window, Qt.LeftButton, Qt.NoModifier, points[0])
+    QTest.qWait(30)
+    for point in points[1:]:
+        QTest.mouseMove(window, point)
+        QTest.qWait(30)
+    QTest.mouseRelease(window, Qt.LeftButton, Qt.NoModifier, points[-1])
+    QTest.qWait(80)
+
+
+def _straight(start, end, steps=12):
+    return [QPoint(start.x() + (end.x() - start.x()) * s // steps, start.y() + (end.y() - start.y()) * s // steps)
+            for s in range(steps + 1)]
+
+
+def test_a_file_dragged_straight_up_lands_on_the_folder(dragging):
+    start, end = _row_centre(dragging, "f6"), _row_centre(dragging, "Target")
+    _drag_path(dragging, _straight(start, end))
+    assert _variant(dragging.property("moved")) == ["/x/f6 -> /x/Target"]
+
+
+def test_a_file_dragged_straight_down_in_a_scrolled_list_does_not_move_the_list(dragging):
+    grid = _grid(dragging)
+    grid.setProperty("contentY", 200)
+    QTest.qWait(50)
+    start = _row_centre(dragging, "f20")
+    _drag_path(dragging, _straight(start, QPoint(start.x(), start.y() + 150)))
+    assert grid.property("contentY") == 200
+    assert _variant(dragging.property("moved")) == ["/x/f20 -> /x"]  # it was a drag of that file
+
+
+def test_a_file_dragged_sideways_first_still_lands(dragging):
+    start, end = _row_centre(dragging, "f6"), _row_centre(dragging, "Target")
+    bend = QPoint(start.x() + 40, start.y())
+    _drag_path(dragging, _straight(start, bend, 4) + _straight(bend, end)[1:])
+    assert _variant(dragging.property("moved")) == ["/x/f6 -> /x/Target"]
+
+
+def test_the_selection_box_still_works_on_the_empty_area(dragging):
+    grid = _grid(dragging)
+    grid.setProperty("contentY", grid.property("contentHeight") - grid.height())
+    QTest.qWait(50)
+    last = _row_centre(dragging, "f59")  # the last row is not full: free space right of it
+    _drag_path(dragging, _straight(QPoint(last.x() + 200, last.y()), QPoint(last.x(), last.y() - 40)))
+    assert "/x/f59" in _variant(dragging.property("boxed"))
+
+
+def test_the_wheel_still_scrolls_the_list(dragging):
+    grid = _grid(dragging)
+    pos = _row_centre(dragging, "f6")
+    wheel = QWheelEvent(QPointF(pos), QPointF(pos), QPoint(0, 0), QPoint(0, -240), Qt.NoButton, Qt.NoModifier,
+                        Qt.NoScrollPhase, False)
+    QGuiApplication.sendEvent(dragging, wheel)
+    QTest.qWait(400)
+    assert grid.property("contentY") > 0

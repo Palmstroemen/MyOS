@@ -69,8 +69,7 @@ Darin:
 
 ### 3. Ein Ordner wird geboren (0:45–1:20)
 
-- **Handgriff:** die Hotelrechnung auf den blassen Ordner `04_Finanz` ziehen. Erst ein Stück
-  zur Seite, dann hinauf: Wer senkrecht losfährt, scrollt die Liste, statt die Datei zu ziehen.
+- **Handgriff:** die Hotelrechnung auf den blassen Ordner `04_Finanz` ziehen.
 - **Was passiert:** Links wird `04_Finanz` kräftig, rechts in Nemo taucht er auf, mit der
   Rechnung darin.
 - **Handgriff:** das Strandfoto auf `08_Dokumentation` ziehen. Derselbe Effekt.

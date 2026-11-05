@@ -1,4 +1,4 @@
-import QtQuick 6.7  // per-corner radii (Rectangle.topLeftRadius …)
+import QtQuick 6.9  // per-corner radii (6.7), Flickable.acceptedButtons (6.9)
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "Theme/tag_chips.js" as TagChips
@@ -302,12 +302,13 @@ Rectangle { // Files panel
     /// Keeps the ghost image of the dragged item alive for the duration of a drag.
     property var fileDragGrabResult: null
 
-    /// Start a file drag for the item under pressPos (filesGrid coordinates).
+    /// Start a file drag for the item under the press (scene coordinates).
     /// Payload, size and look are copied into fileDragProxy, so the drag no longer
     /// depends on the delegate.
-    function beginFileDrag(pressPos) {
-        var gridX = pressPos.x + filesGrid.contentX
-        var gridY = pressPos.y + filesGrid.contentY
+    function beginFileDrag(scenePress) {
+        var press = filesGrid.contentItem.mapFromItem(null, scenePress.x, scenePress.y)
+        var gridX = press.x
+        var gridY = press.y
         var idx = filesGrid.indexAt(gridX, gridY)
         var item = idx >= 0 ? filesGrid.itemAtIndex(idx) : null
         if (!item || !item.canDrag) return
@@ -326,7 +327,7 @@ Rectangle { // Files panel
             root.fileDragGrabResult = result
             if (fileDragProxy.Drag.active) fileDragProxy.ghostSource = result.url
         })
-        moveFileDrag(filesGrid.mapToItem(null, pressPos.x, pressPos.y))
+        moveFileDrag(scenePress)
         fileDragProxy.Drag.active = true
     }
 
@@ -1699,6 +1700,8 @@ Rectangle { // Files panel
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            // The mouse drags files and draws the selection box; the list scrolls by wheel and touch.
+            acceptedButtons: Qt.NoButton
             model: root.itemsModel
             cellWidth: root.itemStyle === "largeIcon"
                 ? (Math.max(120, root.iconSizeLarge + 36) + root.gridSpacing)
@@ -1810,7 +1813,8 @@ Rectangle { // Files panel
             // rebuild the list while a file is held, and the drag must survive that.
             // The handler belongs to the GridView, an ancestor of the rows: on the overlay
             // above them it took every press, so clicks and double-clicks never reached
-            // the rows. pressPosition is in grid coordinates, as the overlay's were.
+            // the rows. A Flickable hands its children to its contentItem, so the handler's own
+            // positions scroll with the list: only the scene positions are safe to use.
             DragHandler {
                 id: fileDragHandler
                 target: null
@@ -1818,7 +1822,7 @@ Rectangle { // Files panel
                 enabled: root.allowDrags
                 onActiveChanged: {
                     if (active) {
-                        root.beginFileDrag(centroid.pressPosition)
+                        root.beginFileDrag(centroid.scenePressPosition)
                     } else {
                         root.endFileDrag(true)
                     }
