@@ -62,26 +62,25 @@ Item { // ROOT
     property var hostBackend: null
     property var hostProjectIconForPath: null
     property var hostHasBackend: function() { return false }
-    property color panelColor: "#1b1d26"
-    property color panelBorderColor: "#3a4158"
-    property color panelAltColor: "#151821"
-    property color accentPrimary: "#524dbe"
-    property color accentPrimaryText: "#ffffff"
-    property color pill: "#2a2f40"
-    property color pillBorder: "#3a4158"
+    property color panelColor
+    property color panelBorderColor
+    property color accentPrimary
+    property color accentPrimaryText
+    property color pill
+    property color pillBorder
     property color smallButtonBg: pill
     property color smallButtonBorder: pillBorder
     property color smallButtonActiveBg: accentSecondary
     property color smallButtonActiveBorder: accentSecondaryBorder
     property color smallButtonText: textSoft
-    property color accentSecondary: "#3b476b"
-    property color accentSecondaryBorder: "#58648a"
-    property color text: "#e6e6e6"
-    property color textSoft: "#cfd3df"
-    property color textMuted: "#c9ccd7"
-    property color card: "#0f1117"
-    property color projectTint: "#7b5bd6"
-    property color projectTintBorder: "#7b5bd6"
+    property color accentSecondary
+    property color accentSecondaryBorder
+    property color text
+    property color textSoft
+    property color textMuted
+    property color card
+    property color projectTint
+    property color projectTintBorder
     property color pathButtonFill: pill
     property color pathButtonBorder: pillBorder
     property color folderButtonFill: pill
@@ -90,7 +89,8 @@ Item { // ROOT
     // below lensFrameRoot (the project the lens looks into; "" = no lens) are framed, with
     // a ✕ that takes the lens off. Embryos in it are pale like everywhere; the frame stays.
     property string lensFrameRoot: ""
-    property color lensFrameColor: "#d97706"
+    property color lensFrameColor
+    property color dropHighlightColor
     property bool tintPathAsProject: false
     property real cwdOpacity: 1.0
     // The CWD's mark on the current segment (FolderItem.cwdMark): only where the line's end is
@@ -2770,7 +2770,7 @@ Item { // ROOT
                                 Rectangle {
                                     anchors.fill: parent
                                     visible: Boolean(parent && parent.containsDrag)
-                                    color: "#800000ff"
+                                    color: root.dropHighlightColor
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 onDrop: function(payload) {
@@ -4323,7 +4323,7 @@ Item { // ROOT
                                 Rectangle {
                                     anchors.fill: parent
                                     visible: Boolean(parent && parent.containsDrag)
-                                    color: "#800000ff"
+                                    color: root.dropHighlightColor
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 allowDrops: browserRoot.allowDrops
@@ -4465,7 +4465,7 @@ Item { // ROOT
                                     Rectangle {
                                         anchors.fill: parent
                                         visible: Boolean(parent && parent.containsDrag)
-                                        color: "#800000ff"
+                                        color: root.dropHighlightColor
                                         radius: TagChips.CHIP_RADIUS_COMPACT
                                     }
                                     allowDrops: browserRoot.allowDrops
@@ -4586,7 +4586,7 @@ Item { // ROOT
                                 Rectangle {
                                     anchors.fill: parent
                                     visible: Boolean(parent && parent.containsDrag)
-                                    color: "#800000ff"
+                                    color: root.dropHighlightColor
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 allowDrops: browserRoot.allowDrops
@@ -4719,7 +4719,7 @@ Item { // ROOT
                                 Rectangle {
                                     anchors.fill: parent
                                     visible: Boolean(parent && parent.containsDrag)
-                                    color: "#800000ff"
+                                    color: root.dropHighlightColor
                                     radius: TagChips.CHIP_RADIUS_COMPACT
                                 }
                                 allowDrops: browserRoot.allowDrops

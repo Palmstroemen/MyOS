@@ -39,8 +39,8 @@ Dialog {
     // The greys of the ACL chips, like the group dialog.
     background: Rectangle {
         radius: 8
-        color: "#cfcfcf"
-        border.color: "#9a9a9a"
+        color: root.window.schemeColors.aclDialogBg
+        border.color: root.window.schemeColors.aclDialogBorder
     }
 
     function openFor(path, key) {
@@ -146,7 +146,7 @@ Dialog {
             text: root.adding ? qsTr("Add a person") : qsTr("Groups of %1").arg(root.userName)
             font.bold: true
             font.pixelSize: root.window.baseFont
-            color: "#333333"
+            color: root.window.schemeColors.aclDialogText
             wrapMode: Text.WordWrap
         }
         TextField {
@@ -164,7 +164,7 @@ Dialog {
             width: parent.width
             text: qsTr("People get their rights through their groups. Groups apply in the whole project, not only in this folder.")
             font.pixelSize: root.window.baseFont * 0.9
-            color: "#333333"
+            color: root.window.schemeColors.aclDialogText
             wrapMode: Text.WordWrap
         }
 
@@ -196,7 +196,7 @@ Dialog {
                             radius: height / 2
                             topLeftRadius: 2
                             bottomLeftRadius: 2
-                            color: parent.on ? "#b5b5b5" : "#e4e4e4"
+                            color: parent.on ? root.window.schemeColors.aclSwitchOn : root.window.schemeColors.aclSwitchOff
                             border.color: groupMouse.containsMouse ? Qt.rgba(0, 0, 0, 0.43) : Qt.rgba(0, 0, 0, 0.24)
                             Text {
                                 id: groupName
@@ -204,7 +204,7 @@ Dialog {
                                 text: modelData.name
                                 font.bold: parent.parent.on
                                 font.pixelSize: root.window.baseFont * 0.9
-                                color: "#333333"
+                                color: root.window.schemeColors.aclDialogText
                             }
                             MouseArea {
                                 id: groupMouse
@@ -221,7 +221,7 @@ Dialog {
                             wrapMode: Text.WordWrap
                             text: (parent.on ? "✓ " + qsTr("member") : "✗ " + qsTr("not a member"))
                                 + " · " + root.hereText(modelData.rights)
-                            color: parent.on ? "#333333" : "#777777"
+                            color: parent.on ? root.window.schemeColors.aclDialogText : root.window.schemeColors.aclSwitchOffText
                             font.pixelSize: root.window.baseFont * 0.9
                         }
                     }
@@ -235,7 +235,7 @@ Dialog {
             text: root.adding
                 ? qsTr("Choose at least one group.")
                 : qsTr("Without groups %1 has no rights and is removed from the list.").arg(root.userName)
-            color: "#555555"
+            color: root.window.schemeColors.aclDialogMuted
             font.pixelSize: root.window.baseFont * 0.85
             wrapMode: Text.WordWrap
         }
@@ -243,7 +243,7 @@ Dialog {
             width: parent.width
             visible: root.errorText.length > 0
             text: root.errorText
-            color: "#b00020"
+            color: root.window.schemeColors.dialogError
             font.pixelSize: root.window.baseFont * 0.85
             wrapMode: Text.WordWrap
         }

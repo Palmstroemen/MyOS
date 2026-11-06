@@ -12,20 +12,28 @@ Rectangle { // Files panel
     property var itemsModel: null
     property real embryoOpacity: 0.4  // as FolderBrowser's
     property int baseFont: 14
-    property color text: "#e6e6e6"
-    property color textMuted: "#c9ccd7"
-    property color panelAlt: "#151821"
-    property color pillBorder: "#3a4158"
-    property color backgroundColor: "#404040"
-    property color itemFillColor: "#151821"
-    property color itemBorderColor: "#3a4158"
-    property color smallButtonBg: "#3a4258"
-    property color smallButtonBorder: "#505a74"
-    property color smallButtonActiveBg: "#4a5675"
-    property color smallButtonActiveBorder: "#6a779a"
-    property color smallButtonText: "#b4bac6"
-    property color projectTint: "#7b5bd6"
-    property color projectTintBorder: "#7b5bd6"
+    property color text
+    property color textMuted
+    property color panelAlt
+    property color pillBorder
+    property color backgroundColor
+    // The middle, where the files lie: a colour of each scheme. The project's colour shows through
+    // it a little less than through the frame.
+    property color centerColor
+    property real centerTintMix: 0.52
+    property color fileSelectionFill
+    property color fileSelectionBorder
+    property color selectionBoxFill
+    property color selectionBoxBorder
+    property color itemFillColor
+    property color itemBorderColor
+    property color smallButtonBg
+    property color smallButtonBorder
+    property color smallButtonActiveBg
+    property color smallButtonActiveBorder
+    property color smallButtonText
+    property color projectTint
+    property color projectTintBorder
     property color uPanelTintColor: projectTint
     /// Mix für Panel-Hintergrund mit CWP-/Projektfarbe (0…1). Wird von main mit 0.65 gesetzt.
     property real uPanelTintMix: 0.65
@@ -211,7 +219,7 @@ Rectangle { // Files panel
     signal removeProject()
     property bool hasMyosDirInCwp: false
     /** Farbe für den P-Button wenn CWD nicht in einem Projekt liegt (Wurzelprojekt-Farbe). */
-    property color pButtonActiveColor: "#7b5bd6"
+    property color pButtonActiveColor
 
     property int compactButtonHeight: 32
     property int largeButtonHeight: 88
@@ -264,11 +272,9 @@ Rectangle { // Files panel
         }
         return best
     }
-    property real filesPanelOverlayAlpha: 0.20
-    readonly property real uPanelLuma: (0.2126 * backgroundColor.r) + (0.7152 * backgroundColor.g) + (0.0722 * backgroundColor.b)
     // uPanelTintColor kommt gebunden aus main (filesPanelTintColor).
     readonly property color uPanelColor: PanelColors.uPanelColor(true, backgroundColor, uPanelTintColor, uPanelTintMix)
-    readonly property color filesPanelOverlayColor: PanelColors.filesOverlayColor(uPanelLuma, filesPanelOverlayAlpha)
+    readonly property color filesCenterColor: PanelColors.uPanelColor(true, centerColor, uPanelTintColor, centerTintMix)
 
     radius: 0
     color: root.uPanelColor
@@ -1585,9 +1591,9 @@ Rectangle { // Files panel
         anchors.bottomMargin: root.filesPanelFrameMargin
         anchors.rightMargin: root.filesPanelFrameMarginRight
         radius: 12
-        color: root.filesPanelOverlayColor
+        objectName: "filesCenter"
+        color: root.filesCenterColor
         border.width: 0
-        z: 1
     }
 
     ColumnLayout {
@@ -1746,8 +1752,8 @@ Rectangle { // Files panel
                 labelBackground: model.isDir && model.projectColor ? model.projectColor : "transparent"
                 batchText: model.isDir && model.batchText ? model.batchText : ""
                 thumbnailSource: model.thumb ? model.thumb : ""
-                fillColor: selected ? Qt.rgba(0.58, 0.60, 0.64, 0.34) : root.itemFillColor
-                strokeColor: selected ? Qt.rgba(0.74, 0.76, 0.80, 0.92) : root.itemBorderColor
+                fillColor: selected ? root.fileSelectionFill : root.itemFillColor
+                strokeColor: selected ? root.fileSelectionBorder : root.itemBorderColor
                 textColor: root.text
                 // A virtual folder (files grouped by date, nothing on disk): faint; an embryo
                 // (a template folder not born yet): pale, as in the folder rows.
@@ -2017,8 +2023,8 @@ Rectangle { // Files panel
                 y: selectionOverlay.rectY()
                 width: selectionOverlay.rectW()
                 height: selectionOverlay.rectH()
-                color: Qt.rgba(0.66, 0.69, 0.74, 0.18)
-                border.color: Qt.rgba(0.80, 0.82, 0.86, 0.85)
+                color: root.selectionBoxFill
+                border.color: root.selectionBoxBorder
                 border.width: 1
                 radius: 3
             }

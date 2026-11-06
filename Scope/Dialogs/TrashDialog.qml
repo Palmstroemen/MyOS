@@ -105,7 +105,7 @@ Dialog {
             width: parent.width
             visible: root.errorText.length > 0
             text: root.errorText
-            color: "#b00020"
+            color: root.window.schemeColors.dialogError
             wrapMode: Text.WordWrap
             font.pixelSize: root.window.baseFont * 0.9
         }

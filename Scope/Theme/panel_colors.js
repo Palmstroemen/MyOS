@@ -30,10 +30,3 @@ function uPanelColor(isProjectContext, backgroundColor, cwdColor, mix) {
     }
     return _blend(backgroundColor, cwdColor, mix)
 }
-
-function filesOverlayColor(baseLuma, alpha) {
-    var a = _clamp01(alpha, 0.20)
-    // dark base: brighten; light base: darken
-    return (baseLuma < 0.5) ? Qt.rgba(1, 1, 1, a) : Qt.rgba(0, 0, 0, a)
-}
-

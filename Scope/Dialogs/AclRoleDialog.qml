@@ -33,8 +33,8 @@ Dialog {
     // The greys of the ACL chips.
     background: Rectangle {
         radius: 8
-        color: "#cfcfcf"
-        border.color: "#9a9a9a"
+        color: root.window.schemeColors.aclDialogBg
+        border.color: root.window.schemeColors.aclDialogBorder
     }
 
     function openFor(path, key, name, rights) {
@@ -87,14 +87,14 @@ Dialog {
             text: qsTr("Rights of %1 for this folder").arg(root.roleName)
             font.bold: true
             font.pixelSize: root.window.baseFont
-            color: "#333333"
+            color: root.window.schemeColors.aclDialogText
             wrapMode: Text.WordWrap
         }
         Text {
             width: parent.width
             text: qsTr("Control exactly what this group may do with this folder.")
             font.pixelSize: root.window.baseFont * 0.9
-            color: "#333333"
+            color: root.window.schemeColors.aclDialogText
             wrapMode: Text.WordWrap
         }
 
@@ -112,14 +112,14 @@ Dialog {
                     radius: height / 2
                     topLeftRadius: 2
                     bottomLeftRadius: 2
-                    color: parent.on ? "#b5b5b5" : "#e4e4e4"
+                    color: parent.on ? root.window.schemeColors.aclSwitchOn : root.window.schemeColors.aclSwitchOff
                     border.color: switchMouse.containsMouse ? Qt.rgba(0, 0, 0, 0.43) : Qt.rgba(0, 0, 0, 0.24)
                     Text {
                         anchors.centerIn: parent
                         text: modelData.symbol
                         font.bold: parent.parent.on
                         font.pixelSize: root.window.baseFont * 0.9
-                        color: "#333333"
+                        color: root.window.schemeColors.aclDialogText
                     }
                     MouseArea {
                         id: switchMouse
@@ -135,7 +135,7 @@ Dialog {
                     text: parent.on
                         ? "✓ " + qsTr("may %1").arg(modelData.verb)
                         : "✗ " + qsTr("may not %1").arg(modelData.verb)
-                    color: parent.on ? "#333333" : "#777777"
+                    color: parent.on ? root.window.schemeColors.aclDialogText : root.window.schemeColors.aclSwitchOffText
                     font.pixelSize: root.window.baseFont * 0.9
                 }
             }
@@ -146,7 +146,7 @@ Dialog {
             text: root.ownRule
                 ? qsTr("This folder has a rule of its own.")
                 : qsTr("These rights are inherited from the parent folder.")
-            color: "#555555"
+            color: root.window.schemeColors.aclDialogMuted
             font.pixelSize: root.window.baseFont * 0.85
             wrapMode: Text.WordWrap
         }
@@ -154,7 +154,7 @@ Dialog {
             width: parent.width
             visible: root.errorText.length > 0
             text: root.errorText
-            color: "#b00020"
+            color: root.window.schemeColors.dialogError
             font.pixelSize: root.window.baseFont * 0.85
             wrapMode: Text.WordWrap
         }

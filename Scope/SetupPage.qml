@@ -14,11 +14,12 @@ Rectangle {
     property bool projectsRowShown: settings ? settings.setting("Scope/projectsRow") === true : false
     property bool templatesRowShown: true
     property int baseFont: 13
-    property color textColor: darkTheme ? "#e8efff" : "#1a2233"
-    property color mutedColor: darkTheme ? "#9fb0cc" : "#4a5670"
-    property color panelColor: darkTheme ? "#1a2230" : "#eef1f8"
-    property color pill: darkTheme ? "#2c3f5d" : "#dfe3f0"
-    property color pillBorder: darkTheme ? "#5f7297" : "#c6ccdf"
+    property color textColor
+    property color mutedColor
+    property color panelColor
+    property color panelDeepColor
+    property color pill
+    property color pillBorder
     property alias currentTab: tabs.currentIndex
     // How pale embryos are, as one slides (Scope follows at once; without settings the default).
     readonly property real embryoOpacity: settings ? embryoSlider.value : 0.4
@@ -195,7 +196,7 @@ Rectangle {
         implicitWidth: 420  // in a layout: it sizes by these; wide enough for one line per row
         implicitHeight: exampleColumn.height + 24
         radius: 8
-        color: Qt.darker(root.panelColor, root.darkTheme ? 1.25 : 1.04)
+        color: root.panelDeepColor
         border.color: root.pillBorder
 
         // kind: "path", "current", "folder", "suggestion", "hidden"

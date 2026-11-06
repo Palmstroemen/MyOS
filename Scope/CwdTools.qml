@@ -12,10 +12,10 @@ Row {
 
     property int buttonSize: 28
     property int baseFont: 13
-    property color pill: "#2c3f5d"
-    property color pillBorder: "#5f7297"
-    property color pillActive: "#496a97"
-    property color textColor: "#e8efff"
+    property color pill
+    property color pillBorder
+    property color pillActive
+    property color textColor
     property real emptyOpacity: 0.45
 
     property bool clipboardHasItems: false

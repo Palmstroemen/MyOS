@@ -13,7 +13,7 @@ def test_both_schemes_name_the_same_colours():
 def test_every_value_is_a_colour():
     for name in ("dark", "light"):
         for colour, value in load_scheme(name).items():
-            assert re.fullmatch(r"#[0-9a-fA-F]{6}", value), (name, colour, value)
+            assert re.fullmatch(r"#([0-9a-fA-F]{2})?[0-9a-fA-F]{6}", value), (name, colour, value)
 
 
 def test_the_schemes_differ():

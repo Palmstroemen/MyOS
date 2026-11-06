@@ -88,7 +88,9 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                 [ ] Schritt 2: Farbschemata wählen
                     [x] Farben umgezogen (2026-11-06): die 34 Farben aus main.qml in core/schemes (dark, light), sieht
                         pixelgleich aus
-                    [ ] Verstreute Farben aufräumen (FilesPanel, FolderBrowser, FolderItem, Dialoge ...)
+                    [x] Verstreute Farben aufgeräumt (2026-11-06): Setup-Seite, Auswahl, Ablege-Markierung, Rahmen der
+                        Brille, ACL-Dialoge im Schema; Mitte des FilesPanel je Schema einstellbar (filesPanelCenter):
+                        war ein 20-%-Schleier über dem Rahmen und über den Dateien, beide Themen landeten bei Mittelgrau
                     [ ] Auswahl im Tab Allgemein, drittes Schema; General/colorScheme löst General/darkTheme ab
                     [ ] Beim Testlauf ansehen: Dialoge sind vertauscht (hell im dunklen Thema); dem Schema anpassen?
                 [ ] Schritt 3: bearbeiten; danach SunTree ans Schema  [ ] Schritt 4: Tabs Scope und Headline

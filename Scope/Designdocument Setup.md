@@ -85,8 +85,17 @@ the small fan, then the three that are no line; a line under each says what it d
 2. Colour schemes to choose: the 34 colours move out of Scope's `main.qml` into scheme files
    (Dark, Light). **Moved** (2026-11-06, nothing looks different): `core/schemes/dark.json` and
    `light.json`, read through `core/color_schemes.py`; `main.qml` keeps its names and takes the
-   values from `schemeColors`. Still to come: the colours scattered over the other QML files,
-   then the choice on General, with `General/colorScheme` taking over from `General/darkTheme`.
+   values from `schemeColors`. **Scattered colours gathered** (2026-11-06): the back's own colours,
+   selection, drop highlight, the lens frame and the ACL dialogs are in the schemes; the components
+   no longer keep defaults of their own. The middle of the FilesPanel is `filesPanelCenter`, one
+   per scheme: it was a veil of 20 % over the frame (white on dark, black on light), so both themes
+   met in a middle grey, and it lay over the files, dulling them too. Now it lies under them and
+   the project's colour shows through it (0.52). To change it for now: the scheme file; on the back
+   with step 3.
+   Fixed on purpose: tag colours and chips, ACL chips (their text is worked out from their colour),
+   badges, signal reds, SunTree's colours and the small crown (with SunTree, after step 3).
+   Still to come: the choice on General, with `General/colorScheme` taking over from
+   `General/darkTheme`.
 3. Colour schemes to edit: change colours, keep them as a scheme of one's own.
 4. The **Scope** and **Headline** tabs, as the top bar is taken away.
    Begun (2026-10-26): light/dark and the language left the top bar (they are on General); the

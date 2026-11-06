@@ -151,6 +151,20 @@ ApplicationWindow {
         property color textMuted: schemeColors.textMuted
         property color textSoft: schemeColors.textSoft
         property color filesPaneBackground: schemeColors.filesPaneBackground
+        property color filesPanelCenter: schemeColors.filesPanelCenter
+        property color fileSelectionFill: schemeColors.fileSelectionFill
+        property color fileSelectionBorder: schemeColors.fileSelectionBorder
+        property color selectionBoxFill: schemeColors.selectionBoxFill
+        property color selectionBoxBorder: schemeColors.selectionBoxBorder
+        property color dropHighlight: schemeColors.dropHighlight
+        property color lensFrame: schemeColors.lensFrame
+        property color projectButtonActive: schemeColors.projectButtonActive
+        property color setupText: schemeColors.setupText
+        property color setupMuted: schemeColors.setupMuted
+        property color setupPanel: schemeColors.setupPanel
+        property color setupPanelDeep: schemeColors.setupPanelDeep
+        property color setupPill: schemeColors.setupPill
+        property color setupPillBorder: schemeColors.setupPillBorder
         property color highlight: accentPrimary
     }
 
@@ -2967,6 +2981,8 @@ ApplicationWindow {
             previewShadeSliderMix: filesPane.uPanelTintMix
             panelColor: theme.panelAlt
             panelBorderColor: theme.pillBorder
+            lensFrameColor: theme.lensFrame
+            dropHighlightColor: theme.dropHighlight
             accentPrimary: theme.accentPrimary
             accentPrimaryText: theme.accentPrimaryText
             pill: theme.pill
@@ -3111,6 +3127,12 @@ ApplicationWindow {
             visible: window.setupShown
             settings: window.hasBackend() ? backend : null
             darkTheme: window.darkTheme
+            textColor: theme.setupText
+            mutedColor: theme.setupMuted
+            panelColor: theme.setupPanel
+            panelDeepColor: theme.setupPanelDeep
+            pill: theme.setupPill
+            pillBorder: theme.setupPillBorder
             language: window.uiLanguage
             baseFont: window.baseFont
             onSwitchTheme: window.darkTheme = !window.darkTheme
@@ -3193,6 +3215,8 @@ ApplicationWindow {
             previewShadeSliderMix: filesPane.uPanelTintMix
             panelColor: theme.panel
             panelBorderColor: theme.pillBorder
+            lensFrameColor: theme.lensFrame
+            dropHighlightColor: theme.dropHighlight
             accentPrimary: theme.accentPrimary
             accentPrimaryText: theme.accentPrimaryText
             pill: theme.pill
@@ -3317,6 +3341,11 @@ ApplicationWindow {
             panelAlt: theme.panelAlt
             pillBorder: theme.pillBorder
             backgroundColor: theme.filesPaneBackground
+            centerColor: theme.filesPanelCenter
+            fileSelectionFill: theme.fileSelectionFill
+            fileSelectionBorder: theme.fileSelectionBorder
+            selectionBoxFill: theme.selectionBoxFill
+            selectionBoxBorder: theme.selectionBoxBorder
             templatesBrowserWidth: templatesBrowser.implicitWidth
             projectsBrowserWidth: projectsBrowser.implicitWidth
             iconFolder: window.iconFolder
@@ -3360,7 +3389,7 @@ ApplicationWindow {
             projectTintBorder: window.currentProjectTint
             pButtonActiveColor: (window.defaultProjectTint && String(window.defaultProjectTint).length > 0)
                 ? window.defaultProjectTint
-                : "#7b5bd6"
+                : theme.projectButtonActive
             uPanelTintColor: window.filesPanelTintColor
             uPanelTintMix: 0.65
             projectTintOpacity: 0.75
