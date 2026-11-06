@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QObject, QPointF, Qt, QUrl, Slot
+from PySide6.QtCore import QMetaObject, QObject, QPoint, QPointF, Qt, QUrl, Slot
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
@@ -132,49 +132,151 @@ def test_each_scheme_card_shows_its_own_colours(page):
         assert QColor(center.property("color")) == QColor(color_schemes.load_scheme(name)["filesPanelCenter"])
 
 
+def _picker(view):
+    return view.rootObject().findChild(QObject, "schemeColorDialog")
+
+
+def _open_picker(view):
+    _click(view, _named(view, "colorSwatch_filesPanelCenter"))
+    QTest.qWait(30)
+    picker = _picker(view)
+    assert picker.property("visible") is True
+    return picker
+
+
+def test_a_click_on_the_little_box_opens_the_colour_picker_on_its_colour(page):
+    view, _ = page
+    assert _picker(view).property("visible") is False
+    picker = _open_picker(view)
+    assert picker.property("selectedColor") == QColor(color_schemes.load_scheme("dark")["filesPanelCenter"])
+    QMetaObject.invokeMethod(picker, "reject")
+
+
 def test_the_files_background_is_set_for_the_scheme_worn(page):
     view, _ = page
-    dark, light = (color_schemes.load_scheme(n)["filesPanelCenter"] for n in ("dark", "light"))
-    _click(view, _named(view, "colorLightness_filesPanelCenter"))  # the slider's middle: 50 %
-    edited = color_schemes.load_scheme("dark")["filesPanelCenter"]
-    assert edited != dark
-    assert abs(QColor(edited).lightnessF() - 0.5) < 0.05
-    assert color_schemes.load_scheme("light")["filesPanelCenter"] == light  # the other scheme is left alone
-    assert "edited" in _heard(view)
-    assert QColor(_named(view, "schemeCenter_dark").property("color")) == QColor(edited)  # the card follows
-
-
-def test_the_colour_can_be_typed(page):
-    view, _ = page
-    field = _named(view, "colorHex_filesPanelCenter")
-    _click(view, field)
-    field.setProperty("text", "")
-    for char in "#ABCDEF":
-        QTest.keyClick(view, Qt.Key(ord(char)))
-    QTest.keyClick(view, Qt.Key_Return)
+    light = color_schemes.load_scheme("light")["filesPanelCenter"]
+    picker = _open_picker(view)
+    picker.setProperty("selectedColor", QColor("#123456"))
     QTest.qWait(30)
-    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == "#abcdef"
+    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == "#123456"  # counts at once, the picker still open
+    assert "edited" in _heard(view)
+    assert QColor(_named(view, "schemeCenter_dark").property("color")) == QColor("#123456")  # the card follows
+    assert QColor(_named(view, "colorSwatch_filesPanelCenter").property("color")) == QColor("#123456")
+    QMetaObject.invokeMethod(picker, "accept")
+    QTest.qWait(30)
+    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == "#123456"
+    assert color_schemes.load_scheme("light")["filesPanelCenter"] == light  # the other scheme is left alone
 
 
-def test_the_colour_follows_when_the_scheme_changes(page):
+def test_cancelling_the_picker_leaves_the_colour_as_it_was(page):
     view, _ = page
-    field = _named(view, "colorHex_filesPanelCenter")
-    assert field.property("text") == color_schemes.load_scheme("dark")["filesPanelCenter"]
+    before = color_schemes.load_scheme("dark")["filesPanelCenter"]
+    picker = _open_picker(view)
+    picker.setProperty("selectedColor", QColor("#123456"))
+    QTest.qWait(30)
+    QMetaObject.invokeMethod(picker, "reject")
+    QTest.qWait(30)
+    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == before
+    assert not color_schemes.own_colors_path("dark").exists() or "filesPanelCenter" not in color_schemes.own_colors_path("dark").read_text()
+
+
+def test_the_little_box_follows_when_the_scheme_changes(page):
+    view, _ = page
+    swatch = _named(view, "colorSwatch_filesPanelCenter")
+    assert QColor(swatch.property("color")) == QColor(color_schemes.load_scheme("dark")["filesPanelCenter"])
     view.rootObject().setProperty("darkTheme", False)
     QTest.qWait(30)
-    assert field.property("text") == color_schemes.load_scheme("light")["filesPanelCenter"]
+    assert QColor(swatch.property("color")) == QColor(color_schemes.load_scheme("light")["filesPanelCenter"])
 
 
-def test_the_colour_goes_back_to_the_schemes_own(page):
+def _drag_swatch(view, dx, dy=0):
+    swatch = _named(view, "colorSwatch_filesPanelCenter")
+    start = swatch.mapToScene(QPointF(swatch.width() / 2, swatch.height() / 2)).toPoint()
+    QTest.mouseMove(view, start)
+    QTest.mousePress(view, Qt.LeftButton, Qt.NoModifier, start)
+    steps = 6
+    for step in range(1, steps + 1):
+        QTest.mouseMove(view, QPoint(start.x() + dx * step // steps, start.y() + dy * step // steps))
+        QTest.qWait(10)
+    return start
+
+
+def _lightness(view):
+    return QColor(_named(view, "colorSwatch_filesPanelCenter").property("color")).lightnessF()
+
+
+@pytest.mark.parametrize("dx, lighter", [(120, True), (-120, False)])
+def test_dragging_the_little_box_makes_the_colour_lighter_or_darker(page, dx, lighter):
     view, _ = page
-    shipped = color_schemes.shipped_scheme("dark")["filesPanelCenter"]
-    color_reset = _named(view, "colorReset_filesPanelCenter")
-    assert color_reset.property("visible") is False  # nothing to go back from
-    _click(view, _named(view, "colorLightness_filesPanelCenter"))
-    assert color_reset.property("visible") is True
-    _click(view, color_reset)
-    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == shipped
-    assert _named(view, "colorHex_filesPanelCenter").property("text") == shipped
+    before = _lightness(view)
+    swatch = _named(view, "colorSwatch_filesPanelCenter")
+    position = swatch.position()
+    start = _drag_swatch(view, dx)
+    during = _lightness(view)  # shown at once, the mouse still down
+    assert (during > before) is lighter and abs(during - before) > 0.1
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, QPoint(start.x() + dx, start.y()))
+    QTest.qWait(30)
+    assert swatch.position() == position  # the box stays where it is
+    assert _picker(view).property("visible") is False  # a drag opens no picker
+    assert abs(QColor(color_schemes.load_scheme("dark")["filesPanelCenter"]).lightnessF() - during) < 0.01
+    assert "edited" in _heard(view)
+
+
+def test_dragging_keeps_the_hue_of_the_colour(page):
+    view, _ = page
+    color_schemes.set_scheme_color("dark", "filesPanelCenter", "#3060a0")
+    view.rootObject().setProperty("schemeEdits", 1)
+    hue = QColor("#3060a0").hslHueF()
+    start = _drag_swatch(view, 60)
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, QPoint(start.x() + 60, start.y()))
+    QTest.qWait(30)
+    assert abs(QColor(color_schemes.load_scheme("dark")["filesPanelCenter"]).hslHueF() - hue) < 0.01
+
+
+@pytest.mark.parametrize("dy, more", [(-60, True), (60, False)])
+def test_dragging_up_makes_it_more_saturated_down_less(page, dy, more):
+    view, _ = page
+    color_schemes.set_scheme_color("dark", "filesPanelCenter", "#3060a0")
+    view.rootObject().setProperty("schemeEdits", 1)
+    start = _drag_swatch(view, 0, dy)
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, QPoint(start.x(), start.y() + dy))
+    QTest.qWait(30)
+    after = QColor(color_schemes.load_scheme("dark")["filesPanelCenter"])
+    before = QColor("#3060a0")
+    assert (after.hslSaturationF() > before.hslSaturationF()) is more
+    assert abs(after.hslHueF() - before.hslHueF()) < 0.01 and abs(after.lightnessF() - before.lightnessF()) < 0.01
+    assert _picker(view).property("visible") is False
+
+
+def test_the_light_stops_at_white_and_black(page):
+    view, _ = page
+    start = _drag_swatch(view, 600)
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, QPoint(start.x() + 600, start.y()))
+    QTest.qWait(30)
+    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == "#ffffff"
+
+
+def test_a_shaky_click_still_opens_the_picker(page):
+    view, _ = page
+    before = color_schemes.load_scheme("dark")["filesPanelCenter"]
+    start = _drag_swatch(view, 2)
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, QPoint(start.x() + 2, start.y()))
+    QTest.qWait(30)
+    assert _picker(view).property("visible") is True
+    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == before
+    QMetaObject.invokeMethod(_picker(view), "reject")
+
+
+def test_no_way_back_beside_the_little_box(page):
+    view, _ = page
+    assert _named(view, "colorReset_filesPanelCenter") is None
+
+
+def test_a_colour_takes_one_line_no_sliders():
+    # There will be ten or more of them.
+    source = (SCOPE_DIR / "SetupPage.qml").read_text(encoding="utf-8")
+    colour_setting = source[source.index("component ColorSetting"):source.index("// A setting that is on or off")]
+    assert "Slider" not in colour_setting and "TextField" not in colour_setting
 
 
 def test_suntree_values_go_to_the_settings_file(page):

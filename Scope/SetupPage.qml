@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Dialogs
 import QtQuick.Layouts 1.15
 
 // The back of Scope (Scope/Designdocument Setup.md): the settings of Scope, the Headline and
@@ -143,8 +144,9 @@ Rectangle {
         }
     }
 
-    // One colour of the scheme worn: sliders for finding it, the value for typing it, the way
-    // back to the scheme's own. It counts at once, for this scheme alone.
+    // One colour of the scheme worn, one line: its name and its little box. A click on the box opens
+    // the colour picker, a drag fine-tunes: right lighter, left darker, up more saturated, down
+    // less. It counts at once, for this scheme alone.
     component ColorSetting: ColumnLayout {
         id: colorRow
         property string colorName: ""
@@ -153,75 +155,61 @@ Rectangle {
         readonly property string schemeName: root.darkTheme ? "dark" : "light"
         readonly property string current: String(root.schemeOf(schemeName)[colorName] || "#000000")
         readonly property string shipped: root.settings ? root.settings.schemeColorDefault(schemeName, colorName) : current
-        property bool sliding: false
         spacing: 4
-        function show() {
-            hexField.text = current
-            if (sliding) return  // the sliders say what it is; the colour back from 8 bits would make them jump
-            var c = Qt.color(current)
-            if (c.hslHue >= 0) hueSlider.value = c.hslHue  // grey has none: the slider stays
-            saturationSlider.value = c.hslSaturation
-            lightnessSlider.value = c.hslLightness
-        }
-        onCurrentChanged: show()
-        Component.onCompleted: show()
         function apply(value) {
             if (!root.settings || !root.settings.setSchemeColor(schemeName, colorName, value)) return
             root.schemeEdits++
             root.schemeColorEdited()
         }
-        function applySliders() {
-            sliding = true
-            apply(Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, 1).toString())
-            sliding = false
+        function backToShipped() {
+            if (!root.settings) return
+            root.settings.resetSchemeColor(schemeName, colorName)
+            root.schemeEdits++
+            root.schemeColorEdited()
         }
         RowLayout {
             spacing: 8
-            Layout.preferredHeight: 30  // the same with the way back shown and without
-            Text { text: colorRow.label; color: root.textColor; font.pixelSize: root.baseFont }
+            Text { text: colorRow.label; color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
             Rectangle {
-                implicitWidth: 30
+                objectName: "colorSwatch_" + colorRow.colorName
+                implicitWidth: 36
                 implicitHeight: 24
                 radius: 4
                 color: colorRow.current
                 border.color: root.pillBorder
-            }
-            TextField {
-                id: hexField
-                objectName: "colorHex_" + colorRow.colorName
-                implicitWidth: 90
-                color: root.textColor
-                font.pixelSize: root.baseFont
-                validator: RegularExpressionValidator { regularExpression: /#[0-9a-fA-F]{6}/ }
-                background: Rectangle { color: root.pill; border.color: root.pillBorder; radius: 4 }
-                onEditingFinished: {
-                    if (acceptableInput) colorRow.apply(text.toLowerCase())
-                    else text = colorRow.current
+                MouseArea {
+                    // From the colour at the press, not step by step: 8 bits lose the hue on the way.
+                    property real pressX: 0
+                    property real pressY: 0
+                    property real hue: 0
+                    property real saturation: 0
+                    property real lightness: 0
+                    property bool dragged: false
+                    readonly property real fullWayPx: 300
+                    anchors.fill: parent
+                    preventStealing: true
+                    cursorShape: Qt.PointingHandCursor
+                    onPressed: function(mouse) {
+                        var c = Qt.color(colorRow.current)
+                        pressX = mouse.x
+                        pressY = mouse.y
+                        hue = Math.max(0, c.hslHue)  // grey has none
+                        saturation = c.hslSaturation
+                        lightness = c.hslLightness
+                        dragged = false
+                    }
+                    onPositionChanged: function(mouse) {
+                        var dx = mouse.x - pressX
+                        var dy = mouse.y - pressY
+                        if (!dragged && Math.abs(dx) < 4 && Math.abs(dy) < 4) return
+                        dragged = true
+                        var l = Math.max(0, Math.min(1, lightness + dx / fullWayPx))
+                        var s = Math.max(0, Math.min(1, saturation - dy / fullWayPx))
+                        colorRow.apply(Qt.hsla(hue, s, l, 1).toString())
+                    }
+                    onClicked: if (!dragged) root.pickColor(colorRow)
                 }
             }
-            Pill {
-                objectName: "colorReset_" + colorRow.colorName
-                visible: colorRow.current.toLowerCase() !== colorRow.shipped.toLowerCase()
-                label: qsTr("Default")
-                onActivated: {
-                    if (!root.settings) return
-                    root.settings.resetSchemeColor(colorRow.schemeName, colorRow.colorName)
-                    root.schemeEdits++
-                    root.schemeColorEdited()
-                }
-            }
-        }
-        GridLayout {
-            columns: 2
-            columnSpacing: 8
-            rowSpacing: 4
-            Layout.fillWidth: true
-            Text { text: qsTr("Hue"); color: root.textColor; font.pixelSize: root.baseFont }
-            Slider { id: hueSlider; objectName: "colorHue_" + colorRow.colorName; Layout.fillWidth: true; onMoved: colorRow.applySliders() }
-            Text { text: qsTr("Saturation"); color: root.textColor; font.pixelSize: root.baseFont }
-            Slider { id: saturationSlider; objectName: "colorSaturation_" + colorRow.colorName; Layout.fillWidth: true; onMoved: colorRow.applySliders() }
-            Text { text: qsTr("Lightness"); color: root.textColor; font.pixelSize: root.baseFont }
-            Slider { id: lightnessSlider; objectName: "colorLightness_" + colorRow.colorName; Layout.fillWidth: true; onMoved: colorRow.applySliders() }
         }
         Text {
             text: colorRow.help
@@ -229,6 +217,35 @@ Rectangle {
             font.pixelSize: root.baseFont - 1
             wrapMode: Text.WordWrap
             Layout.fillWidth: true
+        }
+    }
+
+    // The one colour picker, Qt's own: its own window, Scope stays in view and follows as one
+    // picks; cancelling returns to the colour it had.
+    function pickColor(row) {
+        colorPicker.row = null
+        colorPicker.selectedColor = row.current
+        colorPicker.title = row.label
+        colorPicker.before = row.current
+        colorPicker.wasOwn = row.current.toLowerCase() !== row.shipped.toLowerCase()
+        colorPicker.row = row
+        colorPicker.open()
+    }
+    ColorDialog {
+        id: colorPicker
+        objectName: "schemeColorDialog"
+        property var row: null
+        property string before: ""
+        property bool wasOwn: false
+        options: ColorDialog.DontUseNativeDialog
+        onSelectedColorChanged: if (row) row.apply(selectedColor.toString())
+        onAccepted: row = null
+        onRejected: {
+            if (row) {
+                if (wasOwn) row.apply(before)
+                else row.backToShipped()
+            }
+            row = null
         }
     }
 
@@ -589,10 +606,11 @@ Rectangle {
                     ColorSetting {
                         colorName: "filesPanelCenter"
                         label: qsTr("Files background")
-                        help: qsTr("The colour behind the files, for this scheme alone. The colour of the project shows through it.")
+                        help: qsTr("The colour behind the files, for this scheme alone; the project's colour shows through it. Click the box to choose a colour, drag it to fine-tune: right lighter, left darker, up stronger, down paler.")
                         Layout.leftMargin: 16
                         Layout.fillWidth: true
                         Layout.maximumWidth: 560
+                        Layout.alignment: Qt.AlignTop
                     }
                 }
                 RowLayout {

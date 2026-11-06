@@ -95,9 +95,13 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                     [ ] Drittes Schema; General/colorScheme löst General/darkTheme ab
                     [ ] Beim Testlauf ansehen: Dialoge sind vertauscht (hell im dunklen Thema); dem Schema anpassen?
                 [ ] Schritt 3: bearbeiten; danach SunTree ans Schema
-                    [x] Hintergrund Dateibereich im Setup (2026-11-06): je Schema einstellbar, wirkt sofort, liegt in
+                    [x] Hintergrund Dateibereich im Setup (2026-11-06): Farbkästchen öffnet die Farbauswahl, je Schema, wirkt sofort, liegt in
                         ~/.config/MyOS/schemes über den mitgelieferten Schemata
                     [ ] Beim Testlauf: Projektfarbe macht 52 % der Mitte aus, Weiß ist so nicht erreichbar; Anteil senken?
+                    [x] Farbkästchen ziehen (2026-11-06): rechts heller, links dunkler, oben satter, unten blasser; kein "Standard" daneben
+                    [x] Durchgreifen behoben (2026-11-06): Ziehen auf der Rückseite weckte die DragHandler der Vorderseite und
+                        erwischte Ordner; die Vorderseite nimmt jetzt nichts an, solange die Rückseite zu sehen ist
+                    [ ] Zurück auf die Vorgabe des Schemas: ohne Knopf neben der Farbe bisher nicht möglich
                     [ ] Die übrigen Farben, eigenes Schema speichern
                 [ ] Schritt 4: Tabs Scope und Headline
                 [~] Obere Leiste leeren (2026-10-26): Hell/Dunkel, Sprache weg (Allgemein); Zeilen an/aus im Tab Scope;

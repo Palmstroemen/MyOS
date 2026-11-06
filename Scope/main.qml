@@ -2718,6 +2718,9 @@ ApplicationWindow {
     Rectangle {
         anchors.fill: parent
         color: theme.bg
+        // With the back in view the front takes nothing: the back's MouseArea stops clicks, but
+        // not the drag handlers behind it.
+        enabled: !window.setupShown
         ColumnLayout { // MainRows
             anchors.fill: parent
             spacing: 6
@@ -3126,6 +3129,7 @@ ApplicationWindow {
         SetupPage {
             // The back of Scope: shown from the quarter turn on (flipSetup).
             id: setupPage
+            objectName: "setupPage"
             parent: window.contentItem
             anchors.fill: parent
             z: 100000

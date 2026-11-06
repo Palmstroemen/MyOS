@@ -97,8 +97,12 @@ the small fan, then the three that are no line; a line under each says what it d
    puts it on; `General/darkTheme` still says which, until a third scheme makes `General/colorScheme`
    worth it.
 3. Colour schemes to edit: change colours, keep them as a scheme of one's own. **Begun**
-   (2026-11-06): beside the choice one colour, "Files background" (`filesPanelCenter`): hue,
-   saturation, lightness, the value to type, the way back to the scheme's own. It counts at once
+   (2026-11-06): beside the choice one colour, "Files background" (`filesPanelCenter`), one line:
+   its name and its little box; no way back beside it. A click on the box opens Qt's colour picker
+   (colour field, hue, Hex/RGB/HSV/HSL; not the native one, so it is the same everywhere and Scope
+   follows while picking; sliders would be a mess at ten colours or more). A drag on the box
+   fine-tunes: right lighter, left darker, up more saturated, down less (300 px the full way, the
+   box stays where it is, a drag opens no picker). It counts at once
    and for the scheme worn alone, kept in `~/.config/MyOS/schemes/<scheme>.json` over the shipped
    file (`core/color_schemes.py`). To come: the other colours, a scheme of one's own.
 4. The **Scope** and **Headline** tabs, as the top bar is taken away.
