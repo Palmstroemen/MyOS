@@ -148,11 +148,16 @@ class EffectiveFilter:
 
 def find_filters(start_path: Union[str, Path]) -> List[Tuple[Path, FilterConfig]]:
     """
-    Find filter configs from the given path upwards.
+    Find the filter configs acting by themselves from the given path upwards.
     Order is most specific first.
     """
-    layers = find_filters_layers(start_path)
+    layers = _acting_by_themselves(find_filters_layers(start_path))
     return [(layer.source_path, layer.config) for layer in layers]
+
+
+def _acting_by_themselves(layers: List[FilterLayer]) -> List[FilterLayer]:
+    """The collection in .MyOS/Filters is there to choose from; it acts only when chosen by hand."""
+    return [layer for layer in layers if layer.source_kind != "collection"]
 
 
 def find_filters_layers(
@@ -234,12 +239,12 @@ def resolve_effective_filter(
         )
         return EffectiveFilter(config=cfg, layers=[layer], mode="manual", manual_path=manual_path)
 
-    layers = find_filters_layers(
+    layers = _acting_by_themselves(find_filters_layers(
         cwd,
         template_root=template_root,
         project_root=project_root,
         global_root=global_root,
-    )
+    ))
     if not layers:
         return None
 
@@ -343,7 +348,7 @@ def apply_filter_projection(
         if not _matches_entry(item_path, name, cfg, cwd_path, project_root_path):
             continue
         item["path"] = str(item_path)
-        item["originPath"] = str(item_path)
+        item["originPath"] = _origin_seen_from(item_path, cwd_path)
         item["filterActive"] = True
         item["filterName"] = cfg.name
         group_key = _group_key_for_entry(item, cfg.groups, cwd_path, project_root_path)
@@ -446,6 +451,16 @@ def _resolve_optional_path(value: Optional[Union[str, Path]]) -> Optional[Path]:
         return Path(value).expanduser().resolve()
     except Exception:
         return None
+
+
+def _origin_seen_from(item_path: Path, cwd: Path) -> str:
+    """Where an entry from deeper down (flatten) comes from; nothing for one of the folder itself."""
+    if item_path.parent == cwd:
+        return ""
+    try:
+        return str(item_path.parent.relative_to(cwd))
+    except ValueError:
+        return str(item_path.parent)
 
 
 def _iter_filter_candidates(directory: Path) -> Iterable[Tuple[Path, str]]:

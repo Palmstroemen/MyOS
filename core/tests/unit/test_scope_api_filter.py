@@ -63,3 +63,16 @@ def test_no_filter_chosen_by_hand_nor_saved_from_scope():
     # auto filters stay (above).
     for gone in ("set_manual_filter", "clear_manual_filter", "manual_filter_lens", "save_filter", "list_filter_save_targets"):
         assert not hasattr(ScopeApi, gone), gone
+
+
+def test_a_filter_of_the_collection_leaves_the_listing_alone(tmp_path):
+    root = tmp_path / "Project"
+    (root / "Belege").mkdir(parents=True)
+    _write_project_marker(root)
+    _write_filter(root / ".MyOS" / "Filters" / "Ausgaben.md", "Ausgaben", extra="## Filter\n*.txt\n")
+
+    api = ScopeApi(str(root))
+    assert not api.resolve_active_filter(str(root)).get("active")
+    entry = next(e for e in api.list_entries(str(root)) if e["name"] == "Belege")  # *.txt would hide it
+    assert not entry.get("filterActive") and not entry.get("originPath")
+    assert [f["name"] for f in api.list_filters(str(root))] == ["Ausgaben"]  # still there to choose from

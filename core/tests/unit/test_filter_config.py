@@ -379,3 +379,47 @@ def test_the_nearest_filter_names_the_lens(tmp_path):
     (sub / "Filter.md").write_text("# Filter\nName: Sub\n\n## Perspective\n05_Rechtliches/Verträge\n")
 
     assert resolve_effective_filter(sub).config.lens == ("05_Rechtliches", "Verträge")
+
+
+# The collection in .MyOS/Filters is there to choose from: it acts only when chosen by hand
+# (myfilter), so a file lying there cannot change a whole project unasked. Filter.md acts by itself.
+def _collection(tmp_path, body="# Filter\nName: Ausgaben\n\n## Perspective\n04_Finanz/Ausgaben\n"):
+    root = tmp_path / "Job"
+    (root / "Belege").mkdir(parents=True)
+    (root / ".MyOS" / "Filters").mkdir(parents=True)
+    path = root / ".MyOS" / "Filters" / "Ausgaben.md"
+    path.write_text(body, encoding="utf-8")
+    return root, path
+
+
+def test_a_filter_of_the_collection_does_not_act_by_itself(tmp_path):
+    root, _ = _collection(tmp_path)
+    assert resolve_effective_filter(root) is None
+    assert resolve_effective_filter(root / "Belege") is None
+    assert find_filters(root) == []
+
+
+def test_a_filter_of_the_collection_can_still_be_chosen(tmp_path):
+    root, path = _collection(tmp_path)
+    assert [layer.config.name for layer in find_filters_layers(root)] == ["Ausgaben"]
+    assert resolve_effective_filter(root, manual=path).config.name == "Ausgaben"
+
+
+def test_a_filter_md_still_acts_by_itself(tmp_path):
+    root, _ = _collection(tmp_path)
+    (root / "Filter.md").write_text("# Filter\nName: Hier\n", encoding="utf-8")
+    assert resolve_effective_filter(root).config.name == "Hier"
+
+
+def test_an_entry_of_the_folder_itself_has_no_origin(tmp_path):
+    (tmp_path / "Filter.md").write_text("# Filter\nName: Hier\n", encoding="utf-8")
+    entries = [{"name": "Belege", "path": str(tmp_path / "Belege")}]
+    projected = apply_filter_projection(entries, cwd=tmp_path, filter_state=resolve_effective_filter(tmp_path))
+    assert projected[0]["filterActive"] is True and projected[0]["originPath"] == ""
+
+
+def test_an_entry_from_deeper_down_says_where_from_seen_from_here(tmp_path):
+    (tmp_path / "Filter.md").write_text("# Filter\nName: Hier\n", encoding="utf-8")
+    entries = [{"name": "a.pdf", "path": str(tmp_path / "2024" / "Belege" / "a.pdf")}]
+    projected = apply_filter_projection(entries, cwd=tmp_path, filter_state=resolve_effective_filter(tmp_path))
+    assert projected[0]["originPath"] == "2024/Belege"

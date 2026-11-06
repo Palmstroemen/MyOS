@@ -130,6 +130,8 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             Auto-Filter nie. Alte CPD-Schicht entfernt (perspective_resolver.py, ScopeApi perspective_*, Teil B)
             Zurückgenommen (2026-10-26): die Wahl von Hand samt Menü (öffnen, speichern) ist weg - die Brille kommt per
             Doppelklick auf den MyOS-Ordner; Auto-Filter bleiben
+        [x] Filter in .MyOS/Filters wirken nur noch von Hand (2026-11-06, myfilter), Filter.md weiter von selbst; Name mit Pfad im
+            Dateibereich weg, nur beim Flachklopfen der Pfad von hier aus
         [ ] E7 Suche mit Brille über alle Projekte (nur die Abteilungsordner, Spalte "Projekt"; Designdoc A9) -
             zurückgestellt (2026-10-25), bis die Suche im Alltag fehlt; schlank wäre: nur Dateinamen, ein Feld in Scope
     [ ] Laufwerk bleibt eingehängt, wenn Scope von außen beendet wird (SIGTERM; 2026-11-03, Demo): Scope fragt

@@ -44,6 +44,10 @@ Filters are stored in `.MyOS/` as Markdown files and can exist in:
 - template roots (shared by template instances)
 - normal folders in the tree or in templates (e.g., `/finanz/` in the template for auto perspective)
 
+A `Filter.md` (in the folder or its `.MyOS/`) acts by itself. The collection in `.MyOS/Filters/` is there to
+choose from: it acts only when chosen by hand (`myfilter activate`, `--manual`), so a file lying there
+cannot change a whole project unasked (2026-11-06).
+
 Inheritance follows standard rules with `dynamic` as default. A future global mode `sparse` may store only deltas instead of full copies.
 
 ---
