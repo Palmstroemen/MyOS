@@ -120,7 +120,6 @@ ApplicationWindow {
         property color bg: schemeColors.bg
         property color panel: schemeColors.panel
         property color panelAlt: schemeColors.panelAlt
-        property color panelAlt2: schemeColors.panelAlt2
         property color card: schemeColors.card
         property color pill: schemeColors.pill
         property color pillBorder: schemeColors.pillBorder
@@ -148,14 +147,14 @@ ApplicationWindow {
         property color accentPrimaryText: schemeColors.accentPrimaryText
         property color accentSecondary: schemeColors.accentSecondary
         property color accentSecondaryBorder: schemeColors.accentSecondaryBorder
-        property color projectFolderTint: schemeColors.projectFolderTint
-        property color embryoFolderTint: schemeColors.embryoFolderTint
-        property color action: schemeColors.action
-        property color actionBorder: schemeColors.actionBorder
         property color text: schemeColors.text
-        property color textMuted: schemeColors.textMuted
-        property color textSoft: schemeColors.textSoft
-        property color filesPaneBackground: schemeColors.filesPaneBackground
+        // The side texts follow the text: a little towards the background.
+        function towards(value, other, share) {
+            return Qt.rgba(value.r + (other.r - value.r) * share, value.g + (other.g - value.g) * share,
+                           value.b + (other.b - value.b) * share, 1)
+        }
+        property color textMuted: towards(text, bg, 0.13)
+        property color textSoft: towards(text, bg, 0.07)
         property color filesPanelCenter: schemeColors.filesPanelCenter
         property color fileSelectionFill: schemeColors.fileSelectionFill
         property color fileSelectionBorder: schemeColors.fileSelectionBorder
@@ -180,7 +179,7 @@ ApplicationWindow {
     /// like a double-click into that folder.
     readonly property color filesPanelTintColor: hasProjectInFilesPath && projectsBrowser
         ? projectsBrowser.pathFillColor(currentFilesPath())
-        : theme.folderPathTint
+        : theme.folderCwpTint
     /// The folder shown in the FilesPanel (currentFilesPath) is a project; set by updateFiles.
     property bool hasProjectInFilesPath: false
 
@@ -3350,7 +3349,6 @@ ApplicationWindow {
             textMuted: theme.textMuted
             panelAlt: theme.panelAlt
             pillBorder: theme.pillBorder
-            backgroundColor: theme.filesPaneBackground
             centerColor: theme.filesPanelCenter
             fileSelectionFill: theme.fileSelectionFill
             fileSelectionBorder: theme.fileSelectionBorder

@@ -97,14 +97,19 @@ the small fan, then the three that are no line; a line under each says what it d
    puts it on; `General/darkTheme` still says which, until a third scheme makes `General/colorScheme`
    worth it.
 3. Colour schemes to edit: change colours, keep them as a scheme of one's own. **Begun**
-   (2026-11-06): beside the choice one colour, "Files background" (`filesPanelCenter`), one line:
-   its name and its little box; no way back beside it. A click on the box opens Qt's colour picker
-   (colour field, hue, Hex/RGB/HSV/HSL; not the native one, so it is the same everywhere and Scope
+   (2026-11-06): under the choice eleven colours in four groups (window: background, text; files area:
+   background; markings: selected files, dropping on a folder, frame of the lens; folder rows:
+   their two backgrounds, path bar, folders, current folder and frame), each one line: its name
+   and its little box; no way back beside it, "Reset all colours" under the list. A click on the box opens Qt's colour picker
+   (colour field, hue, Hex/RGB/HSV/HSL, opacity for the two see-through colours; not the native one, so it is the same everywhere and Scope
    follows while picking; sliders would be a mess at ten colours or more). A drag on the box
    fine-tunes: right lighter, left darker, up more saturated, down less (300 px the full way, the
-   box stays where it is, a drag opens no picker). It counts at once
+   box stays where it is, a drag opens no picker, opacity stays). It counts at once
    and for the scheme worn alone, kept in `~/.config/MyOS/schemes/<scheme>.json` over the shipped
-   file (`core/color_schemes.py`). To come: the other colours, a scheme of one's own.
+   file (`core/color_schemes.py`). To come: a scheme of one's own.
+   The frame of the FilesPanel has the colour of the current folder's tab (`folderCwpTint`, for a
+   project its colour), no mix; the tab is that colour at its foot and a little lighter at its
+   top. The side texts (`textMuted`, `textSoft`) are worked out from `text` and `bg`.
 4. The **Scope** and **Headline** tabs, as the top bar is taken away.
    Begun (2026-10-26): light/dark and the language left the top bar (they are on General); the
    two rows (projects, MyOS folders) are switched on the Scope tab and kept in the settings

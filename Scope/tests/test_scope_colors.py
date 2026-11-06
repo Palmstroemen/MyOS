@@ -55,7 +55,7 @@ def window():
 
 
 def _colours(window):
-    theme = next(o for o in window.findChildren(QObject) if o.metaObject().indexOfProperty("filesPaneBackground") >= 0)
+    theme = next(o for o in window.findChildren(QObject) if o.metaObject().indexOfProperty("folderCwpTint") >= 0)
     return {"dialogPanelBg": window.property("dialogPanelBg"), "bg": theme.property("bg"),
             "accentPrimaryText": theme.property("accentPrimaryText")}
 
@@ -128,6 +128,29 @@ def test_a_colour_set_on_the_back_shows_at_once(window, monkeypatch):
 
 def test_the_back_tells_main_of_a_colour_set():
     assert "onSchemeColorEdited: window.schemeRevision++" in MAIN
+
+
+def _theme(window):
+    return next(o for o in window.findChildren(QObject) if o.metaObject().indexOfProperty("folderCwpTint") >= 0)
+
+
+@pytest.mark.parametrize("dark, scheme", [(True, "dark"), (False, "light")])
+def test_the_frame_has_the_colour_of_the_current_folders_tab(window, dark, scheme):
+    window.setProperty("darkTheme", dark)
+    assert QColor(_files_panel(window).property("color")) == QColor(load_scheme(scheme)["folderCwpTint"])
+
+
+def test_the_side_texts_follow_the_text(window, monkeypatch):
+    before = QColor(_theme(window).property("textMuted"))
+    original = load_scheme
+    def own(name):
+        scheme = original(name)
+        scheme["text"] = "#ff0000"
+        return scheme
+    monkeypatch.setattr(sys.modules[__name__], "load_scheme", own)
+    window.setProperty("schemeRevision", window.property("schemeRevision") + 1)
+    after = QColor(_theme(window).property("textMuted"))
+    assert after != before and after.red() > after.green()  # red, a little paler
 
 
 def test_no_veil_over_the_middle_is_left():

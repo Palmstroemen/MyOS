@@ -41,7 +41,14 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
-from core.color_schemes import load_scheme, reset_scheme_color, set_scheme_color, shipped_scheme
+from core.color_schemes import (
+    has_own_colors,
+    load_scheme,
+    reset_scheme,
+    reset_scheme_color,
+    set_scheme_color,
+    shipped_scheme,
+)
 from core.scope_api import ScopeApi
 from core.settings import Settings
 from daemon.lens_link import LensLink
@@ -949,6 +956,14 @@ class Backend(QObject):
     @Slot(str, str, result=str)
     def schemeColorDefault(self, name: str, color: str) -> str:
         return shipped_scheme(name)[color]
+
+    @Slot(str)
+    def resetSchemeColors(self, name: str) -> None:
+        reset_scheme(name)
+
+    @Slot(str, result=bool)
+    def schemeHasOwnColors(self, name: str) -> bool:
+        return has_own_colors(name)
 
     @Slot(result=str)
     def currentLanguage(self) -> str:

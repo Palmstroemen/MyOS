@@ -56,6 +56,14 @@ def reset_scheme_color(name: str, color: str) -> None:
         _write_own_colors(name, own)
 
 
+def reset_scheme(name: str) -> None:
+    own_colors_path(name).unlink(missing_ok=True)
+
+
+def has_own_colors(name: str) -> bool:
+    return bool(_own_colors(name))
+
+
 def _write_own_colors(name: str, own: Dict[str, str]) -> None:
     path = own_colors_path(name)
     path.parent.mkdir(parents=True, exist_ok=True)

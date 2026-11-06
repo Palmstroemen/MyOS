@@ -366,273 +366,273 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>FilesPanel</name>
     <message>
-        <location filename="../FilesPanel.qml" line="157"/>
-        <location filename="../FilesPanel.qml" line="1063"/>
+        <location filename="../FilesPanel.qml" line="156"/>
+        <location filename="../FilesPanel.qml" line="1062"/>
         <source>Size</source>
         <translation>Größe</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="158"/>
+        <location filename="../FilesPanel.qml" line="157"/>
         <source>Modified</source>
         <translation>Geändert</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="159"/>
+        <location filename="../FilesPanel.qml" line="158"/>
         <source>Type</source>
         <translation>Typ</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="160"/>
+        <location filename="../FilesPanel.qml" line="159"/>
         <source>Tags</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="161"/>
-        <location filename="../FilesPanel.qml" line="611"/>
+        <location filename="../FilesPanel.qml" line="160"/>
+        <location filename="../FilesPanel.qml" line="610"/>
         <source>Access</source>
         <translation>Zugriff</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="162"/>
+        <location filename="../FilesPanel.qml" line="161"/>
         <source>Permissions</source>
         <translation>Berechtigungen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="163"/>
+        <location filename="../FilesPanel.qml" line="162"/>
         <source>Owner</source>
         <translation>Besitzer</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="164"/>
+        <location filename="../FilesPanel.qml" line="163"/>
         <source>Group</source>
         <translation>Gruppe</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="508"/>
+        <location filename="../FilesPanel.qml" line="507"/>
         <source>Read</source>
         <translation>Lesen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="508"/>
+        <location filename="../FilesPanel.qml" line="507"/>
         <source>Write</source>
         <translation>Schreiben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="508"/>
+        <location filename="../FilesPanel.qml" line="507"/>
         <source>Execute</source>
         <translation>Ausführen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="508"/>
+        <location filename="../FilesPanel.qml" line="507"/>
         <source>Change rights</source>
         <translation>Rechte ändern</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="508"/>
-        <location filename="../FilesPanel.qml" line="2103"/>
+        <location filename="../FilesPanel.qml" line="507"/>
+        <location filename="../FilesPanel.qml" line="2102"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="519"/>
+        <location filename="../FilesPanel.qml" line="518"/>
         <source>No access to this folder, but to %1 of %2 entries</source>
         <translation>Kein Zugriff auf diesen Ordner, aber auf %1 von %2 Einträgen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="521"/>
+        <location filename="../FilesPanel.qml" line="520"/>
         <source>Access to this folder, but locked out of %1 of %2 entries</source>
         <translation>Zugriff auf diesen Ordner, aber gesperrt für %1 von %2 Einträgen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="523"/>
+        <location filename="../FilesPanel.qml" line="522"/>
         <source>Here: %1</source>
         <translation>Hier: %1</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="526"/>
+        <location filename="../FilesPanel.qml" line="525"/>
         <source>Right click: change the rights for this folder</source>
         <translation>Rechtsklick: Rechte für diesen Ordner ändern</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="612"/>
+        <location filename="../FilesPanel.qml" line="611"/>
         <source>Exceptions</source>
         <translation>Ausnahmen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="727"/>
+        <location filename="../FilesPanel.qml" line="726"/>
         <source>People get their rights through their groups.</source>
         <translation>Personen erhalten ihre Rechte über ihre Gruppen.</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="752"/>
+        <location filename="../FilesPanel.qml" line="751"/>
         <source>Person</source>
         <translation>Person</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="765"/>
+        <location filename="../FilesPanel.qml" line="764"/>
         <source>Add a person and choose their groups</source>
         <translation>Eine Person hinzufügen und ihre Gruppen wählen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="778"/>
+        <location filename="../FilesPanel.qml" line="777"/>
         <source>You are not listed in this project.</source>
         <translation>Du bist in diesem Projekt nicht eingetragen.</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="784"/>
+        <location filename="../FilesPanel.qml" line="783"/>
         <source>People who may change the rights add their name to ~/.config/MyOS/Identity.md themselves.</source>
         <translation>Wer die Rechte ändern darf, trägt seinen Namen selbst in ~/.config/MyOS/Identity.md ein.</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="795"/>
+        <location filename="../FilesPanel.qml" line="794"/>
         <source>Who are you?</source>
         <translation>Wer bist du?</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="890"/>
-        <location filename="../FilesPanel.qml" line="2074"/>
+        <location filename="../FilesPanel.qml" line="889"/>
+        <location filename="../FilesPanel.qml" line="2073"/>
         <source>Make “%1” a project</source>
         <translation>„%1“ zum Projekt machen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="892"/>
-        <location filename="../FilesPanel.qml" line="2072"/>
+        <location filename="../FilesPanel.qml" line="891"/>
+        <location filename="../FilesPanel.qml" line="2071"/>
         <source>Make “%1” an ordinary folder again</source>
         <translation>„%1“ wieder zu einem gewöhnlichen Ordner machen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="893"/>
+        <location filename="../FilesPanel.qml" line="892"/>
         <source>Select a folder, or open one, that is not a project yet</source>
         <translation>Wähle einen Ordner aus oder öffne einen, der noch kein Projekt ist</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="981"/>
+        <location filename="../FilesPanel.qml" line="980"/>
         <source>X-ray on: files of small folders are shown while the list fits without scrolling</source>
         <translation>Röntgenblick an: Dateien kleiner Ordner werden gezeigt, solange die Liste ohne Scrollen passt</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="982"/>
+        <location filename="../FilesPanel.qml" line="981"/>
         <source>X-ray off</source>
         <translation>Röntgenblick aus</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1053"/>
+        <location filename="../FilesPanel.qml" line="1052"/>
         <source>Trash (entries: %1)</source>
         <translation>Papierkorb (Einträge: %1)</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1118"/>
+        <location filename="../FilesPanel.qml" line="1117"/>
         <source>This folder</source>
         <translation>Dieser Ordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1258"/>
+        <location filename="../FilesPanel.qml" line="1257"/>
         <source>New folder tag</source>
         <translation>Neuer Ordner-Tag</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1276"/>
+        <location filename="../FilesPanel.qml" line="1275"/>
         <source>New folder tag ...</source>
         <translation>Neuer Ordnertag ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1409"/>
+        <location filename="../FilesPanel.qml" line="1408"/>
         <source>Subfolders</source>
         <translation>Unterordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1444"/>
+        <location filename="../FilesPanel.qml" line="1443"/>
         <source>File tags</source>
         <translation>Filetags</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1488"/>
+        <location filename="../FilesPanel.qml" line="1487"/>
         <source>… parsing tags</source>
         <translation>… Tags werden gelesen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="1619"/>
+        <location filename="../FilesPanel.qml" line="1618"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2038"/>
+        <location filename="../FilesPanel.qml" line="2037"/>
         <source>Create Note</source>
         <translation>Notiz erstellen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2042"/>
+        <location filename="../FilesPanel.qml" line="2041"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2048"/>
-        <location filename="../FilesPanel.qml" line="2110"/>
+        <location filename="../FilesPanel.qml" line="2047"/>
+        <location filename="../FilesPanel.qml" line="2109"/>
         <source>Move into New Folder</source>
         <translation>In neuen Ordner verschieben</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2058"/>
+        <location filename="../FilesPanel.qml" line="2057"/>
         <source>Open</source>
         <translation>Öffnen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2063"/>
+        <location filename="../FilesPanel.qml" line="2062"/>
         <source>Open with ...</source>
         <translation>Öffnen mit ...</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2075"/>
+        <location filename="../FilesPanel.qml" line="2074"/>
         <source>Make a project</source>
         <translation>Zum Projekt machen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2084"/>
+        <location filename="../FilesPanel.qml" line="2083"/>
         <source>Select all</source>
         <translation>Alle markieren</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2090"/>
+        <location filename="../FilesPanel.qml" line="2089"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2126"/>
+        <location filename="../FilesPanel.qml" line="2125"/>
         <source>Color: Red</source>
         <translation>Farbe: Rot</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2127"/>
+        <location filename="../FilesPanel.qml" line="2126"/>
         <source>Color: Orange</source>
         <translation>Farbe: Orange</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2128"/>
+        <location filename="../FilesPanel.qml" line="2127"/>
         <source>Color: Yellow</source>
         <translation>Farbe: Gelb</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2129"/>
+        <location filename="../FilesPanel.qml" line="2128"/>
         <source>Color: Green</source>
         <translation>Farbe: Grün</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2130"/>
+        <location filename="../FilesPanel.qml" line="2129"/>
         <source>Color: Cyan</source>
         <translation>Farbe: Cyan</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2131"/>
+        <location filename="../FilesPanel.qml" line="2130"/>
         <source>Color: Blue</source>
         <translation>Farbe: Blau</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2132"/>
+        <location filename="../FilesPanel.qml" line="2131"/>
         <source>Color: Violet</source>
         <translation>Farbe: Violett</translation>
     </message>
     <message>
-        <location filename="../FilesPanel.qml" line="2133"/>
+        <location filename="../FilesPanel.qml" line="2132"/>
         <source>Color: Gray</source>
         <translation>Farbe: Grau</translation>
     </message>
@@ -830,271 +830,342 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>SetupPage</name>
     <message>
-        <location filename="../SetupPage.qml" line="539"/>
+        <location filename="../SetupPage.qml" line="547"/>
         <source>Default</source>
         <translation>Standard</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="576"/>
+        <location filename="../SetupPage.qml" line="584"/>
         <source>Setup</source>
         <translation>Setup</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="571"/>
+        <location filename="../SetupPage.qml" line="579"/>
         <source>Done</source>
         <translation>Fertig</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="587"/>
+        <location filename="../SetupPage.qml" line="595"/>
         <source>General</source>
         <translation>Allgemein</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="588"/>
+        <location filename="../SetupPage.qml" line="596"/>
         <source>Scope</source>
         <translation>Scope</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="589"/>
+        <location filename="../SetupPage.qml" line="597"/>
         <source>Headline</source>
         <translation>Headline</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="590"/>
+        <location filename="../SetupPage.qml" line="598"/>
         <source>SunTree</source>
         <translation>SunTree</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="603"/>
+        <location filename="../SetupPage.qml" line="617"/>
         <source>Appearance</source>
         <translation>Darstellung</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="605"/>
+        <location filename="../SetupPage.qml" line="624"/>
         <source>Light</source>
         <translation>Hell</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="604"/>
+        <location filename="../SetupPage.qml" line="623"/>
         <source>Dark</source>
         <translation>Dunkel</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="618"/>
+        <location filename="../SetupPage.qml" line="678"/>
         <source>Language</source>
         <translation>Sprache</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="670"/>
-        <location filename="../SetupPage.qml" line="755"/>
+        <location filename="../SetupPage.qml" line="730"/>
+        <location filename="../SetupPage.qml" line="815"/>
         <source>Suggested MyOS folders</source>
         <translation>Vorgeschlagene MyOS-Ordner</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="674"/>
+        <location filename="../SetupPage.qml" line="734"/>
         <source>How pale MyOS folders appear that are only suggested here, not made yet.</source>
         <translation>Wie blass MyOS-Ordner erscheinen, die hier nur vorgeschlagen und noch nicht angelegt sind.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="647"/>
+        <location filename="../SetupPage.qml" line="707"/>
         <source>Suggestion</source>
         <translation>Vorschlag</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="647"/>
+        <location filename="../SetupPage.qml" line="707"/>
         <source>Present</source>
         <translation>Vorhanden</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="746"/>
+        <location filename="../SetupPage.qml" line="806"/>
         <source>Both rows show</source>
         <translation>Beide Zeilen zeigen</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="761"/>
+        <location filename="../SetupPage.qml" line="821"/>
         <source>Hidden folders</source>
         <translation>Versteckte Ordner</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="725"/>
-        <location filename="../SetupPage.qml" line="741"/>
+        <location filename="../SetupPage.qml" line="785"/>
+        <location filename="../SetupPage.qml" line="801"/>
         <source>Text</source>
         <translation>Text</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="609"/>
-        <source>The colour behind the files, for this scheme alone; the project&apos;s colour shows through it. Click the box to choose a colour, drag it to fine-tune: right lighter, left darker, up stronger, down paler.</source>
-        <translation>Die Farbe hinter den Dateien, nur für dieses Schema; die Projektfarbe scheint durch. Klick aufs Kästchen wählt eine Farbe, Ziehen stimmt sie fein ab: rechts heller, links dunkler, oben kräftiger, unten blasser.</translation>
-    </message>
-    <message>
-        <location filename="../SetupPage.qml" line="725"/>
-        <location filename="../SetupPage.qml" line="741"/>
+        <location filename="../SetupPage.qml" line="785"/>
+        <location filename="../SetupPage.qml" line="801"/>
         <source>Small</source>
         <translation>Klein</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="725"/>
-        <location filename="../SetupPage.qml" line="741"/>
+        <location filename="../SetupPage.qml" line="785"/>
+        <location filename="../SetupPage.qml" line="801"/>
         <source>Large</source>
         <translation>Groß</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="777"/>
+        <location filename="../SetupPage.qml" line="837"/>
         <source>Preview behaviour</source>
         <translation>Verhalten der Vorschau</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="780"/>
+        <location filename="../SetupPage.qml" line="840"/>
         <source>Reopen at once</source>
         <translation>Sofort wieder öffnen</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="786"/>
+        <location filename="../SetupPage.qml" line="846"/>
         <source>Timing</source>
         <translation>Zeitverhalten</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="789"/>
+        <location filename="../SetupPage.qml" line="849"/>
         <source>Soft</source>
         <translation>Sanft</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="789"/>
+        <location filename="../SetupPage.qml" line="849"/>
         <source>Balanced</source>
         <translation>Ausgewogen</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="789"/>
+        <location filename="../SetupPage.qml" line="849"/>
         <source>Quick</source>
         <translation>Flott</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="795"/>
+        <location filename="../SetupPage.qml" line="855"/>
         <source>Soft waits longer before the preview opens and closes it slowly; quick answers at once.</source>
         <translation>Sanft wartet länger, bevor die Vorschau aufgeht, und schließt sie langsam; flott antwortet sofort.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="807"/>
+        <location filename="../SetupPage.qml" line="867"/>
         <source>The Headline&apos;s settings come here with the Headline.</source>
         <translation>Die Einstellungen der Headline kommen mit der Headline hierher.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="859"/>
+        <location filename="../SetupPage.qml" line="919"/>
         <source>How fast everything follows the hand: smaller is softer, larger is more direct.</source>
         <translation>Wie schnell alles der Hand folgt: kleiner ist weicher, größer ist direkter.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="861"/>
+        <location filename="../SetupPage.qml" line="921"/>
         <source>How far you push past the first or last folder until the fan lets go (the rim running on, green).</source>
         <translation>Wie weit du über den ersten oder letzten Ordner hinausschiebst, bis der Fächer loslässt (der weiterlaufende Rand, grün).</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="848"/>
+        <location filename="../SetupPage.qml" line="908"/>
         <source>Size of the middle</source>
         <translation>Größe der Mitte</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="679"/>
+        <location filename="../SetupPage.qml" line="739"/>
         <source>Their badges</source>
         <translation>Ihre Badges</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="683"/>
+        <location filename="../SetupPage.qml" line="743"/>
         <source>How pale the badges (€, § ...) on suggested MyOS folders are.</source>
         <translation>Wie blass die Badges (€, § …) auf vorgeschlagenen MyOS-Ordnern sind.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="734"/>
+        <location filename="../SetupPage.qml" line="794"/>
         <source>Projects</source>
         <translation>Projekte</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="718"/>
+        <location filename="../SetupPage.qml" line="778"/>
         <source>MyOS folders</source>
         <translation>MyOS-Ordner</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="608"/>
-        <source>Files background</source>
-        <translation>Hintergrund Dateibereich</translation>
-    </message>
-    <message>
-        <location filename="../SetupPage.qml" line="712"/>
+        <location filename="../SetupPage.qml" line="772"/>
         <source>Display</source>
         <translation>Anzeige</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="749"/>
+        <location filename="../SetupPage.qml" line="651"/>
+        <location filename="../SetupPage.qml" line="809"/>
         <source>Path bar</source>
         <translation>Pfadleiste</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="767"/>
+        <location filename="../SetupPage.qml" line="632"/>
+        <source>Window</source>
+        <translation>Fenster</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="633"/>
+        <source>Window background</source>
+        <translation>Fensterhintergrund</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="634"/>
+        <source>Font colour</source>
+        <translation>Schrift</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="637"/>
+        <source>Files area</source>
+        <translation>Dateibereich</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="638"/>
+        <source>Background</source>
+        <translation>Hintergrund</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="641"/>
+        <source>Markings</source>
+        <translation>Markierungen</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="642"/>
+        <source>Selected files</source>
+        <translation>Ausgewählte Dateien</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="643"/>
+        <source>Dropping on a folder</source>
+        <translation>Ablegen auf Ordner</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="644"/>
+        <source>Frame of the lens</source>
+        <translation>Rahmen der Brille</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="648"/>
+        <source>Folder rows</source>
+        <translation>Ordnerzeilen</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="649"/>
+        <source>Background MyOS folders</source>
+        <translation>Hintergrund MyOS-Ordner</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="650"/>
+        <source>Background projects row</source>
+        <translation>Hintergrund Projektzeile</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="652"/>
+        <source>Folders</source>
+        <translation>Ordner</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="653"/>
+        <source>Current folder and frame</source>
+        <translation>Aktueller Ordner und Rahmen</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="657"/>
+        <source>Click a box to choose a colour, drag it to fine-tune: right lighter, left darker, up stronger, down paler. These colours count for the scheme worn alone; projects keep their own colour, which also shows through the background of the files area.</source>
+        <translation>Klick aufs Kästchen wählt eine Farbe, Ziehen stimmt sie fein ab: rechts heller, links dunkler, oben kräftiger, unten blasser. Die Farben gelten nur für das gewählte Schema; Projekte behalten ihre eigene Farbe, die auch durch den Hintergrund des Dateibereichs scheint.</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="667"/>
+        <source>Reset all colours</source>
+        <translation>Alle Farben zurücksetzen</translation>
+    </message>
+    <message>
+        <location filename="../SetupPage.qml" line="827"/>
         <source>Preview</source>
         <translation>Vorschau</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="773"/>
+        <location filename="../SetupPage.qml" line="833"/>
         <source>Preview background</source>
         <translation>Vorschau-Hintergrund</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="841"/>
+        <location filename="../SetupPage.qml" line="901"/>
         <source>The folder fan for quick dropping. It reads these when it appears next. Move the mouse through the small fan on the left: it answers as the real one does. Over a slider it shows what the slider changes.</source>
         <translation>Der Ordner-Fächer zum schnellen Ablegen. Er liest diese Werte, wenn er das nächste Mal erscheint. Fahre links mit der Maus durch den kleinen Fächer: Er antwortet wie der echte. Über einem Regler zeigt er, was der Regler verändert.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="849"/>
+        <location filename="../SetupPage.qml" line="909"/>
         <source>The empty middle at the stem: every level starts there, and back there the fan lets go.</source>
         <translation>Die leere Mitte am Stamm: Dort beginnt jede Ebene, und dorthin zurück lässt der Fächer los.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="850"/>
+        <location filename="../SetupPage.qml" line="910"/>
         <source>Landing</source>
         <translation>Landung</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="851"/>
+        <location filename="../SetupPage.qml" line="911"/>
         <source>How far among the subfolders you already are after the change.</source>
         <translation>Wie weit du nach dem Wechsel schon zwischen den Unterordnern stehst.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="852"/>
+        <location filename="../SetupPage.qml" line="912"/>
         <source>Way per level</source>
         <translation>Weg pro Ebene</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="853"/>
+        <location filename="../SetupPage.qml" line="913"/>
         <source>How far you move the mouse outward until the folder fills the whole fan and you go one level deeper.</source>
         <translation>Wie weit du die Maus nach außen bewegst, bis der Ordner den ganzen Fächer füllt und du eine Ebene tiefer gehst.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="854"/>
+        <location filename="../SetupPage.qml" line="914"/>
         <source>Change begins</source>
         <translation>Wechsel beginnt</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="855"/>
+        <location filename="../SetupPage.qml" line="915"/>
         <source>How deep in the folder the pointer is when the change into its subfolders begins.</source>
         <translation>Wie tief im Ordner der Zeiger steht, wenn der Wechsel in seine Unterordner beginnt.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="856"/>
+        <location filename="../SetupPage.qml" line="916"/>
         <source>Magnifier</source>
         <translation>Lupe</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="857"/>
+        <location filename="../SetupPage.qml" line="917"/>
         <source>How much the folder under the pointer is enlarged already at the start of a level.</source>
         <translation>Wie stark der Ordner unter dem Zeiger schon am Anfang einer Ebene vergrößert wird.</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="860"/>
+        <location filename="../SetupPage.qml" line="920"/>
         <source>Exit at the edge</source>
         <translation>Ausgang am Rand</translation>
     </message>
     <message>
-        <location filename="../SetupPage.qml" line="858"/>
+        <location filename="../SetupPage.qml" line="918"/>
         <source>Softness</source>
         <translation>Weichheit</translation>
     </message>
@@ -1165,149 +1236,149 @@ Fehlgeschlagen: %3</translation>
 <context>
     <name>main</name>
     <message>
-        <location filename="../main.qml" line="354"/>
-        <location filename="../main.qml" line="356"/>
-        <location filename="../main.qml" line="1127"/>
-        <location filename="../main.qml" line="1137"/>
+        <location filename="../main.qml" line="353"/>
+        <location filename="../main.qml" line="355"/>
+        <location filename="../main.qml" line="1126"/>
+        <location filename="../main.qml" line="1136"/>
         <source>New Folder</source>
         <translation>Neuer Ordner</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="445"/>
+        <location filename="../main.qml" line="444"/>
         <source>You may not turn &quot;%1&quot; back into a folder: it has rights of its own that you may not change.</source>
         <translation>Du darfst „%1“ nicht wieder zum Ordner machen: Es hat eigene Rechte, die du nicht ändern darfst.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="446"/>
+        <location filename="../main.qml" line="445"/>
         <source>&quot;%1&quot; could not be turned back into a folder.</source>
         <translation>„%1“ konnte nicht wieder zum Ordner gemacht werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="949"/>
+        <location filename="../main.qml" line="948"/>
         <source>Target is not a folder.</source>
         <translation>Ziel ist kein Ordner.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="951"/>
+        <location filename="../main.qml" line="950"/>
         <source>Entry no longer exists.</source>
         <translation>Eintrag existiert nicht mehr.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="953"/>
+        <location filename="../main.qml" line="952"/>
         <source>A folder cannot be moved into itself.</source>
         <translation>Ein Ordner kann nicht in sich selbst verschoben werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="955"/>
+        <location filename="../main.qml" line="954"/>
         <source>An entry with this name already exists at the destination.</source>
         <translation>Am Ziel existiert bereits ein Eintrag mit diesem Namen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="957"/>
+        <location filename="../main.qml" line="956"/>
         <source>Move failed.</source>
         <translation>Verschieben fehlgeschlagen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="959"/>
+        <location filename="../main.qml" line="958"/>
         <source>Entry is already in the target folder.</source>
         <translation>Eintrag ist bereits im Zielordner.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="961"/>
+        <location filename="../main.qml" line="960"/>
         <source>Entry was selected multiple times.</source>
         <translation>Eintrag wurde mehrfach ausgewählt.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="963"/>
+        <location filename="../main.qml" line="962"/>
         <source>Access rules are already waiting for this place; ask whoever manages the rights.</source>
         <translation>Für diesen Ort sind schon Zugriffsregeln hinterlegt; bitte wende dich an die Person, die die Rechte verwaltet.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="965"/>
+        <location filename="../main.qml" line="964"/>
         <source>Operation skipped.</source>
         <translation>Vorgang übersprungen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="990"/>
+        <location filename="../main.qml" line="989"/>
         <source>Moved: %1</source>
         <translation>Verschoben: %1</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="996"/>
+        <location filename="../main.qml" line="995"/>
         <source>Could not move:</source>
         <translation>Konnte nicht verschieben:</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1008"/>
+        <location filename="../main.qml" line="1007"/>
         <source>Skipped:</source>
         <translation>Übersprungen:</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1073"/>
+        <location filename="../main.qml" line="1072"/>
         <source>Really move %1 folder(s) to &quot;%2&quot;?</source>
         <translation>Soll(en) %1 Ordner wirklich nach &quot;%2&quot; verschoben werden?</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1082"/>
+        <location filename="../main.qml" line="1081"/>
         <source>After moving, it will be sorted into:
 %1</source>
         <translation>Nach dem Verschieben wird einsortiert nach:
 %1</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1097"/>
+        <location filename="../main.qml" line="1096"/>
         <source>Could not create a note in this folder.</source>
         <translation>Konnte in diesem Ordner keine Notiz erstellen.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1284"/>
+        <location filename="../main.qml" line="1283"/>
         <source>Batch rename currently works for files only.</source>
         <translation>Sammelumbenennung funktioniert aktuell nur für Dateien.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1337"/>
+        <location filename="../main.qml" line="1336"/>
         <source>Virtual embryo folders cannot be deleted.</source>
         <translation>Virtuelle Embryo-Ordner können nicht gelöscht werden.</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1343"/>
+        <location filename="../main.qml" line="1342"/>
         <source>Embryo folders were skipped when deleting: %1</source>
         <translation>Embryo-Ordner wurden beim Löschen übersprungen: %1</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="1380"/>
+        <location filename="../main.qml" line="1379"/>
         <source>Deleted: %1 file(s)
 Not deleted: %2 file(s)</source>
         <translation>Gelöscht: %1 Datei(en)
 Nicht gelöscht: %2 Datei(en)</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2616"/>
+        <location filename="../main.qml" line="2615"/>
         <source>Search      + deep    # all</source>
         <translation>Suchen      + tief    # alle</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2750"/>
+        <location filename="../main.qml" line="2749"/>
         <source>Scope ▼</source>
         <translation>Scope ▼</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2750"/>
+        <location filename="../main.qml" line="2749"/>
         <source>Scope ▲</source>
         <translation>Scope ▲</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2810"/>
+        <location filename="../main.qml" line="2809"/>
         <source>Minimal view: the current folder top left, the path above it on hover</source>
         <translation>Minimalansicht: der aktuelle Ordner oben links, der Pfad darüber beim Darüberfahren</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2922"/>
+        <location filename="../main.qml" line="2921"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
     <message>
-        <location filename="../main.qml" line="2926"/>
+        <location filename="../main.qml" line="2925"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>

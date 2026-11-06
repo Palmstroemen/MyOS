@@ -16,9 +16,8 @@ Rectangle { // Files panel
     property color textMuted
     property color panelAlt
     property color pillBorder
-    property color backgroundColor
     // The middle, where the files lie: a colour of each scheme. The project's colour shows through
-    // it a little less than through the frame.
+    // it.
     property color centerColor
     property real centerTintMix: 0.52
     property color fileSelectionFill
@@ -272,12 +271,12 @@ Rectangle { // Files panel
         }
         return best
     }
-    // uPanelTintColor kommt gebunden aus main (filesPanelTintColor).
-    readonly property color uPanelColor: PanelColors.uPanelColor(true, backgroundColor, uPanelTintColor, uPanelTintMix)
+    // uPanelTintColor kommt gebunden aus main (filesPanelTintColor): the frame has the colour of the
+    // current folder's tab.
     readonly property color filesCenterColor: PanelColors.uPanelColor(true, centerColor, uPanelTintColor, centerTintMix)
 
     radius: 0
-    color: root.uPanelColor
+    color: root.uPanelTintColor
     border.width: 0
     implicitWidth: 280
     implicitHeight: 200

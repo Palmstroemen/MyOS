@@ -101,8 +101,9 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                     [x] Farbkästchen ziehen (2026-11-06): rechts heller, links dunkler, oben satter, unten blasser; kein "Standard" daneben
                     [x] Durchgreifen behoben (2026-11-06): Ziehen auf der Rückseite weckte die DragHandler der Vorderseite und
                         erwischte Ordner; die Vorderseite nimmt jetzt nichts an, solange die Rückseite zu sehen ist
-                    [ ] Zurück auf die Vorgabe des Schemas: ohne Knopf neben der Farbe bisher nicht möglich
-                    [ ] Die übrigen Farben, eigenes Schema speichern
+                    [x] Elf Farben in vier Gruppen im Setup (2026-11-06), Deckkraft für Auswahl und Ablegen, "Alle Farben
+                        zurücksetzen"; Rahmen des FilesPanel hat die Farbe des Reiters; Nebenschriften aus der Schrift berechnet
+                    [ ] Eigenes Schema speichern
                 [ ] Schritt 4: Tabs Scope und Headline
                 [~] Obere Leiste leeren (2026-10-26): Hell/Dunkel, Sprache weg (Allgemein); Zeilen an/aus im Tab Scope;
                     "Dateien 50%", "Projekt mit Thema versehen", "Ordnung aktivieren", "Schmal", Edge-Dock-Schalter entfernt;

@@ -51,6 +51,11 @@ Rectangle {
         schemeEdits
         return settings ? settings.colorScheme(name) : ({})
     }
+    readonly property string schemeWorn: darkTheme ? "dark" : "light"
+    readonly property bool schemeHasOwnColors: {
+        schemeEdits
+        return settings ? settings.schemeHasOwnColors(schemeWorn) : false
+    }
     function keep(key, value) {
         if (settings) settings.setSetting(key, value)
     }
@@ -121,7 +126,7 @@ Rectangle {
             anchors.margins: 4
             anchors.topMargin: 14
             radius: 3
-            color: card.colors.filesPaneBackground || "transparent"
+            color: card.colors.folderCwpTint || "transparent"
             Rectangle {
                 objectName: "schemeCenter_" + card.schemeName
                 anchors.fill: parent
@@ -147,15 +152,14 @@ Rectangle {
     // One colour of the scheme worn, one line: its name and its little box. A click on the box opens
     // the colour picker, a drag fine-tunes: right lighter, left darker, up more saturated, down
     // less. It counts at once, for this scheme alone.
-    component ColorSetting: ColumnLayout {
+    component ColorSetting: RowLayout {
         id: colorRow
         property string colorName: ""
         property string label: ""
-        property string help: ""
+        property bool seeThrough: false  // has an opacity of its own, the picker offers it
         readonly property string schemeName: root.darkTheme ? "dark" : "light"
         readonly property string current: String(root.schemeOf(schemeName)[colorName] || "#000000")
         readonly property string shipped: root.settings ? root.settings.schemeColorDefault(schemeName, colorName) : current
-        spacing: 4
         function apply(value) {
             if (!root.settings || !root.settings.setSchemeColor(schemeName, colorName, value)) return
             root.schemeEdits++
@@ -167,57 +171,59 @@ Rectangle {
             root.schemeEdits++
             root.schemeColorEdited()
         }
-        RowLayout {
-            spacing: 8
-            Text { text: colorRow.label; color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
-            Rectangle {
-                objectName: "colorSwatch_" + colorRow.colorName
-                implicitWidth: 36
-                implicitHeight: 24
-                radius: 4
-                color: colorRow.current
-                border.color: root.pillBorder
-                MouseArea {
-                    // From the colour at the press, not step by step: 8 bits lose the hue on the way.
-                    property real pressX: 0
-                    property real pressY: 0
-                    property real hue: 0
-                    property real saturation: 0
-                    property real lightness: 0
-                    property bool dragged: false
-                    readonly property real fullWayPx: 300
-                    anchors.fill: parent
-                    preventStealing: true
-                    cursorShape: Qt.PointingHandCursor
-                    onPressed: function(mouse) {
-                        var c = Qt.color(colorRow.current)
-                        pressX = mouse.x
-                        pressY = mouse.y
-                        hue = Math.max(0, c.hslHue)  // grey has none
-                        saturation = c.hslSaturation
-                        lightness = c.hslLightness
-                        dragged = false
-                    }
-                    onPositionChanged: function(mouse) {
-                        var dx = mouse.x - pressX
-                        var dy = mouse.y - pressY
-                        if (!dragged && Math.abs(dx) < 4 && Math.abs(dy) < 4) return
-                        dragged = true
-                        var l = Math.max(0, Math.min(1, lightness + dx / fullWayPx))
-                        var s = Math.max(0, Math.min(1, saturation - dy / fullWayPx))
-                        colorRow.apply(Qt.hsla(hue, s, l, 1).toString())
-                    }
-                    onClicked: if (!dragged) root.pickColor(colorRow)
+        spacing: 8
+        Text { text: colorRow.label; color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
+        Rectangle {
+            objectName: "colorSwatch_" + colorRow.colorName
+            implicitWidth: 36
+            implicitHeight: 24
+            radius: 4
+            color: colorRow.current
+            border.color: root.pillBorder
+            MouseArea {
+                // From the colour at the press, not step by step: 8 bits lose the hue on the way.
+                property real pressX: 0
+                property real pressY: 0
+                property real hue: 0
+                property real saturation: 0
+                property real lightness: 0
+                property real opacityAtPress: 1
+                property bool dragged: false
+                readonly property real fullWayPx: 300
+                anchors.fill: parent
+                preventStealing: true
+                cursorShape: Qt.PointingHandCursor
+                onPressed: function(mouse) {
+                    var c = Qt.color(colorRow.current)
+                    pressX = mouse.x
+                    pressY = mouse.y
+                    hue = Math.max(0, c.hslHue)  // grey has none
+                    saturation = c.hslSaturation
+                    lightness = c.hslLightness
+                    opacityAtPress = c.a
+                    dragged = false
                 }
+                onPositionChanged: function(mouse) {
+                    var dx = mouse.x - pressX
+                    var dy = mouse.y - pressY
+                    if (!dragged && Math.abs(dx) < 4 && Math.abs(dy) < 4) return
+                    dragged = true
+                    var l = Math.max(0, Math.min(1, lightness + dx / fullWayPx))
+                    var s = Math.max(0, Math.min(1, saturation - dy / fullWayPx))
+                    colorRow.apply(Qt.hsla(hue, s, l, opacityAtPress).toString())
+                }
+                onClicked: if (!dragged) root.pickColor(colorRow)
             }
         }
-        Text {
-            text: colorRow.help
-            color: root.mutedColor
-            font.pixelSize: root.baseFont - 1
-            wrapMode: Text.WordWrap
-            Layout.fillWidth: true
-        }
+    }
+
+    // A group of colours under its heading.
+    component ColorGroup: ColumnLayout {
+        id: colorGroup
+        property string title: ""
+        spacing: 6
+        Layout.alignment: Qt.AlignTop
+        Heading { text: colorGroup.title }
     }
 
     // The one colour picker, Qt's own: its own window, Scope stays in view and follows as one
@@ -228,6 +234,7 @@ Rectangle {
         colorPicker.title = row.label
         colorPicker.before = row.current
         colorPicker.wasOwn = row.current.toLowerCase() !== row.shipped.toLowerCase()
+        colorPicker.offersOpacity = row.seeThrough
         colorPicker.row = row
         colorPicker.open()
     }
@@ -237,7 +244,8 @@ Rectangle {
         property var row: null
         property string before: ""
         property bool wasOwn: false
-        options: ColorDialog.DontUseNativeDialog
+        property bool offersOpacity: false
+        options: offersOpacity ? ColorDialog.DontUseNativeDialog | ColorDialog.ShowAlphaChannel : ColorDialog.DontUseNativeDialog
         onSelectedColorChanged: if (row) row.apply(selectedColor.toString())
         onAccepted: row = null
         onRejected: {
@@ -595,96 +603,148 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            ColumnLayout {  // General
-                spacing: 12
-                RowLayout {
+            Flickable {  // General
+                contentHeight: generalTab.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                ColumnLayout {
+                    id: generalTab
+                    width: parent.width
                     spacing: 12
-                    Layout.fillWidth: true
-                    Text { text: qsTr("Appearance"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180; Layout.alignment: Qt.AlignTop }
-                    SchemeCard { schemeName: "dark"; label: qsTr("Dark"); Layout.alignment: Qt.AlignTop }
-                    SchemeCard { schemeName: "light"; label: qsTr("Light"); Layout.alignment: Qt.AlignTop }
-                    ColorSetting {
-                        colorName: "filesPanelCenter"
-                        label: qsTr("Files background")
-                        help: qsTr("The colour behind the files, for this scheme alone; the project's colour shows through it. Click the box to choose a colour, drag it to fine-tune: right lighter, left darker, up stronger, down paler.")
-                        Layout.leftMargin: 16
+                    RowLayout {
+                        spacing: 12
                         Layout.fillWidth: true
-                        Layout.maximumWidth: 560
-                        Layout.alignment: Qt.AlignTop
-                    }
-                }
-                RowLayout {
-                    spacing: 12
-                    Text { text: qsTr("Language"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
-                    Pill {
-                        objectName: "setupLanguage"
-                        label: root.language.toUpperCase()
-                        onActivated: root.switchLanguage()
-                    }
-                }
-                // For the user embryos are "suggested MyOS folders" (the code keeps embryo): the
-                // examples left, a suggestion beside a present one; the two sliders right of them.
-                RowLayout {
-                    spacing: 28
-                    Layout.fillWidth: true
-                    Grid {
-                        // The live preview, in each style Scope draws folders in (text only, small
-                        // icon, large icon), drawn as Scope's rows draw them: fill and frame pale,
-                        // the badge as its own slider says.
-                        columns: 2
-                        columnSpacing: 16
-                        rowSpacing: 10
-                        leftPadding: 22
-                        Layout.alignment: Qt.AlignTop
-                        Repeater {
-                            model: [{ style: "text", suggestion: true }, { style: "text", suggestion: false },
-                                    { style: "smallIcon", suggestion: true }, { style: "smallIcon", suggestion: false },
-                                    { style: "largeIcon", suggestion: true }, { style: "largeIcon", suggestion: false }]
-                            FolderItem {
-                                objectName: (modelData.suggestion ? "suggestionPreview_" : "presentPreview_") + modelData.style
-                                style: modelData.style
-                                width: 130
-                                label: modelData.suggestion ? qsTr("Suggestion") : qsTr("Present")
-                                iconSource: "image://theme/folder"
-                                compactHeight: 30
-                                largeHeight: 76
-                                iconSmall: 18
-                                iconLarge: 44
-                                textSize: root.baseFont
-                                batchText: "€"
-                                fillColor: Qt.rgba(root.pill.r, root.pill.g, root.pill.b, modelData.suggestion ? root.embryoOpacity : 1.0)
-                                strokeColor: Qt.rgba(root.pillBorder.r, root.pillBorder.g, root.pillBorder.b, modelData.suggestion ? root.embryoOpacity : 1.0)
-                                textColor: root.textColor
-                                badgeOpacity: modelData.suggestion ? root.embryoBadgeOpacity : 1.0
+                        Text { text: qsTr("Appearance"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180; Layout.alignment: Qt.AlignTop }
+                        ColumnLayout {
+                            spacing: 12
+                            Layout.fillWidth: true
+                            RowLayout {
+                                spacing: 12
+                                SchemeCard { schemeName: "dark"; label: qsTr("Dark") }
+                                SchemeCard { schemeName: "light"; label: qsTr("Light") }
+                            }
+                            RowLayout {
+                                spacing: 32
+                                ColumnLayout {
+                                    spacing: 14
+                                    Layout.alignment: Qt.AlignTop
+                                    ColorGroup {
+                                        title: qsTr("Window")
+                                        ColorSetting { colorName: "bg"; label: qsTr("Window background") }
+                                        ColorSetting { colorName: "text"; label: qsTr("Font colour") }
+                                    }
+                                    ColorGroup {
+                                        title: qsTr("Files area")
+                                        ColorSetting { colorName: "filesPanelCenter"; label: qsTr("Background") }
+                                    }
+                                    ColorGroup {
+                                        title: qsTr("Markings")
+                                        ColorSetting { colorName: "fileSelectionFill"; label: qsTr("Selected files"); seeThrough: true }
+                                        ColorSetting { colorName: "dropHighlight"; label: qsTr("Dropping on a folder"); seeThrough: true }
+                                        ColorSetting { colorName: "lensFrame"; label: qsTr("Frame of the lens") }
+                                    }
+                                }
+                                ColorGroup {
+                                    title: qsTr("Folder rows")
+                                    ColorSetting { colorName: "panelAlt"; label: qsTr("Background MyOS folders") }
+                                    ColorSetting { colorName: "panel"; label: qsTr("Background projects row") }
+                                    ColorSetting { colorName: "folderPathTint"; label: qsTr("Path bar") }
+                                    ColorSetting { colorName: "folderULineTint"; label: qsTr("Folders") }
+                                    ColorSetting { colorName: "folderCwpTint"; label: qsTr("Current folder and frame") }
+                                }
+                            }
+                            Text {
+                                text: qsTr("Click a box to choose a colour, drag it to fine-tune: right lighter, left darker, up stronger, down paler. These colours count for the scheme worn alone; projects keep their own colour, which also shows through the background of the files area.")
+                                color: root.mutedColor
+                                font.pixelSize: root.baseFont - 1
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                                Layout.maximumWidth: 760
+                            }
+                            Pill {
+                                objectName: "colorResetAll"
+                                visible: root.schemeHasOwnColors
+                                label: qsTr("Reset all colours")
+                                onActivated: {
+                                    root.settings.resetSchemeColors(root.schemeWorn)
+                                    root.schemeEdits++
+                                    root.schemeColorEdited()
+                                }
                             }
                         }
                     }
-                    ColumnLayout {
+                    RowLayout {
                         spacing: 12
-                        Layout.alignment: Qt.AlignTop
-                        Layout.fillWidth: true
-                        Layout.maximumWidth: 560
-                        SettingSlider {
-                            id: embryoSlider
-                            key: "General/embryoOpacity"
-                            label: qsTr("Suggested MyOS folders")
-                            labelWidth: 130
-                            unit: "%"
-                            Layout.fillWidth: true
-                            help: qsTr("How pale MyOS folders appear that are only suggested here, not made yet.")
+                        Text { text: qsTr("Language"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
+                        Pill {
+                            objectName: "setupLanguage"
+                            label: root.language.toUpperCase()
+                            onActivated: root.switchLanguage()
                         }
-                        SettingSlider {
-                            id: badgeSlider
-                            key: "General/embryoBadgeOpacity"
-                            label: qsTr("Their badges")
-                            labelWidth: 130
-                            unit: "%"
+                    }
+                    // For the user embryos are "suggested MyOS folders" (the code keeps embryo): the
+                    // examples left, a suggestion beside a present one; the two sliders right of them.
+                    RowLayout {
+                        spacing: 28
+                        Layout.fillWidth: true
+                        Grid {
+                            // The live preview, in each style Scope draws folders in (text only, small
+                            // icon, large icon), drawn as Scope's rows draw them: fill and frame pale,
+                            // the badge as its own slider says.
+                            columns: 2
+                            columnSpacing: 16
+                            rowSpacing: 10
+                            leftPadding: 22
+                            Layout.alignment: Qt.AlignTop
+                            Repeater {
+                                model: [{ style: "text", suggestion: true }, { style: "text", suggestion: false },
+                                        { style: "smallIcon", suggestion: true }, { style: "smallIcon", suggestion: false },
+                                        { style: "largeIcon", suggestion: true }, { style: "largeIcon", suggestion: false }]
+                                FolderItem {
+                                    objectName: (modelData.suggestion ? "suggestionPreview_" : "presentPreview_") + modelData.style
+                                    style: modelData.style
+                                    width: 130
+                                    label: modelData.suggestion ? qsTr("Suggestion") : qsTr("Present")
+                                    iconSource: "image://theme/folder"
+                                    compactHeight: 30
+                                    largeHeight: 76
+                                    iconSmall: 18
+                                    iconLarge: 44
+                                    textSize: root.baseFont
+                                    batchText: "€"
+                                    fillColor: Qt.rgba(root.pill.r, root.pill.g, root.pill.b, modelData.suggestion ? root.embryoOpacity : 1.0)
+                                    strokeColor: Qt.rgba(root.pillBorder.r, root.pillBorder.g, root.pillBorder.b, modelData.suggestion ? root.embryoOpacity : 1.0)
+                                    textColor: root.textColor
+                                    badgeOpacity: modelData.suggestion ? root.embryoBadgeOpacity : 1.0
+                                }
+                            }
+                        }
+                        ColumnLayout {
+                            spacing: 12
+                            Layout.alignment: Qt.AlignTop
                             Layout.fillWidth: true
-                            help: qsTr("How pale the badges (€, § ...) on suggested MyOS folders are.")
+                            Layout.maximumWidth: 560
+                            SettingSlider {
+                                id: embryoSlider
+                                key: "General/embryoOpacity"
+                                label: qsTr("Suggested MyOS folders")
+                                labelWidth: 130
+                                unit: "%"
+                                Layout.fillWidth: true
+                                help: qsTr("How pale MyOS folders appear that are only suggested here, not made yet.")
+                            }
+                            SettingSlider {
+                                id: badgeSlider
+                                key: "General/embryoBadgeOpacity"
+                                label: qsTr("Their badges")
+                                labelWidth: 130
+                                unit: "%"
+                                Layout.fillWidth: true
+                                help: qsTr("How pale the badges (€, § ...) on suggested MyOS folders are.")
+                            }
                         }
                     }
                 }
-                Item { Layout.fillHeight: true }
             }
 
             Flickable {  // Scope: the example left, what it shows set on the right

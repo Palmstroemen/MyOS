@@ -59,6 +59,14 @@ class SettingsHost(QObject):
     def schemeColorDefault(self, name, color):
         return color_schemes.shipped_scheme(name)[color]
 
+    @Slot(str)
+    def resetSchemeColors(self, name):
+        color_schemes.reset_scheme(name)
+
+    @Slot(str, result=bool)
+    def schemeHasOwnColors(self, name):
+        return color_schemes.has_own_colors(name)
+
 
 def _walk(item):
     yield item
@@ -265,6 +273,65 @@ def test_a_shaky_click_still_opens_the_picker(page):
     assert _picker(view).property("visible") is True
     assert color_schemes.load_scheme("dark")["filesPanelCenter"] == before
     QMetaObject.invokeMethod(_picker(view), "reject")
+
+
+ELEVEN = ["bg", "text", "filesPanelCenter", "panelAlt", "panel", "folderPathTint", "folderULineTint",
+          "folderCwpTint", "fileSelectionFill", "dropHighlight", "lensFrame"]
+
+
+def test_the_eleven_colours_have_their_little_boxes(page):
+    view, _ = page
+    swatches = [i.objectName() for i in _walk(view.rootObject()) if i.objectName().startswith("colorSwatch_")]
+    assert sorted(swatches) == sorted(f"colorSwatch_{name}" for name in ELEVEN)
+    for name in ELEVEN:
+        shown = QColor(_named(view, f"colorSwatch_{name}").property("color"))
+        assert shown == QColor(color_schemes.load_scheme("dark")[name]), name
+
+
+def test_dragging_a_see_through_colour_keeps_it_see_through(page):
+    view, _ = page
+    before = QColor(color_schemes.load_scheme("dark")["fileSelectionFill"])
+    assert before.alpha() < 255
+    swatch = _named(view, "colorSwatch_fileSelectionFill")
+    start = swatch.mapToScene(QPointF(swatch.width() / 2, swatch.height() / 2)).toPoint()
+    QTest.mouseMove(view, start)
+    QTest.mousePress(view, Qt.LeftButton, Qt.NoModifier, start)
+    for step in range(1, 7):
+        QTest.mouseMove(view, QPoint(start.x() + 10 * step, start.y()))
+        QTest.qWait(10)
+    QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, QPoint(start.x() + 60, start.y()))
+    QTest.qWait(30)
+    after = QColor(color_schemes.load_scheme("dark")["fileSelectionFill"])
+    assert after.lightnessF() > before.lightnessF() and abs(after.alpha() - before.alpha()) <= 1
+
+
+def test_the_picker_offers_opacity_only_for_see_through_colours(page):
+    view, _ = page
+    _click(view, _named(view, "colorSwatch_fileSelectionFill"))
+    picker = _picker(view)
+    assert picker.property("offersOpacity") is True
+    QMetaObject.invokeMethod(picker, "reject")
+    QTest.qWait(30)
+    _click(view, _named(view, "colorSwatch_bg"))
+    assert picker.property("offersOpacity") is False
+    QMetaObject.invokeMethod(picker, "reject")
+
+
+def test_all_colours_go_back_for_the_scheme_worn(page):
+    view, _ = page
+    reset_all = _named(view, "colorResetAll")
+    assert reset_all.property("visible") is False  # nothing to go back from
+    picker = _open_picker(view)
+    picker.setProperty("selectedColor", QColor("#123456"))
+    QMetaObject.invokeMethod(picker, "accept")
+    QTest.qWait(30)
+    color_schemes.set_scheme_color("light", "bg", "#654321")
+    assert reset_all.property("visible") is True
+    _click(view, reset_all)
+    assert color_schemes.load_scheme("dark") == color_schemes.shipped_scheme("dark")
+    assert color_schemes.load_scheme("light")["bg"] == "#654321"  # the other scheme keeps its own
+    assert reset_all.property("visible") is False
+    assert "edited" in _heard(view)
 
 
 def test_no_way_back_beside_the_little_box(page):

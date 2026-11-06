@@ -5,6 +5,8 @@ import re
 
 from core.color_schemes import (
     SCHEMES_DIR,
+    has_own_colors,
+    reset_scheme,
     load_scheme,
     own_colors_path,
     reset_scheme_color,
@@ -69,3 +71,20 @@ def test_a_file_edited_by_hand_cannot_break_a_scheme():
     assert scheme["bg"] == "#010203"
     path.write_text("{ not json", encoding="utf-8")
     assert load_scheme("light") == shipped_scheme("light")
+
+
+def test_all_colours_of_one_scheme_go_back_together():
+    set_scheme_color("light", "bg", "#112233")
+    set_scheme_color("light", "text", "#445566")
+    set_scheme_color("dark", "bg", "#778899")
+    assert has_own_colors("light") is True
+    reset_scheme("light")
+    assert has_own_colors("light") is False
+    assert load_scheme("light") == shipped_scheme("light")
+    assert load_scheme("dark")["bg"] == "#778899"  # the other scheme keeps its own
+
+
+def test_colours_nobody_uses_are_gone():
+    for gone in ("panelAlt2", "projectFolderTint", "embryoFolderTint", "action", "actionBorder",
+                 "filesPaneBackground", "textMuted", "textSoft"):
+        assert gone not in shipped_scheme("dark"), gone
