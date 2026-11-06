@@ -114,6 +114,22 @@ def test_the_middle_lies_under_the_files(window):
     assert grid.index(center) < next(i for i, item in enumerate(grid) if "ColumnLayout" in item.metaObject().className())
 
 
+def test_a_colour_set_on_the_back_shows_at_once(window, monkeypatch):
+    before = QColor(_files_panel(window).property("filesCenterColor"))
+    original = load_scheme
+    def own(name):
+        scheme = original(name)
+        scheme["filesPanelCenter"] = "#102030"
+        return scheme
+    monkeypatch.setattr(sys.modules[__name__], "load_scheme", own)
+    window.setProperty("schemeRevision", window.property("schemeRevision") + 1)  # what the back's edit does
+    assert QColor(_files_panel(window).property("filesCenterColor")) != before
+
+
+def test_the_back_tells_main_of_a_colour_set():
+    assert "onSchemeColorEdited: window.schemeRevision++" in MAIN
+
+
 def test_no_veil_over_the_middle_is_left():
     panel = (SCOPE_DIR / "FilesPanel.qml").read_text(encoding="utf-8")
     assert "filesPanelOverlay" not in panel

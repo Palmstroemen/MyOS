@@ -90,13 +90,17 @@ the small fan, then the three that are no line; a line under each says what it d
    no longer keep defaults of their own. The middle of the FilesPanel is `filesPanelCenter`, one
    per scheme: it was a veil of 20 % over the frame (white on dark, black on light), so both themes
    met in a middle grey, and it lay over the files, dulling them too. Now it lies under them and
-   the project's colour shows through it (0.52). To change it for now: the scheme file; on the back
-   with step 3.
+   the project's colour shows through it (0.52).
    Fixed on purpose: tag colours and chips, ACL chips (their text is worked out from their colour),
    badges, signal reds, SunTree's colours and the small crown (with SunTree, after step 3).
-   Still to come: the choice on General, with `General/colorScheme` taking over from
-   `General/darkTheme`.
-3. Colour schemes to edit: change colours, keep them as a scheme of one's own.
+   **The choice on General** (2026-11-06): under Appearance a small Scope for each scheme, a click
+   puts it on; `General/darkTheme` still says which, until a third scheme makes `General/colorScheme`
+   worth it.
+3. Colour schemes to edit: change colours, keep them as a scheme of one's own. **Begun**
+   (2026-11-06): beside the choice one colour, "Files background" (`filesPanelCenter`): hue,
+   saturation, lightness, the value to type, the way back to the scheme's own. It counts at once
+   and for the scheme worn alone, kept in `~/.config/MyOS/schemes/<scheme>.json` over the shipped
+   file (`core/color_schemes.py`). To come: the other colours, a scheme of one's own.
 4. The **Scope** and **Headline** tabs, as the top bar is taken away.
    Begun (2026-10-26): light/dark and the language left the top bar (they are on General); the
    two rows (projects, MyOS folders) are switched on the Scope tab and kept in the settings

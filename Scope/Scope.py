@@ -41,7 +41,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
-from core.color_schemes import load_scheme
+from core.color_schemes import load_scheme, reset_scheme_color, set_scheme_color, shipped_scheme
 from core.scope_api import ScopeApi
 from core.settings import Settings
 from daemon.lens_link import LensLink
@@ -937,6 +937,18 @@ class Backend(QObject):
     @Slot(str, result="QVariantMap")
     def colorScheme(self, name: str) -> dict:
         return load_scheme(name)
+
+    @Slot(str, str, str, result=bool)
+    def setSchemeColor(self, name: str, color: str, value: str) -> bool:
+        return set_scheme_color(name, color, value)
+
+    @Slot(str, str)
+    def resetSchemeColor(self, name: str, color: str) -> None:
+        reset_scheme_color(name, color)
+
+    @Slot(str, str, result=str)
+    def schemeColorDefault(self, name: str, color: str) -> str:
+        return shipped_scheme(name)[color]
 
     @Slot(result=str)
     def currentLanguage(self) -> str:

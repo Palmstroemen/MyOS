@@ -18,7 +18,12 @@ ApplicationWindow {
     property int baseFont: Qt.application.font.pixelSize
     property bool darkTheme: true
     // The colours of the scheme worn (core/color_schemes.py; Designdocument Setup.md, step 2).
-    readonly property var schemeColors: hasBackend() ? backend.colorScheme(darkTheme ? "dark" : "light") : ({})
+    // schemeRevision: a colour was set on the back, the scheme is read anew.
+    property int schemeRevision: 0
+    readonly property var schemeColors: {
+        schemeRevision
+        return hasBackend() ? backend.colorScheme(darkTheme ? "dark" : "light") : ({})
+    }
     // Kept in the settings file (core/settings.py) once read at the start.
     property bool settingsRead: false
     // How pale embryos are: set on the back (General), followed at once.
@@ -3136,6 +3141,7 @@ ApplicationWindow {
             language: window.uiLanguage
             baseFont: window.baseFont
             onSwitchTheme: window.darkTheme = !window.darkTheme
+            onSchemeColorEdited: window.schemeRevision++
             onSwitchLanguage: window.toggleUiLanguage()
             onFlipBack: window.flipSetup(false)
             projectsRowShown: window.projectsBrowserVisible

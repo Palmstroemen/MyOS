@@ -91,9 +91,15 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                     [x] Verstreute Farben aufgeräumt (2026-11-06): Setup-Seite, Auswahl, Ablege-Markierung, Rahmen der
                         Brille, ACL-Dialoge im Schema; Mitte des FilesPanel je Schema einstellbar (filesPanelCenter):
                         war ein 20-%-Schleier über dem Rahmen und über den Dateien, beide Themen landeten bei Mittelgrau
-                    [ ] Auswahl im Tab Allgemein, drittes Schema; General/colorScheme löst General/darkTheme ab
+                    [x] Auswahl im Tab Allgemein (2026-11-06): kleines Scope je Schema statt des Knopfs
+                    [ ] Drittes Schema; General/colorScheme löst General/darkTheme ab
                     [ ] Beim Testlauf ansehen: Dialoge sind vertauscht (hell im dunklen Thema); dem Schema anpassen?
-                [ ] Schritt 3: bearbeiten; danach SunTree ans Schema  [ ] Schritt 4: Tabs Scope und Headline
+                [ ] Schritt 3: bearbeiten; danach SunTree ans Schema
+                    [x] Hintergrund Dateibereich im Setup (2026-11-06): je Schema einstellbar, wirkt sofort, liegt in
+                        ~/.config/MyOS/schemes über den mitgelieferten Schemata
+                    [ ] Beim Testlauf: Projektfarbe macht 52 % der Mitte aus, Weiß ist so nicht erreichbar; Anteil senken?
+                    [ ] Die übrigen Farben, eigenes Schema speichern
+                [ ] Schritt 4: Tabs Scope und Headline
                 [~] Obere Leiste leeren (2026-10-26): Hell/Dunkel, Sprache weg (Allgemein); Zeilen an/aus im Tab Scope;
                     "Dateien 50%", "Projekt mit Thema versehen", "Ordnung aktivieren", "Schmal", Edge-Dock-Schalter entfernt;
                     Filter im Tab Scope; bleiben: ⚙ ganz links und M (eine Zeile per Vorgabe aus: vorerst nicht)

@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QObject, QPointF, Qt, QUrl, Slot
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
+
+from core import color_schemes
 
 SCOPE_DIR = Path(__file__).resolve().parents[1]
 
@@ -41,6 +43,22 @@ class SettingsHost(QObject):
     def resetSetting(self, key):
         self.settings.reset(key)
 
+    @Slot(str, result="QVariantMap")
+    def colorScheme(self, name):
+        return color_schemes.load_scheme(name)
+
+    @Slot(str, str, str, result=bool)
+    def setSchemeColor(self, name, color, value):
+        return color_schemes.set_scheme_color(name, color, value)
+
+    @Slot(str, str)
+    def resetSchemeColor(self, name, color):
+        color_schemes.reset_scheme_color(name, color)
+
+    @Slot(str, str, result=str)
+    def schemeColorDefault(self, name, color):
+        return color_schemes.shipped_scheme(name)[color]
+
 
 def _walk(item):
     yield item
@@ -64,6 +82,7 @@ def page(tmp_path, monkeypatch):
         'SetupPage { width: 800; height: 600; settings: host\n'
         '  property var heard: []\n'
         '  onSwitchTheme: heard = heard.concat(["theme"])\n'
+        '  onSchemeColorEdited: heard = heard.concat(["edited"])\n'
         '  onSwitchLanguage: heard = heard.concat(["language"])\n'
         '  onFlipBack: heard = heard.concat(["back"])\n'
         '  onToggleProjectsRow: heard = heard.concat(["projectsRow"])\n'
@@ -97,10 +116,65 @@ def test_four_tabs(page):
 
 def test_general_switches_and_flipping_back(page):
     view, _ = page
-    _click(view, _named(view, "setupTheme"))
+    _click(view, _named(view, "schemeCard_dark"))  # worn already: nothing to switch
+    _click(view, _named(view, "schemeCard_light"))
     _click(view, _named(view, "setupLanguage"))
     _click(view, _named(view, "setupFlipBack"))
     assert _heard(view) == ["theme", "language", "back"]
+
+
+def test_each_scheme_card_shows_its_own_colours(page):
+    view, _ = page
+    for name in ("dark", "light"):
+        card = _named(view, f"schemeCard_{name}")
+        assert card.property("selected") is (name == "dark")
+        center = _named(view, f"schemeCenter_{name}")
+        assert QColor(center.property("color")) == QColor(color_schemes.load_scheme(name)["filesPanelCenter"])
+
+
+def test_the_files_background_is_set_for_the_scheme_worn(page):
+    view, _ = page
+    dark, light = (color_schemes.load_scheme(n)["filesPanelCenter"] for n in ("dark", "light"))
+    _click(view, _named(view, "colorLightness_filesPanelCenter"))  # the slider's middle: 50 %
+    edited = color_schemes.load_scheme("dark")["filesPanelCenter"]
+    assert edited != dark
+    assert abs(QColor(edited).lightnessF() - 0.5) < 0.05
+    assert color_schemes.load_scheme("light")["filesPanelCenter"] == light  # the other scheme is left alone
+    assert "edited" in _heard(view)
+    assert QColor(_named(view, "schemeCenter_dark").property("color")) == QColor(edited)  # the card follows
+
+
+def test_the_colour_can_be_typed(page):
+    view, _ = page
+    field = _named(view, "colorHex_filesPanelCenter")
+    _click(view, field)
+    field.setProperty("text", "")
+    for char in "#ABCDEF":
+        QTest.keyClick(view, Qt.Key(ord(char)))
+    QTest.keyClick(view, Qt.Key_Return)
+    QTest.qWait(30)
+    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == "#abcdef"
+
+
+def test_the_colour_follows_when_the_scheme_changes(page):
+    view, _ = page
+    field = _named(view, "colorHex_filesPanelCenter")
+    assert field.property("text") == color_schemes.load_scheme("dark")["filesPanelCenter"]
+    view.rootObject().setProperty("darkTheme", False)
+    QTest.qWait(30)
+    assert field.property("text") == color_schemes.load_scheme("light")["filesPanelCenter"]
+
+
+def test_the_colour_goes_back_to_the_schemes_own(page):
+    view, _ = page
+    shipped = color_schemes.shipped_scheme("dark")["filesPanelCenter"]
+    color_reset = _named(view, "colorReset_filesPanelCenter")
+    assert color_reset.property("visible") is False  # nothing to go back from
+    _click(view, _named(view, "colorLightness_filesPanelCenter"))
+    assert color_reset.property("visible") is True
+    _click(view, color_reset)
+    assert color_schemes.load_scheme("dark")["filesPanelCenter"] == shipped
+    assert _named(view, "colorHex_filesPanelCenter").property("text") == shipped
 
 
 def test_suntree_values_go_to_the_settings_file(page):

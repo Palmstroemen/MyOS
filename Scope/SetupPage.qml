@@ -5,7 +5,8 @@ import QtQuick.Layouts 1.15
 // The back of Scope (Scope/Designdocument Setup.md): the settings of Scope, the Headline and
 // SunTree in tabs. Values go to the one settings file through `settings` (Scope's backend:
 // setting, setSetting, settingDefault, settingLimits, resetSetting); SunTree reads it when it
-// appears. Light/dark and the language are switched by the host (signals), which keeps them.
+// appears. Light/dark and the language are switched by the host (signals), which keeps them;
+// colours one sets go to the scheme worn (setSchemeColor, core/color_schemes.py).
 Rectangle {
     id: root
     property var settings: null
@@ -43,6 +44,12 @@ Rectangle {
         "aggressive": { hoverDelayMs: 60, reopenStabilizeMs: 160, collapseDurationMs: 380, pointerCarry: 0.7, systemPointerCarry: 0.92 }
     })
     readonly property var previewTiming: previewTimings[previewTuning] || previewTimings["balanced"]
+    // The colours of a scheme, read anew when one was set here.
+    property int schemeEdits: 0
+    function schemeOf(name) {
+        schemeEdits
+        return settings ? settings.colorScheme(name) : ({})
+    }
     function keep(key, value) {
         if (settings) settings.setSetting(key, value)
     }
@@ -54,6 +61,7 @@ Rectangle {
     readonly property string demo: slidersHeld > 0 || hoveredDemo === quieted ? "" : hoveredDemo
 
     signal switchTheme()
+    signal schemeColorEdited()
     signal switchLanguage()
     signal flipBack()
     signal toggleProjectsRow()
@@ -90,6 +98,137 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             onClicked: pillButton.activated()
+        }
+    }
+
+    // A scheme to wear: a small Scope in its colours; a click puts it on.
+    component SchemeCard: Rectangle {
+        id: card
+        property string schemeName: ""
+        property string label: ""
+        readonly property var colors: root.schemeOf(schemeName)
+        readonly property bool selected: root.darkTheme === (schemeName === "dark")
+        objectName: "schemeCard_" + schemeName
+        implicitWidth: 130
+        implicitHeight: 84
+        radius: 6
+        color: colors.bg || "transparent"
+        border.width: selected ? 2 : 1
+        border.color: selected ? root.textColor : root.pillBorder
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 4
+            anchors.topMargin: 14
+            radius: 3
+            color: card.colors.filesPaneBackground || "transparent"
+            Rectangle {
+                objectName: "schemeCenter_" + card.schemeName
+                anchors.fill: parent
+                anchors.margins: 4
+                anchors.rightMargin: 14
+                radius: 3
+                color: card.colors.filesPanelCenter || "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: card.label
+                    color: card.colors.text || root.textColor
+                    font.pixelSize: root.baseFont
+                }
+            }
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (!card.selected) root.switchTheme()
+        }
+    }
+
+    // One colour of the scheme worn: sliders for finding it, the value for typing it, the way
+    // back to the scheme's own. It counts at once, for this scheme alone.
+    component ColorSetting: ColumnLayout {
+        id: colorRow
+        property string colorName: ""
+        property string label: ""
+        property string help: ""
+        readonly property string schemeName: root.darkTheme ? "dark" : "light"
+        readonly property string current: String(root.schemeOf(schemeName)[colorName] || "#000000")
+        readonly property string shipped: root.settings ? root.settings.schemeColorDefault(schemeName, colorName) : current
+        property bool sliding: false
+        spacing: 4
+        function show() {
+            hexField.text = current
+            if (sliding) return  // the sliders say what it is; the colour back from 8 bits would make them jump
+            var c = Qt.color(current)
+            if (c.hslHue >= 0) hueSlider.value = c.hslHue  // grey has none: the slider stays
+            saturationSlider.value = c.hslSaturation
+            lightnessSlider.value = c.hslLightness
+        }
+        onCurrentChanged: show()
+        Component.onCompleted: show()
+        function apply(value) {
+            if (!root.settings || !root.settings.setSchemeColor(schemeName, colorName, value)) return
+            root.schemeEdits++
+            root.schemeColorEdited()
+        }
+        function applySliders() {
+            sliding = true
+            apply(Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, 1).toString())
+            sliding = false
+        }
+        RowLayout {
+            spacing: 8
+            Layout.preferredHeight: 30  // the same with the way back shown and without
+            Text { text: colorRow.label; color: root.textColor; font.pixelSize: root.baseFont }
+            Rectangle {
+                implicitWidth: 30
+                implicitHeight: 24
+                radius: 4
+                color: colorRow.current
+                border.color: root.pillBorder
+            }
+            TextField {
+                id: hexField
+                objectName: "colorHex_" + colorRow.colorName
+                implicitWidth: 90
+                color: root.textColor
+                font.pixelSize: root.baseFont
+                validator: RegularExpressionValidator { regularExpression: /#[0-9a-fA-F]{6}/ }
+                background: Rectangle { color: root.pill; border.color: root.pillBorder; radius: 4 }
+                onEditingFinished: {
+                    if (acceptableInput) colorRow.apply(text.toLowerCase())
+                    else text = colorRow.current
+                }
+            }
+            Pill {
+                objectName: "colorReset_" + colorRow.colorName
+                visible: colorRow.current.toLowerCase() !== colorRow.shipped.toLowerCase()
+                label: qsTr("Default")
+                onActivated: {
+                    if (!root.settings) return
+                    root.settings.resetSchemeColor(colorRow.schemeName, colorRow.colorName)
+                    root.schemeEdits++
+                    root.schemeColorEdited()
+                }
+            }
+        }
+        GridLayout {
+            columns: 2
+            columnSpacing: 8
+            rowSpacing: 4
+            Layout.fillWidth: true
+            Text { text: qsTr("Hue"); color: root.textColor; font.pixelSize: root.baseFont }
+            Slider { id: hueSlider; objectName: "colorHue_" + colorRow.colorName; Layout.fillWidth: true; onMoved: colorRow.applySliders() }
+            Text { text: qsTr("Saturation"); color: root.textColor; font.pixelSize: root.baseFont }
+            Slider { id: saturationSlider; objectName: "colorSaturation_" + colorRow.colorName; Layout.fillWidth: true; onMoved: colorRow.applySliders() }
+            Text { text: qsTr("Lightness"); color: root.textColor; font.pixelSize: root.baseFont }
+            Slider { id: lightnessSlider; objectName: "colorLightness_" + colorRow.colorName; Layout.fillWidth: true; onMoved: colorRow.applySliders() }
+        }
+        Text {
+            text: colorRow.help
+            color: root.mutedColor
+            font.pixelSize: root.baseFont - 1
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
         }
     }
 
@@ -443,11 +582,17 @@ Rectangle {
                 spacing: 12
                 RowLayout {
                     spacing: 12
-                    Text { text: qsTr("Appearance"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180 }
-                    Pill {
-                        objectName: "setupTheme"
-                        label: root.darkTheme ? qsTr("Light") : qsTr("Dark")
-                        onActivated: root.switchTheme()
+                    Layout.fillWidth: true
+                    Text { text: qsTr("Appearance"); color: root.textColor; font.pixelSize: root.baseFont; Layout.preferredWidth: 180; Layout.alignment: Qt.AlignTop }
+                    SchemeCard { schemeName: "dark"; label: qsTr("Dark"); Layout.alignment: Qt.AlignTop }
+                    SchemeCard { schemeName: "light"; label: qsTr("Light"); Layout.alignment: Qt.AlignTop }
+                    ColorSetting {
+                        colorName: "filesPanelCenter"
+                        label: qsTr("Files background")
+                        help: qsTr("The colour behind the files, for this scheme alone. The colour of the project shows through it.")
+                        Layout.leftMargin: 16
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 560
                     }
                 }
                 RowLayout {
@@ -520,11 +665,6 @@ Rectangle {
                             help: qsTr("How pale the badges (€, § ...) on suggested MyOS folders are.")
                         }
                     }
-                }
-                Text {
-                    text: qsTr("Colour schemes come here next.")
-                    color: root.mutedColor
-                    font.pixelSize: root.baseFont
                 }
                 Item { Layout.fillHeight: true }
             }
