@@ -17,6 +17,8 @@ ApplicationWindow {
 
     property int baseFont: Qt.application.font.pixelSize
     property bool darkTheme: true
+    // The colours of the scheme worn (core/color_schemes.py; Designdocument Setup.md, step 2).
+    readonly property var schemeColors: hasBackend() ? backend.colorScheme(darkTheme ? "dark" : "light") : ({})
     // Kept in the settings file (core/settings.py) once read at the start.
     property bool settingsRead: false
     // How pale embryos are: set on the back (General), followed at once.
@@ -99,34 +101,34 @@ ApplicationWindow {
     readonly property string pathSegmentTemplates: "Templates"
     readonly property string pathSegmentMyosTest: "MyOS_Test"
     readonly property string pathSegmentMyOS: "MyOS"
-    property color dialogPanelBg: darkTheme ? "#f4f7ff" : "#141823"
-    property color dialogPanelBorder: darkTheme ? "#1b2438" : "#d5ddf2"
-    property color dialogTextStrong: darkTheme ? "#1a2233" : "#edf2ff"
-    property color dialogTextMuted: darkTheme ? "#34405a" : "#c6d2ee"
-    property color dialogInputBg: darkTheme ? "#ffffff" : "#0f1320"
-    property color dialogInputBorder: darkTheme ? "#2f3d5f" : "#8ca0cf"
-    property color dialogInputText: darkTheme ? "#111827" : "#f5f7ff"
-    property color dialogInputPlaceholder: darkTheme ? "#526280" : "#9fb0d6"
+    property color dialogPanelBg: schemeColors.dialogPanelBg
+    property color dialogPanelBorder: schemeColors.dialogPanelBorder
+    property color dialogTextStrong: schemeColors.dialogTextStrong
+    property color dialogTextMuted: schemeColors.dialogTextMuted
+    property color dialogInputBg: schemeColors.dialogInputBg
+    property color dialogInputBorder: schemeColors.dialogInputBorder
+    property color dialogInputText: schemeColors.dialogInputText
+    property color dialogInputPlaceholder: schemeColors.dialogInputPlaceholder
 
     QtObject {
         id: theme
-        property color bg: darkTheme ? "#0f1014" : "#f3f4f8"
-        property color panel: darkTheme ? "#1b1d26" : "#e6e8f0"
-        property color panelAlt: darkTheme ? "#151821" : "#e9ecf5"
-        property color panelAlt2: darkTheme ? "#12141b" : "#eef1f8"
-        property color card: darkTheme ? "#0f1117" : "#ffffff"
-        property color pill: darkTheme ? "#2a2f40" : "#dfe3f0"
-        property color pillBorder: darkTheme ? "#3a4158" : "#c6ccdf"
-        property color smallButtonBg: darkTheme ? "#3a4258" : "#e5e9f3"
-        property color smallButtonBorder: darkTheme ? "#505a74" : "#c2c9db"
-        property color smallButtonActiveBg: darkTheme ? "#4a5675" : "#c5d2ef"
-        property color smallButtonActiveBorder: darkTheme ? "#6a779a" : "#9fb1dd"
-        property color smallButtonText: darkTheme ? "#b4bac6" : "#4a5163"
+        property color bg: schemeColors.bg
+        property color panel: schemeColors.panel
+        property color panelAlt: schemeColors.panelAlt
+        property color panelAlt2: schemeColors.panelAlt2
+        property color card: schemeColors.card
+        property color pill: schemeColors.pill
+        property color pillBorder: schemeColors.pillBorder
+        property color smallButtonBg: schemeColors.smallButtonBg
+        property color smallButtonBorder: schemeColors.smallButtonBorder
+        property color smallButtonActiveBg: schemeColors.smallButtonActiveBg
+        property color smallButtonActiveBorder: schemeColors.smallButtonActiveBorder
+        property color smallButtonText: schemeColors.smallButtonText
         // Fixed gray palette for folder rows (theme mirrored).
         // Dark: P~20%, CWD~30%, U~40%; Light: P~60%, CWD~70%, U~80%.
-        property color folderPathTint: darkTheme ? "#333333" : "#999999"
-        property color folderCwpTint: darkTheme ? "#4D4D4D" : "#B3B3B3"
-        property color folderULineTint: darkTheme ? "#666666" : "#CCCCCC"
+        property color folderPathTint: schemeColors.folderPathTint
+        property color folderCwpTint: schemeColors.folderCwpTint
+        property color folderULineTint: schemeColors.folderULineTint
         function darkerByTenPoints(value) {
             return Qt.rgba(
                 Math.max(0, value.r - 0.10),
@@ -138,17 +140,17 @@ ApplicationWindow {
         property color folderPathBorder: darkerByTenPoints(folderPathTint)
         property color folderULineBorder: darkerByTenPoints(folderULineTint)
         property color accentPrimary: folderCwpTint
-        property color accentPrimaryText: "#ffffff"
-        property color accentSecondary: darkTheme ? "#3b476b" : "#b8c8ee"
-        property color accentSecondaryBorder: darkTheme ? "#58648a" : "#9fb1dd"
-        property color projectFolderTint: darkTheme ? "#bb00aa" : "#6a5cff"
-        property color embryoFolderTint: darkTheme ? "#7b5bd6" : "#6a5cff"
-        property color action: darkTheme ? "#39456b" : "#c8d2f0"
-        property color actionBorder: darkTheme ? "#56618a" : "#9aa7cf"
-        property color text: darkTheme ? "#e6e6e6" : "#1f2433"
-        property color textMuted: darkTheme ? "#c9ccd7" : "#3b4152"
-        property color textSoft: darkTheme ? "#cfd3df" : "#2b3140"
-        property color filesPaneBackground: darkTheme ? "#404040" : "#b0b0b0"
+        property color accentPrimaryText: schemeColors.accentPrimaryText
+        property color accentSecondary: schemeColors.accentSecondary
+        property color accentSecondaryBorder: schemeColors.accentSecondaryBorder
+        property color projectFolderTint: schemeColors.projectFolderTint
+        property color embryoFolderTint: schemeColors.embryoFolderTint
+        property color action: schemeColors.action
+        property color actionBorder: schemeColors.actionBorder
+        property color text: schemeColors.text
+        property color textMuted: schemeColors.textMuted
+        property color textSoft: schemeColors.textSoft
+        property color filesPaneBackground: schemeColors.filesPaneBackground
         property color highlight: accentPrimary
     }
 

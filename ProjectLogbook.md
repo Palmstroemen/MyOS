@@ -85,7 +85,13 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                 Headline, SunTree; eine Einstellungsdatei für alle (core/settings.py, ~/.config/MyOS/MyOS.conf)
                 [x] Schritt 1 (2026-10-26): Umdrehen, Hell/Dunkel und Sprache (bleiben jetzt gespeichert), SunTree-Werte
                 [x] Kleine Krone im SunTree-Tab (2026-10-26): leuchtende Grenzlinien, Tauchgang bei jeder Änderung
-                [ ] Schritt 2: Farbschemata wählen  [ ] Schritt 3: bearbeiten  [ ] Schritt 4: Tabs Scope und Headline
+                [ ] Schritt 2: Farbschemata wählen
+                    [x] Farben umgezogen (2026-11-06): die 34 Farben aus main.qml in core/schemes (dark, light), sieht
+                        pixelgleich aus
+                    [ ] Verstreute Farben aufräumen (FilesPanel, FolderBrowser, FolderItem, Dialoge ...)
+                    [ ] Auswahl im Tab Allgemein, drittes Schema; General/colorScheme löst General/darkTheme ab
+                    [ ] Beim Testlauf ansehen: Dialoge sind vertauscht (hell im dunklen Thema); dem Schema anpassen?
+                [ ] Schritt 3: bearbeiten; danach SunTree ans Schema  [ ] Schritt 4: Tabs Scope und Headline
                 [~] Obere Leiste leeren (2026-10-26): Hell/Dunkel, Sprache weg (Allgemein); Zeilen an/aus im Tab Scope;
                     "Dateien 50%", "Projekt mit Thema versehen", "Ordnung aktivieren", "Schmal", Edge-Dock-Schalter entfernt;
                     Filter im Tab Scope; bleiben: ⚙ ganz links und M (eine Zeile per Vorgabe aus: vorerst nicht)

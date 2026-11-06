@@ -83,7 +83,10 @@ the small fan, then the three that are no line; a line under each says what it d
    `setSetting`, `settingDefault`, `settingLimits`, `resetSetting`; SunTree reads its group
    in `turnedTo` (`crownSettings`).
 2. Colour schemes to choose: the 34 colours move out of Scope's `main.qml` into scheme files
-   (Dark, Light).
+   (Dark, Light). **Moved** (2026-11-06, nothing looks different): `core/schemes/dark.json` and
+   `light.json`, read through `core/color_schemes.py`; `main.qml` keeps its names and takes the
+   values from `schemeColors`. Still to come: the colours scattered over the other QML files,
+   then the choice on General, with `General/colorScheme` taking over from `General/darkTheme`.
 3. Colour schemes to edit: change colours, keep them as a scheme of one's own.
 4. The **Scope** and **Headline** tabs, as the top bar is taken away.
    Begun (2026-10-26): light/dark and the language left the top bar (they are on General); the
