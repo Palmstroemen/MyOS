@@ -92,7 +92,14 @@ the small fan, then the three that are no line; a line under each says what it d
    met in a middle grey, and it lay over the files, dulling them too. Now it lies under them and
    the project's colour shows through it (0.52).
    Fixed on purpose: tag colours and chips, ACL chips (their text is worked out from their colour),
-   badges, signal reds, SunTree's colours and the small crown (with SunTree, after step 3).
+   badges, signal reds, the lines of the small crown (the sliders' marks show the same colours).
+   **SunTree and the small crown on the scheme** (2026-11-06): 31 colours of their own in the
+   schemes (`crown…`, `stem…`, `notice…`, `lens…`), not listed on General. SunTree reads the scheme
+   each time it appears (`colorScheme`), as it does its values; the frame of its lens is the
+   `lensFrame` of the list. Dark looks as before, Light is new. A project looks the same in every
+   scheme, so text on a project's colour turns black or white where the scheme's would be unreadable
+   (contrast under 3). The CWD glows as Scope marks it (`FBUtils.cwdMarkColor`). The notice after a
+   drop stays dark in both schemes, so it stands out on a light desktop.
    **The choice on General** (2026-11-06): under Appearance a small Scope for each scheme, a click
    puts it on; `General/darkTheme` still says which, until a third scheme makes `General/colorScheme`
    worth it.

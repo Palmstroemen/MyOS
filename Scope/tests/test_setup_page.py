@@ -361,6 +361,16 @@ def test_suntree_values_go_to_the_settings_file(page):
     assert Settings().get("SunTree/enter") == 0.75 and slider.property("value") == 0.75
 
 
+def test_the_small_crown_wears_the_scheme(page):
+    view, _ = page
+    _click(view, _named(view, "tabSunTree"))
+    preview = _named(view, "crownPreview")
+    assert preview.property("schemeColors") == color_schemes.load_scheme("dark")
+    view.rootObject().setProperty("darkTheme", False)
+    QTest.qWait(30)
+    assert preview.property("schemeColors") == color_schemes.load_scheme("light")
+
+
 def test_the_small_crown_follows_the_sliders(page):
     view, _ = page
     _click(view, _named(view, "tabSunTree"))

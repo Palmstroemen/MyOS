@@ -18,9 +18,9 @@ SCOPE_DIR = Path(__file__).resolve().parents[1]
 MAIN = (SCOPE_DIR / "main.qml").read_text(encoding="utf-8")
 
 
-def test_scope_names_exactly_the_colours_of_the_scheme():
+def test_the_programs_name_exactly_the_colours_of_the_scheme():
     named = set()
-    for qml in [*SCOPE_DIR.glob("*.qml"), *SCOPE_DIR.glob("Dialogs/*.qml")]:
+    for qml in [*SCOPE_DIR.glob("*.qml"), *SCOPE_DIR.glob("Dialogs/*.qml"), SCOPE_DIR.parent / "SunTree" / "main.qml"]:
         named |= set(re.findall(r"schemeColors\.(\w+)", qml.read_text(encoding="utf-8")))
     assert named == set(load_scheme("dark"))
 

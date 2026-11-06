@@ -17,7 +17,7 @@ Item {
     property real lens: 2.2
     property real softness: 10
     property real edge: 0.08
-    property bool darkTheme: true
+    required property var schemeColors
 
     // The colours of the lines; the sliders show the same as their marks.
     readonly property color innerColor: "#9aa7bd"
@@ -128,6 +128,7 @@ Item {
     onShownLensChanged: canvas.requestPaint()
     onPulseChanged: canvas.requestPaint()
     onTargetUChanged: if (handShown) canvas.requestPaint()
+    onSchemeColorsChanged: canvas.requestPaint()
     onWidthChanged: canvas.requestPaint()
     onHeightChanged: canvas.requestPaint()
 
@@ -209,7 +210,7 @@ Item {
 
         function paintStem(ctx, g) {
             var stem = root.stemShape()
-            ctx.fillStyle = root.darkTheme ? "#20283a" : "#c9d0e0"
+            ctx.fillStyle = root.schemeColors.stemPreviewBack
             ctx.fillRect(0, root.cy - g.R, stem.width, 2 * g.R)
         }
 
@@ -222,12 +223,12 @@ Item {
             ctx.arc(root.cx, root.cy, h, -Math.PI / 2, Math.PI / 2, false)
             ctx.lineTo(0, root.cy + h)
             ctx.closePath()
-            ctx.fillStyle = "#2f3d60"
+            ctx.fillStyle = root.schemeColors.stemCurrent
             ctx.fill()
             ctx.lineWidth = 1.5
-            ctx.strokeStyle = "#9cb7f0"
+            ctx.strokeStyle = root.schemeColors.stemCurrentBorder
             ctx.stroke()
-            ctx.fillStyle = "#324663"  // two parents below it
+            ctx.fillStyle = root.schemeColors.stemFolder  // two parents below it
             for (var i = 0; i < 2; i++) ctx.fillRect(4, root.cy + h + 6 + i * (0.09 * g.R + 4), stem.width - 8, 0.09 * g.R)
         }
 
@@ -256,10 +257,10 @@ Item {
             var g = root.geo()
             paintStem(ctx, g)
             sector(ctx, 0, g.R + 4, -90, 90)
-            ctx.fillStyle = root.darkTheme ? "#2d3750" : "#d8deec"
+            ctx.fillStyle = root.schemeColors.crownBackOwn
             ctx.fill()
             var rings = Crown.layout(root.demoState(), g, root.childrenOf)
-            var tones = ["#4e668f", "#5b7aa8", "#6a8bbb"]
+            var tones = [0.82, 0.9, 1]  // sample folders, told apart
             for (var r = 0; r < rings.length; r++) {
                 var ring = rings[r], a = ring.start
                 for (var i = 0; i < ring.items.length; i++) {
@@ -268,10 +269,10 @@ Item {
                     if (a1 - a0 < 0.05) continue
                     ctx.globalAlpha = ring.alpha
                     sector(ctx, ring.r0, ring.r1, a0, a1)
-                    ctx.fillStyle = Qt.lighter(tones[(i + r) % tones.length], ring.kind === "field" && i === ring.hi ? 1.25 : 1.0)
+                    ctx.fillStyle = Qt.lighter(root.schemeColors.crownFolderOwn, ring.kind === "field" && i === ring.hi ? 1.12 : tones[(i + r) % tones.length])
                     ctx.fill()
                     ctx.lineWidth = 1
-                    ctx.strokeStyle = "rgba(15,17,23,0.9)"
+                    ctx.strokeStyle = root.schemeColors.crownFolderLine
                     ctx.stroke()
                 }
             }
@@ -291,8 +292,10 @@ Item {
                 ctx.beginPath()
                 ctx.arc(root.cx + h.r * Math.cos(ht), root.cy + h.r * Math.sin(ht), 8, 0, 2 * Math.PI)
                 ctx.lineWidth = 2
-                ctx.strokeStyle = "rgba(255,255,255,0.75)"
+                ctx.globalAlpha = 0.75
+                ctx.strokeStyle = root.schemeColors.crownText
                 ctx.stroke()
+                ctx.globalAlpha = 1
             }
             var p = Crown.pointer(root.demoState(), g, function(way) { return root.childrenOf(way).length })
             var t = p.th * Math.PI / 180

@@ -880,7 +880,7 @@ Rectangle {
                     Layout.preferredWidth: 220
                     Layout.preferredHeight: 420
                     Layout.alignment: Qt.AlignTop
-                    darkTheme: root.darkTheme
+                    schemeColors: root.schemeOf(root.schemeWorn)
                     lineT: lineTSlider.value
                     inner: innerSlider.value
                     enter: enterSlider.value

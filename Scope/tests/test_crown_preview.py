@@ -2,6 +2,7 @@
 what the values do - with SunTree's own arithmetic (SunTree/js/Crown.js) - and plays a dive
 through one level whenever a value changes."""
 
+import json
 import os
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuick import QQuickView
 from PySide6.QtTest import QTest
+
+from core.color_schemes import load_scheme
 
 SCOPE_DIR = Path(__file__).resolve().parents[1]
 
@@ -21,7 +24,8 @@ def preview(tmp_path):
     qml = tmp_path / "host.qml"
     qml.write_text(
         f'import QtQuick 2.15\nimport "{SCOPE_DIR.as_uri()}"\n'
-        'CrownPreview { width: 200; height: 400 }\n', encoding="utf-8")
+        f'CrownPreview {{ width: 200; height: 400; schemeColors: {json.dumps(load_scheme("dark"))} }}\n',
+        encoding="utf-8")
     view = QQuickView()
     view.setSource(QUrl.fromLocalFile(str(qml)))
     assert view.status() == QQuickView.Ready, [e.toString() for e in view.errors()]

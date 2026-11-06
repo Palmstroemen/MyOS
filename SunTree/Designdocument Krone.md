@@ -126,7 +126,9 @@ The tree draws its branches inward and makes them part of its stem.
   Scope marks its CWD the same way (2026-10-26): the current segment of the projects' path
   line and the CWD button of the minimal view (FolderItem.cwdMark, colour from
   FBUtils.cwdMarkColor); on a light theme, where light does not show, a stronger frame
-  instead. The lens' line is not marked: its end is the lens' folder, not the CWD.
+  instead. The lens' line is not marked: its end is the lens' folder, not the CWD. SunTree does
+  the same on a light scheme (2026-11-06): its colours come from the scheme Scope wears
+  (Scope/Designdocument Setup.md, step 2), read on appearing.
 
 ## 3. Soft Everywhere
 

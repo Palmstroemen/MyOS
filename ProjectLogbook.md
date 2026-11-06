@@ -93,8 +93,10 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                         war ein 20-%-Schleier über dem Rahmen und über den Dateien, beide Themen landeten bei Mittelgrau
                     [x] Auswahl im Tab Allgemein (2026-11-06): kleines Scope je Schema statt des Knopfs
                     [ ] Drittes Schema; General/colorScheme löst General/darkTheme ab
-                    [ ] Beim Testlauf ansehen: Dialoge sind vertauscht (hell im dunklen Thema); dem Schema anpassen?
-                [ ] Schritt 3: bearbeiten; danach SunTree ans Schema
+                    [x] Dialoge bleiben bewusst vertauscht (hell im dunklen Thema): so übersieht man sie nicht (2026-11-06)
+                [ ] Schritt 3: bearbeiten
+                    [x] SunTree und kleine Krone am Schema (2026-11-06): 31 Farben im Schema, liest es beim Erscheinen; Dunkel wie
+                        bisher, Hell neu; Schrift auf Projektfarben kippt, wo sie unlesbar wäre; Hinweis bleibt in beiden dunkel
                     [x] Hintergrund Dateibereich im Setup (2026-11-06): Farbkästchen öffnet die Farbauswahl, je Schema, wirkt sofort, liegt in
                         ~/.config/MyOS/schemes über den mitgelieferten Schemata
                     [ ] Beim Testlauf: Projektfarbe macht 52 % der Mitte aus, Weiß ist so nicht erreichbar; Anteil senken?

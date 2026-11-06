@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Effects
 import "js/Crown.js" as Crown
+import "../Scope/js/FolderBrowserUtils.js" as FBUtils
 
 ApplicationWindow {
     id: root
@@ -21,7 +22,10 @@ ApplicationWindow {
     property var pendingLeftRow: null
     property string cwdPath: ""  // where one stands, shared with Scope: it glows
     property string ctdPath: ""  // what SunTree shows in its middle: looking around moves it
-    property string cwdGlow: "#ffffff"  // the CWD's project colour, lit up
+    property string cwdProjectColor: ""
+    property var schemeColors: sunTreeBackend.colorScheme()  // read anew on appearing, as the crown's values
+    property bool darkTheme: sunTreeBackend.darkThemeSetting()
+    readonly property string cwdGlow: FBUtils.cwdMarkColor(cwdProjectColor, darkTheme)  // as Scope marks its CWD
     property string currentProjectColor: ""
 
     // --- The lens (Designdocument Perspective Resolver MVP.md, Part A) -------------------
@@ -38,8 +42,7 @@ ApplicationWindow {
         ctdPath = String(sunTreeBackend.ctd() || "")
         foldersModel = sunTreeBackend.listFolders()
         currentProjectColor = String(sunTreeBackend.effectiveProjectColor(ctdPath) || "")
-        var own = String(sunTreeBackend.effectiveProjectColor(cwdPath) || "")
-        cwdGlow = own ? (_adjustColor(own, 1.7) || "#ffffff") : "#ffffff"
+        cwdProjectColor = String(sunTreeBackend.effectiveProjectColor(cwdPath) || "")
         var reply = sunTreeBackend.lens("state", {})
         lensState = (reply && reply.ok) ? reply.result : ({ active: false })
         embryosModel = sunTreeBackend.listEmbryosAt(leftListingPath())
@@ -345,6 +348,36 @@ ApplicationWindow {
         return "#" + toHex(r * factor) + toHex(g * factor) + toHex(b * factor)
     }
 
+    function _rgb(hex) {
+        var m = String(hex || "").trim().match(/^#([0-9a-fA-F]{6})$/)
+        return m ? [0, 2, 4].map(function(i) { return parseInt(m[1].slice(i, i + 2), 16) }) : null
+    }
+
+    /// What a pale folder looks like over what lies behind it.
+    function mixedOver(fill, back, alpha) {
+        var f = _rgb(fill), b = _rgb(back)
+        if (!f || !b || alpha >= 1) return fill
+        return "#" + f.map(function(v, i) {
+            var s = Math.round(v * alpha + b[i] * (1 - alpha)).toString(16)
+            return s.length < 2 ? "0" + s : s
+        }).join("")
+    }
+
+    function _luminance(rgb) {
+        var linear = rgb.map(function(v) { return v / 255 <= 0.03928 ? v / 255 / 12.92 : Math.pow((v / 255 + 0.055) / 1.055, 2.4) })
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+    }
+
+    /// The scheme's text, unless a project's colour under it makes it unreadable (a project
+    /// looks the same in every scheme): then black or white, whichever stands out.
+    function readableOn(text, fill) {
+        var t = _rgb(text), f = _rgb(fill)
+        if (!t || !f) return text
+        var lt = _luminance(t), lf = _luminance(f)
+        if ((Math.max(lt, lf) + 0.05) / (Math.min(lt, lf) + 0.05) >= 3) return text
+        return lf > 0.18 ? "black" : "white"
+    }
+
     function _sectorColor(base, hovered, selected, fallback) {
         var source = String(base || "")
         if (source.length === 0) {
@@ -454,6 +487,8 @@ ApplicationWindow {
         crownLineT = s.lineT; crownInner = s.inner; crownEnter = s.enter; crownLeave = s.leave
         crownLens = s.lens; crownSoftness = s.softness; crownEdge = s.edge
         embryoOpacity = sunTreeBackend.embryoOpacitySetting()
+        schemeColors = sunTreeBackend.colorScheme()
+        darkTheme = sunTreeBackend.darkThemeSetting()
         crownCache = ({})
     }
     // Per half (-1 left, 1 right): target (where the hand put it), shown (the springs) and
@@ -821,7 +856,7 @@ ApplicationWindow {
         ctx.restore()
     }
 
-    function crownLabel(ctx, side, cx, cy, r0, r1, a0, a1, text, alpha, bold) {
+    function crownLabel(ctx, side, cx, cy, r0, r1, a0, a1, text, alpha, bold, color) {
         var mid = (a0 + a1) / 2, arc = (a1 - a0) * Math.PI / 180 * (r0 + r1) / 2, width = r1 - r0 - 18
         if (alpha < 0.05 || arc < 13 || width < 26) return
         ctx.save()
@@ -832,7 +867,7 @@ ApplicationWindow {
         ctx.translate(cx + side * r * Math.cos(a), cy + r * Math.sin(a))
         ctx.rotate(side > 0 ? a : -a)
         ctx.globalAlpha = alpha
-        ctx.fillStyle = "#eaf3ff"
+        ctx.fillStyle = color
         ctx.textAlign = side > 0 ? "left" : "right"
         ctx.textBaseline = "middle"
         ctx.fillText(t, 0, 0)
@@ -843,9 +878,10 @@ ApplicationWindow {
         var g = crownGeo(side), h = crownHalves[side]
         var state = h.shown || { s: 0, u: [], lock: [] }
         var rings = Crown.layout(state, g, function(way) { return crownRows(side, way) })
-        var fallback = side < 0 ? "#3b6b7d" : "#4e668f"
+        var fallback = side < 0 ? schemeColors.crownFolderMyos : schemeColors.crownFolderOwn
+        var back = side < 0 ? schemeColors.crownBackMyos : schemeColors.crownBackOwn
         crownSector(ctx, side, g.cx, g.cy, 0, g.R + 6, -90, 90)
-        ctx.fillStyle = side < 0 ? "#273847" : "#2d3750"
+        ctx.fillStyle = back
         ctx.fill()
         var glowing = []
         for (var r = 0; r < rings.length; r++) {
@@ -863,17 +899,19 @@ ApplicationWindow {
                 if (isHit) f = 1.12
                 ctx.globalAlpha = ring.alpha * (embryo ? embryoOpacity : 1)
                 crownSector(ctx, side, g.cx, g.cy, ring.r0, ring.r1, a0, a1)
-                ctx.fillStyle = _adjustColor(color, f) || color
+                var fill = _adjustColor(color, f) || color
+                ctx.fillStyle = fill
                 ctx.fill()
                 ctx.lineWidth = 1
-                ctx.strokeStyle = embryo ? "rgba(220,235,255,0.45)" : "rgba(15,17,23,0.9)"
+                ctx.strokeStyle = embryo ? schemeColors.crownEmbryoLine : schemeColors.crownFolderLine
                 ctx.setLineDash(embryo ? [4, 4] : [])
                 ctx.stroke()
                 ctx.setLineDash([])
                 ctx.globalAlpha = 1
                 var cwd = isCwd(row.path)
                 if (cwd) glowing.push({ r0: ring.r0, r1: ring.r1, a0: a0, a1: a1, alpha: ring.alpha })
-                crownLabel(ctx, side, g.cx, g.cy, ring.r0, ring.r1, a0, a1, row.label, ring.labels * (embryo ? 0.7 : 1), cwd)
+                crownLabel(ctx, side, g.cx, g.cy, ring.r0, ring.r1, a0, a1, row.label, ring.labels * (embryo ? 0.7 : 1), cwd,
+                           readableOn(schemeColors.crownText, embryo ? mixedOver(fill, back, embryoOpacity) : fill))
             }
         }
         // The CWD glows, drawn last so no neighbour covers its light.
@@ -939,9 +977,9 @@ ApplicationWindow {
         var cbY = layoutRoot.shellTop + 4, cbW = layoutRoot.stackWidth
         ctx.beginPath()
         ctx.rect(layoutRoot.stackX, cbY, cbW, layoutRoot.clipboardHeight)
-        ctx.fillStyle = "#2c3f5d"; ctx.fill()
-        ctx.strokeStyle = "#5f7297"; ctx.lineWidth = 1; ctx.stroke()
-        ctx.fillStyle = "#e8efff"; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
+        ctx.fillStyle = schemeColors.stemClipboard; ctx.fill()
+        ctx.strokeStyle = schemeColors.stemClipboardBorder; ctx.lineWidth = 1; ctx.stroke()
+        ctx.fillStyle = schemeColors.stemClipboardText; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
         ctx.fillText(qsTr("Clipboard (%1)").arg(clipboardModel.length), layoutRoot.stackX + cbW / 2, cbY + layoutRoot.clipboardHeight / 2)
         hits.push({ kind: "clipboard", path: "", x: layoutRoot.stackX, y: cbY, w: cbW, h: layoutRoot.clipboardHeight })
 
@@ -968,23 +1006,24 @@ ApplicationWindow {
             ctx.beginPath()
             var rad = o.h / 2 * o.big  // square pills; the CWD oval round, growing as one glides into it
             ctx.roundedRect(o.x, o.y, o.w, o.h, rad, rad)
-            var projectColor = o.e.kind === "ctd" ? (_adjustColor(currentProjectColor, 0.72) || "#2f3d60") : "#324663"
-            ctx.fillStyle = o.big > 0.5 ? projectColor : "#324663"
+            var projectColor = o.e.kind === "ctd" ? (_adjustColor(currentProjectColor, 0.72) || schemeColors.stemCurrent) : schemeColors.stemFolder
+            var pillFill = o.big > 0.5 ? projectColor : schemeColors.stemFolder
+            ctx.fillStyle = pillFill
             ctx.fill()
             if (o.e.glow) {
                 glowStroke(ctx, ctx.globalAlpha)  // the CWD: light around it, a bright frame, bold
             } else {
                 ctx.lineWidth = o.big > 0.5 ? 2 : 1
-                ctx.strokeStyle = o.big > 0.5 ? (_adjustColor(currentProjectColor, 1.1) || "#9cb7f0") : "#6d82a8"
+                ctx.strokeStyle = o.big > 0.5 ? (_adjustColor(currentProjectColor, 1.1) || schemeColors.stemCurrentBorder) : schemeColors.stemFolderBorder
                 ctx.setLineDash(o.e.kind === "preview" ? [5, 4] : [])
                 ctx.stroke()
                 ctx.setLineDash([])
             }
-            ctx.fillStyle = "#dbe5ff"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
+            ctx.fillStyle = readableOn(schemeColors.stemText, pillFill); ctx.textAlign = "center"; ctx.textBaseline = "middle"
             ctx.font = (o.big > 0.5 || o.e.glow ? "bold " : "") + (o.big > 0.5 ? "13px " : "12px ") + "sans-serif"
             ctx.fillText(o.e.label, cx, o.cy - (o.big > 0.5 && o.e.sub ? 7 : 0))
             if (o.big > 0.5 && o.e.sub) {
-                ctx.font = "11px sans-serif"; ctx.fillStyle = "#b7c8ef"
+                ctx.font = "11px sans-serif"; ctx.fillStyle = readableOn(schemeColors.stemSubText, pillFill)
                 ctx.fillText(o.e.sub, cx, o.cy + 9)
             }
             ctx.restore()
@@ -1018,9 +1057,9 @@ ApplicationWindow {
         Rectangle {
             anchors.fill: parent
             radius: 12
-            color: "#1f2a3d"
+            color: schemeColors.noticeBack
             border.width: 1
-            border.color: "#5f7297"
+            border.color: schemeColors.noticeBorder
 
             Row {
                 id: noticeRow
@@ -1031,7 +1070,7 @@ ApplicationWindow {
                     id: noticeText
                     anchors.verticalCenter: parent.verticalCenter
                     text: dropNotice.text
-                    color: "#e8efff"
+                    color: schemeColors.noticeText
                     font.pixelSize: 13
                 }
 
@@ -1040,15 +1079,15 @@ ApplicationWindow {
                     width: undoLabel.implicitWidth + 20
                     height: 28
                     radius: 7
-                    color: undoMouse.containsMouse ? "#496a97" : "#2c3f5d"
+                    color: undoMouse.containsMouse ? schemeColors.noticeUndoHover : schemeColors.noticeUndo
                     border.width: 1
-                    border.color: "#9ec2ff"
+                    border.color: schemeColors.noticeUndoBorder
 
                     Text {
                         id: undoLabel
                         anchors.centerIn: parent
                         text: qsTr("Undo")
-                        color: "#e8efff"
+                        color: schemeColors.noticeText
                         font.pixelSize: 12
                     }
 
@@ -1291,7 +1330,7 @@ ApplicationWindow {
                         objectName: "stemPanelTint"
                         anchors.fill: parent
                         radius: 16
-                        color: Qt.rgba(0, 0, 0, 0.35)
+                        color: schemeColors.stemTint
                     }
                 }
 
@@ -1334,7 +1373,7 @@ ApplicationWindow {
                     radius: 10
                     color: "transparent"
                     border.width: 2
-                    border.color: "#e08a1e"
+                    border.color: schemeColors.lensFrame
                     visible: lensInProject
 
                     MouseArea {
@@ -1360,14 +1399,14 @@ ApplicationWindow {
                                 width: 30
                                 height: 30
                                 radius: 7
-                                color: takeOffMouse.containsMouse ? "#5a4a33" : "#3a3328"
+                                color: takeOffMouse.containsMouse ? schemeColors.lensOffHover : schemeColors.lensOff
                                 border.width: 1
-                                border.color: "#e08a1e"
+                                border.color: schemeColors.lensFrame
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: "\u2715"
-                                    color: "#f4e6d2"
+                                    color: schemeColors.lensOffText
                                     font.pixelSize: 13
                                 }
 
@@ -1386,9 +1425,9 @@ ApplicationWindow {
                                     width: parent.width
                                     height: 30
                                     radius: 7
-                                    color: hoveredFrameIndex === index ? "#4a6f7f" : "#355767"
+                                    color: hoveredFrameIndex === index ? schemeColors.lensLevelHover : schemeColors.lensLevel
                                     border.width: index === frameEntries().length - 1 ? 1 : 0
-                                    border.color: "#8cb8c4"
+                                    border.color: schemeColors.lensLevelBorder
 
                                     Text {
                                         anchors.fill: parent
@@ -1396,7 +1435,7 @@ ApplicationWindow {
                                         anchors.rightMargin: 8
                                         verticalAlignment: Text.AlignVCenter
                                         text: String((rowData && rowData.label) ? rowData.label : "")
-                                        color: "#e4f6fb"
+                                        color: schemeColors.lensLevelText
                                         font.pixelSize: 12
                                         font.bold: index === frameEntries().length - 1
                                         elide: Text.ElideRight

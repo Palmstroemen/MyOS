@@ -15,6 +15,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 
 from core.scope_api import ScopeApi
+from core.color_schemes import load_scheme
 from core.settings import Settings
 from daemon.lens_link import LensLink
 
@@ -276,6 +277,15 @@ class SunTreeBackend(QObject):
     def embryoOpacitySetting(self) -> float:
         """How pale embryos are (General, set on the back of Scope), read afresh."""
         return float(Settings().get("General/embryoOpacity"))
+
+    @Slot(result=bool)
+    def darkThemeSetting(self) -> bool:
+        return bool(Settings().get("General/darkTheme"))
+
+    @Slot(result="QVariantMap")
+    def colorScheme(self) -> dict:
+        """The scheme worn, with one's own colours (core/color_schemes.py), read afresh."""
+        return load_scheme("dark" if self.darkThemeSetting() else "light")
 
     @Slot(result=bool)
     def homeIfOutside(self) -> bool:
