@@ -291,6 +291,16 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         [ ] Neu geborene Ordner, denen ACLs.md Rechte gibt: bleiben gesperrt bis zum nächsten `sync` (sicher, aber
             unbequem); später die App selbst ACLs.md lesen lassen oder `sync` nach jeder Geburt
         [ ] Beim Bekannten: ein Team folder, eine Gruppe mit allen Beteiligten, für uns "Manage advanced permissions"
+        [x] MyOS-Ordner in der Files-App (Prototyp, 2026-11-07): eine eigene Zeile über der Dateiliste mit allen
+            MyOS-Ordnern der Ebene beisammen, geborene voll, Embryos blass; Klick auf einen Embryo gebiert ihn; die
+            geborenen verschwinden unten aus der Liste (Filter ohne Schaltfläche), dort bleibt das Eigene. Die Embryos
+            rechnet MyOS (`.MyOS/Embryos.json` am Projekt), der Browser zieht nur das Geborene ab - kein zweites
+            Regelwerk in PHP. Offizielle Schnittstellen von `@nextcloud/files` 3.12 (Header, FileListFilter).
+            Verworfen: blasse Zeilen mitten in der Liste (keine Schnittstelle, der Desktop-Client würde sie als echte
+            Ordner synchronisieren), Embryos als leere echte Ordner
+        [ ] Stufe 2: `sync` schreibt `Embryos.json` und lädt die Vorlagen hoch; Geburt mit Dateien und `.MyOS` der
+            Vorlage; `.MyOS` für alle im Projekt lesbar (sonst sieht, wer nur durchquert, keine Zeile); Embryos nur, wo
+            man anlegen darf; "n hidden" zählt die herausgefilterten mit; Bündel verkleinern
         [ ] Tags: Unsere Tags auf die "Collaborative Tags" (WebDAV `systemtags`) spiegeln
 ### Nice to have
 [ ] Ordner-Organisation neu
