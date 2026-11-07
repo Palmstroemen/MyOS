@@ -75,6 +75,9 @@ def _sync(tmp_path):
     (neu / ".MyOS").mkdir(parents=True)
     (neu / ".MyOS" / "Tags.md").write_text("# Tags\n")
     (neu / "Liesmich.md").write_text("Neu in Familie")
+    # Familie a subproject: myacl sync puts its embryos into Familie/.MyOS.
+    (root / "Familie" / ".MyOS").mkdir(parents=True)
+    (root / "Familie" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     script = Path(__file__).resolve().parents[3] / "cli" / "myacl.py"
     env = {k: v for k, v in os.environ.items() if not k.startswith("MYOS_ACL")}
     env.update(MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD=_passwords()["oliver"],
@@ -154,3 +157,16 @@ def test_a_birth_as_the_browser_does_it_copies_the_template_and_stays_hidden_on_
     status, body = _dav("lisa", "GET", f"Familie/{name}/Liesmich.md")
     assert status == 200 and body == "Neu in Familie"
     assert not _sees("tom", "Familie/", name)
+
+
+def test_who_may_write_a_project_may_not_write_its_rights_and_sync_files(synced):
+    # Lisa may write in Familie (ACLs.md), but only who may change the rights may write
+    # Familie/.MyOS/Embryos.json - else her file would be copied into other people's births.
+    status, body = _dav("lisa", "GET", "Familie/.MyOS/Embryos.json")
+    assert status == 200
+    assert _dav("lisa", "PUT", "Familie/.MyOS/Embryos.json", body=b"{}")[0] == 403
+    assert _dav("lisa", "GET", "Familie/.MyOS/Embryos.json")[1] == body
+    assert _dav("lisa", "DELETE", "Familie/.MyOS/Embryos.json")[0] == 403
+    name = f"Desk-{uuid.uuid4().hex[:6]}.md"  # the rest of .MyOS as in MyOS: her rights
+    assert _dav("lisa", "PUT", f"Familie/.MyOS/{name}", body=b"x")[0] in (201, 204)
+    synced.append(f"Familie/.MyOS/{name}")

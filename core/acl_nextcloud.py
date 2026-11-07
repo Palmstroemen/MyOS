@@ -96,6 +96,7 @@ def plan(
     children: Callable[[str], List[str]],
     base_groups: Iterable[str] = (),
     readable: Iterable[str] = (),
+    protected: Iterable[str] = (),
 ) -> Plan:
     """
     The Nextcloud rules for policy (ACLPolicy.for_tree of the project, whose root is the
@@ -103,7 +104,9 @@ def plan(
     base_groups, the groups the Team folder is given to, get a rule without rights at the
     root, so only the people's own rules let anyone in. readable: paths (with all below)
     everyone with rights in the project may read besides - the embryos the Files app shows
-    (core/cloud_embryos.py); those not there yet are skipped.
+    (core/cloud_embryos.py); those not there yet are skipped. protected: the rights and sync
+    files of .MyOS folders (rights_files): only who may change the rights there (change on that
+    .MyOS/ACLs.md) may write them, everyone else keeps at most read.
     """
     result = Plan()
     rules = _mappable_rules(policy, result.notes)
@@ -117,11 +120,26 @@ def plan(
         if not account:
             result.notes.append(f"{policy.display_name(person)} has no Nextcloud account in # Accounts: no rules")
             continue
-        for path, allowed, way in _person_rules([rules.get(role, []) for role in roles], exists, children, missing, list(readable)):
+        for path, allowed, way in _person_rules([rules.get(role, []) for role in roles], exists, children, missing, list(readable), list(protected)):
             result.rules.append(PlannedRule(path, "user", account, allowed, traverse=way))
     for path in sorted(missing):
         result.notes.append(f"{path} is not there yet: its rules follow when it exists")
     return result
+
+
+# In a .MyOS folder: what manages the rights and the sync (ACLs.md as in MyOS, where change
+# grants writing it; its history, the cloud settings, the embryos myacl sync uploads).
+RIGHTS_FILES = ("ACLs.md", "ACLs-history", "Nextcloud.md", "Embryos.json", "Embryos")
+
+
+def rights_files(paths: Iterable[str]) -> List[str]:
+    """The RIGHTS_FILES among paths (project-relative): entries right inside a .MyOS folder."""
+    found = []
+    for path in paths:
+        parent, _, name = path.rpartition("/")
+        if name in RIGHTS_FILES and parent.rpartition("/")[2] == ".MyOS":
+            found.append(path)
+    return sorted(found)
 
 
 def _mappable_rules(policy: ACLPolicy, notes: List[str]) -> Dict[str, list]:
@@ -155,20 +173,35 @@ def _child(path: str, name: str) -> str:
     return ("" if path == "/" else path) + "/" + name
 
 
+def _below(path: str, top: str) -> bool:
+    return path == top or path.startswith(top + "/")
+
+
 def _person_rules(
     role_rules: List[list], exists, children, missing: Set[str], readable: List[str] = (),
+    protected: List[str] = (),
 ) -> List[Tuple[str, FrozenSet[str], bool]]:
     opened: List[str] = []  # readable paths, once the person has rights at all
 
-    def rights(path: str) -> FrozenSet[str]:
+    def myos_rights(path: str) -> Set[str]:
         key = _normalize_path(path)
         found: Set[str] = set()
         for rules in role_rules:
             for rule in _nearest_rules(rules, key):
                 found |= set(rule.rights)
-        if any(path == top or path.startswith(top + "/") for top in opened):
+        if any(_below(path, top) for top in opened):
             found.add("read")
-        return _nextcloud(found)
+        return found
+
+    def may_change(path: str) -> bool:
+        acls = path.rsplit("/.MyOS/", 1)[0] + "/.MyOS/ACLs.md"
+        return bool({"change", "*"} & myos_rights(acls))
+
+    def rights(path: str) -> FrozenSet[str]:
+        allowed = _nextcloud(myos_rights(path))
+        if any(_below(path, top) and not may_change(top) for top in protected):
+            allowed = allowed & {"read"}
+        return allowed
 
     bases = {"/"}
     for rules in role_rules:
@@ -181,6 +214,7 @@ def _person_rules(
     if any(rights(base) for base in bases):
         opened.extend(path for path in readable if exists(path))
         bases.update(opened)
+        bases.update(path for path in protected if exists(path))
     granted = [base for base in bases if rights(base)]
     walk = set(bases)
     for base in bases:

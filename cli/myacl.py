@@ -13,7 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.acl import ACLPolicy
 from core.acl_enforcement import configured_mode
-from core.acl_nextcloud import BITS, FULL_MASK, NEXTCLOUD_PERMISSIONS, diff, local_tree, plan, read_nextcloud_md, updates
+from core.acl_nextcloud import (BITS, FULL_MASK, NEXTCLOUD_PERMISSIONS, diff, local_tree, plan, read_nextcloud_md,
+                                rights_files, updates)
 from core.acl_view import RIGHTS_ORDER, ACLView
 from core.cloud_embryos import cloud_paths, compare as compare_embryos, embryo_sets, send as send_embryos
 from core.identity import acl_user_for
@@ -207,7 +208,8 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
     embryos = embryo_sets(view.project_root)
     if plan_only:
         exists, children = _with_embryos(*local_tree(view.project_root), embryos)
-        result = plan(policy, accounts, exists, children, base_groups=_groups(settings), readable=_readable(embryos))
+        result = plan(policy, accounts, exists, children, base_groups=_groups(settings), readable=_readable(embryos),
+                      protected=rights_files(_all_paths(children)))
         return _show_plan(view.project_root, result, as_json)
 
     missing = [key for key in ("url", "folder", "group") if not settings.get(key)]
@@ -271,8 +273,19 @@ def _compare(dav, policy, accounts, settings, embryos, embryo_changes):
     tree = dav.tree()
     there = [e for e, c in zip(embryos, embryo_changes) if not c.missing]
     exists, children = _with_embryos(*tree_functions(tree), there)
-    result = plan(policy, accounts, exists, children, base_groups=_groups(settings), readable=_readable(there))
+    result = plan(policy, accounts, exists, children, base_groups=_groups(settings), readable=_readable(there),
+                  protected=rights_files(_all_paths(children)))
     return result, diff(result.rules, tree)
+
+
+def _all_paths(children):
+    """Every path of a tree given by children(path), from the root."""
+    found, pending = [], ["/"]
+    while pending:
+        path = pending.pop()
+        found.append(path)
+        pending.extend(("" if path == "/" else path) + "/" + name for name in children(path))
+    return found
 
 
 def _readable(embryos):

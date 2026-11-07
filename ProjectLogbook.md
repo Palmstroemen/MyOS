@@ -307,9 +307,12 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         [ ] "n hidden" in der Files-App zählt die herausgefilterten MyOS-Ordner mit (so rechnet Nextcloud, ohne
             Eingriff in die Files-App nicht zu ändern)
         [ ] Bündel verkleinern (267 kB, `@nextcloud/files` kommt ganz mit)
-        [ ] Sicherheit: Wer an einem Projektordner schreiben darf, darf in der Cloud auch dessen `.MyOS` schreiben
-            (ACLs.md, Embryos.json, die Vorlagendateien) - für die Cloud ist ACLs.md nicht die Quelle, aber ein
-            Desktop-Client brächte Änderungen zurück; `.MyOS` nur fürs Sync-Konto beschreibbar machen
+        [x] Sicherheit (2026-11-07): Wer an einem Projektordner schreiben durfte, durfte in der Cloud auch dessen
+            `.MyOS` beschreiben - auch `Embryos.json` und die Vorlagendateien, die in fremde Geburten kopiert werden.
+            Jetzt wie in MyOS (`change` erlaubt `ACLs.md` zu schreiben), ausgedehnt auf alles, was Rechte und Sync
+            verwaltet: `ACLs.md`, `ACLs-history`, `Nextcloud.md`, `Embryos.json`, `Embryos/` in jedem `.MyOS` schreibt
+            nur, wer `change` auf dessen `ACLs.md` hat; alle anderen höchstens lesen. Der Rest von `.MyOS` folgt den
+            Regeln wie in MyOS. Integrationstest: ohne Schutz überschreibt Lisa `Familie/.MyOS/Embryos.json`, mit 403
         [ ] Mit Desktop-Client: `Embryos.json` und `.MyOS/Embryos/` kämen auch lokal an (stört nicht, ist aber Ballast)
         [ ] Tags: Unsere Tags auf die "Collaborative Tags" (WebDAV `systemtags`) spiegeln
 ### Nice to have

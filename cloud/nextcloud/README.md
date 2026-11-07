@@ -35,7 +35,9 @@ files and hidden folders of that template level). Born MyOS folders leave the li
 `myacl sync` writes per project `.MyOS/Embryos.json` (the template tree and, per embryo, what
 its birth copies, with a hash per file) and uploads those files to `.MyOS/Embryos/<embryo>/`
 (core/cloud_embryos.py). Everyone with rights in the project may read these two, nothing else
-of `.MyOS`. The browser takes the nearest manifest up the path and copies on the server.
+of `.MyOS`. What manages rights and the sync in any `.MyOS` (`ACLs.md`, `ACLs-history`,
+`Nextcloud.md`, `Embryos.json`, `Embryos/`) may only be written by who has `change` on that
+`ACLs.md` - so the account that syncs needs it too. The browser takes the nearest manifest up the path and copies on the server.
 
 The browser part is `src/main.js`, built to `js/myos_acl-main.js` (committed, so installing
 needs no Node):

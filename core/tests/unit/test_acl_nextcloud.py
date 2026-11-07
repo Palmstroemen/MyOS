@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from core.acl import ACLPolicy
-from core.acl_nextcloud import local_tree, plan, read_nextcloud_md
+from core.acl_nextcloud import local_tree, plan, read_nextcloud_md, rights_files
 
 ACLS = (
     "# Permissions\n\n"
@@ -211,3 +211,55 @@ def test_an_entry_on_the_way_gets_its_own_rule_even_when_it_reads_as_the_way(pro
 
     assert tom["/.MyOS/Embryos.json"] == {"read"}
     assert tom["/.MyOS/Embryos"] == {"read"}
+
+
+# --- .MyOS: what manages rights and the sync, only for who may change the rights ---
+
+def _with_settings(root):
+    myos = root / "Familie" / ".MyOS"
+    (myos / "ACLs-history").mkdir(parents=True)
+    for name in ("ACLs.md", "Nextcloud.md", "Embryos.json", "Desk.md"):
+        (myos / name).write_text("x")
+    (myos / "Embryos" / "Neu").mkdir(parents=True)
+    return root
+
+
+def _protected_rules(root, protected):
+    exists, children = local_tree(root)
+    result = plan(ACLPolicy.for_tree(root), ACCOUNTS, exists, children, protected=protected)
+    return {(r.kind, r.account, r.path): set(r.allowed) for r in result.rules}
+
+
+PROTECTED = ["/Familie/.MyOS/ACLs.md", "/Familie/.MyOS/ACLs-history", "/Familie/.MyOS/Nextcloud.md",
+             "/Familie/.MyOS/Embryos.json", "/Familie/.MyOS/Embryos"]
+
+
+def test_who_may_write_a_folder_may_not_write_the_rights_and_sync_files_of_its_myos(project):
+    rules = _protected_rules(_with_settings(project), PROTECTED)
+    lisa = _of(rules, "lisa")
+
+    for path in PROTECTED:
+        assert _effective(lisa, path) == {"read"}, path
+    assert _effective(lisa, "/Familie/.MyOS/Embryos/Neu") == {"read"}
+    assert _effective(lisa, "/Familie/.MyOS/Desk.md") == {"read", "write", "create"}  # as in MyOS
+
+
+def test_who_may_change_the_rights_keeps_writing_them(project):
+    rules = _protected_rules(_with_settings(project), PROTECTED)
+
+    assert _effective(_of(rules, "oliver"), "/Familie/.MyOS/Embryos.json") == {"read", "write", "create"}
+
+
+def test_protection_gives_no_read_to_who_had_none(project):
+    rules = _protected_rules(_with_settings(project), PROTECTED)
+
+    assert _effective(_of(rules, "tom"), "/Familie/.MyOS/ACLs.md") == set()
+    assert ("user", "paul", "/Familie/.MyOS/ACLs.md") not in rules
+
+
+def test_rights_files_finds_them_in_every_myos_folder():
+    paths = ["/", "/.MyOS", "/.MyOS/ACLs.md", "/.MyOS/Desk.md", "/Haus/.MyOS/Embryos", "/Haus/.MyOS/Embryos/Neu",
+             "/Haus/ACLs.md", "/Haus/.MyOS/ACLs-history", "/Haus/.MyOS/Nextcloud.md", "/x/.MyOS/Embryos.json"]
+
+    assert rights_files(paths) == ["/.MyOS/ACLs.md", "/Haus/.MyOS/ACLs-history", "/Haus/.MyOS/Embryos",
+                                   "/Haus/.MyOS/Nextcloud.md", "/x/.MyOS/Embryos.json"]
