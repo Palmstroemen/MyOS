@@ -15,6 +15,7 @@ from core.acl import ACLPolicy
 from core.acl_enforcement import configured_mode
 from core.acl_nextcloud import BITS, FULL_MASK, NEXTCLOUD_PERMISSIONS, diff, local_tree, plan, read_nextcloud_md, updates
 from core.acl_view import RIGHTS_ORDER, ACLView
+from core.cloud_embryos import cloud_paths, compare as compare_embryos, embryo_sets, send as send_embryos
 from core.identity import acl_user_for
 from core.nextcloud_dav import NextcloudDAV, NextcloudError, tree_functions
 
@@ -203,9 +204,10 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
         raise _Refused(f"{settings_file} is missing (# Nextcloud: url, folder, group; # Accounts: person: account)")
     settings, accounts = read_nextcloud_md(settings_file)
     policy = ACLPolicy.for_tree(view.project_root)
+    embryos = embryo_sets(view.project_root)
     if plan_only:
-        exists, children = local_tree(view.project_root)
-        result = plan(policy, accounts, exists, children, base_groups=_groups(settings))
+        exists, children = _with_embryos(*local_tree(view.project_root), embryos)
+        result = plan(policy, accounts, exists, children, base_groups=_groups(settings), readable=_readable(embryos))
         return _show_plan(view.project_root, result, as_json)
 
     missing = [key for key in ("url", "folder", "group") if not settings.get(key)]
@@ -218,33 +220,44 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
         raise _Refused("set MYOS_NEXTCLOUD_USER and MYOS_NEXTCLOUD_PASSWORD (best an app password) for the login")
     dav = NextcloudDAV(settings["url"], user, password, settings["folder"])
     try:
-        result, changes = _compare(dav, policy, accounts, settings)
+        embryo_changes = compare_embryos(embryos, dav)
+        result, changes = _compare(dav, policy, accounts, settings, embryos, embryo_changes)
     except NextcloudError as exc:
         raise _Refused(str(exc)) from exc
+    pending = [c for c in embryo_changes if c.manifest_changed or c.upload or c.remove]
     if as_json:
         rows = [{"path": c.path, "kind": c.kind, "account": c.account,
                  "before": None if c.before is None else {"mask": c.before.mask, "permissions": c.before.permissions},
                  "after": None if c.after is None else _nextcloud_order(c.after)} for c in changes]
-        print(json.dumps({"changes": rows, "notes": result.notes}, indent=2, ensure_ascii=False))
+        embryo_rows = [{"project": c.project, "missing": c.missing, "manifest": c.manifest_changed,
+                        "upload": c.upload, "remove": c.remove} for c in embryo_changes]
+        print(json.dumps({"changes": rows, "embryos": embryo_rows, "notes": result.notes}, indent=2, ensure_ascii=False))
         return 0
-    sent = "nothing sent (--dry-run)" if dry_run else ("in sync" if not changes else "to send")
+    sent = "nothing sent (--dry-run)" if dry_run else ("in sync" if not (changes or pending) else "to send")
     print(f"{settings['url']}  {settings['folder']}  (as {user}): {len(changes)} change(s), {sent}")
+    _print_embryo_changes(embryo_changes)
     _print_changes(changes)
     _print_notes(result.notes)
-    if dry_run or not changes:
+    if dry_run or not (changes or pending):
         return 0
     if not yes:
         if not sys.stdin.isatty():
             raise _Refused("not sent: confirm with --yes when there is no terminal to ask")
-        if input(f"\nSend these {len(changes)} change(s) to {settings['url']}? [y/N] ").strip().lower() not in ("y", "yes", "j", "ja"):
+        if input(f"\nSend this to {settings['url']}? [y/N] ").strip().lower() not in ("y", "yes", "j", "ja"):
             print("Nothing sent.")
             return 1
     try:
+        # The embryos first: their rules (readable for everyone in the project) need them there.
+        by_path = {e.path: e for e in embryos}
+        for change in pending:
+            send_embryos(by_path[change.project], change, dav)
+        embryo_changes = compare_embryos(embryos, dav)
+        result, changes = _compare(dav, policy, accounts, settings, embryos, embryo_changes)
         for rule_path, rules in updates(result.rules, changes):
             dav.set_rules(rule_path, rules)
-        _result, left = _compare(dav, policy, accounts, settings)
+        _result, left = _compare(dav, policy, accounts, settings, embryos, embryo_changes)
     except NextcloudError as exc:
-        raise _Refused(f"{exc} (rules of deeper paths may already be sent; run again)") from exc
+        raise _Refused(f"{exc} (part of it may already be sent; run again)") from exc
     if left:
         print(f"\nSent, but {len(left)} change(s) are still open:")
         _print_changes(left)
@@ -253,12 +266,45 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
     return 0
 
 
-def _compare(dav, policy, accounts, settings):
-    """(plan, changes) for the Team folder as it is now."""
+def _compare(dav, policy, accounts, settings, embryos, embryo_changes):
+    """(plan, changes) for the Team folder as it is now, with the embryos as they will be."""
     tree = dav.tree()
-    exists, children = tree_functions(tree)
-    result = plan(policy, accounts, exists, children, base_groups=_groups(settings))
+    there = [e for e, c in zip(embryos, embryo_changes) if not c.missing]
+    exists, children = _with_embryos(*tree_functions(tree), there)
+    result = plan(policy, accounts, exists, children, base_groups=_groups(settings), readable=_readable(there))
     return result, diff(result.rules, tree)
+
+
+def _readable(embryos):
+    """What everyone with rights in the project may read: each project's embryos."""
+    return [path for e in embryos for path in cloud_paths(e)[1:3]]
+
+
+def _with_embryos(exists, children, embryos):
+    """exists and children as they are once the embryos are uploaded."""
+    added = {path for e in embryos for path in cloud_paths(e)}
+    kids = {}
+    for path in added:
+        parent, _, name = path.rpartition("/")
+        kids.setdefault(parent or "/", set()).add(name)
+
+    def with_exists(path):
+        return path in added or exists(path)
+
+    def with_children(path):
+        return sorted(set(children(path)) | kids.get(path, set()))
+
+    return with_exists, with_children
+
+
+def _print_embryo_changes(embryo_changes) -> None:
+    for c in embryo_changes:
+        if c.missing:
+            print(f"Embryos of {c.project}: the folder is not in the cloud yet, left out")
+        elif c.manifest_changed or c.upload or c.remove:
+            parts = (["Embryos.json"] if c.manifest_changed else []) + \
+                    ([f"{len(c.upload)} file(s) up"] if c.upload else []) + ([f"{len(c.remove)} removed"] if c.remove else [])
+            print(f"Embryos of {c.project}: {', '.join(parts)}")
 
 
 def _print_changes(changes) -> None:

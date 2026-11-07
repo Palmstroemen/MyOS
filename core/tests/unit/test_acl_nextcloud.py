@@ -154,3 +154,60 @@ def test_a_way_rule_leaves_share_to_be_inherited(project):
 
     assert TRAVERSE_MASK == 15
     assert mask_of(rules[("tom", "/Familie")]) == 15 and mask_of(rules[("tom", "/Familie/Kind")]) == 31
+
+
+# --- the embryos: readable for everyone with rights in the project ---
+
+EMBRYOS = ("/.MyOS/Embryos.json", "/.MyOS/Embryos")
+
+
+def _with_embryos(root):
+    (root / ".MyOS" / "Embryos.json").write_text("{}")
+    (root / ".MyOS" / "Embryos" / "04_Finanz").mkdir(parents=True)
+    (root / ".MyOS" / "Embryos" / "04_Finanz" / "Liesmich.md").write_text("x")
+    return root
+
+
+def _readable_rules(root, readable):
+    exists, children = local_tree(root)
+    result = plan(ACLPolicy.for_tree(root), ACCOUNTS, exists, children, readable=readable)
+    return {(r.kind, r.account, r.path): set(r.allowed) for r in result.rules}, result.notes
+
+
+def test_who_works_deep_down_may_read_the_embryos_but_nothing_else_in_myos(project):
+    rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
+    tom = _of(rules, "tom")
+
+    assert _effective(tom, "/.MyOS/Embryos.json") == {"read"}
+    assert _effective(tom, "/.MyOS/Embryos/04_Finanz/Liesmich.md") == {"read"}
+    assert _effective(tom, "/.MyOS") == {"read"}  # on the way
+    assert _effective(tom, "/.MyOS/ACLs.md") == set()
+    assert _effective(tom, "/.MyOS/Project.md") == set()
+
+
+def test_reading_the_embryos_adds_no_write(project):
+    rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
+
+    assert _effective(_of(rules, "lisa"), "/.MyOS/Embryos.json") == {"read"}
+    assert _effective(_of(rules, "oliver"), "/.MyOS/Embryos.json") == {"read", "write", "create"}
+
+
+def test_who_has_no_rights_in_the_project_does_not_see_the_embryos(project):
+    rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
+
+    assert _effective(_of(rules, "paul"), "/.MyOS/Embryos.json") == set()
+
+
+def test_embryos_not_there_yet_are_no_note(project):
+    _rules_found, notes = _readable_rules(project, EMBRYOS)
+
+    assert not any("Embryos" in note for note in notes)
+
+
+def test_an_entry_on_the_way_gets_its_own_rule_even_when_it_reads_as_the_way(project):
+    # The app locks what is new below a rule on the way; a rule of its own keeps its read.
+    rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
+    tom = _of(rules, "tom")
+
+    assert tom["/.MyOS/Embryos.json"] == {"read"}
+    assert tom["/.MyOS/Embryos"] == {"read"}

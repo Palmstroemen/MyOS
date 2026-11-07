@@ -69,6 +69,12 @@ def _sync(tmp_path):
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "ACLs.md").write_text(ACLS)
     (root / ".MyOS" / "Nextcloud.md").write_text(NEXTCLOUD_MD)
+    # A template: Familie (there) with the embryo Neu, whose birth copies Liesmich.md and .MyOS.
+    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    neu = root / "Templates" / "Standard" / "Familie" / "Neu"
+    (neu / ".MyOS").mkdir(parents=True)
+    (neu / ".MyOS" / "Tags.md").write_text("# Tags\n")
+    (neu / "Liesmich.md").write_text("Neu in Familie")
     script = Path(__file__).resolve().parents[3] / "cli" / "myacl.py"
     env = {k: v for k, v in os.environ.items() if not k.startswith("MYOS_ACL")}
     env.update(MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD=_passwords()["oliver"],
@@ -123,3 +129,28 @@ def test_moved_and_copied_entries_stay_hidden(synced):
     for user in ("tom", "anna"):
         assert not _sees(user, "Familie/", moved) and not _sees(user, "Familie/", copied)
     assert _sees("lisa", "Familie/", moved)
+
+
+def test_the_embryos_are_readable_for_who_only_passes_but_the_rest_of_myos_is_not(synced):
+    status, body = _dav("tom", "GET", ".MyOS/Embryos.json")
+    assert status == 200 and '"Neu"' in body
+    assert _dav("tom", "GET", ".MyOS/Embryos/Familie/Neu/Liesmich.md")[0] == 200
+    for secret in (".MyOS/ACLs.md", ".MyOS/Nextcloud.md", ".MyOS/Project.md"):
+        assert _dav("tom", "GET", secret)[0] == 404, secret
+    assert _dav("karl", "GET", ".MyOS/Embryos.json")[0] == 200
+
+
+def test_a_birth_as_the_browser_does_it_copies_the_template_and_stays_hidden_on_the_way(synced):
+    # What src/main.js does: MKCOL the folder and its hidden folders, COPY the files.
+    name = f"Neu-{uuid.uuid4().hex[:6]}"  # a fresh name; the copy is what counts
+    assert _dav("lisa", "MKCOL", f"Familie/{name}")[0] == 201
+    synced.append(f"Familie/{name}")
+    assert _dav("lisa", "MKCOL", f"Familie/{name}/.MyOS")[0] == 201
+    destination = f"{URL}/remote.php/dav/files/lisa/Projekte/Familie/{name}/"
+    for rel in ("Liesmich.md", ".MyOS/Tags.md"):
+        status = _dav("lisa", "COPY", f".MyOS/Embryos/Familie/Neu/{rel}", {"Destination": destination + rel})[0]
+        assert status in (201, 204), rel
+
+    status, body = _dav("lisa", "GET", f"Familie/{name}/Liesmich.md")
+    assert status == 200 and body == "Neu in Familie"
+    assert not _sees("tom", "Familie/", name)

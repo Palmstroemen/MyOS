@@ -201,3 +201,16 @@ def test_the_plan_marks_rules_on_the_way(tmp_path):
     rows = [line.split(None, 3) for line in _run(["sync", "--plan", str(root)], tmp_path).stdout.splitlines()]
 
     assert ["/", "user", "anna", "read (way)"] in rows
+
+
+def test_the_plan_lets_everyone_in_the_project_read_the_embryos(tmp_path):
+    root = _setup(tmp_path)
+    _nextcloud_md(root)
+
+    rows = [line.split(None, 3) for line in _run(["sync", "--plan", str(root)], tmp_path).stdout.splitlines()]
+
+    assert ["/.MyOS", "user", "anna", "read (way)"] in rows
+    assert ["/.MyOS/Embryos.json", "user", "anna", "read"] in rows
+    assert ["/.MyOS/Embryos", "user", "anna", "read"] in rows
+    assert ["/.MyOS/ACLs.md", "user", "anna", "-"] in rows
+    assert ["/Familie/.MyOS/Embryos.json", "user", "anna", "read"] in rows

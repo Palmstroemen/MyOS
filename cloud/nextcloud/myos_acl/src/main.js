@@ -3,52 +3,66 @@
  * current folder, always together - born ones in full colour, embryos (suggested, not yet
  * created) pale. The born ones leave the list below, so it holds what the user made.
  *
- * Which folders a level suggests comes from .MyOS/Embryos.json at the project root (written
- * by MyOS, the one place that resolves templates): {"version": 1, "tree": {name: subtree}}.
- * The nearest one up the path governs, as a subproject's own does.
+ * Which folders a level suggests, and what a birth copies, comes from .MyOS/Embryos.json at
+ * the project root, written by myacl sync (core/cloud_embryos.py: MyOS is the one place that
+ * resolves templates): {"version": 1, "tree": {name: subtree}, "births": {embryo: {"dirs":
+ * [...], "files": {file: sha256}}}}, the files below .MyOS/Embryos/<embryo>/. The nearest one
+ * up the path governs, as a subproject's own does.
  */
-import { getRequestToken } from '@nextcloud/auth'
-import { FileListFilter, Header, registerFileListFilter, registerFileListHeaders } from '@nextcloud/files'
+import { getCurrentUser, getRequestToken } from '@nextcloud/auth'
+import { FileListFilter, Header, Permission, registerFileListFilter, registerFileListHeaders } from '@nextcloud/files'
 import { t } from '@nextcloud/l10n'
+import { generateRemoteUrl } from '@nextcloud/router'
 
 const APP = 'myos_acl'
 const EMBRYO_OPACITY = 0.4 // as Scope's default for suggested folders
 
-// The folder shown and what MyOS says about it.
-const state = { folder: null, names: [], born: new Set(), el: null }
-const manifests = new Map() // DAV URL of a folder -> Promise of its tree, or null
+// The folder shown and what MyOS says about it: its project (DAV URL) and its path there.
+const state = { folder: null, level: null, born: new Set(), el: null }
+const manifests = new Map() // DAV URL of a folder -> Promise of its manifest, or null
 
-function manifest(source) {
-	if (!manifests.has(source)) {
-		manifests.set(source, fetch(source + '/.MyOS/Embryos.json', {
-			headers: { requesttoken: getRequestToken() ?? '' },
-			credentials: 'same-origin',
-		}).then(response => response.ok ? response.json() : null)
-			.then(data => (data && data.version === 1 && typeof data.tree === 'object') ? data.tree : null)
-			.catch(() => null))
-	}
-	return manifests.get(source)
+function davUrl(path) {
+	const root = generateRemoteUrl('dav/files/' + encodeURIComponent(getCurrentUser().uid))
+	return root.replace(/\/$/, '') + path.split('/').filter(Boolean).map(p => '/' + encodeURIComponent(p)).join('')
 }
 
-/** The names of the MyOS folders of folder: the children of its node in the nearest tree. */
-async function myosNames(folder) {
-	const userRoot = folder.source.slice(0, folder.source.length - folder.path.length).replace(/\/$/, '')
+function dav(method, url, headers = {}) {
+	return fetch(url, { method, headers: { requesttoken: getRequestToken() ?? '', ...headers }, credentials: 'same-origin' })
+}
+
+function manifest(url) {
+	if (!manifests.has(url)) {
+		manifests.set(url, dav('GET', url + '/.MyOS/Embryos.json')
+			.then(response => response.ok ? response.json() : null)
+			.then(data => (data && data.version === 1 && typeof data.tree === 'object') ? data : null)
+			.catch(() => null))
+	}
+	return manifests.get(url)
+}
+
+/**
+ * The MyOS level of folder: {project, rel, names, births} - the nearest manifest up the path,
+ * folder's path below that project, and the names of its node in the tree; null outside.
+ */
+async function myosLevel(folder) {
 	const parts = folder.path.split('/').filter(Boolean)
 	for (let depth = parts.length; depth >= 0; depth--) {
-		const base = userRoot + parts.slice(0, depth).map(p => '/' + encodeURIComponent(p)).join('')
-		const tree = await manifest(base)
-		if (!tree) {
+		const project = davUrl(parts.slice(0, depth).join('/'))
+		const data = await manifest(project)
+		if (!data) {
 			continue
 		}
-		let node = tree
-		for (const part of parts.slice(depth)) {
+		const below = parts.slice(depth)
+		let node = data.tree
+		for (const part of below) {
 			node = node?.[part]
 		}
-		return node && typeof node === 'object'
+		const names = node && typeof node === 'object'
 			? Object.keys(node).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 			: []
+		return { project, rel: below.join('/'), names, births: data.births ?? {} }
 	}
-	return []
+	return null
 }
 
 const style = `
@@ -66,22 +80,40 @@ const style = `
 const folderIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>'
 
 function childPath(name) {
-	return (state.folder.path.replace(/\/$/, '') + '/' + name)
+	return state.folder.path.replace(/\/$/, '') + '/' + name
 }
 
 function open(name) {
 	window.OCP.Files.Router.goToRoute(null, { view: 'files' }, { dir: childPath(name) })
 }
 
-/** Prototype birth: the folder only; the template's files and .MyOS come with the next step. */
+async function must(response, what) {
+	if (!response.ok && response.status !== 405) { // 405: the folder is there already
+		throw new Error(`${what}: ${response.status}`)
+	}
+}
+
+/**
+ * Birth as in MyOS (BirthClinic): the folder, then what the template holds on that level -
+ * its files and hidden folders such as .MyOS - copied on the server from the project's
+ * .MyOS/Embryos/<embryo>/. Visible subfolders stay embryos.
+ */
 async function birth(name) {
-	const response = await fetch(state.folder.source.replace(/\/$/, '') + '/' + encodeURIComponent(name), {
-		method: 'MKCOL',
-		headers: { requesttoken: getRequestToken() ?? '' },
-		credentials: 'same-origin',
-	})
-	if (!response.ok) {
-		throw new Error(`MKCOL ${name}: ${response.status}`)
+	const { project, rel, births } = state.level
+	const embryo = rel ? `${rel}/${name}` : name
+	const target = davUrl(childPath(name))
+	await must(await dav('MKCOL', target), `MKCOL ${name}`)
+	const { dirs = [], files = {} } = births[embryo] ?? {}
+	const encoded = path => path.split('/').map(encodeURIComponent).join('/')
+	for (const dir of dirs) {
+		await must(await dav('MKCOL', `${target}/${encoded(dir)}`), `MKCOL ${dir}`)
+	}
+	const source = `${project}/.MyOS/Embryos/${encoded(embryo)}`
+	for (const file of Object.keys(files)) {
+		await must(await dav('COPY', `${source}/${encoded(file)}`, {
+			Destination: `${target}/${encoded(file)}`,
+			Overwrite: 'F',
+		}), `COPY ${file}`)
 	}
 	open(name)
 }
@@ -92,14 +124,17 @@ function render() {
 		return
 	}
 	el.replaceChildren()
-	if (state.names.length === 0) {
+	// Embryos only where one may create (as Scope with ACLs enforced); the born ones always.
+	const mayCreate = Boolean(state.folder.permissions & Permission.CREATE)
+	const names = (state.level?.names ?? []).filter(name => mayCreate || state.born.has(name))
+	if (names.length === 0) {
 		return
 	}
 	const label = document.createElement('span')
 	label.className = 'myos-row__label'
 	label.textContent = t(APP, 'MyOS folders')
 	el.append(label)
-	for (const name of state.names) {
+	for (const name of names) {
 		const born = state.born.has(name)
 		const button = document.createElement('button')
 		button.type = 'button'
@@ -114,11 +149,11 @@ function render() {
 
 async function show(folder) {
 	state.folder = folder
-	state.names = []
+	state.level = null
 	render()
-	const names = await myosNames(folder)
+	const level = await myosLevel(folder)
 	if (state.folder === folder) {
-		state.names = names
+		state.level = level
 		render()
 		filter.changed()
 	}
@@ -136,7 +171,7 @@ class MyOSFolders extends FileListFilter {
 			return nodes
 		}
 		const here = nodes.filter(node => node.dirname === folder.path && node.type === 'folder').map(node => node.basename)
-		const born = new Set(here.filter(name => state.names.includes(name)))
+		const born = new Set(here.filter(name => state.level?.names.includes(name)))
 		if (born.size !== state.born.size || [...born].some(name => !state.born.has(name))) {
 			state.born = born
 			render()

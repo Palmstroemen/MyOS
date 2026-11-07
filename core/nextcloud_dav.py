@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote
 from xml.sax.saxutils import escape
 
@@ -109,6 +109,46 @@ class NextcloudDAV:
                 why = " ".join((t or "").strip() for t in (
                     root.findtext(f".//{_DAV}responsedescription"), root.findtext(".//{http://sabredav.org/ns}message")) if t)
                 raise NextcloudError(f"Nextcloud refused the rules of {path}: {why or line.strip()}")
+
+    # Files (paths relative to the Team folder), for the embryos myacl sync uploads.
+
+    def get(self, path: str) -> Optional[bytes]:
+        """A file's content, or None when it is not there."""
+        status, body = self._call("GET", path)
+        if status == 404:
+            return None
+        self._check(status, (200,), "GET", path)
+        return body
+
+    def exists(self, path: str) -> bool:
+        status, _body = self._call("PROPFIND", path, b"", {"Depth": "0"})
+        if status == 404:
+            return False
+        self._check(status, (207,), "PROPFIND", path)
+        return True
+
+    def put(self, path: str, data: bytes) -> None:
+        status, _body = self._call("PUT", path, data)
+        self._check(status, (200, 201, 204), "PUT", path)
+
+    def mkcol(self, path: str) -> None:
+        """Create the folder path; one that is there already is fine (405)."""
+        status, _body = self._call("MKCOL", path)
+        self._check(status, (201, 405), "MKCOL", path)
+
+    def delete(self, path: str) -> None:
+        """Delete path; one that is gone already is fine (404)."""
+        status, _body = self._call("DELETE", path)
+        self._check(status, (204, 404), "DELETE", path)
+
+    def _call(self, method: str, path: str, body: bytes = b"", headers: Optional[Dict[str, str]] = None):
+        return self._transport(method, self.url + self._dav_path(path), body, headers or {}, self._auth)
+
+    def _check(self, status: int, good, method: str, path: str) -> None:
+        if status == 401:
+            raise NextcloudError(f"Nextcloud refused the login of {self.user} (app password?)")
+        if status not in good:
+            raise NextcloudError(f"Nextcloud answered {status} to {method} {path}")
 
     def _dav_path(self, path: str) -> str:
         return self._base + "".join("/" + quote(p) for p in path.split("/") if p)

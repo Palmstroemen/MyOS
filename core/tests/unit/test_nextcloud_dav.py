@@ -189,3 +189,57 @@ def test_a_rule_with_the_wrong_mask_is_a_change():
     planned = [PlannedRule("/Familie/Kind", "user", "tom", frozenset({"read", "write", "create"}), traverse=True)]
 
     assert ("/Familie/Kind", "user", "tom") in {(c.path, c.kind, c.account) for c in diff(planned, tree)}
+
+
+# --- files (the embryos of myacl sync) ---
+
+def _files_transport(answers, calls):
+    def request(method, url, body, headers, auth):
+        path = url.split("8081", 1)[1]
+        calls.append((method, path, body, headers.get("Overwrite")))
+        return answers.get((method, path), (404, b""))
+
+    return request
+
+
+def _files_dav(answers, calls):
+    return NextcloudDAV("http://localhost:8081", "oliver", "secret", "Projekte",
+                        transport=_files_transport(answers, calls))
+
+
+def test_get_returns_the_content_or_none():
+    calls = []
+    dav = _files_dav({("GET", BASE + "/.MyOS/Embryos.json"): (200, b"{}")}, calls)
+
+    assert dav.get("/.MyOS/Embryos.json") == b"{}"
+    assert dav.get("/.MyOS/fehlt.json") is None
+
+
+def test_put_mkcol_and_delete_accept_what_nextcloud_answers():
+    calls = []
+    dav = _files_dav({
+        ("PUT", BASE + "/" + quote("Für Tom.md")): (201, b""),
+        ("MKCOL", BASE + "/.MyOS"): (405, b""),  # already there
+        ("DELETE", BASE + "/alt.md"): (204, b""),
+    }, calls)
+
+    dav.put("/Für Tom.md", b"x")
+    dav.mkcol("/.MyOS")
+    dav.delete("/alt.md")
+    dav.delete("/schon-weg.md")  # 404: gone already
+
+    assert calls[0] == ("PUT", BASE + "/" + quote("Für Tom.md"), b"x", None)
+
+
+def test_a_refused_put_says_so():
+    dav = _files_dav({("PUT", BASE + "/x.md"): (403, b"")}, [])
+
+    with pytest.raises(NextcloudError, match="403"):
+        dav.put("/x.md", b"x")
+
+
+def test_exists_asks_the_cloud_for_the_entry():
+    dav = _files_dav({("PROPFIND", BASE + "/Haus"): (207, _multistatus(_response(BASE + "/Haus/", True)))}, [])
+
+    assert dav.exists("/Haus")
+    assert not dav.exists("/Garten")

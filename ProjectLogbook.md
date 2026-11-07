@@ -298,9 +298,19 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             Regelwerk in PHP. Offizielle Schnittstellen von `@nextcloud/files` 3.12 (Header, FileListFilter).
             Verworfen: blasse Zeilen mitten in der Liste (keine Schnittstelle, der Desktop-Client würde sie als echte
             Ordner synchronisieren), Embryos als leere echte Ordner
-        [ ] Stufe 2: `sync` schreibt `Embryos.json` und lädt die Vorlagen hoch; Geburt mit Dateien und `.MyOS` der
-            Vorlage; `.MyOS` für alle im Projekt lesbar (sonst sieht, wer nur durchquert, keine Zeile); Embryos nur, wo
-            man anlegen darf; "n hidden" zählt die herausgefilterten mit; Bündel verkleinern
+        [x] Stufe 2 (2026-11-07): `myacl sync` schreibt pro Projekt `.MyOS/Embryos.json` (Baum, pro Embryo was die
+            Geburt kopiert, mit Hash) und lädt diese Dateien nach `.MyOS/Embryos/<Embryo>/` (core/cloud_embryos.py;
+            nur Geändertes, Entfallenes geht). Wer im Projekt etwas darf, darf beides lesen, sonst nichts in `.MyOS`
+            (`plan(readable=...)`; jeder Eintrag unter einer Wegregel bekommt jetzt eine eigene Regel). Geburt im
+            Browser wie in MyOS: Ordner, versteckte Ordner, Dateien per `COPY`; Embryos nur, wo man anlegen darf.
+            Integrationstest und Browser auf der Testinstanz grün
+        [ ] "n hidden" in der Files-App zählt die herausgefilterten MyOS-Ordner mit (so rechnet Nextcloud, ohne
+            Eingriff in die Files-App nicht zu ändern)
+        [ ] Bündel verkleinern (267 kB, `@nextcloud/files` kommt ganz mit)
+        [ ] Sicherheit: Wer an einem Projektordner schreiben darf, darf in der Cloud auch dessen `.MyOS` schreiben
+            (ACLs.md, Embryos.json, die Vorlagendateien) - für die Cloud ist ACLs.md nicht die Quelle, aber ein
+            Desktop-Client brächte Änderungen zurück; `.MyOS` nur fürs Sync-Konto beschreibbar machen
+        [ ] Mit Desktop-Client: `Embryos.json` und `.MyOS/Embryos/` kämen auch lokal an (stört nicht, ist aber Ballast)
         [ ] Tags: Unsere Tags auf die "Collaborative Tags" (WebDAV `systemtags`) spiegeln
 ### Nice to have
 [ ] Ordner-Organisation neu

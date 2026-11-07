@@ -95,12 +95,15 @@ def plan(
     exists: Callable[[str], bool],
     children: Callable[[str], List[str]],
     base_groups: Iterable[str] = (),
+    readable: Iterable[str] = (),
 ) -> Plan:
     """
     The Nextcloud rules for policy (ACLPolicy.for_tree of the project, whose root is the
     Team folder's root): per person with an account, rules only where their rights change.
     base_groups, the groups the Team folder is given to, get a rule without rights at the
-    root, so only the people's own rules let anyone in.
+    root, so only the people's own rules let anyone in. readable: paths (with all below)
+    everyone with rights in the project may read besides - the embryos the Files app shows
+    (core/cloud_embryos.py); those not there yet are skipped.
     """
     result = Plan()
     rules = _mappable_rules(policy, result.notes)
@@ -114,7 +117,7 @@ def plan(
         if not account:
             result.notes.append(f"{policy.display_name(person)} has no Nextcloud account in # Accounts: no rules")
             continue
-        for path, allowed, way in _person_rules([rules.get(role, []) for role in roles], exists, children, missing):
+        for path, allowed, way in _person_rules([rules.get(role, []) for role in roles], exists, children, missing, list(readable)):
             result.rules.append(PlannedRule(path, "user", account, allowed, traverse=way))
     for path in sorted(missing):
         result.notes.append(f"{path} is not there yet: its rules follow when it exists")
@@ -152,13 +155,19 @@ def _child(path: str, name: str) -> str:
     return ("" if path == "/" else path) + "/" + name
 
 
-def _person_rules(role_rules: List[list], exists, children, missing: Set[str]) -> List[Tuple[str, FrozenSet[str], bool]]:
+def _person_rules(
+    role_rules: List[list], exists, children, missing: Set[str], readable: List[str] = (),
+) -> List[Tuple[str, FrozenSet[str], bool]]:
+    opened: List[str] = []  # readable paths, once the person has rights at all
+
     def rights(path: str) -> FrozenSet[str]:
         key = _normalize_path(path)
         found: Set[str] = set()
         for rules in role_rules:
             for rule in _nearest_rules(rules, key):
                 found |= set(rule.rights)
+        if any(path == top or path.startswith(top + "/") for top in opened):
+            found.add("read")
         return _nextcloud(found)
 
     bases = {"/"}
@@ -169,6 +178,9 @@ def _person_rules(role_rules: List[list], exists, children, missing: Set[str]) -
                 bases.add(base)
             else:
                 missing.add(base)
+    if any(rights(base) for base in bases):
+        opened.extend(path for path in readable if exists(path))
+        bases.update(opened)
     granted = [base for base in bases if rights(base)]
     walk = set(bases)
     for base in bases:
@@ -183,7 +195,8 @@ def _person_rules(role_rules: List[list], exists, children, missing: Set[str]) -
         own = rights(path) | ({"read"} if path in traverse else set())
         target[path] = frozenset(own)
         parent = _parents(path)[-1] if path != "/" else None
-        if parent is None or path in traverse or target[path] != target[parent]:
+        # Below a rule on the way every entry gets its own: the server app locks what is new there.
+        if parent is None or path in traverse or parent in traverse or target[path] != target[parent]:
             planned.append((path, target[path], path in traverse))
     return planned
 

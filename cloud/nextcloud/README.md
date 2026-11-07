@@ -25,13 +25,17 @@ Needs the Team folders app (groupfolders). Tested with Nextcloud 32 and Team fol
 `tests/test_myos_acl_app.py` runs against a test instance only (it changes the Team folder's
 rules); see its docstring. Without `MYOS_NC_TEST_URL` it is skipped.
 
-## The row of MyOS folders (prototype)
+## The row of MyOS folders
 
 Above the file list the app shows the MyOS folders of the current folder, born ones in full
-colour, embryos pale; clicking an embryo creates it. Born MyOS folders leave the list below.
-Which folders a level suggests comes from `.MyOS/Embryos.json` at the project root
-(`{"version": 1, "tree": {name: subtree}}`, computed by MyOS); the nearest one up the path
-governs.
+colour, embryos pale; clicking an embryo gives birth to it as MyOS does (the folder, then the
+files and hidden folders of that template level). Born MyOS folders leave the list below
+(Nextcloud counts them as "hidden" there). Embryos show only where one may create.
+
+`myacl sync` writes per project `.MyOS/Embryos.json` (the template tree and, per embryo, what
+its birth copies, with a hash per file) and uploads those files to `.MyOS/Embryos/<embryo>/`
+(core/cloud_embryos.py). Everyone with rights in the project may read these two, nothing else
+of `.MyOS`. The browser takes the nearest manifest up the path and copies on the server.
 
 The browser part is `src/main.js`, built to `js/myos_acl-main.js` (committed, so installing
 needs no Node):
