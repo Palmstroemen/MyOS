@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-10-20
 **Phase:** MVP implementation with focus on stable core flows
-**Active branch:** `exp/core-line-no-learning` (well ahead of `main`)
+**Active branch:** `main` (`exp/core-line-no-learning` fast-forwarded into it on 2026-11-07)
 
 ## Summary
 
