@@ -118,3 +118,50 @@ def test_with_enforcement_only_who_may_read_the_acls_sees_them(tmp_path):
 
     assert anna.returncode == 2 and "may not see" in anna.stderr
     assert oliver.returncode == 0 and "Buchhaltung" in oliver.stdout
+
+
+def _nextcloud_md(root: Path) -> None:
+    (root / ".MyOS" / "Nextcloud.md").write_text(
+        "# Nextcloud\nurl: http://localhost:8081\ngroup: Projekte\n\n# Accounts\nOliver: oliver\nAnna: anna\n"
+    )
+
+
+def test_sync_plan_shows_the_nextcloud_rules(tmp_path):
+    root = _setup(tmp_path)
+    _nextcloud_md(root)
+
+    result = _run(["sync", "--plan", str(root)], tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    rows = [line.split(None, 3) for line in result.stdout.splitlines()]
+    assert ["/", "group", "Projekte", "-"] in rows
+    assert ["/", "user", "oliver", "read, write, create"] in rows
+    assert ["/Finanz", "user", "anna", "read, write, create, delete"] in rows
+    assert "change is not copied" in result.stdout
+
+
+def test_sync_plan_as_json(tmp_path):
+    root = _setup(tmp_path)
+    _nextcloud_md(root)
+
+    data = json.loads(_run(["sync", "--plan", "--json", str(root)], tmp_path).stdout)
+
+    assert {"path": "/Finanz/Archiv", "kind": "user", "account": "anna", "allowed": ["read"]} in data["rules"]
+    assert data["notes"]
+
+
+def test_sync_without_nextcloud_md_explains_what_is_missing(tmp_path):
+    root = _setup(tmp_path)
+
+    result = _run(["sync", "--plan", str(root)], tmp_path)
+
+    assert result.returncode == 2 and "Nextcloud.md" in result.stderr
+
+
+def test_sync_without_plan_is_not_there_yet(tmp_path):
+    root = _setup(tmp_path)
+    _nextcloud_md(root)
+
+    result = _run(["sync", str(root)], tmp_path)
+
+    assert result.returncode == 2 and "--plan" in result.stderr

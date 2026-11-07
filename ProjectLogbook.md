@@ -252,6 +252,34 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
     [ ] Danach: Perspektiven als eigener Eintrag in der linken Leiste. Das Laufwerk fällt im Browser weg.
     [ ] Zugriffsrechte nicht im ersten Schritt: eine Browser-Erweiterung kann `ACLs.md` nicht erzwingen; auf dem Server
         lösen oder auf die Freigaben der Cloud abbilden
+    [ ] ACL-Adapter zu Nextcloud (2026-11-07; vorgezogen: der Server setzt die Rechte dann wirklich durch, auch im
+        Sync-Client). Ziel: Team folders (App groupfolders) mit "Advanced Permissions"; `ACLs.md` bleibt die Quelle,
+        abgeglichen wird nur in eine Richtung. Grundlage: `myacl rules --json` (gebaut). Testinstanz: Nextcloud 32 auf dem
+        GMXtec (Container `myos-nc`, nur 127.0.0.1:8081, per `ssh -L`); Ziel später: eine Nextcloud 32.0.1 eines Bekannten
+        (ohne Admin-Zugang: braucht dort einen Team folder und "Manage advanced permissions")
+        Versuch 2026-11-07 ergab:
+        - Passt: pro Gruppe gewinnt die nächste Regel, tiefer auch weniger; mehrere Gruppen einer Person addieren sich
+          (Erlauben schlägt Verbieten); read, write, create, delete getrennt wie bei uns; `change` ≈ "manage advanced
+          permissions"; `execute` fehlt, dafür `share`
+        - Leserecht auf jeden Elternordner ist Pflicht: ohne Leserecht an der Wurzel sieht man den Team folder gar nicht
+          (403), auch mit Rechten tief unten. Abbildung: Leserecht auf den Weg, die Geschwister ausdrücklich sperren
+          (`-read`) – geprüft, Tom sieht dann nur `Familie/Kind`
+        - Lücke dabei: ein später neu angelegter Geschwisterordner erbt das Leserecht des Elternordners und ist sofort
+          sichtbar. Ein Abgleich ab und zu reicht also nicht; die Sperre muss beim Anlegen entstehen (kleine
+          Nextcloud-App, die auf neue Dateien reagiert) oder die Sichtbarkeit wird bewusst hingenommen
+        - Gruppennamen unterscheiden Groß-/Kleinschreibung, Nextcloud hat schon `admin`: Gruppen des Adapters bekommen
+          ein Präfix, sonst wird die Rolle `Admin` womöglich Admin der ganzen Nextcloud
+        - Personen in `# Users` sind freie Namen, die Cloud braucht Konten: Zuordnung Name → Konto nötig
+        - Basisrechte eines Team folders kennen nur read, write (= Ändern + Anlegen), share, delete
+        [x] `myacl sync --plan`: die Nextcloud-Regeln berechnen, pro Person (Gruppen anlegen bräuchte einen Admin),
+            jede Regel legt alle Bits fest, Leserecht auf den Weg samt Sperren daneben, die Gruppe des Team folders an der
+            Wurzel ohne Rechte (core/acl_nextcloud.py; Konten in `.MyOS/Nextcloud.md`). Nicht abbildbar und gemeldet:
+            Muster wie `/Job/*.pdf`, Ordner, die es noch nicht gibt (Embryos), `change`
+        [ ] `myacl sync --dry-run`: die vorhandenen Regeln lesen und nur den Unterschied zeigen. Über WebDAV
+            (`PROPFIND`/`PROPPATCH` von `nc:acl-list`, ersetzt alle Regeln eines Pfads); braucht nur "Manage advanced
+            permissions", kein `occ`. Bits: read 1, update 2, create 4, delete 8, share 16, dazu eine Maske
+        [ ] `myacl sync`: den Unterschied anwenden, erst in einem Testordner
+        [ ] Tags: Unsere Tags auf die "Collaborative Tags" (WebDAV `systemtags`) spiegeln
 ### Nice to have
 [ ] Ordner-Organisation neu
 ---

@@ -68,6 +68,17 @@ Examples:
 - `myacl check Anna Finanz delete` (prints yes/no; exit 0 = allowed, 1 = not, 2 = error)
 - `myacl check Anna Finanz` (all rights of Anna there)
 - `myacl rules .` / `myacl rules . --json` (every rule, `## Folder` rules resolved into each subproject, paths as written in ACLs.md, `[]` = `none`; the input for adapters, e.g. to a cloud)
+- `myacl sync --plan .` (the rules a Nextcloud Team folder with "advanced permissions" should hold, per person; settings in `.MyOS/Nextcloud.md`, see below; no network yet)
+
+`.MyOS/Nextcloud.md`:
+```
+# Nextcloud
+url: https://cloud.example.org
+group: Projekte          (the group the Team folder is given to: locked out at the root)
+
+# Accounts
+Anna Huber: anna.h       (person in # Users: Nextcloud account; people without one get no rules)
+```
 
 ---
 
