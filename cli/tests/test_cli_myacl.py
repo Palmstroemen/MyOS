@@ -122,7 +122,7 @@ def test_with_enforcement_only_who_may_read_the_acls_sees_them(tmp_path):
 
 def _nextcloud_md(root: Path) -> None:
     (root / ".MyOS" / "Nextcloud.md").write_text(
-        "# Nextcloud\nurl: http://localhost:8081\ngroup: Projekte\n\n# Accounts\nOliver: oliver\nAnna: anna\n"
+        "# Nextcloud\nurl: http://localhost:8081\nfolder: Projekte\ngroup: Projekte\n\n# Accounts\nOliver: oliver\nAnna: anna\n"
     )
 
 
@@ -165,3 +165,21 @@ def test_sync_without_plan_is_not_there_yet(tmp_path):
     result = _run(["sync", str(root)], tmp_path)
 
     assert result.returncode == 2 and "--plan" in result.stderr
+
+
+def test_dry_run_needs_the_login_from_the_environment(tmp_path):
+    root = _setup(tmp_path)
+    _nextcloud_md(root)
+
+    result = _run(["sync", "--dry-run", str(root)], tmp_path)
+
+    assert result.returncode == 2 and "MYOS_NEXTCLOUD_USER" in result.stderr
+
+
+def test_dry_run_needs_url_and_folder(tmp_path):
+    root = _setup(tmp_path)
+    (root / ".MyOS" / "Nextcloud.md").write_text("# Accounts\nAnna: anna\n")
+
+    result = _run(["sync", "--dry-run", str(root)], tmp_path, MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD="x")
+
+    assert result.returncode == 2 and "url" in result.stderr and "folder" in result.stderr

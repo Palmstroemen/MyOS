@@ -89,12 +89,12 @@ def plan(
     accounts: Dict[str, str],
     exists: Callable[[str], bool],
     children: Callable[[str], List[str]],
-    base_group: Optional[str] = None,
+    base_groups: Iterable[str] = (),
 ) -> Plan:
     """
     The Nextcloud rules for policy (ACLPolicy.for_tree of the project, whose root is the
     Team folder's root): per person with an account, rules only where their rights change.
-    base_group, the group the Team folder is given to, gets a rule without rights at the
+    base_groups, the groups the Team folder is given to, get a rule without rights at the
     root, so only the people's own rules let anyone in.
     """
     result = Plan()
@@ -102,8 +102,8 @@ def plan(
     if any("change" in r.rights or "*" in r.rights for role_rules in rules.values() for r in role_rules):
         result.notes.append("change is not copied: who may manage the rules is set for the whole Team folder")
     missing: Set[str] = set()
-    if base_group:
-        result.rules.append(PlannedRule("/", "group", base_group, frozenset()))
+    for group in base_groups:
+        result.rules.append(PlannedRule("/", "group", group, frozenset()))
     for person, roles in sorted(policy.users.items()):
         account = accounts.get(person)
         if not account:
@@ -181,3 +181,35 @@ def _person_rules(role_rules: List[list], exists, children, missing: Set[str]) -
         if parent is None or target[path] != target[parent]:
             planned.append((path, target[path]))
     return planned
+
+
+# Nextcloud's permission bits; a planned rule fixes all of them.
+BITS = {"read": 1, "write": 2, "create": 4, "delete": 8, "share": 16}
+FULL_MASK = 31
+
+
+def bits(allowed: Iterable[str]) -> int:
+    return sum(BITS[p] for p in set(allowed))
+
+
+@dataclass(frozen=True)
+class Change:
+    path: str
+    kind: str
+    account: str
+    before: Optional[object]  # the rule Nextcloud holds (core.nextcloud_dav.ExistingRule), None: new
+    after: Optional[FrozenSet[str]]  # the planned permissions, None: the rule goes
+
+
+def diff(planned: Iterable[PlannedRule], tree) -> List[Change]:
+    """What would change in Nextcloud (tree: core.nextcloud_dav tree) to hold the planned
+    rules; rules not planned (not from ACLs.md) would go."""
+    existing = {(path, r.kind, r.account): r for path, entry in tree.items() for r in entry.rules}
+    wanted = {(r.path, r.kind, r.account): r.allowed for r in planned}
+    changes = []
+    for key in sorted(set(existing) | set(wanted)):
+        before, after = existing.get(key), wanted.get(key)
+        if before is not None and after is not None and before.mask == FULL_MASK and before.permissions == bits(after):
+            continue
+        changes.append(Change(*key, before=before, after=after))
+    return changes

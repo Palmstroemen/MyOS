@@ -6,15 +6,17 @@ myacl - MyOS ACLs CLI: who may do what, every rule of a project, and its rules i
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.acl import ACLPolicy
 from core.acl_enforcement import configured_mode
-from core.acl_nextcloud import NEXTCLOUD_PERMISSIONS, local_tree, plan, read_nextcloud_md
+from core.acl_nextcloud import BITS, FULL_MASK, NEXTCLOUD_PERMISSIONS, diff, local_tree, plan, read_nextcloud_md
 from core.acl_view import RIGHTS_ORDER, ACLView
 from core.identity import acl_user_for
+from core.nextcloud_dav import NextcloudDAV, NextcloudError, tree_functions
 
 
 class _Refused(Exception):
@@ -40,6 +42,9 @@ def parse_args(args=None) -> argparse.Namespace:
     sync_cmd = sub.add_parser("sync", help="The project's rules in a Nextcloud Team folder (settings: .MyOS/Nextcloud.md)")
     sync_cmd.add_argument("path", nargs="?", default=".")
     sync_cmd.add_argument("--plan", action="store_true", help="Only show the rules Nextcloud should hold (no network)")
+    sync_cmd.add_argument("--dry-run", action="store_true",
+                          help="Read the rules Nextcloud holds and show what would change; sends nothing "
+                               "(login: MYOS_NEXTCLOUD_USER, MYOS_NEXTCLOUD_PASSWORD)")
     sync_cmd.add_argument("--json", action="store_true", help="Output as JSON")
 
     return parser.parse_args(args)
@@ -55,7 +60,7 @@ def main() -> None:
         elif args.command == "rules":
             code = _rules(args.path, args.json)
         else:
-            code = _sync(args.path, args.plan, args.json)
+            code = _sync(args.path, args.plan, args.dry_run, args.json)
         sys.exit(code)
     except BrokenPipeError:  # output cut short (myacl rules | head)
         sys.exit(0)
@@ -166,34 +171,91 @@ def _nextcloud_order(allowed) -> list:
     return [p for p in NEXTCLOUD_PERMISSIONS if p in allowed]
 
 
-def _sync(path: str, plan_only: bool, as_json: bool) -> int:
-    if not plan_only:
-        raise _Refused("only --plan is there yet: the rules are not sent to Nextcloud")
+def _describe(rule) -> str:
+    """A rule Nextcloud holds, as permissions: all fixed ("read, write") or partly ("+read, -write; rest inherited")."""
+    if rule.mask == FULL_MASK:
+        return ", ".join(p for p in NEXTCLOUD_PERMISSIONS if rule.permissions & BITS[p]) or "-"
+    fixed = [("+" if rule.permissions & BITS[p] else "-") + p for p in NEXTCLOUD_PERMISSIONS if rule.mask & BITS[p]]
+    return ", ".join(fixed) + "; rest inherited"
+
+
+def _print_notes(notes) -> None:
+    if notes:
+        print("\nNotes")
+        for note in notes:
+            print(f"  {note}")
+
+
+def _groups(settings) -> list:
+    """The groups the Team folder is given to ("group: Projekte, Gäste")."""
+    return [g.strip() for g in settings.get("group", "").split(",") if g.strip()]
+
+
+def _sync(path: str, plan_only: bool, dry_run: bool, as_json: bool) -> int:
+    if not (plan_only or dry_run):
+        raise _Refused("only --plan and --dry-run are there yet: the rules are not sent to Nextcloud")
     view = _view(path)
     if view is None:
         raise _Refused(f"No ACLs.md governs {path}")
     settings_file = view.project_root / ".MyOS" / "Nextcloud.md"
     if not settings_file.is_file():
-        raise _Refused(f"{settings_file} is missing (# Nextcloud: url, group; # Accounts: person: account)")
+        raise _Refused(f"{settings_file} is missing (# Nextcloud: url, folder, group; # Accounts: person: account)")
     settings, accounts = read_nextcloud_md(settings_file)
-    exists, children = local_tree(view.project_root)
-    result = plan(ACLPolicy.for_tree(view.project_root), accounts, exists, children, base_group=settings.get("group"))
+    policy = ACLPolicy.for_tree(view.project_root)
+    if plan_only:
+        exists, children = local_tree(view.project_root)
+        result = plan(policy, accounts, exists, children, base_groups=_groups(settings))
+        return _show_plan(view.project_root, result, as_json)
+
+    missing = [key for key in ("url", "folder") if not settings.get(key)]
+    if missing:
+        raise _Refused(f"{settings_file} needs {' and '.join(missing)} in # Nextcloud")
+    user, password = os.environ.get("MYOS_NEXTCLOUD_USER", ""), os.environ.get("MYOS_NEXTCLOUD_PASSWORD", "")
+    if not (user and password):
+        raise _Refused("set MYOS_NEXTCLOUD_USER and MYOS_NEXTCLOUD_PASSWORD (best an app password) for the login")
+    try:
+        tree = NextcloudDAV(settings["url"], user, password, settings["folder"]).tree()
+    except NextcloudError as exc:
+        raise _Refused(str(exc)) from exc
+    exists, children = tree_functions(tree)
+    result = plan(policy, accounts, exists, children, base_groups=_groups(settings))
+    changes = diff(result.rules, tree)
+    if as_json:
+        rows = [{"path": c.path, "kind": c.kind, "account": c.account,
+                 "before": None if c.before is None else {"mask": c.before.mask, "permissions": c.before.permissions},
+                 "after": None if c.after is None else _nextcloud_order(c.after)} for c in changes]
+        print(json.dumps({"changes": rows, "notes": result.notes}, indent=2, ensure_ascii=False))
+        return 0
+    print(f"{settings['url']}  {settings['folder']}  (as {user}): {len(changes)} change(s), nothing sent (--dry-run)")
+    rows = []
+    for c in changes:
+        if c.before is None:
+            rows.append(["+", c.path, c.kind, c.account, ", ".join(_nextcloud_order(c.after)) or "-"])
+        elif c.after is None:
+            rows.append(["-", c.path, c.kind, c.account, f"was {_describe(c.before)}; not from ACLs.md"])
+        else:
+            rows.append(["~", c.path, c.kind, c.account,
+                         f"{', '.join(_nextcloud_order(c.after)) or '-'}  (was {_describe(c.before)})"])
+    if rows:
+        print()
+        _table(rows)
+    _print_notes(result.notes)
+    return 0
+
+
+def _show_plan(project_root, result, as_json: bool) -> int:
     if as_json:
         rules = [{"path": r.path, "kind": r.kind, "account": r.account, "allowed": _nextcloud_order(r.allowed)} for r in result.rules]
-        print(json.dumps({"project": str(view.project_root), "rules": rules, "notes": result.notes}, indent=2, ensure_ascii=False))
+        print(json.dumps({"project": str(project_root), "rules": rules, "notes": result.notes}, indent=2, ensure_ascii=False))
         return 0
-    print(f"{view.project_root}  ->  Nextcloud rules (all other permissions denied)")
+    print(f"{project_root}  ->  Nextcloud rules (all other permissions denied)")
     rows = [[r.path, r.kind, r.account, ", ".join(_nextcloud_order(r.allowed)) or "-"]
             for r in sorted(result.rules, key=lambda r: (r.path, r.kind, r.account))]
     if rows:
         print()
         _table(rows)
-    if result.notes:
-        print("\nNotes")
-        for note in result.notes:
-            print(f"  {note}")
+    _print_notes(result.notes)
     return 0
-
 
 if __name__ == "__main__":
     main()

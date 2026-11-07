@@ -40,9 +40,9 @@ def project(tmp_path):
     return root
 
 
-def _rules(root, accounts=ACCOUNTS, base_group=None):
+def _rules(root, accounts=ACCOUNTS, base_groups=()):
     exists, children = local_tree(root)
-    result = plan(ACLPolicy.for_tree(root), accounts, exists, children, base_group=base_group)
+    result = plan(ACLPolicy.for_tree(root), accounts, exists, children, base_groups=base_groups)
     return {(r.kind, r.account, r.path): set(r.allowed) for r in result.rules}, result.notes
 
 
@@ -114,9 +114,9 @@ def test_rules_that_cannot_be_mapped_are_left_out_with_a_note(project):
 
 
 def test_the_base_group_is_locked_out_at_the_root(project):
-    rules, _notes = _rules(project, base_group="Projekte")
+    rules, _notes = _rules(project, base_groups=["Projekte", "Team"])
 
-    assert rules[("group", "Projekte", "/")] == set()
+    assert rules[("group", "Projekte", "/")] == set() and rules[("group", "Team", "/")] == set()
 
 
 def test_settings_and_accounts_are_read_from_nextcloud_md(tmp_path):

@@ -275,7 +275,8 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             jede Regel legt alle Bits fest, Leserecht auf den Weg samt Sperren daneben, die Gruppe des Team folders an der
             Wurzel ohne Rechte (core/acl_nextcloud.py; Konten in `.MyOS/Nextcloud.md`). Nicht abbildbar und gemeldet:
             Muster wie `/Job/*.pdf`, Ordner, die es noch nicht gibt (Embryos), `change`
-        [ ] `myacl sync --dry-run`: die vorhandenen Regeln lesen und nur den Unterschied zeigen. Über WebDAV
+        [x] `myacl sync --dry-run`: die vorhandenen Regeln lesen und nur den Unterschied zeigen (core/nextcloud_dav.py;
+            gegen die Testinstanz geprüft, der Plan folgt dem Baum der Cloud). Über WebDAV
             (`PROPFIND`/`PROPPATCH` von `nc:acl-list`, ersetzt alle Regeln eines Pfads); braucht nur "Manage advanced
             permissions", kein `occ`. Bits: read 1, update 2, create 4, delete 8, share 16, dazu eine Maske
         [ ] `myacl sync`: den Unterschied anwenden, erst in einem Testordner
