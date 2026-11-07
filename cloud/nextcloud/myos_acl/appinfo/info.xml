@@ -8,7 +8,7 @@
 
 Nextcloud needs read on every parent folder. Who may only work deep down gets read on the way there, and the other entries on the way are locked. An entry created later on that way would inherit the read: this app locks it right away, for everyone whose rule on its folder is a rule on the way (marked by myacl sync: it leaves share to be inherited, mask 15).]]></description>
 	<version>0.1.0</version>
-	<licence>agpl</licence>
+	<licence>MIT</licence>
 	<author>Oliver Rafelsberger</author>
 	<namespace>MyOSAcl</namespace>
 	<category>files</category>

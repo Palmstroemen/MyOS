@@ -281,7 +281,7 @@ Please open a GitHub issue to discuss changes or report problems.
 
 ## 📄 License
 
-MIT License - see [LICENSE](https://license/) file for details.
+MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
