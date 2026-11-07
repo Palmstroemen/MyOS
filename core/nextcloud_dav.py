@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Tuple
 from urllib.parse import quote, unquote
 from xml.sax.saxutils import escape
 
-from core.acl_nextcloud import FULL_MASK, bits
+from core.acl_nextcloud import bits, mask_of
 
 _DAV = "{DAV:}"
 _NC = "{http://nextcloud.org/ns}"
@@ -155,11 +155,11 @@ class NextcloudDAV:
 
 
 def _rules_xml(rules) -> bytes:
-    """A PROPPATCH setting a path's rules (core.acl_nextcloud.PlannedRule: every bit fixed)."""
+    """A PROPPATCH setting a path's rules (core.acl_nextcloud.PlannedRule)."""
     acl = "".join(
         f"<nc:acl><nc:acl-mapping-type>{escape(rule.kind)}</nc:acl-mapping-type>"
         f"<nc:acl-mapping-id>{escape(rule.account)}</nc:acl-mapping-id>"
-        f"<nc:acl-mask>{FULL_MASK}</nc:acl-mask><nc:acl-permissions>{bits(rule.allowed)}</nc:acl-permissions></nc:acl>"
+        f"<nc:acl-mask>{mask_of(rule)}</nc:acl-mask><nc:acl-permissions>{bits(rule.allowed)}</nc:acl-permissions></nc:acl>"
         for rule in rules
     )
     return (

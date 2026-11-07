@@ -208,9 +208,11 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
         result = plan(policy, accounts, exists, children, base_groups=_groups(settings))
         return _show_plan(view.project_root, result, as_json)
 
-    missing = [key for key in ("url", "folder") if not settings.get(key)]
+    missing = [key for key in ("url", "folder", "group") if not settings.get(key)]
     if missing:
-        raise _Refused(f"{settings_file} needs {' and '.join(missing)} in # Nextcloud")
+        # group: the groups the Team folder is given to are locked out at the root; rules
+        # on the way rely on it (they leave share to be inherited from there).
+        raise _Refused(f"{settings_file} needs {', '.join(missing)} in # Nextcloud")
     user, password = os.environ.get("MYOS_NEXTCLOUD_USER", ""), os.environ.get("MYOS_NEXTCLOUD_PASSWORD", "")
     if not (user and password):
         raise _Refused("set MYOS_NEXTCLOUD_USER and MYOS_NEXTCLOUD_PASSWORD (best an app password) for the login")
@@ -276,11 +278,12 @@ def _print_changes(changes) -> None:
 
 def _show_plan(project_root, result, as_json: bool) -> int:
     if as_json:
-        rules = [{"path": r.path, "kind": r.kind, "account": r.account, "allowed": _nextcloud_order(r.allowed)} for r in result.rules]
+        rules = [{"path": r.path, "kind": r.kind, "account": r.account, "allowed": _nextcloud_order(r.allowed),
+                  "way": r.traverse} for r in result.rules]
         print(json.dumps({"project": str(project_root), "rules": rules, "notes": result.notes}, indent=2, ensure_ascii=False))
         return 0
     print(f"{project_root}  ->  Nextcloud rules (all other permissions denied)")
-    rows = [[r.path, r.kind, r.account, ", ".join(_nextcloud_order(r.allowed)) or "-"]
+    rows = [[r.path, r.kind, r.account, (", ".join(_nextcloud_order(r.allowed)) or "-") + (" (way)" if r.traverse else "")]
             for r in sorted(result.rules, key=lambda r: (r.path, r.kind, r.account))]
     if rows:
         print()

@@ -127,3 +127,30 @@ def test_settings_and_accounts_are_read_from_nextcloud_md(tmp_path):
 
     assert settings == {"url": "https://cloud.example.org", "group": "Projekte"}
     assert accounts == {"anna huber": "anna.h", "oliver": "oliver"}
+
+
+def _ways(root):
+    exists, children = local_tree(root)
+    result = plan(ACLPolicy.for_tree(root), ACCOUNTS, exists, children)
+    return {(r.account, r.path) for r in result.rules if r.traverse}, {(r.account, r.path): r for r in result.rules}
+
+
+def test_every_folder_on_the_way_has_a_marked_rule_of_its_own(project):
+    ways, rules = _ways(project)
+
+    # A server app locks what is created in such a folder later: it looks at the
+    # folder's own rules only, so /Familie needs one although it inherits the same.
+    assert ("tom", "/") in ways and ("tom", "/Familie") in ways
+    assert rules[("tom", "/Familie")].allowed == {"read"}
+    assert ("lisa", "/") in ways and ("anna", "/Familie") in ways
+    assert ("tom", "/Familie/Kind") not in ways and ("oliver", "/") not in ways
+    assert ("lisa", "/Familie") not in ways  # Lisa may read there by ACLs.md
+
+
+def test_a_way_rule_leaves_share_to_be_inherited(project):
+    from core.acl_nextcloud import TRAVERSE_MASK, mask_of
+
+    _ways_, rules = _ways(project)
+
+    assert TRAVERSE_MASK == 15
+    assert mask_of(rules[("tom", "/Familie")]) == 15 and mask_of(rules[("tom", "/Familie/Kind")]) == 31

@@ -146,7 +146,7 @@ def test_sync_plan_as_json(tmp_path):
 
     data = json.loads(_run(["sync", "--plan", "--json", str(root)], tmp_path).stdout)
 
-    assert {"path": "/Finanz/Archiv", "kind": "user", "account": "anna", "allowed": ["read"]} in data["rules"]
+    assert {"path": "/Finanz/Archiv", "kind": "user", "account": "anna", "allowed": ["read"], "way": False} in data["rules"]
     assert data["notes"]
 
 
@@ -183,3 +183,21 @@ def test_dry_run_needs_url_and_folder(tmp_path):
     result = _run(["sync", "--dry-run", str(root)], tmp_path, MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD="x")
 
     assert result.returncode == 2 and "url" in result.stderr and "folder" in result.stderr
+
+
+def test_dry_run_needs_the_groups_of_the_team_folder(tmp_path):
+    root = _setup(tmp_path)
+    (root / ".MyOS" / "Nextcloud.md").write_text("# Nextcloud\nurl: http://localhost:8081\nfolder: Projekte\n\n# Accounts\nAnna: anna\n")
+
+    result = _run(["sync", "--dry-run", str(root)], tmp_path, MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD="x")
+
+    assert result.returncode == 2 and "group" in result.stderr
+
+
+def test_the_plan_marks_rules_on_the_way(tmp_path):
+    root = _setup(tmp_path)
+    _nextcloud_md(root)
+
+    rows = [line.split(None, 3) for line in _run(["sync", "--plan", str(root)], tmp_path).stdout.splitlines()]
+
+    assert ["/", "user", "anna", "read (way)"] in rows

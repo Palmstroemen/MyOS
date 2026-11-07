@@ -9,7 +9,11 @@
 #   A person's rights are the union of their roles, computed by ACLPolicy as everywhere.
 # - Nextcloud needs read on every parent folder. Who has rights only deep down gets read on
 #   the way there, and every other entry on the way is locked (else it would inherit read).
-#   Security: entries created later on that way inherit that read until the next sync.
+#   Security: entries created later in such a folder would inherit that read. So these
+#   rules are marked - they leave share to be inherited (mask 15; share is denied at the
+#   root for everyone, so the rights are the same) - and the server app myos_acl
+#   (cloud/nextcloud) locks new entries of a folder with marked rules right away. Every
+#   folder on the way gets a marked rule of its own, also where it would inherit the same.
 # - Without a rule the Team folder's own permissions apply: everyone gets a rule at the root.
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ class PlannedRule:
     kind: str  # "user" | "group"
     account: str  # Nextcloud user or group id
     allowed: FrozenSet[str]  # Nextcloud permissions; all others are denied
+    traverse: bool = False  # read only to pass on the way down (marked, see above)
 
 
 @dataclass
@@ -109,8 +114,8 @@ def plan(
         if not account:
             result.notes.append(f"{policy.display_name(person)} has no Nextcloud account in # Accounts: no rules")
             continue
-        for path, allowed in _person_rules([rules.get(role, []) for role in roles], exists, children, missing):
-            result.rules.append(PlannedRule(path, "user", account, allowed))
+        for path, allowed, way in _person_rules([rules.get(role, []) for role in roles], exists, children, missing):
+            result.rules.append(PlannedRule(path, "user", account, allowed, traverse=way))
     for path in sorted(missing):
         result.notes.append(f"{path} is not there yet: its rules follow when it exists")
     return result
@@ -147,7 +152,7 @@ def _child(path: str, name: str) -> str:
     return ("" if path == "/" else path) + "/" + name
 
 
-def _person_rules(role_rules: List[list], exists, children, missing: Set[str]) -> List[Tuple[str, FrozenSet[str]]]:
+def _person_rules(role_rules: List[list], exists, children, missing: Set[str]) -> List[Tuple[str, FrozenSet[str], bool]]:
     def rights(path: str) -> FrozenSet[str]:
         key = _normalize_path(path)
         found: Set[str] = set()
@@ -172,20 +177,26 @@ def _person_rules(role_rules: List[list], exists, children, missing: Set[str]) -
     for path in traverse:
         walk.update(_child(path, name) for name in children(path))
 
-    planned: List[Tuple[str, FrozenSet[str]]] = []
+    planned: List[Tuple[str, FrozenSet[str], bool]] = []
     target: Dict[str, FrozenSet[str]] = {}
     for path in sorted(walk, key=lambda p: (p.count("/") if p != "/" else 0, p)):
         own = rights(path) | ({"read"} if path in traverse else set())
         target[path] = frozenset(own)
         parent = _parents(path)[-1] if path != "/" else None
-        if parent is None or target[path] != target[parent]:
-            planned.append((path, target[path]))
+        if parent is None or path in traverse or target[path] != target[parent]:
+            planned.append((path, target[path], path in traverse))
     return planned
 
 
-# Nextcloud's permission bits; a planned rule fixes all of them.
+# Nextcloud's permission bits; a planned rule fixes all of them, a rule on the way all
+# but share.
 BITS = {"read": 1, "write": 2, "create": 4, "delete": 8, "share": 16}
 FULL_MASK = 31
+TRAVERSE_MASK = FULL_MASK & ~BITS["share"]
+
+
+def mask_of(rule: PlannedRule) -> int:
+    return TRAVERSE_MASK if rule.traverse else FULL_MASK
 
 
 def bits(allowed: Iterable[str]) -> int:
@@ -205,13 +216,13 @@ def diff(planned: Iterable[PlannedRule], tree) -> List[Change]:
     """What would change in Nextcloud (tree: core.nextcloud_dav tree) to hold the planned
     rules; rules not planned (not from ACLs.md) would go."""
     existing = {(path, r.kind, r.account): r for path, entry in tree.items() for r in entry.rules}
-    wanted = {(r.path, r.kind, r.account): r.allowed for r in planned}
+    wanted = {(r.path, r.kind, r.account): r for r in planned}
     changes = []
     for key in sorted(set(existing) | set(wanted)):
-        before, after = existing.get(key), wanted.get(key)
-        if before is not None and after is not None and before.mask == FULL_MASK and before.permissions == bits(after):
+        before, rule = existing.get(key), wanted.get(key)
+        if before is not None and rule is not None and (before.mask, before.permissions) == (mask_of(rule), bits(rule.allowed)):
             continue
-        changes.append(Change(*key, before=before, after=after))
+        changes.append(Change(*key, before=before, after=None if rule is None else rule.allowed))
     return changes
 
 

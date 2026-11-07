@@ -282,8 +282,14 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         [x] `myacl sync`: den Unterschied anwenden (pro Pfad die ganze Liste, die tiefsten zuerst, danach Kontrolle),
             fragt vorher oder braucht `--yes`. Auf der Testinstanz geprüft 2026-11-07: per WebDAV setzt Nextcloud danach
             genau die ACLs.md durch (Tom nur `Familie/Kind`, Lisa in `Finanz` nur lesen, Karl nur `Job`)
-        [ ] Neue Einträge auf dem Weg sofort sperren (siehe Lücke oben), z. B. kleine Nextcloud-App oder Abgleich
-            bei jeder Änderung; ebenso neu geborene Ordner, deren Regeln bisher erst beim nächsten Abgleich kommen
+        [x] Neue Einträge auf dem Weg sofort sperren (Lücke oben): Nextcloud-App `cloud/nextcloud/myos_acl` (PHP,
+            2026-11-07). `sync` markiert Wegregeln (Maske 15: Teilen wird geerbt, an der Wurzel für alle gesperrt, daher
+            verlangt `sync` die Gruppen des Team folders), jeder Wegordner bekommt eine eigene; die App gibt neuen,
+            verschobenen und kopierten Einträgen darin sofort dieselben Rechte ohne Lesen. Integrationstest gegen die
+            Testinstanz grün. Verworfen: Freigaben statt Weg (Ordner am falschen Ort; das Konto darf nicht teilen),
+            häufiger Abgleich (Zeitfenster bleibt). Die App braucht einen Admin, der sie einmal installiert
+        [ ] Neu geborene Ordner, denen ACLs.md Rechte gibt: bleiben gesperrt bis zum nächsten `sync` (sicher, aber
+            unbequem); später die App selbst ACLs.md lesen lassen oder `sync` nach jeder Geburt
         [ ] Beim Bekannten: ein Team folder, eine Gruppe mit allen Beteiligten, für uns "Manage advanced permissions"
         [ ] Tags: Unsere Tags auf die "Collaborative Tags" (WebDAV `systemtags`) spiegeln
 ### Nice to have

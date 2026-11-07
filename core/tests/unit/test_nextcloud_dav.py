@@ -174,3 +174,18 @@ def test_set_rules_sends_the_rules_as_nextcloud_reads_them():
 def test_a_refused_update_says_why():
     with pytest.raises(NextcloudError, match="own read permission"):
         _dav(refuse="HTTP/1.1 403 Forbidden").set_rules("/", [])
+
+
+def test_a_way_rule_is_sent_with_its_mask():
+    patched = []
+
+    _dav(patched=patched).set_rules("/Familie", [PlannedRule("/Familie", "user", "tom", frozenset({"read"}), traverse=True)])
+
+    assert "<nc:acl-mask>15</nc:acl-mask><nc:acl-permissions>1</nc:acl-permissions>" in patched[0][1].decode()
+
+
+def test_a_rule_with_the_wrong_mask_is_a_change():
+    tree = _dav().tree()  # tom holds 31/7 on /Familie/Kind
+    planned = [PlannedRule("/Familie/Kind", "user", "tom", frozenset({"read", "write", "create"}), traverse=True)]
+
+    assert ("/Familie/Kind", "user", "tom") in {(c.path, c.kind, c.account) for c in diff(planned, tree)}

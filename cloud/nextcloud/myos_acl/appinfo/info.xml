@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>myos_acl</id>
+	<name>MyOS ACL</name>
+	<summary>Locks new entries on the way to folders opened by MyOS ACLs</summary>
+	<description><![CDATA[Companion of `myacl sync` (MyOS), which copies a project's ACLs.md into a Team folder with advanced permissions.
+
+Nextcloud needs read on every parent folder. Who may only work deep down gets read on the way there, and the other entries on the way are locked. An entry created later on that way would inherit the read: this app locks it right away, for everyone whose rule on its folder is a rule on the way (marked by myacl sync: it leaves share to be inherited, mask 15).]]></description>
+	<version>0.1.0</version>
+	<licence>agpl</licence>
+	<author>Oliver Rafelsberger</author>
+	<namespace>MyOSAcl</namespace>
+	<category>files</category>
+	<category>security</category>
+	<bugs>https://github.com/Palmstroemen/MyOS/issues</bugs>
+	<dependencies>
+		<nextcloud min-version="32" max-version="32"/>
+	</dependencies>
+</info>
