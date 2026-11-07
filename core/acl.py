@@ -139,6 +139,32 @@ class ACLPolicy:
                 display_names.setdefault(role_key, folder)
         return replace(self, roles=roles, permissions=permissions, display_names=display_names)
 
+    @classmethod
+    def for_tree(cls, project_root: Path) -> "ACLPolicy":
+        """
+        Every rule of project_root's ACLs.md for the whole tree it governs: the policy
+        with the "## Folder" rules applied again in each subproject (for_context), each
+        rule once. Subprojects with an ACLs.md of their own are governed by it, not here.
+        For tools that copy the rules elsewhere (myacl rules, a cloud adapter).
+        """
+        root = Path(project_root).resolve()
+        policy = cls.from_project(root)
+        permissions = {role: list(rules) for role, rules in policy.permissions.items()}
+        seen = {(role, rule.path, frozenset(rule.rights)) for role, rules in permissions.items() for rule in rules}
+        roles, display_names = set(policy.roles), dict(policy.display_names)
+        for sub in _governed_subprojects(root):
+            context = policy.for_context(root, sub)
+            roles |= context.roles
+            for role, name in context.display_names.items():
+                display_names.setdefault(role, name)
+            for role, rules in context.permissions.items():
+                for rule in rules:
+                    key = (role, rule.path, frozenset(rule.rights))
+                    if key not in seen:
+                        seen.add(key)
+                        permissions.setdefault(role, []).append(rule)
+        return replace(policy, roles=roles, permissions=permissions, display_names=display_names)
+
     def roles_for_user(self, username: str) -> Set[str]:
         user_key = username.strip().lower()
         return self.users.get(user_key, set())
@@ -225,6 +251,21 @@ def find_acl_project_root(path) -> Optional[Path]:
                 return candidate
     except OSError:
         return None
+    return found
+
+
+def _governed_subprojects(root: Path) -> List[Path]:
+    """Subprojects below root without an ACLs.md of their own (nor one in between)."""
+    found: List[Path] = []
+    for folder, dirs, _files in os.walk(root):
+        current = Path(folder)
+        if current != root:
+            if (current / ".MyOS" / "ACLs.md").is_file():
+                dirs[:] = []  # its own rules govern it and everything below
+                continue
+            if (current / ".MyOS" / "Project.md").is_file():
+                found.append(current)
+        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
     return found
 
 

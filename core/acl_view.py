@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, FrozenSet, List, Optional, Tuple
 
-from core.acl import ACLPolicy, _normalize_path, _rule_base, find_acl_project_root
+from core.acl import ACLPolicy, _nearest_rules, _normalize_path, _rule_base, find_acl_project_root
 from core.project import ProjectFinder
 
 # Rights a "*" grant stands for (ACL design document, MVP rights set), in display order.
@@ -93,6 +93,15 @@ class ACLView:
         if rel is None:
             return frozenset()
         return self._rights_for_role(str(role).strip().lower(), rel)
+
+    def origin(self, role: str, path) -> Optional[str]:
+        """Folder of the rule that decides role's rights at path ("/" for the root), or
+        None when no rule of the role reaches path."""
+        rel = self.relative_path(path)
+        if rel is None:
+            return None
+        rules = _nearest_rules(self.policy.permissions.get(str(role).strip().lower(), []), _normalize_path(rel))
+        return (_rule_base(rules[0].path) or "/") if rules else None
 
     def may_view(self, viewer: Optional[str]) -> bool:
         """

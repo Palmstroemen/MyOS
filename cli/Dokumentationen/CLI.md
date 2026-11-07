@@ -60,6 +60,17 @@ Examples:
 
 ---
 
+## **myacl**
+ACLs: who may do what, and every rule of a project. Read-only; edit rules with `myedit acl` or in Scope/PostFix. With `MYOS_ACL_MODE=enforce` only people who may read ACLs.md see them.
+
+Examples:
+- `myacl show Finanz/Archiv` (roles and people with their rights here; per role `here` or `from /Finanz`: the folder whose rule decides)
+- `myacl check Anna Finanz delete` (prints yes/no; exit 0 = allowed, 1 = not, 2 = error)
+- `myacl check Anna Finanz` (all rights of Anna there)
+- `myacl rules .` / `myacl rules . --json` (every rule, `## Folder` rules resolved into each subproject, paths as written in ACLs.md, `[]` = `none`; the input for adapters, e.g. to a cloud)
+
+---
+
 ## **myedit**
 Open a config section in your editor.
 
