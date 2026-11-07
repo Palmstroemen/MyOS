@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 import pytest
 
-from core.acl_nextcloud import PlannedRule, diff
+from core.acl_nextcloud import PlannedRule, diff, updates
 from core.nextcloud_dav import ExistingRule, NextcloudDAV, NextcloudError, tree_functions
 
 BASE = "/remote.php/dav/files/oliver/Projekte"
@@ -51,11 +51,21 @@ SERVER = {
 }
 
 
-def _transport(server, calls=None):
+def _transport(server, calls=None, patched=None, refuse=None):
     def request(method, url, body, headers, auth):
         path = url.split("8081", 1)[1]
         if calls is not None:
             calls.append((method, path, headers.get("Depth")))
+        if method == "PROPPATCH":
+            if patched is not None:
+                patched.append((path, body))
+            status = refuse or "HTTP/1.1 200 OK"
+            return 207, _multistatus(
+                f"<d:response><d:href>{path}</d:href><d:propstat><d:prop><nc:acl-list/></d:prop>"
+                f"<d:status>{status}</d:status></d:propstat>"
+                + ("<d:responsedescription>You cannot remove your own read permission.</d:responsedescription>" if refuse else "")
+                + "</d:response>"
+            )
         if path not in server:
             return 404, b""
         return 207, server[path]
@@ -63,8 +73,9 @@ def _transport(server, calls=None):
     return request
 
 
-def _dav(server=SERVER, calls=None):
-    return NextcloudDAV("http://localhost:8081", "oliver", "secret", "Projekte", transport=_transport(server, calls))
+def _dav(server=SERVER, calls=None, patched=None, refuse=None):
+    return NextcloudDAV("http://localhost:8081", "oliver", "secret", "Projekte",
+                        transport=_transport(server, calls, patched, refuse))
 
 
 def test_the_tree_holds_every_entry_with_its_rules():
@@ -126,3 +137,40 @@ def test_diff_adds_changes_keeps_and_removes():
     assert changes[("/Familie", "user", "tom")].before is None
     assert changes[("/Job", "group", "Kinder")].after is None  # not from ACLs.md: would go
     assert changes[("/Familie/Kind", "user", "tom")].after is None
+
+
+PLANNED = [
+    PlannedRule("/", "group", "Projekte", frozenset()),
+    PlannedRule("/", "user", "oliver", frozenset({"read", "write", "create", "delete"})),
+    PlannedRule("/Familie", "user", "tom", frozenset({"read"})),
+    PlannedRule("/Familie/Kind", "user", "tom", frozenset({"read", "write", "create"})),
+]
+
+
+def test_updates_send_the_whole_list_of_each_changed_path_deepest_first():
+    tree = _dav().tree()
+    planned = PLANNED[:2] + PLANNED[2:3]  # /Familie/Kind loses tom's rule, /Job loses Kinder's
+
+    result = updates(planned, diff(planned, tree))
+
+    assert [path for path, _rules in result] == ["/Familie/Kind", "/Familie", "/Job", "/"]
+    assert dict(result)["/"] == [PLANNED[0], PLANNED[1]]  # the unchanged group rule is sent again
+    assert dict(result)["/Familie/Kind"] == [] and dict(result)["/Job"] == []
+
+
+def test_set_rules_sends_the_rules_as_nextcloud_reads_them():
+    patched = []
+
+    _dav(patched=patched).set_rules("/Familie/Kind", [PLANNED[3]])
+
+    (path, body), = patched
+    assert path == BASE + "/Familie/Kind"
+    text = body.decode()
+    assert "<nc:acl-mapping-type>user</nc:acl-mapping-type>" in text
+    assert "<nc:acl-mapping-id>tom</nc:acl-mapping-id>" in text
+    assert "<nc:acl-mask>31</nc:acl-mask>" in text and "<nc:acl-permissions>7</nc:acl-permissions>" in text
+
+
+def test_a_refused_update_says_why():
+    with pytest.raises(NextcloudError, match="own read permission"):
+        _dav(refuse="HTTP/1.1 403 Forbidden").set_rules("/", [])

@@ -1,5 +1,5 @@
 # nextcloud_dav.py - a Nextcloud Team folder over WebDAV: its tree and its "advanced
-# permissions" rules (read only; for myacl sync --dry-run)
+# permissions" rules (for myacl sync)
 #
 # The Team folders app (groupfolders) hands its rules out as the property nc:acl-list of
 # every entry; reading them needs "manage advanced permissions" for the folder, not a
@@ -15,6 +15,9 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Tuple
 from urllib.parse import quote, unquote
+from xml.sax.saxutils import escape
+
+from core.acl_nextcloud import FULL_MASK, bits
 
 _DAV = "{DAV:}"
 _NC = "{http://nextcloud.org/ns}"
@@ -90,8 +93,28 @@ class NextcloudDAV:
                         pending.append(child)
         return tree
 
+    def set_rules(self, path: str, rules) -> None:
+        """Replace all rules of path (relative to the Team folder) with rules (PlannedRule)."""
+        url = self.url + self._dav_path(path)
+        headers = {"Content-Type": "application/xml; charset=utf-8"}
+        status, body = self._transport("PROPPATCH", url, _rules_xml(rules), headers, self._auth)
+        if status == 401:
+            raise NextcloudError(f"Nextcloud refused the login of {self.user} (app password?)")
+        if status != 207:
+            raise NextcloudError(f"Nextcloud answered {status} when setting the rules of {path}")
+        root = ET.fromstring(body)
+        for propstat in root.iter(_DAV + "propstat"):
+            line = propstat.findtext(_DAV + "status") or ""
+            if line.split()[1:2] != ["200"]:
+                why = " ".join((t or "").strip() for t in (
+                    root.findtext(f".//{_DAV}responsedescription"), root.findtext(".//{http://sabredav.org/ns}message")) if t)
+                raise NextcloudError(f"Nextcloud refused the rules of {path}: {why or line.strip()}")
+
+    def _dav_path(self, path: str) -> str:
+        return self._base + "".join("/" + quote(p) for p in path.split("/") if p)
+
     def _list(self, path: str) -> Dict[str, Entry]:
-        dav_path = self._base + "".join("/" + quote(p) for p in path.split("/") if p) + "/"
+        dav_path = self._dav_path(path) + "/"
         headers = {"Depth": "1", "Content-Type": "application/xml; charset=utf-8"}
         status, body = self._transport("PROPFIND", self.url + dav_path, _PROPFIND, headers, self._auth)
         if status == 401:
@@ -129,6 +152,20 @@ class NextcloudDAV:
                 can_manage=(prop.findtext(_NC + "acl-can-manage") or "").strip() == "1",
             ))
         return entries
+
+
+def _rules_xml(rules) -> bytes:
+    """A PROPPATCH setting a path's rules (core.acl_nextcloud.PlannedRule: every bit fixed)."""
+    acl = "".join(
+        f"<nc:acl><nc:acl-mapping-type>{escape(rule.kind)}</nc:acl-mapping-type>"
+        f"<nc:acl-mapping-id>{escape(rule.account)}</nc:acl-mapping-id>"
+        f"<nc:acl-mask>{FULL_MASK}</nc:acl-mask><nc:acl-permissions>{bits(rule.allowed)}</nc:acl-permissions></nc:acl>"
+        for rule in rules
+    )
+    return (
+        '<?xml version="1.0"?><d:propertyupdate xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">'
+        f"<d:set><d:prop><nc:acl-list>{acl}</nc:acl-list></d:prop></d:set></d:propertyupdate>"
+    ).encode()
 
 
 def tree_functions(tree: Dict[str, Entry]):

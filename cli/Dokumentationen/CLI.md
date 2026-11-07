@@ -70,6 +70,7 @@ Examples:
 - `myacl rules .` / `myacl rules . --json` (every rule, `## Folder` rules resolved into each subproject, paths as written in ACLs.md, `[]` = `none`; the input for adapters, e.g. to a cloud)
 - `myacl sync --plan .` (the rules a Nextcloud Team folder with "advanced permissions" should hold, per person; settings in `.MyOS/Nextcloud.md`, see below; no network)
 - `myacl sync --dry-run .` (reads the Team folder and its rules over WebDAV and shows what would change: `+` new, `~` changed, `-` goes because it is not from ACLs.md; sends nothing. Login from `MYOS_NEXTCLOUD_USER` and `MYOS_NEXTCLOUD_PASSWORD`, best an app password; the account needs "manage advanced permissions" and should be able to read the whole folder)
+- `myacl sync .` (shows the same, asks, sends the rules path by path, deepest first, and reads them back to check; `--yes` sends without asking, needed without a terminal. Rules not from ACLs.md go)
 
 `.MyOS/Nextcloud.md`:
 ```

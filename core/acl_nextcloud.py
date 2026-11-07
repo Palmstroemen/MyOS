@@ -213,3 +213,15 @@ def diff(planned: Iterable[PlannedRule], tree) -> List[Change]:
             continue
         changes.append(Change(*key, before=before, after=after))
     return changes
+
+
+def updates(planned: Iterable[PlannedRule], changes: Iterable[Change]) -> List[Tuple[str, List[PlannedRule]]]:
+    """
+    What to send for changes: Nextcloud replaces all rules of a path at once, so per changed
+    path its whole planned list (empty: all its rules go). Deepest paths first, so the
+    account that syncs keeps its way down until the parents are done.
+    """
+    planned = list(planned)
+    paths = {change.path for change in changes}
+    ordered = sorted(paths, key=lambda p: (-(p.count("/") if p != "/" else 0), p))
+    return [(path, [rule for rule in planned if rule.path == path]) for path in ordered]

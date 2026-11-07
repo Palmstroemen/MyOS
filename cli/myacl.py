@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.acl import ACLPolicy
 from core.acl_enforcement import configured_mode
-from core.acl_nextcloud import BITS, FULL_MASK, NEXTCLOUD_PERMISSIONS, diff, local_tree, plan, read_nextcloud_md
+from core.acl_nextcloud import BITS, FULL_MASK, NEXTCLOUD_PERMISSIONS, diff, local_tree, plan, read_nextcloud_md, updates
 from core.acl_view import RIGHTS_ORDER, ACLView
 from core.identity import acl_user_for
 from core.nextcloud_dav import NextcloudDAV, NextcloudError, tree_functions
@@ -45,6 +45,7 @@ def parse_args(args=None) -> argparse.Namespace:
     sync_cmd.add_argument("--dry-run", action="store_true",
                           help="Read the rules Nextcloud holds and show what would change; sends nothing "
                                "(login: MYOS_NEXTCLOUD_USER, MYOS_NEXTCLOUD_PASSWORD)")
+    sync_cmd.add_argument("--yes", action="store_true", help="Send without asking (needed without a terminal)")
     sync_cmd.add_argument("--json", action="store_true", help="Output as JSON")
 
     return parser.parse_args(args)
@@ -60,7 +61,7 @@ def main() -> None:
         elif args.command == "rules":
             code = _rules(args.path, args.json)
         else:
-            code = _sync(args.path, args.plan, args.dry_run, args.json)
+            code = _sync(args.path, args.plan, args.dry_run, args.yes, args.json)
         sys.exit(code)
     except BrokenPipeError:  # output cut short (myacl rules | head)
         sys.exit(0)
@@ -191,9 +192,9 @@ def _groups(settings) -> list:
     return [g.strip() for g in settings.get("group", "").split(",") if g.strip()]
 
 
-def _sync(path: str, plan_only: bool, dry_run: bool, as_json: bool) -> int:
-    if not (plan_only or dry_run):
-        raise _Refused("only --plan and --dry-run are there yet: the rules are not sent to Nextcloud")
+def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -> int:
+    if as_json and not (plan_only or dry_run):
+        raise _Refused("--json only with --plan or --dry-run")
     view = _view(path)
     if view is None:
         raise _Refused(f"No ACLs.md governs {path}")
@@ -213,20 +214,52 @@ def _sync(path: str, plan_only: bool, dry_run: bool, as_json: bool) -> int:
     user, password = os.environ.get("MYOS_NEXTCLOUD_USER", ""), os.environ.get("MYOS_NEXTCLOUD_PASSWORD", "")
     if not (user and password):
         raise _Refused("set MYOS_NEXTCLOUD_USER and MYOS_NEXTCLOUD_PASSWORD (best an app password) for the login")
+    dav = NextcloudDAV(settings["url"], user, password, settings["folder"])
     try:
-        tree = NextcloudDAV(settings["url"], user, password, settings["folder"]).tree()
+        result, changes = _compare(dav, policy, accounts, settings)
     except NextcloudError as exc:
         raise _Refused(str(exc)) from exc
-    exists, children = tree_functions(tree)
-    result = plan(policy, accounts, exists, children, base_groups=_groups(settings))
-    changes = diff(result.rules, tree)
     if as_json:
         rows = [{"path": c.path, "kind": c.kind, "account": c.account,
                  "before": None if c.before is None else {"mask": c.before.mask, "permissions": c.before.permissions},
                  "after": None if c.after is None else _nextcloud_order(c.after)} for c in changes]
         print(json.dumps({"changes": rows, "notes": result.notes}, indent=2, ensure_ascii=False))
         return 0
-    print(f"{settings['url']}  {settings['folder']}  (as {user}): {len(changes)} change(s), nothing sent (--dry-run)")
+    sent = "nothing sent (--dry-run)" if dry_run else ("in sync" if not changes else "to send")
+    print(f"{settings['url']}  {settings['folder']}  (as {user}): {len(changes)} change(s), {sent}")
+    _print_changes(changes)
+    _print_notes(result.notes)
+    if dry_run or not changes:
+        return 0
+    if not yes:
+        if not sys.stdin.isatty():
+            raise _Refused("not sent: confirm with --yes when there is no terminal to ask")
+        if input(f"\nSend these {len(changes)} change(s) to {settings['url']}? [y/N] ").strip().lower() not in ("y", "yes", "j", "ja"):
+            print("Nothing sent.")
+            return 1
+    try:
+        for rule_path, rules in updates(result.rules, changes):
+            dav.set_rules(rule_path, rules)
+        _result, left = _compare(dav, policy, accounts, settings)
+    except NextcloudError as exc:
+        raise _Refused(f"{exc} (rules of deeper paths may already be sent; run again)") from exc
+    if left:
+        print(f"\nSent, but {len(left)} change(s) are still open:")
+        _print_changes(left)
+        return 1
+    print("\nSent; Nextcloud now holds the rules of ACLs.md.")
+    return 0
+
+
+def _compare(dav, policy, accounts, settings):
+    """(plan, changes) for the Team folder as it is now."""
+    tree = dav.tree()
+    exists, children = tree_functions(tree)
+    result = plan(policy, accounts, exists, children, base_groups=_groups(settings))
+    return result, diff(result.rules, tree)
+
+
+def _print_changes(changes) -> None:
     rows = []
     for c in changes:
         if c.before is None:
@@ -239,8 +272,6 @@ def _sync(path: str, plan_only: bool, dry_run: bool, as_json: bool) -> int:
     if rows:
         print()
         _table(rows)
-    _print_notes(result.notes)
-    return 0
 
 
 def _show_plan(project_root, result, as_json: bool) -> int:

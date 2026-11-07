@@ -158,13 +158,13 @@ def test_sync_without_nextcloud_md_explains_what_is_missing(tmp_path):
     assert result.returncode == 2 and "Nextcloud.md" in result.stderr
 
 
-def test_sync_without_plan_is_not_there_yet(tmp_path):
+def test_sync_needs_the_login_too(tmp_path):
     root = _setup(tmp_path)
     _nextcloud_md(root)
 
-    result = _run(["sync", str(root)], tmp_path)
+    result = _run(["sync", "--yes", str(root)], tmp_path)
 
-    assert result.returncode == 2 and "--plan" in result.stderr
+    assert result.returncode == 2 and "MYOS_NEXTCLOUD_USER" in result.stderr
 
 
 def test_dry_run_needs_the_login_from_the_environment(tmp_path):
