@@ -1,6 +1,7 @@
-"""PostFix windows with the one editor (MYOS_POSTFIX_EDITOR=codemirror): the note being edited
-gets the CodeMirror editor, the others keep their rendering; what is typed is saved as before
-(front matter kept, changes from outside merged), links open notes in the same window."""
+"""PostFix windows with the one editor (the default; MYOS_POSTFIX_EDITOR=line brings back the
+old one): the note being edited gets the CodeMirror editor, the others keep their rendering; what
+is typed is saved as before (front matter kept, changes from outside merged), links open notes in
+the same window."""
 
 import os
 import time
@@ -116,9 +117,17 @@ def test_a_link_opens_the_note_in_the_same_window(setup):
     assert _wait(app, lambda: "Der zweite Text." in (_js(app, host, f"window.host.getDoc({str((folder / 'Zweite.md').resolve())!r})") or ""))
 
 
-def test_without_the_switch_postfix_stays_as_it_was(setup, monkeypatch):
+def test_without_the_switch_postfix_edits_in_the_editor(setup, monkeypatch):
     app, window, folder, editor_host = setup
     monkeypatch.delenv("MYOS_POSTFIX_EDITOR")
+    w = window(folder / "Erste.md")
+    w._take_editor()
+    assert w.editor.preview_suspended()
+
+
+def test_the_line_editor_is_still_there_when_asked_for(setup, monkeypatch):
+    app, window, folder, editor_host = setup
+    monkeypatch.setenv("MYOS_POSTFIX_EDITOR", "line")
     w = window(folder / "Erste.md")
     w._take_editor()
     assert not w.editor.preview_suspended()

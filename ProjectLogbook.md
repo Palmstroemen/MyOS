@@ -163,8 +163,9 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
     [x] Testrechner (2026-10-26, docs/TEST-MACHINE.md): jeder Tester bekommt eine frische Kopie (~/MyOS-Tutorial),
         "💬 Kommentar" unter jeder Lektion, "✅ Bin fertig" in Lektion 16 sammelt Kommentare und Änderungen nach
         ~/MyOS-Testergebnisse, setzt alles zurück und öffnet Lektion 1 (scripts/testrun.py)
-    [ ] PostFix: Obsidian-artiges Editieren mit CodeMirror 6 in QtWebEngine - recherchiert 2026-10-26, erst ein
-        Prototyp im Vergleich mit Obsidian
+    [x] PostFix: Obsidian-artiges Editieren mit CodeMirror 6 in QtWebEngine - recherchiert 2026-10-26, gebaut
+        2026-11-03 (ein Editor für alle Zettel, leichte Darstellung), Standard seit 2026-11-07;
+        `MYOS_POSTFIX_EDITOR=line` holt den alten Zeileneditor zurück, bis er geht
     [ ] Am Ende des Tutorials (Idee 2026-10-24): Bitte an den Nutzer, selbst eine oder mehrere
         Template-Strukturen zu entwerfen: wie er sie in Firmen vorgefunden hat oder für vernünftig hielte,
         und vielleicht eine andere für sich privat

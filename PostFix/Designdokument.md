@@ -121,9 +121,10 @@ Use portable, file-based formats and compatible registry structures.
   edits saved, the connection removed.
 - Exercise links: one handler for all windows, which hands each click to the window it came from.
 
-## One Editor For All Notes (in the works)
+## One Editor For All Notes
 
-`PostFix/editor_host.py`, behind `MYOS_POSTFIX_EDITOR=codemirror` (off by default). Measured: every
+`PostFix/editor_host.py`, the editor since 2026-11-07 (`MYOS_POSTFIX_EDITOR=line` brings back the
+old line editor of `smart_editor.py` until it goes). Measured: every
 further CodeMirror page costs 40-80 MB and leaks some when dropped; moving one page between
 windows takes 40-120 ms. So one page serves all notes of a PostFix:
 

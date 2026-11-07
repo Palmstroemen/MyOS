@@ -76,8 +76,9 @@ def active_window():
 
 
 def editor_enabled() -> bool:
-    """The CodeMirror editor (editor_host.py) instead of the line editor; switched on for now."""
-    return os.environ.get("MYOS_POSTFIX_EDITOR", "").strip().lower() == "codemirror"
+    """The CodeMirror editor (editor_host.py); MYOS_POSTFIX_EDITOR=line brings back the old line
+    editor (smart_editor.py) until it goes."""
+    return os.environ.get("MYOS_POSTFIX_EDITOR", "").strip().lower() != "line"
 
 
 def _window_for_note(note: str):
