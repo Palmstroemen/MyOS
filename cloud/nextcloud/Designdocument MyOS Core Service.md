@@ -113,7 +113,8 @@ The GMXtec is only our test host; nothing depends on it.
    `GET level?path=` (MyOS folders of a level: born, embryos, may create) and
    `GET birth?path=` (what the birth creates and copies); `myos_acl` proxies both and
    forwards events; the core sets the rules after each event. The row in Files asks the API
-   instead of listing `.MyOS/Embryos/`. Done when: the integration test births a folder as Lisa and
+   instead of listing `.MyOS/Embryos/`, as the first piece of the small Scope (9.4): the
+   web component, with the Files app as its first shell. Done when: the integration test births a folder as Lisa and
    the folder has its `ACLs.md` rights without a sync; editing `ACLs.md` in the cloud changes
    the rules.
 2. **Perspectives** - an own view in Files (left bar), the resolver in the core answers what
@@ -121,31 +122,79 @@ The GMXtec is only our test host; nothing depends on it.
 3. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.
 4. **ExApp packaging.**
 
-## 9. Nextcloud Is the First, Not the Only One
+## 9. Nextcloud Is the First, Not the Only One - the Whole Picture
 
 Next could be Obsidian, OneDrive, Google Drive/Docs, Dropbox, Synology, OpenCloud. So what
-we build now is cut along that line from the start:
+we build now is cut along that line from the start.
 
-- **The core knows no platform.** It reads a shadow tree and answers in MyOS terms
-  (embryos, births, rights per path and person, lenses). The service's API speaks these
-  terms, never Nextcloud's.
-- **One adapter per platform, three parts:**
-  1. *Files*: build and keep the shadow tree (walk, events or polling), carry out what the
-     user does (WebDAV here; Graph API for OneDrive, Drive API, Dropbox API, a vault's
-     folder for Obsidian).
-  2. *Rights*: map the rights the core computes to what the platform enforces, and report
-     what it cannot hold - as `core/acl_nextcloud.py` does with patterns and `change`.
-     Platforms differ most here: Nextcloud's advanced permissions and Synology's
-     Windows-like ACLs hold MyOS' "nearest rule wins"; OneDrive, Google Drive and Dropbox
-     only share items (rights add up, nothing can be taken away deeper), so there the
-     adapter must refuse or approximate, never pretend.
-  3. *UI*: the thin client in the platform's own place (Files app here, an Obsidian
-     plugin's file explorer, a web add-on), showing what the core answers.
-- Where a platform cannot run a container beside it (OneDrive, Google, Dropbox), the same
-  image runs elsewhere - at home, on a NAS, at a host - and talks to the platform's API.
-  Obsidian has no server: there the core runs on the desktop as today, next to the vault.
+    ┌──────────────── Docker image (the same everywhere) ────────────────┐
+    │  MyOS core: Blueprint, ACLs, perspective resolver, tags            │
+    │  API in MyOS terms (embryos, births, rights, lenses, projects)     │
+    │  adapters: nextcloud | synology | onedrive | ...                   │
+    │            (shadow tree + changes, rights translated)              │
+    │  the small Scope as a web component                                │
+    └────────────────────────────────────────────────────────────────────┘
+              ▲                                       ▲
+     a thin shell per platform              the platform's API / WebDAV
+     (Files app, Obsidian plugin, ...)
+
+### 9.1 The Package: One Docker Image
+
+Docker packs the core with Python, its libraries and the web files into one image that runs
+alike wherever a container runtime runs. Which adapter is active is a setting, not another
+image. Docker settles the packing, not the place:
+
+| Platform                                   | Where the image runs                                      |
+|--------------------------------------------|-----------------------------------------------------------|
+| Nextcloud, OpenCloud (own server), Synology (Container Manager) | right beside it                      |
+| OneDrive, Google Drive, Dropbox            | elsewhere (at home, a NAS, a rented server); one cannot upload code to them, the image talks to their API |
+| Obsidian                                   | no server: the core runs on the desktop as today, next to the vault |
+
+### 9.2 No FUSE in the Cloud
+
+FUSE does not sit on top of a filesystem: it is the operating system's interface through
+which a program presents an invented filesystem whose content it supplies (Linux built in;
+macFUSE or FUSE-T on macOS; WinFsp or Dokan on Windows, similar but not the same). In a
+container it needs `/dev/fuse` and `SYS_ADMIN`, which many hosts forbid.
+
+The cloud does not need it. The drive is one way to show perspectives - for desktop
+programs, whose save dialogs understand only paths. In the cloud the save dialog is our own
+plugin, which asks the core directly what a lens shows and where a file really belongs. The
+shadow tree is a plain folder. So the perspective logic must stay apart from the drive
+(`core/perspective.py` and the resolver on one side, `core/perspective_fuse.py` on the
+other); how cleanly they are apart today is checked in step 2.
+
+### 9.3 Small Adapters, Three Parts
+
+- **The core knows no platform.** It reads a shadow tree and answers in MyOS terms. The
+  service's API speaks these terms, never a platform's.
+- **Files**: build and keep the shadow tree (walk, then events or polling) and carry out
+  what the user does through the platform (WebDAV here; Graph API for OneDrive, Drive API,
+  Dropbox API, the vault's folder for Obsidian). The adapter never copies users' documents:
+  syncing them is the platform's job (its sync client, its web app).
+- **Rights**: map the rights the core computes to what the platform enforces, and report
+  what it cannot hold - as `core/acl_nextcloud.py` does with patterns and `change`.
+  Platforms differ most here: Nextcloud's advanced permissions and Synology's Windows-like
+  ACLs hold MyOS' "nearest rule wins"; OneDrive, Google Drive and Dropbox only share items
+  (rights add up, nothing can be taken away deeper), so there the adapter must refuse or
+  approximate, never pretend.
 - Today the Nextcloud parts live in `core/` (`acl_nextcloud.py`, `nextcloud_dav.py`); with
   step 1 they move into the Nextcloud adapter, so `core/` keeps no platform code.
+
+### 9.4 The Small Scope: Built Once, a Thin Shell per Platform
+
+The browser side - the transparent folders, creating a project, births, perspectives - is
+built once as a web component (HTML/JS) that talks only to the core's API. Per platform a
+thin shell embeds it where that platform lets one in:
+
+| Platform                         | Where the small Scope appears                                 |
+|----------------------------------|---------------------------------------------------------------|
+| Nextcloud                        | in the Files app (as the row today)                           |
+| Obsidian                         | a plugin in its file explorer (Obsidian is a browser itself)  |
+| Synology                         | an own DSM app                                                |
+| OneDrive (personal), Google Drive, Dropbox | their file browsers take no plugins: an own web page served by the image, showing their files through their API. OneDrive for Business could go through SharePoint extensions, Google Drive only as a narrow side panel |
+
+The desktop stays as it is: the drive with FUSE, Scope, SunTree, PostFix.
 
 ## 10. Open Questions
 
