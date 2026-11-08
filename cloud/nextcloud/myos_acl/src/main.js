@@ -3,11 +3,12 @@
  * current folder, always together - born ones in full colour, embryos (suggested, not yet
  * created) pale. The born ones leave the list below, so it holds what the user made.
  *
- * Which folders a level suggests, and what a birth copies, comes from .MyOS/Embryos.json at
- * the project root, written by myacl sync (core/cloud_embryos.py: MyOS is the one place that
- * resolves templates): {"version": 1, "tree": {name: subtree}, "births": {embryo: {"dirs":
- * [...], "files": {file: sha256}}}}, the files below .MyOS/Embryos/<embryo>/. The nearest one
- * up the path governs, as a subproject's own does.
+ * Which folders a level suggests, and what a birth copies, comes from the project's
+ * .MyOS/Embryos/, written by myacl sync (core/cloud_embryos.py: MyOS is the one place that
+ * resolves templates): a folder per embryo, its visible subfolders the deeper embryos, the
+ * rest what its birth copies. Nextcloud lists only the embryos one may read - those where one
+ * may read the folder they become, as Scope shows them. The nearest project up the path
+ * governs, as a subproject's own does.
  */
 import { getCurrentUser, getRequestToken } from '@nextcloud/auth'
 import { FileListFilter, Header, Permission, registerFileListFilter, registerFileListHeaders } from '@nextcloud/files'
@@ -16,51 +17,76 @@ import { generateRemoteUrl } from '@nextcloud/router'
 
 const APP = 'myos_acl'
 const EMBRYO_OPACITY = 0.4 // as Scope's default for suggested folders
+const EMBRYOS = '/.MyOS/Embryos'
 
 // The folder shown and what MyOS says about it: its project (DAV URL) and its path there.
 const state = { folder: null, level: null, born: new Set(), el: null }
-const manifests = new Map() // DAV URL of a folder -> Promise of its manifest, or null
+const projects = new Map() // DAV URL of a folder -> Promise: whether it holds .MyOS/Embryos
 
 function davUrl(path) {
 	const root = generateRemoteUrl('dav/files/' + encodeURIComponent(getCurrentUser().uid))
-	return root.replace(/\/$/, '') + path.split('/').filter(Boolean).map(p => '/' + encodeURIComponent(p)).join('')
+	return root.replace(/\/$/, '') + encoded(path)
 }
 
-function dav(method, url, headers = {}) {
-	return fetch(url, { method, headers: { requesttoken: getRequestToken() ?? '', ...headers }, credentials: 'same-origin' })
+function encoded(path) {
+	return path.split('/').filter(Boolean).map(p => '/' + encodeURIComponent(p)).join('')
 }
 
-function manifest(url) {
-	if (!manifests.has(url)) {
-		manifests.set(url, dav('GET', url + '/.MyOS/Embryos.json')
-			.then(response => response.ok ? response.json() : null)
-			.then(data => (data && data.version === 1 && typeof data.tree === 'object') ? data : null)
-			.catch(() => null))
+function dav(method, url, headers = {}, body = undefined) {
+	return fetch(url, { method, body, headers: { requesttoken: getRequestToken() ?? '', ...headers }, credentials: 'same-origin' })
+}
+
+const PROPFIND = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>'
+
+/** The entries of the folder at url one may read: [{name, folder}], [] when there is none. */
+async function list(url) {
+	const response = await dav('PROPFIND', url, { Depth: '1', 'Content-Type': 'application/xml' }, PROPFIND)
+	if (response.status !== 207) {
+		return []
 	}
-	return manifests.get(url)
+	// Compared decoded: the server may encode a name otherwise than encodeURIComponent.
+	const path = href => decodeURIComponent(new URL(href, location.href).pathname).replace(/\/$/, '')
+	const base = path(url)
+	const xml = new DOMParser().parseFromString(await response.text(), 'application/xml')
+	const entries = []
+	for (const item of xml.getElementsByTagNameNS('DAV:', 'response')) {
+		const href = path(item.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent ?? '')
+		if (href === base || !href.startsWith(base + '/')) {
+			continue
+		}
+		const name = href.slice(base.length + 1)
+		const folder = item.getElementsByTagNameNS('DAV:', 'collection').length > 0
+		entries.push({ name, folder })
+	}
+	return entries
+}
+
+function isProject(url) {
+	if (!projects.has(url)) {
+		projects.set(url, dav('PROPFIND', url + EMBRYOS, { Depth: '0' })
+			.then(response => response.status === 207)
+			.catch(() => false))
+	}
+	return projects.get(url)
 }
 
 /**
- * The MyOS level of folder: {project, rel, names, births} - the nearest manifest up the path,
- * folder's path below that project, and the names of its node in the tree; null outside.
+ * The MyOS level of folder: {project, rel, names} - the nearest project up the path with
+ * embryos, folder's path below it, and the embryos of that level one may read; null outside.
  */
 async function myosLevel(folder) {
 	const parts = folder.path.split('/').filter(Boolean)
 	for (let depth = parts.length; depth >= 0; depth--) {
 		const project = davUrl(parts.slice(0, depth).join('/'))
-		const data = await manifest(project)
-		if (!data) {
+		if (!await isProject(project)) {
 			continue
 		}
-		const below = parts.slice(depth)
-		let node = data.tree
-		for (const part of below) {
-			node = node?.[part]
-		}
-		const names = node && typeof node === 'object'
-			? Object.keys(node).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-			: []
-		return { project, rel: below.join('/'), names, births: data.births ?? {} }
+		const rel = parts.slice(depth).join('/')
+		const names = (await list(project + EMBRYOS + encoded(rel)))
+			.filter(entry => entry.folder && !entry.name.startsWith('.'))
+			.map(entry => entry.name)
+			.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+		return { project, rel, names }
 	}
 	return null
 }
@@ -95,25 +121,22 @@ async function must(response, what) {
 
 /**
  * Birth as in MyOS (BirthClinic): the folder, then what the template holds on that level -
- * its files and hidden folders such as .MyOS - copied on the server from the project's
- * .MyOS/Embryos/<embryo>/. Visible subfolders stay embryos.
+ * its files and hidden folders such as .MyOS - copied on the server from the embryo's folder
+ * in the project's .MyOS/Embryos/. Visible subfolders there are the deeper embryos.
  */
 async function birth(name) {
-	const { project, rel, births } = state.level
-	const embryo = rel ? `${rel}/${name}` : name
+	const { project, rel } = state.level
 	const target = davUrl(childPath(name))
+	const source = project + EMBRYOS + encoded(rel) + encoded(name)
 	await must(await dav('MKCOL', target), `MKCOL ${name}`)
-	const { dirs = [], files = {} } = births[embryo] ?? {}
-	const encoded = path => path.split('/').map(encodeURIComponent).join('/')
-	for (const dir of dirs) {
-		await must(await dav('MKCOL', `${target}/${encoded(dir)}`), `MKCOL ${dir}`)
-	}
-	const source = `${project}/.MyOS/Embryos/${encoded(embryo)}`
-	for (const file of Object.keys(files)) {
-		await must(await dav('COPY', `${source}/${encoded(file)}`, {
-			Destination: `${target}/${encoded(file)}`,
+	for (const entry of await list(source)) {
+		if (entry.folder && !entry.name.startsWith('.')) {
+			continue
+		}
+		await must(await dav('COPY', source + encoded(entry.name), {
+			Destination: target + encoded(entry.name),
 			Overwrite: 'F',
-		}), `COPY ${file}`)
+		}), `COPY ${entry.name}`)
 	}
 	open(name)
 }

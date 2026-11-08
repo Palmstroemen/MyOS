@@ -315,6 +315,20 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             Regeln wie in MyOS. Integrationstest: ohne Schutz überschreibt Lisa `Familie/.MyOS/Embryos.json`, mit 403
         [ ] Mit Desktop-Client: `Embryos.json` und `.MyOS/Embryos/` kämen auch lokal an (stört nicht, ist aber Ballast)
         [ ] Tags: Unsere Tags auf die "Collaborative Tags" (WebDAV `systemtags`) spiegeln
+    [ ] Der MyOS-Kern als Dienst neben Nextcloud (entschieden 2026-11-08, cloud/nextcloud/Designdocument MyOS Core
+        Service.md): ein Docker-Image mit dem Python-Kern als API, `myos_acl` als Brücke; keine MyOS-Logik in PHP oder
+        JS. Der Kern arbeitet auf einem Schattenbaum (Ordner, `.MyOS`, `Templates/`), entscheidet; der Nutzer handelt
+        mit eigenen Rechten, Regeln setzt ein Dienstkonto sofort nach jedem Ereignis. Erst als Sidecar, später ExApp
+        [ ] Schritt 1: Container, Schattenbaum, API für Ebene und Geburt, Ereignisse aus `myos_acl`, Rechte live.
+        [x] Vorlagen wie Formulare (2026-11-08): `myacl sync` legt pro Embryo einen Ordner in `.MyOS/Embryos/` an,
+            lesbar nur für wen, der den Ordner lesen darf, der daraus wird (wie Scope Embryos zeigt); wer in
+            `/00_Admin` nichts darf, sieht weder Embryo noch Vorlage. `Embryos.json` ist nur noch Buchhaltung des
+            Syncs; der Browser liest die Embryos aus den Ordnern, die er sehen darf. Integrationstest und Browser grün
+        [ ] Schritt 2: Perspektiven als eigene Ansicht in Files
+        [ ] Schritt 3: Tags und Filter
+        [ ] Schritt 4: als ExApp (AppAPI) verpacken
+        [ ] Nextcloud ist der erste Adapter, nicht der einzige (Obsidian, OneDrive, Google, Dropbox, Synology ...):
+            der Kern kennt keine Plattform; pro Plattform Dateien, Rechte, Oberfläche (Designdokument, Abschnitt 9)
 ### Nice to have
 [ ] Ordner-Organisation neu
 ---

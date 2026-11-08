@@ -1,9 +1,12 @@
 # cloud_embryos.py - a project's embryos for a cloud (the MyOS row in Nextcloud's Files app)
 #
 # MyOS stays the one place that resolves templates (Templates.md, inherited, Templates/ found
-# upwards, several templates merged). Per project this computes .MyOS/Embryos.json - the
-# template tree and, per embryo, what its birth copies - and those files, to be uploaded to
-# .MyOS/Embryos/<embryo>/. The browser only shows the tree and copies the files on birth.
+# upwards, several templates merged). Per project this computes a folder per embryo,
+# .MyOS/Embryos/<embryo>/, holding what its birth copies, and .MyOS/Embryos.json - the
+# template tree and the hash of each uploaded file, the sync's bookkeeping. The browser takes
+# the embryos of a level from the folders it may read there (each is readable for who may
+# read where it is born, as Scope shows an embryo) and copies on birth what one holds besides
+# its visible subfolders, the deeper embryos.
 
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from core.localBlueprintLayer import Blueprint
 
@@ -25,7 +28,7 @@ PAYLOAD = ".MyOS/Embryos"
 @dataclass
 class EmbryoSet:
     path: str  # the project's folder, relative to the synced root ("/" for it)
-    manifest: dict  # {"version": 1, "tree": {name: subtree}, "births": {embryo: {"dirs", "files"}}}
+    manifest: dict  # {"version": 2, "tree": {name: subtree}, "births": {embryo: {"dirs", "files"}}}
     payload: Dict[str, Path] = field(default_factory=dict)  # "<embryo>/<file>" -> template file
 
 
@@ -54,7 +57,7 @@ def _embryo_set(project: Path, path: str) -> EmbryoSet:
             continue
         births[embryo] = {"dirs": dirs, "files": {rel: _sha256(source / rel) for rel in files}}
         payload.update({f"{embryo}/{rel}": source / rel for rel in files})
-    manifest = {"version": 1, "tree": blueprint.embryo_tree, "births": births}
+    manifest = {"version": 2, "tree": blueprint.embryo_tree, "births": births}
     return EmbryoSet(path, manifest, payload)
 
 
@@ -166,6 +169,9 @@ def send(embryos: EmbryoSet, change: EmbryoChange, cloud) -> None:
 
     if change.manifest_changed or change.upload:
         folder(PAYLOAD)
+    if change.manifest_changed:  # a folder per embryo, also where a birth copies nothing
+        for embryo in _paths(embryos.manifest["tree"]):
+            folder(f"{PAYLOAD}/{embryo}")
     for rel in change.upload:
         folder(f"{PAYLOAD}/{rel}".rsplit("/", 1)[0])
         cloud.put(_in_project(embryos.path, f"{PAYLOAD}/{rel}"), embryos.payload[rel].read_bytes())
@@ -181,6 +187,7 @@ def cloud_paths(embryos: EmbryoSet) -> List[str]:
     if not embryos.manifest["tree"] and not embryos.payload:
         return []
     paths = [_in_project(embryos.path, ".MyOS"), _in_project(embryos.path, MANIFEST), _in_project(embryos.path, PAYLOAD)]
+    paths.extend(_in_project(embryos.path, f"{PAYLOAD}/{embryo}") for embryo in _paths(embryos.manifest["tree"]))
     for rel in sorted(embryos.payload):
         parts = rel.split("/")
         for depth in range(1, len(parts) + 1):
@@ -188,3 +195,19 @@ def cloud_paths(embryos: EmbryoSet) -> List[str]:
             if path not in paths:
                 paths.append(path)
     return paths
+
+
+def readable_paths(sets: List[EmbryoSet]) -> List[Tuple[str, Optional[str]]]:
+    """
+    (path, reader) for core.acl_nextcloud.plan: each project's list of embryos for everyone
+    with rights in it (None), each embryo's folder for who may read the folder it becomes -
+    who may do nothing there sees neither the embryo nor its template.
+    """
+    found: List[Tuple[str, Optional[str]]] = []
+    for embryos in sets:
+        if not cloud_paths(embryos):
+            continue
+        found.append((_in_project(embryos.path, PAYLOAD), None))
+        for embryo in _paths(embryos.manifest["tree"]):
+            found.append((_in_project(embryos.path, f"{PAYLOAD}/{embryo}"), _in_project(embryos.path, embryo)))
+    return found

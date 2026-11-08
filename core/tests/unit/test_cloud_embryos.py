@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from core.cloud_embryos import cloud_paths, compare, embryo_sets, send
+from core.cloud_embryos import cloud_paths, compare, embryo_sets, readable_paths, send
 from core.localBlueprintLayer import Blueprint
 
 
@@ -45,7 +45,7 @@ def test_the_manifest_holds_the_template_tree(tmp_path):
     (only,) = embryo_sets(root)
 
     assert only.path == "/"
-    assert only.manifest["version"] == 1
+    assert only.manifest["version"] == 2
     assert only.manifest["tree"] == {"04_Finanz": {"Ausgaben": {"2026": {}}, "Einnahmen": {}}, "01_Info": {}}
 
 
@@ -116,7 +116,7 @@ def test_a_project_without_templates_has_an_empty_manifest(tmp_path):
 
     (only,) = embryo_sets(root)
 
-    assert only.manifest == {"version": 1, "tree": {}, "births": {}}
+    assert only.manifest == {"version": 2, "tree": {}, "births": {}}
     assert only.payload == {}
 
 
@@ -206,7 +206,9 @@ def test_send_uploads_the_files_then_the_manifest_then_removes(tmp_path):
     send(new, change, cloud)
 
     assert cloud.calls == [
-        ("MKCOL", "/.MyOS"), ("MKCOL", "/.MyOS/Embryos"), ("MKCOL", "/.MyOS/Embryos/04_Finanz"),
+        ("MKCOL", "/.MyOS"), ("MKCOL", "/.MyOS/Embryos"), ("MKCOL", "/.MyOS/Embryos/01_Info"),
+        ("MKCOL", "/.MyOS/Embryos/04_Finanz"), ("MKCOL", "/.MyOS/Embryos/04_Finanz/Ausgaben"),
+        ("MKCOL", "/.MyOS/Embryos/04_Finanz/Ausgaben/2026"), ("MKCOL", "/.MyOS/Embryos/04_Finanz/Einnahmen"),
         ("PUT", "/.MyOS/Embryos/04_Finanz/Liesmich.md"),
         ("PUT", "/.MyOS/Embryos.json"),
         ("DELETE", "/.MyOS/Embryos/04_Finanz/.MyOS/batch.svg"),
@@ -247,3 +249,29 @@ def test_cloud_paths_are_what_the_upload_creates(tmp_path):
     assert paths[:3] == ["/Haus/.MyOS", "/Haus/.MyOS/Embryos.json", "/Haus/.MyOS/Embryos"]
     assert "/Haus/.MyOS/Embryos/04_Finanz/.MyOS/icons/euro.svg" in paths
     assert "/Haus/.MyOS/Embryos/04_Finanz/.MyOS/icons" in paths
+
+
+def test_every_embryo_gets_its_folder_also_one_whose_birth_copies_nothing(tmp_path):
+    # The browser takes the embryos of a level from the folders it may read there.
+    (only,) = embryo_sets(_project(tmp_path / "Projekt"))
+    cloud = FakeCloud()
+    (change,) = compare([only], cloud)
+
+    send(only, change, cloud)
+
+    for embryo in ("01_Info", "04_Finanz/Ausgaben/2026", "04_Finanz/Einnahmen"):
+        assert ("MKCOL", f"/.MyOS/Embryos/{embryo}") in cloud.calls
+    assert "/.MyOS/Embryos/01_Info" in cloud_paths(only)
+
+
+def test_an_embryos_folder_is_readable_for_who_may_read_where_it_is_born(tmp_path):
+    root = _project(tmp_path / "Projekt")
+    _project(root / "Haus")
+
+    found = dict(readable_paths(embryo_sets(root)))
+
+    assert found["/.MyOS/Embryos"] is None  # the list itself: everyone in the project
+    assert found["/.MyOS/Embryos/04_Finanz"] == "/04_Finanz"
+    assert found["/.MyOS/Embryos/04_Finanz/Ausgaben/2026"] == "/04_Finanz/Ausgaben/2026"
+    assert found["/Haus/.MyOS/Embryos/01_Info"] == "/Haus/01_Info"
+    assert "/.MyOS/Embryos.json" not in found  # the sync's bookkeeping, not for the browser

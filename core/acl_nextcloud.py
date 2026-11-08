@@ -95,16 +95,18 @@ def plan(
     exists: Callable[[str], bool],
     children: Callable[[str], List[str]],
     base_groups: Iterable[str] = (),
-    readable: Iterable[str] = (),
+    readable: Iterable[Tuple[str, Optional[str]]] = (),
     protected: Iterable[str] = (),
 ) -> Plan:
     """
     The Nextcloud rules for policy (ACLPolicy.for_tree of the project, whose root is the
     Team folder's root): per person with an account, rules only where their rights change.
     base_groups, the groups the Team folder is given to, get a rule without rights at the
-    root, so only the people's own rules let anyone in. readable: paths (with all below)
-    everyone with rights in the project may read besides - the embryos the Files app shows
-    (core/cloud_embryos.py); those not there yet are skipped. protected: the rights and sync
+    root, so only the people's own rules let anyone in. readable: (path, reader) pairs - path
+    (with all below, up to a deeper pair) may be read besides by who may read reader, by
+    everyone with rights in the project when reader is None: the embryos the Files app shows,
+    each for who may read where it is born (core/cloud_embryos.readable_paths); those not
+    there yet are skipped. protected: the rights and sync
     files of .MyOS folders (rights_files): only who may change the rights there (change on that
     .MyOS/ACLs.md) may write them, everyone else keeps at most read.
     """
@@ -178,18 +180,23 @@ def _below(path: str, top: str) -> bool:
 
 
 def _person_rules(
-    role_rules: List[list], exists, children, missing: Set[str], readable: List[str] = (),
+    role_rules: List[list], exists, children, missing: Set[str], readable: List[Tuple[str, Optional[str]]] = (),
     protected: List[str] = (),
 ) -> List[Tuple[str, FrozenSet[str], bool]]:
-    opened: List[str] = []  # readable paths, once the person has rights at all
+    opened: Dict[str, bool] = {}  # readable path -> read for this person, once they have rights at all
 
-    def myos_rights(path: str) -> Set[str]:
+    def own_rights(path: str) -> Set[str]:
         key = _normalize_path(path)
         found: Set[str] = set()
         for rules in role_rules:
             for rule in _nearest_rules(rules, key):
                 found |= set(rule.rights)
-        if any(_below(path, top) for top in opened):
+        return found
+
+    def myos_rights(path: str) -> Set[str]:
+        found = own_rights(path)
+        tops = [top for top in opened if _below(path, top)]
+        if tops and opened[max(tops, key=len)]:  # the deepest pair decides
             found.add("read")
         return found
 
@@ -212,7 +219,9 @@ def _person_rules(
             else:
                 missing.add(base)
     if any(rights(base) for base in bases):
-        opened.extend(path for path in readable if exists(path))
+        for path, reader in readable:
+            if exists(path):
+                opened[path] = reader is None or bool({"read", "*"} & own_rights(reader))
         bases.update(opened)
         bases.update(path for path in protected if exists(path))
     granted = [base for base in bases if rights(base)]

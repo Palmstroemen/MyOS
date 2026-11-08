@@ -75,6 +75,10 @@ def _sync(tmp_path):
     (neu / ".MyOS").mkdir(parents=True)
     (neu / ".MyOS" / "Tags.md").write_text("# Tags\n")
     (neu / "Liesmich.md").write_text("Neu in Familie")
+    # And 00_Admin, which only the role Admin may read: nobody else sees it or its template.
+    admin = root / "Templates" / "Standard" / "00_Admin"
+    admin.mkdir(parents=True)
+    (admin / "Liesmich.md").write_text("Nur für Admins")
     # Familie a subproject: myacl sync puts its embryos into Familie/.MyOS.
     (root / "Familie" / ".MyOS").mkdir(parents=True)
     (root / "Familie" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
@@ -134,28 +138,34 @@ def test_moved_and_copied_entries_stay_hidden(synced):
     assert _sees("lisa", "Familie/", moved)
 
 
-def test_the_embryos_are_readable_for_who_only_passes_but_the_rest_of_myos_is_not(synced):
-    status, body = _dav("tom", "GET", ".MyOS/Embryos.json")
-    assert status == 200 and '"Neu"' in body
-    assert _dav("tom", "GET", ".MyOS/Embryos/Familie/Neu/Liesmich.md")[0] == 200
-    for secret in (".MyOS/ACLs.md", ".MyOS/Nextcloud.md", ".MyOS/Project.md"):
+def test_an_embryo_is_readable_for_who_may_read_where_it_is_born(synced):
+    # As Scope shows an embryo: Lisa may read /Familie/Neu, not /00_Admin; Tom only /Familie/Kind.
+    assert _dav("lisa", "GET", ".MyOS/Embryos/Familie/Neu/Liesmich.md")[0] == 200
+    assert _dav("lisa", "GET", ".MyOS/Embryos/00_Admin/Liesmich.md")[0] == 404
+    assert _sees("lisa", ".MyOS/Embryos/", "Familie") and not _sees("lisa", ".MyOS/Embryos/", "00_Admin")
+    assert _dav("oliver", "GET", ".MyOS/Embryos/00_Admin/Liesmich.md")[0] == 200
+    assert _dav("tom", "PROPFIND", ".MyOS/Embryos", {"Depth": "0"})[0] == 207  # the list, for all in the project
+    assert not _sees("tom", ".MyOS/Embryos/", "Familie")
+    assert _dav("tom", "GET", ".MyOS/Embryos/Familie/Neu/Liesmich.md")[0] == 404
+    for secret in (".MyOS/Embryos.json", ".MyOS/ACLs.md", ".MyOS/Nextcloud.md", ".MyOS/Project.md"):
         assert _dav("tom", "GET", secret)[0] == 404, secret
-    assert _dav("karl", "GET", ".MyOS/Embryos.json")[0] == 200
+        assert _dav("lisa", "GET", secret)[0] == 404, secret
 
 
 def test_a_birth_as_the_browser_does_it_copies_the_template_and_stays_hidden_on_the_way(synced):
-    # What src/main.js does: MKCOL the folder and its hidden folders, COPY the files.
+    # What src/main.js does: MKCOL the folder, COPY what the embryo's folder holds besides
+    # its visible subfolders (the deeper embryos) - files and hidden folders.
     name = f"Neu-{uuid.uuid4().hex[:6]}"  # a fresh name; the copy is what counts
     assert _dav("lisa", "MKCOL", f"Familie/{name}")[0] == 201
     synced.append(f"Familie/{name}")
-    assert _dav("lisa", "MKCOL", f"Familie/{name}/.MyOS")[0] == 201
     destination = f"{URL}/remote.php/dav/files/lisa/Projekte/Familie/{name}/"
-    for rel in ("Liesmich.md", ".MyOS/Tags.md"):
+    for rel in ("Liesmich.md", ".MyOS"):
         status = _dav("lisa", "COPY", f".MyOS/Embryos/Familie/Neu/{rel}", {"Destination": destination + rel})[0]
         assert status in (201, 204), rel
 
     status, body = _dav("lisa", "GET", f"Familie/{name}/Liesmich.md")
     assert status == 200 and body == "Neu in Familie"
+    assert _dav("lisa", "GET", f"Familie/{name}/.MyOS/Tags.md")[0] == 200
     assert not _sees("tom", "Familie/", name)
 
 

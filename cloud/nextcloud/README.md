@@ -32,12 +32,17 @@ colour, embryos pale; clicking an embryo gives birth to it as MyOS does (the fol
 files and hidden folders of that template level). Born MyOS folders leave the list below
 (Nextcloud counts them as "hidden" there). Embryos show only where one may create.
 
-`myacl sync` writes per project `.MyOS/Embryos.json` (the template tree and, per embryo, what
-its birth copies, with a hash per file) and uploads those files to `.MyOS/Embryos/<embryo>/`
-(core/cloud_embryos.py). Everyone with rights in the project may read these two, nothing else
-of `.MyOS`. What manages rights and the sync in any `.MyOS` (`ACLs.md`, `ACLs-history`,
-`Nextcloud.md`, `Embryos.json`, `Embryos/`) may only be written by who has `change` on that
-`ACLs.md` - so the account that syncs needs it too. The browser takes the nearest manifest up the path and copies on the server.
+`myacl sync` uploads per project a folder per embryo, `.MyOS/Embryos/<embryo>/`, holding what
+its birth copies (the files and hidden folders of that template level; its visible
+subfolders are the deeper embryos), and `.MyOS/Embryos.json` (the template tree and a hash
+per file, the sync's bookkeeping) (core/cloud_embryos.py). Everyone with rights in the
+project may list `.MyOS/Embryos/`, each embryo's folder only who may read the folder it
+becomes, as Scope shows embryos: who may do nothing in `/00_Admin` sees neither that embryo
+nor its template. Nothing else of `.MyOS` comes with it. What manages rights and the sync in
+any `.MyOS` (`ACLs.md`, `ACLs-history`, `Nextcloud.md`, `Embryos.json`, `Embryos/`) may only
+be written by who has `change` on that `ACLs.md` - so the account that syncs needs it too.
+The browser takes the nearest project up the path, lists the embryos it may read there and
+copies on the server.
 
 The browser part is `src/main.js`, built to `js/myos_acl-main.js` (committed, so installing
 needs no Node):
