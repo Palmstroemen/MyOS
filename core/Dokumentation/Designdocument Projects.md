@@ -161,7 +161,7 @@ test_lab/
 - Invalid Markdown → Fallback to default parsing
 
 ### **10.2 Validation**
-- Template names must exist in templates directory
+- Template names must exist in the templates directory (the nearest `.MyOS/Templates` upwards, see "Designdocument BlueprintLayer" 2.3)
 - Check for Markdown syntax errors (basic)
 - Detect circular inheritance in hierarchy
 

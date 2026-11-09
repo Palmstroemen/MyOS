@@ -338,7 +338,7 @@ Define a small, stable interface for ACL backends:
 - How should role inheritance be expressed?
 - Should template roles auto‑generate users/groups?
 - **Templates with their own ACLs** (decided and built 2026-10-22): templates are ordinary
-  folder structures; whatever lies in `Templates/<name>/.MyOS` (`ACLs.md`, `Desk.md`,
+  folder structures; whatever lies in `.MyOS/Templates/<name>/.MyOS` (`ACLs.md`, `Desk.md`,
   `Color.md`, …) is copied into a new project's `.MyOS` when it is created (P-Button,
   `myproject create`; `core/template_seed.py`). Nothing already there is overwritten; with
   several templates the first one with a file wins; only plain files (no symlinks, no
@@ -351,6 +351,11 @@ Define a small, stable interface for ACL backends:
   - In the template's folders the ACL panel shows and edits the template's rights. A
     template is no project: its `# Users` are the people of future projects, so whoever
     may write the template may edit them (no lock-out check, no “who are you?” hint).
+    Who may write it is up to the project whose `.MyOS/Templates` holds it (decided
+    2026-11-09): write on `/.MyOS/Templates/<name>/.MyOS/ACLs.md` by that project's
+    `ACLs.md`, never the template's own rights (they take effect only in the projects made
+    from it). A template outside any project with `ACLs.md` (`MYOS_TEMPLATES_DIR`): the file
+    system decides.
   - `.MyOS` and other hidden folders of a template are neither embryos nor roles.
   - Open: changing them later is not rolled out by itself; MyOS may ask "Apply these new
     rights to all existing projects?" (e.g. after an employee left).

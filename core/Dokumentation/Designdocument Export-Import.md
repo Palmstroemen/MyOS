@@ -59,7 +59,7 @@ Include `.MyOS/` from Export Root:
 - `ACLs.md`
 
 ### **5.3 Templates**
-Templates are always included so the receiver can continue working. Optional future behavior: include templates read-only.
+Templates are always included so the receiver can continue working: the ones the project uses, in the package's `.MyOS/Templates/` (where MyOS looks for them, so the package is a project with its templates). Optional future behavior: include templates read-only.
 
 ### **5.4 Metadata**
 Export metadata records:

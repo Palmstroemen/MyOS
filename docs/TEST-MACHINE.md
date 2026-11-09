@@ -16,12 +16,16 @@ and lesson 1 opens for the next tester.
    ```
    Copying it from a development machine: never copy the lens drive `MyOS_Test/Perspektiven`
    (a mounted drive), e.g. `rsync -a --exclude Perspektiven`. Testers need no "Projekte":
-   leave `MyOS_Test/Projekte` out or delete it.
-3. The templates (Standard, Person, Development) go to `~/Templates`: MyOS looks for a folder
-   "Templates" upwards from the tutorial copy, and the exercises (suggested folders in lesson 7,
-   the P button) need them. They are not in git yet - take `MyOS_Test/Templates`.
-   On an English Linux `~/Templates` is the desktop's folder for new documents: check that it
-   holds MyOS templates only. The Clipboard folder is made next to it by itself.
+   leave `MyOS_Test/Projekte` out or delete it - after step 3, its `.MyOS` holds the templates.
+3. The templates (Standard, Person, Development) go to `~/.MyOS/Templates`: MyOS takes the
+   nearest `.MyOS/Templates` upwards from the tutorial copy, and the exercises (suggested
+   folders in lesson 7, the P button) need them. They are not in git yet - take them from
+   `MyOS_Test/Projekte/.MyOS/Templates`:
+   ```
+   mkdir -p ~/.MyOS && cp -r MyOS_Test/Projekte/.MyOS/Templates ~/.MyOS/
+   ```
+   A plain `~/Templates` is never taken (on Linux it is the desktop's folder for new
+   documents); MyOS templates left there from earlier go to `~/.MyOS/Templates`.
 4. Open the tutorial at every login, PostFix as the program for Markdown notes (a double click on
    a lesson opens PostFix with its links, not a text editor), and SunTree (lesson 15) ready for
    Ctrl+Alt+Space:

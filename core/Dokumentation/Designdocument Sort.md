@@ -20,7 +20,7 @@ DateSource: filename, modified
 NewLevelFrom: 20 files
 ```
 
-- **Templates prepare it:** `Templates/Standard/.../Rechnungen/.MyOS/Sort.md`. Nothing is
+- **Templates prepare it:** `.MyOS/Templates/Standard/.../Rechnungen/.MyOS/Sort.md`. Nothing is
   filed inside a template (no data there); when the folder is born in a project, its
   `.MyOS` is copied along (as for every embryo), and the rule works there.
 - **Any folder** inside a project can get a rule; outside projects there are none.

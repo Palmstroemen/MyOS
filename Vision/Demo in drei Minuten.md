@@ -37,7 +37,7 @@ Darin:
   Rechnungen hält, damit die Brille etwas zu zeigen hat.
 - `Projekte/Wohnen`: ein Projekt ohne `04_Finanz`.
 - `Downloads/Rechnung Heizung 2025.odt`, in LibreOffice geöffnet.
-- `Templates/Standard`: die Vorlage, ohne Zugriffsrechte (sonst zeigt Scope links ein
+- `Projekte/.MyOS/Templates/Standard`: die Vorlage, ohne Zugriffsrechte (sonst zeigt Scope links ein
   Zugriffs-Panel und sperrt Aktionen).
 
 **Zustand vor dem Start:**

@@ -17,9 +17,11 @@ A project is valid if `.MyOS/Project.md` exists. `ProjectConfig` loads templates
 `.MyOS/Templates.md`.
 
 ### **2.3 Template Sources**
-Templates are loaded from:
+Templates are loaded from (`core/template_place.py`):
 - `MYOS_TEMPLATES_DIR` (if set), otherwise
-- `<project_root>/Templates`
+- the nearest `.MyOS/Templates` from the project upwards: `<project_root>/.MyOS/Templates`,
+  else a parent project's. The nearest one wins as a whole (no merging by name). A plain
+  `Templates/` folder is never taken (`~/Templates`, a cloud's own `Templates` folder).
 
 ## **3. Blueprint Responsibilities**
 
@@ -41,7 +43,7 @@ When a path contains embryos, `BirthClinic.give_birth()`:
 The embryo tree is a nested dictionary of folder names:
 
 ```
-Templates/Standard/
+.MyOS/Templates/Standard/
 ├── admin/
 ├── info/
 └── communication/

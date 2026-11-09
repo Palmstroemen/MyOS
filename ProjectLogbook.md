@@ -317,7 +317,7 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         [ ] Tags: Unsere Tags auf die "Collaborative Tags" (WebDAV `systemtags`) spiegeln
     [ ] Der MyOS-Kern als Dienst neben Nextcloud (entschieden 2026-11-08, cloud/nextcloud/Designdocument MyOS Core
         Service.md): ein Docker-Image mit dem Python-Kern als API, `myos_acl` als Brücke; keine MyOS-Logik in PHP oder
-        JS. Der Kern arbeitet auf einem Schattenbaum (Ordner, `.MyOS`, `Templates/`), entscheidet; der Nutzer handelt
+        JS. Der Kern arbeitet auf einem Schattenbaum (Ordner, `.MyOS` mit den Vorlagen), entscheidet; der Nutzer handelt
         mit eigenen Rechten, Regeln setzt ein Dienstkonto sofort nach jedem Ereignis. Erst als Sidecar, später ExApp
         [ ] Schritt 1: Container, Schattenbaum, API für Ebene und Geburt, Ereignisse aus `myos_acl`, Rechte live.
         [x] Vorlagen wie Formulare (2026-11-08): `myacl sync` legt pro Embryo einen Ordner in `.MyOS/Embryos/` an,
@@ -329,6 +329,15 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         [ ] Schritt 4: als ExApp (AppAPI) verpacken
         [ ] Nextcloud ist der erste Adapter, nicht der einzige (Obsidian, OneDrive, Google, Dropbox, Synology ...):
             der Kern kennt keine Plattform; pro Plattform Dateien, Rechte, Oberfläche (Designdokument, Abschnitt 9)
+    [x] Vorlagen in `.MyOS/Templates` (2026-11-09): Ein einfacher Ordner `Templates` kollidierte mit `~/Templates`
+        (XDG), dem `Templates`-Ordner von Nextcloud und ähnlichen; die Suche nach oben konnte dort landen. Jetzt
+        liegen Vorlagen bei den übrigen Einstellungen im Projekt: das nächste `.MyOS/Templates` nach oben gilt, als
+        Ganzes (kein Mischen nach Namen); `MYOS_TEMPLATES_DIR` geht vor. Ein Suchweg statt drei Kopien
+        (core/template_place.py). Wer eine Vorlage bearbeiten darf, bestimmt das Projekt, in dessen `.MyOS` sie
+        liegt, nicht die Rechte der Vorlage selbst. Export packt nur die benutzten Vorlagen, nach `.MyOS/Templates`.
+        Keine Übergangsregel: `MyOS_Test/Templates` ist nach `MyOS_Test/Projekte/.MyOS/Templates` umgezogen, die
+        Testmaschine nimmt `~/.MyOS/Templates`
+        [ ] Später vielleicht: ein Eintrag "Templates" links in Scope (Systemseite), statt versteckte Dateien zeigen
 ### Nice to have
 [ ] Ordner-Organisation neu
 ---

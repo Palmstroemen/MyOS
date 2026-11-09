@@ -119,7 +119,7 @@ giving the drive's form `04_Finanz › Ausgaben › Projekte › Job`, and back 
 
 While a lens is on, the department's Desk applies (the nearest `Desk.md` up the department
 path: `2026` → `Ausgangsrechnungen` → `04_Finanz`, prepared in the template, e.g.
-`Templates/Standard/04_Finanz/.MyOS/Desk.md`), wherever the lens or the CWD is moved. The
+`.MyOS/Templates/Standard/04_Finanz/.MyOS/Desk.md`), wherever the lens or the CWD is moved. The
 lens' Desk overrules the project's: moving the lens from `Musikstudio` (dark) to `Reisen`
 keeps the finance Desk (light); Reisen's Desk is ignored while the frame is on. Taking the
 lens off (✕) brings the Desk of the project one then stands in: in `Reisen/04_Finanz/...`
@@ -134,7 +134,7 @@ lens does not change the Desk.
 - **Changes are kept in the template** (decided 2026-10-24). What the user changes on the
   desktop while the lens is on goes, without asking, into the template's Desk that
   applies; where the department has none yet, it is created there
-  (`Templates/Standard/04_Finanz/.MyOS/Desk.md`), as a project without Desk gets one
+  (`.MyOS/Templates/Standard/04_Finanz/.MyOS/Desk.md`), as a project without Desk gets one
   ("Designdocument Desk.md", 12). The change then applies to the lens in every project.
   Where the template cannot be written (file system), the change is not kept; the
   desktop still follows.

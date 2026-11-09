@@ -61,8 +61,11 @@ Replaced: the static `Embryos.json` and the payload as the browser's source.
 
 The core works on a filesystem (`Path`); Nextcloud's storage may be local, S3 or anything.
 Instead of rewriting the core for WebDAV, the container keeps a **shadow tree** per managed
-Team folder: every folder (empty), every `.MyOS` file, `Templates/` with its files. No user
-documents. That is all Blueprint, ACLAuthorizer and the perspective resolver read.
+Team folder: every folder (empty), every `.MyOS` file - with `.MyOS/Templates/` and its
+files, where the templates live (since 2026-11-09). No user documents. That is all Blueprint,
+ACLAuthorizer and the perspective resolver read. Since the templates come into the Team folder
+with the project, a birth in step 1 can copy straight from `.MyOS/Templates`, by the core's
+answer; the copies in `.MyOS/Embryos/` are then no longer needed.
 
 - Built at start from a WebDAV walk (as `NextcloudDAV.tree()` does today), then kept current
   by the forwarded events; a periodic ETag check catches what an event missed.
