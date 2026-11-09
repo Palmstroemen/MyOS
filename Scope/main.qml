@@ -103,7 +103,6 @@ ApplicationWindow {
     readonly property string myosDirName: ".MyOS"
     readonly property string pathSegmentClipboard: "Clipboard"
     readonly property string pathSegmentProjekte: "Projekte"
-    readonly property string pathSegmentTemplates: "Templates"
     readonly property string pathSegmentMyosTest: "MyOS_Test"
     readonly property string pathSegmentMyOS: "MyOS"
     property color dialogPanelBg: schemeColors.dialogPanelBg
@@ -722,33 +721,6 @@ ApplicationWindow {
         return ""
     }
 
-    function resolveTemplatesRootPathFromProjectRoot(projectRoot) {
-        var root = PathUtils.trimTrailingSlash(projectRoot)
-        if (root.length === 0) return ""
-        if (root.endsWith("/Projekte")) {
-            return root.slice(0, root.length - "/Projekte".length) + "/Templates"
-        }
-        return root + "/Templates"
-    }
-
-    function resolveTemplatesRootPath() {
-        var fromProjectRoot = resolveTemplatesRootPathFromProjectRoot(resolveProjectRootPath())
-        if (fromProjectRoot.length > 0) {
-            return fromProjectRoot
-        }
-        var cwdParts = String(cwp || "").split("/").filter(function(p) { return p.length > 0 })
-        var idx = -1
-        for (var i = 0; i < cwdParts.length; i++) {
-            if (cwdParts[i] === "Projekte") {
-                idx = i
-                break
-            }
-        }
-        if (idx <= 0) return ""
-        var base = "/" + cwdParts.slice(0, idx).join("/")
-        return base + "/Templates"
-    }
-
     function folderTypeFromMeta(folderMeta) {
         if (folderMeta && folderMeta.folderType !== undefined) {
             var parsed = Number(folderMeta.folderType)
@@ -1150,23 +1122,21 @@ ApplicationWindow {
     }
 
     function resolveClipboardPath() {
-        var templatesRoot = PathUtils.trimTrailingSlash(resolveTemplatesRootPath())
-        var templatesSuffix = "/" + pathSegmentTemplates
-        if (templatesRoot.length > 0 && templatesRoot.indexOf(templatesSuffix) === (templatesRoot.length - templatesSuffix.length)) {
-            return templatesRoot.slice(0, templatesRoot.length - templatesSuffix.length) + "/" + pathSegmentClipboard
-        }
+        // Next to the projects root "Projekte", else in the root project (the tutorial is its own root).
         var projectSuffix = "/" + pathSegmentProjekte
         var projectRoot = PathUtils.trimTrailingSlash(resolveProjectRootPath())
-        if (projectRoot.length > 0 && projectRoot.indexOf(projectSuffix) === (projectRoot.length - projectSuffix.length)) {
-            return projectRoot.slice(0, projectRoot.length - projectSuffix.length) + "/" + pathSegmentClipboard
+        if (projectRoot.length > 0) {
+            if (projectRoot.endsWith(projectSuffix)) {
+                return projectRoot.slice(0, projectRoot.length - projectSuffix.length) + "/" + pathSegmentClipboard
+            }
+            return projectRoot + "/" + pathSegmentClipboard
         }
-        var cwdNorm = PathUtils.normalizeFsPath(cwp)
-        var marker = "/" + pathSegmentProjekte + "/"
-        var markerIndex = cwdNorm.indexOf(marker)
-        if (markerIndex >= 0) {
+        var cwdNorm = PathUtils.trimTrailingSlash(PathUtils.normalizeFsPath(cwp))
+        var markerIndex = (cwdNorm + "/").indexOf(projectSuffix + "/")
+        if (markerIndex > 0) {
             return cwdNorm.slice(0, markerIndex) + "/" + pathSegmentClipboard
         }
-        return PathUtils.trimTrailingSlash(cwdNorm) + "/" + pathSegmentClipboard
+        return cwdNorm + "/" + pathSegmentClipboard
     }
 
     function ensureClipboardDirectory(targetPath) {

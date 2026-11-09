@@ -5,8 +5,8 @@ Build the data for the three-minute demo (Vision/Demo in drei Minuten.md), fresh
     python3 scripts/make_demo_data.py <target> [--templates <folder with Standard>]
 
 Under target:
-- Templates/Standard - copied from --templates (default: MyOS_Test/Templates, else ~/Templates),
-  without access rights (ACLs.md).
+- Projekte/.MyOS/Templates/Standard - copied from --templates (default: the templates of
+  MyOS_Test/Projekte, else ~/.MyOS/Templates), without access rights (ACLs.md).
 - Downloads - about 30 mixed files, the mess of scene 1, and "Rechnung Heizung 2025.odt" for
   scene 5 (LibreOffice saves it through the "Perspektiven" drive).
 - Projekte - the projects root: "Urlaub 2025" an ordinary folder (scene 2 makes it a project);
@@ -34,6 +34,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from core.template_place import TEMPLATES_REL  # noqa: E402
 from scripts.make_tutorial_data import write_pdf, write_photo  # noqa: E402
 
 MARKER = ".myos-demo"
@@ -159,7 +160,7 @@ def write_documents(folder, documents):
 
 
 def default_templates():
-    for candidate in (REPO_ROOT / "MyOS_Test" / "Templates", Path.home() / "Templates"):
+    for candidate in (REPO_ROOT / "MyOS_Test" / "Projekte" / TEMPLATES_REL, Path.home() / TEMPLATES_REL):
         if (candidate / "Standard").is_dir():
             return candidate
     return None
@@ -225,14 +226,13 @@ def generate(target, templates):
     target.mkdir(parents=True, exist_ok=True)
     (target / MARKER).write_text("Built by scripts/make_demo_data.py; rebuilt on every run.\n",
                                  encoding="utf-8")
-    # Without access rights: they are not the demo's subject, and rights for people of a test
-    # template ("you are not listed in this project") would show a panel and lock actions.
-    shutil.copytree(Path(templates) / "Standard", target / "Templates" / "Standard",
-                    ignore=shutil.ignore_patterns("ACLs.md", "ACLs-history"))
-
     root = target / "Projekte"
     # The projects root is the first project: written by hand (making a project needs one above).
     (root / ".MyOS").mkdir(parents=True)
+    # Without access rights: they are not the demo's subject, and rights for people of a test
+    # template ("you are not listed in this project") would show a panel and lock actions.
+    shutil.copytree(Path(templates) / "Standard", root / TEMPLATES_REL / "Standard",
+                    ignore=shutil.ignore_patterns("ACLs.md", "ACLs-history"))
     (root / ".MyOS" / "Project.md").write_text("color: #4422ee\n", encoding="utf-8")
     (root / ".MyOS" / "Templates.md").write_text("Standard\n", encoding="utf-8")
     write_documents(root / "Urlaub 2025", URLAUB)

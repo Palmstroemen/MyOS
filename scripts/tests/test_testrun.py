@@ -233,7 +233,7 @@ def test_the_tutorial_is_its_own_root_and_its_folders_can_become_projects(machin
     monkeypatch.delenv("MYOS_ROLES", raising=False)
     monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
     shutil.copytree(testrun.REPO_ROOT / "core" / "tests" / "unit" / "test_lab" / "Templates",
-                    machine.tutorial.parent / "Templates")
+                    machine.tutorial.parent / ".MyOS" / "Templates")
     testrun.prepare(machine)
     root = machine.tutorial / ".MyOS"
     assert (root / "Project.md").is_file() and not (root / "ACLs.md").exists()

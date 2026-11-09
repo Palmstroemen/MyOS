@@ -43,6 +43,11 @@ def test_the_scenes_find_what_they_need(demo):
     assert len(list((demo / "Downloads").iterdir())) >= 30  # the mess of scene 1
 
 
+def test_the_templates_lie_in_the_projects_root(demo):
+    assert (demo / "Projekte" / ".MyOS" / "Templates" / "Standard" / "04_Finanz").is_dir()
+    assert not (demo / "Templates").exists()
+
+
 def test_the_demo_has_no_access_rights(demo):
     assert not list(demo.rglob("ACLs.md"))
 
