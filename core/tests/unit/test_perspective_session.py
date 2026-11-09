@@ -25,7 +25,7 @@ def _env(monkeypatch):
 
 @pytest.fixture
 def world(tmp_path):
-    template = tmp_path / "Templates" / "Standard"
+    template = tmp_path / ".MyOS" / "Templates" / "Standard"
     (template / "04_Finanz" / "Ausgangsrechnungen" / ".MyOS").mkdir(parents=True)
     (template / "04_Finanz" / ".MyOS").mkdir(parents=True, exist_ok=True)
     (template / "04_Finanz" / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Hell\n")

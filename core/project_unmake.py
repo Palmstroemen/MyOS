@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from core import trash
-from core.acl import _resolve_templates_dir
+from core.template_place import find_templates_dir
 
 CREATED = ".created.json"  # in .MyOS: what creating the project wrote
 SETTINGS_NAME = "MyOS settings"  # .MyOS with settings of its own, in the parent's trash
@@ -45,7 +45,7 @@ def can_unmake(path: Path) -> bool:
         return False
     if not any((parent / ".MyOS" / "Project.md").is_file() for parent in target.parents):
         return False  # the top project of the projects tree
-    templates_dir = _resolve_templates_dir(target)
+    templates_dir = find_templates_dir(target)
     return templates_dir is None or templates_dir.resolve() not in target.parents
 
 

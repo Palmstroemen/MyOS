@@ -29,7 +29,7 @@ def _env(monkeypatch):
 
 @pytest.fixture
 def world(tmp_path):
-    (tmp_path / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
+    (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
     studio = _project(root / "Musikstudio")

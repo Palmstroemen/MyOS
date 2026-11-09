@@ -310,8 +310,8 @@ def test_birth_path_nested_embryo_materializes_parent_then_child(tmp_path, monke
     (project_root / ".MyOS").mkdir()
     (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (project_root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    (project_root / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
-    (project_root / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
+    (project_root / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
+    (project_root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
 
     layer = Blueprint(project_root)
     assert not (project_root / "04_Finanz").exists()
@@ -330,7 +330,7 @@ def _setup_finanz_template_project(tmp_path):
     (project_root / ".MyOS").mkdir(parents=True)
     (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (project_root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    finanz = project_root / "Templates" / "Standard" / "04_Finanz"
+    finanz = project_root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
     (finanz / ".MyOS").mkdir(parents=True)
     (finanz / ".MyOS" / "batch.svg").write_text("<svg/>")
     (finanz / "Liesmich.md").write_text("Finanzen")

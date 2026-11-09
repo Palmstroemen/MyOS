@@ -5,7 +5,7 @@ import pytest
 
 
 def _write_templates(project_root: Path, template_name: str, folders: list[str]) -> None:
-    templates_root = project_root / "Templates" / template_name
+    templates_root = project_root / ".MyOS" / "Templates" / template_name
     templates_root.mkdir(parents=True, exist_ok=True)
     for folder in folders:
         (templates_root / folder).mkdir(parents=True, exist_ok=True)

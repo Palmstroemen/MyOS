@@ -23,7 +23,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
-    (tmp_path / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
+    (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
     return {"root": root.resolve(), "studio": _project(root / "Musikstudio").resolve(),

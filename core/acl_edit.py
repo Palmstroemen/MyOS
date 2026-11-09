@@ -311,12 +311,22 @@ def _require_change_right(policy: ACLPolicy, root: Path, editor: str) -> None:
         # A template's rights take effect only in the projects made from it, and its
         # "# Users" are the people of those projects: whoever may write the template may
         # edit them, like any other file of it.
-        if not os.access(root / ".MyOS" / "ACLs.md", os.W_OK):
+        if not os.access(root / ".MyOS" / "ACLs.md", os.W_OK) or not _may_write_template(root, editor):
             raise PermissionError(f"{editor!r} may not write the template {root}")
         return
     # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
     if "change" not in _user_rights(policy, editor, ACL_FILE_REL):
         raise PermissionError(f"{editor!r} may not change the ACLs of {root}")
+
+
+def _may_write_template(template: Path, editor: str) -> bool:
+    """Whether the project holding template (in its .MyOS/Templates) lets editor write it;
+    a template outside any project with ACLs.md (MYOS_TEMPLATES_DIR) has no such rules."""
+    holder = find_acl_project_root(template.parent)
+    if holder is None:
+        return True
+    rel = "/" + (template / ".MyOS" / "ACLs.md").relative_to(holder).as_posix()
+    return "write" in _user_rights(ACLPolicy.from_project(holder), editor, rel)
 
 
 def is_person_name(name: str) -> bool:

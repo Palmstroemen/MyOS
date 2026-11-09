@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 
 from fuse import FUSE, FuseOSError, Operations
 from core.project import ProjectConfig
+from core.template_place import TEMPLATES_REL, find_templates_dir
 from core.acl import ACLPolicy
 from core.acl_enforcement import configured_mode
 from core.identity import person_in
@@ -301,23 +302,8 @@ class Blueprint(Operations):
         print(f"Blueprint: Active templates: {self.template_names}")
 
     def _resolve_templates_dir(self) -> Path:
-        env_dir = os.environ.get("MYOS_TEMPLATES_DIR")
-        if env_dir:
-            return Path(env_dir).expanduser()
-
-        candidate = self.project_root / "Templates"
-        if candidate.exists():
-            return candidate
-
-        current = self.project_root.parent
-        while current and current != current.parent:
-            candidate = current / "Templates"
-            if candidate.exists():
-                print(f"[Blueprint] Using parent Templates at {candidate}")
-                return candidate
-            current = current.parent
-
-        return self.project_root / "Templates"
+        # Without templates anywhere above, the project's own place (nothing there yet).
+        return find_templates_dir(self.project_root) or self.project_root / TEMPLATES_REL
 
     def _find_project_root(self, start_path: Path) -> Path:
         """Find the nearest project root by searching for .MyOS/Project.md upwards."""

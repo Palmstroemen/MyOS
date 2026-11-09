@@ -71,12 +71,12 @@ def _sync(tmp_path):
     (root / ".MyOS" / "Nextcloud.md").write_text(NEXTCLOUD_MD)
     # A template: Familie (there) with the embryo Neu, whose birth copies Liesmich.md and .MyOS.
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    neu = root / "Templates" / "Standard" / "Familie" / "Neu"
+    neu = root / ".MyOS" / "Templates" / "Standard" / "Familie" / "Neu"
     (neu / ".MyOS").mkdir(parents=True)
     (neu / ".MyOS" / "Tags.md").write_text("# Tags\n")
     (neu / "Liesmich.md").write_text("Neu in Familie")
     # And 00_Admin, which only the role Admin may read: nobody else sees it or its template.
-    admin = root / "Templates" / "Standard" / "00_Admin"
+    admin = root / ".MyOS" / "Templates" / "Standard" / "00_Admin"
     admin.mkdir(parents=True)
     (admin / "Liesmich.md").write_text("Nur für Admins")
     # Familie a subproject: myacl sync puts its embryos into Familie/.MyOS.

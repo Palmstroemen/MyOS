@@ -23,7 +23,7 @@ def _env(monkeypatch, tmp_path_factory):
 
 @pytest.fixture
 def tree(tmp_path):
-    template = tmp_path / "Templates" / "Standard"
+    template = tmp_path / ".MyOS" / "Templates" / "Standard"
     (template / ".MyOS").mkdir(parents=True)
     (template / "04_Finanz").mkdir()
     (template / ".MyOS" / "ACLs.md").write_text("# Permissions\n\n## Buchhaltung\n- /04_Finanz/: read, write\n")
@@ -103,7 +103,7 @@ def test_projects_made_before_count_everything_but_the_marker_as_their_own(tree)
 def test_what_cannot_be_turned_back(tree):
     assert not can_unmake(tree["projects"])                       # the top project
     assert not can_unmake(tree["kunde"] / "Rechnungen")           # no project
-    assert not can_unmake(tree["tmp"] / "Templates" / "Standard")  # a template
+    assert not can_unmake(tree["tmp"] / ".MyOS" / "Templates" / "Standard")  # a template
     with pytest.raises(ValueError):
         unmake_project(tree["projects"], "oliver")
     assert (tree["projects"] / ".MyOS" / "Project.md").exists()

@@ -57,7 +57,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
-    finance = tmp_path / "Templates" / "Standard" / "04_Finanz" / ".MyOS"
+    finance = tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS"
     finance.mkdir(parents=True)
     (finance / "Desk.md").write_text("# Desk\nThemePreset: Finanz-Hell\n")
     root = _project(tmp_path / "Projekte")

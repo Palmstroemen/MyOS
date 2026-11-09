@@ -24,14 +24,14 @@ def _project(root: Path) -> Path:
     (root / ".MyOS").mkdir(parents=True)
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    finanz = root / "Templates" / "Standard" / "04_Finanz"
+    finanz = root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
     (finanz / ".MyOS" / "icons").mkdir(parents=True)
     (finanz / ".MyOS" / "batch.svg").write_text("<svg/>")
     (finanz / ".MyOS" / "icons" / "euro.svg").write_text("<svg>€</svg>")
     (finanz / "Liesmich.md").write_text("Finanzen")
     (finanz / "Ausgaben" / "2026").mkdir(parents=True)
     (finanz / "Einnahmen").mkdir(parents=True)
-    (root / "Templates" / "Standard" / "01_Info").mkdir(parents=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "01_Info").mkdir(parents=True)
     return root
 
 
@@ -61,7 +61,7 @@ def test_a_birth_lists_its_files_with_their_hash_and_hidden_folders(tmp_path):
                       "Liesmich.md": _sha("Finanzen")},
         },
     }  # empty levels (Ausgaben, 01_Info, ...) copy nothing and are left out
-    finanz = root / "Templates" / "Standard" / "04_Finanz"
+    finanz = root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
     assert only.payload == {
         "04_Finanz/.MyOS/batch.svg": finanz / ".MyOS" / "batch.svg",
         "04_Finanz/.MyOS/icons/euro.svg": finanz / ".MyOS" / "icons" / "euro.svg",
@@ -90,7 +90,7 @@ def test_symlinks_in_a_template_are_not_copied(tmp_path):
     root = _project(tmp_path / "Projekt")
     secret = tmp_path / "geheim.txt"
     secret.write_text("x")
-    (root / "Templates" / "Standard" / "04_Finanz" / "link.txt").symlink_to(secret)
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "link.txt").symlink_to(secret)
 
     (only,) = embryo_sets(root)
 
@@ -106,7 +106,7 @@ def test_each_subproject_gets_its_own_manifest(tmp_path):
     sets = embryo_sets(root)
 
     assert [s.path for s in sets] == ["/", "/Haus"]
-    assert sets[1].payload["04_Finanz/Liesmich.md"] == sub / "Templates" / "Standard" / "04_Finanz" / "Liesmich.md"
+    assert sets[1].payload["04_Finanz/Liesmich.md"] == sub / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Liesmich.md"
 
 
 def test_a_project_without_templates_has_an_empty_manifest(tmp_path):
@@ -172,8 +172,8 @@ def test_a_cloud_in_step_needs_nothing(tmp_path):
 def test_only_changed_files_go_up_and_dropped_ones_go(tmp_path):
     root = _project(tmp_path / "Projekt")
     (old,) = embryo_sets(root)
-    (root / "Templates" / "Standard" / "04_Finanz" / "Liesmich.md").write_text("Neu")
-    (root / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "batch.svg").unlink()
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Liesmich.md").write_text("Neu")
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "batch.svg").unlink()
     (new,) = embryo_sets(root)
     cloud = FakeCloud({"/.MyOS/Embryos.json": json.dumps(old.manifest).encode()})
 
@@ -196,7 +196,7 @@ def test_a_subproject_missing_in_the_cloud_is_left_out(tmp_path):
 def test_send_uploads_the_files_then_the_manifest_then_removes(tmp_path):
     root = _project(tmp_path / "Projekt")
     (old,) = embryo_sets(root)
-    (root / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "batch.svg").unlink()
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "batch.svg").unlink()
     (new,) = embryo_sets(root)
     cloud = FakeCloud({"/.MyOS/Embryos.json": json.dumps(old.manifest).encode(),
                        "/.MyOS/Embryos/04_Finanz/.MyOS/batch.svg": b"<svg/>"})

@@ -24,7 +24,7 @@ def tree(tmp_path):
     (projects / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (projects / "Garten" / "Hecke").mkdir(parents=True)
     (projects / "notiz.md").write_text("x\n")
-    (tmp_path / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
+    (projects / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
     (tmp_path / "Musik").mkdir()
     return {"projects": projects, "tmp": tmp_path}
 
@@ -42,8 +42,8 @@ def test_folders_in_the_projects_tree_can_become_projects(tree):
     "Projekte/Embryo",                 # not on disk (an embryo)
     "Projekte/.MyOS",                  # MyOS' own folder
     "Musik",                           # outside the projects tree: no .MyOS above
-    "Templates/Standard/04_Finanz",    # a template folder
-    "Templates/Standard",
+    "Projekte/.MyOS/Templates/Standard/04_Finanz",    # a template folder
+    "Projekte/.MyOS/Templates/Standard",
 ])
 def test_these_cannot_become_projects(tree, where):
     api = ScopeApi(str(tree["projects"]))
@@ -53,10 +53,10 @@ def test_these_cannot_become_projects(tree, where):
 
 def test_creating_refuses_what_cannot_become_a_project(tree):
     api = ScopeApi(str(tree["projects"]))
-    (tree["tmp"] / "Templates" / ".MyOS").mkdir()  # a .MyOS above, still a template
+    template = tree["projects"] / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
 
-    assert api.create_project(str(tree["tmp"] / "Templates" / "Standard" / "04_Finanz")) is False
-    assert not (tree["tmp"] / "Templates" / "Standard" / "04_Finanz" / ".MyOS").exists()
+    assert api.create_project(str(template)) is False
+    assert not (template / ".MyOS").exists()
 
     assert api.create_project(str(tree["projects"] / "Garten")) is True
     assert api.is_project(str(tree["projects"] / "Garten"))

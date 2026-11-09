@@ -20,7 +20,7 @@ def _project(tmp_path: Path) -> Path:
     (root / ".MyOS").mkdir(parents=True)
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    finanz = root / "Templates" / "Standard" / "04_Finanz"
+    finanz = root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
     (finanz / ".MyOS").mkdir(parents=True)
     (finanz / ".MyOS" / "batch.svg").write_text("<svg/>")
     (finanz / "Liesmich.md").write_text("Finanzen")

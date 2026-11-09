@@ -24,7 +24,7 @@ def _env(monkeypatch):
 
 @pytest.fixture
 def world(tmp_path):
-    template = tmp_path / "Templates" / "Standard"
+    template = tmp_path / ".MyOS" / "Templates" / "Standard"
     (template / "04_Finanz" / "Ausgangsrechnungen").mkdir(parents=True)
     (template / "04_Finanz" / ".MyOS").mkdir()
     (template / "04_Finanz" / ".MyOS" / "batch.md").write_text("€\n")

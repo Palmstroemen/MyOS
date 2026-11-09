@@ -2,7 +2,8 @@
 
 A template is no project (no Project.md); its .MyOS/ACLs.md takes effect in the projects
 made from it. Its "# Users" are the people of those future projects, so whoever may
-write the template may edit its rights (no lock-out check there)."""
+write the template may edit its rights (no lock-out check there). Who may write it is up
+to the project whose .MyOS/Templates holds it, not to the template's own rights."""
 
 import os
 from pathlib import Path
@@ -22,11 +23,19 @@ def _env(monkeypatch, tmp_path_factory):
 
 
 ACLS = "# Permissions\n\n## Folder\n- /{Folder}/: read, write\n\n## Buchhaltung\n- /04_Finanz/: read, write\n"
+PROJECT_ACLS = (
+    "# Permissions\n\n## Admin\n- /*: read, write\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    "## Buchhaltung\n- /Finanz/: read, write\n\n# Users\nOliver: Admin\nAnna: Buchhaltung\n"
+)
 
 
 @pytest.fixture
 def template(tmp_path):
-    root = tmp_path / "Templates" / "Standard"
+    project = tmp_path / "Projekte"
+    (project / ".MyOS").mkdir(parents=True)
+    (project / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (project / ".MyOS" / "ACLs.md").write_text(PROJECT_ACLS)
+    root = project / ".MyOS" / "Templates" / "Standard"
     (root / ".MyOS").mkdir(parents=True)
     (root / "04_Finanz").mkdir()
     (root / "01_Info").mkdir()
@@ -49,6 +58,25 @@ def test_rights_in_a_template_are_edited_without_people(template):
 
     assert "- /01_Info/: read\n" in (template / ".MyOS" / "ACLs.md").read_text()
     assert list((template / ".MyOS" / "ACLs-history").iterdir())
+
+
+def test_who_may_edit_a_template_is_up_to_the_project_that_holds_it(template):
+    # Anna is Buchhaltung in the template's future projects, but may not write the
+    # project's .MyOS, where the template lies.
+    assert not can_edit(template / "04_Finanz", "anna")
+    with pytest.raises(PermissionError):
+        set_role_rights(template / "01_Info", "Buchhaltung", {"read"}, editor="anna")
+    assert (template / ".MyOS" / "ACLs.md").read_text() == ACLS
+
+
+def test_a_template_outside_any_project_is_governed_by_the_file_system(tmp_path, monkeypatch):
+    monkeypatch.setenv("MYOS_TEMPLATES_DIR", str(tmp_path / "Global"))
+    root = tmp_path / "Global" / "Standard"
+    (root / ".MyOS").mkdir(parents=True)
+    (root / "01_Info").mkdir()
+    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+
+    assert can_edit(root / "01_Info", "anna")
 
 
 def test_people_can_be_added_to_a_template(template):

@@ -35,7 +35,7 @@ def _project(path: Path) -> Path:
 def _setup(tmp_path: Path, section: str = "") -> tuple:
     root = _project(tmp_path / "Projekte")
     for folder in ("Finanz", "Info"):
-        (root / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
     (root / "Finanz" / "Belege").mkdir()
     sub = _project(root / "Familie")
     (root / ".MyOS" / "ACLs.md").write_text(BASE + section + USERS)

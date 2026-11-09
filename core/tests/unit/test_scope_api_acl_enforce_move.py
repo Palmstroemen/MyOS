@@ -21,7 +21,7 @@ def _setup_embryo_project(tmp_path: Path) -> Path:
     root = tmp_path / "lab"
     _write_project_marker(root)
     _write_templates_config(root, "Standard")
-    (root / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
     return root
 
 

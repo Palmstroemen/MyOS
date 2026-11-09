@@ -24,7 +24,7 @@ def _create_project(project_root: Path) -> None:
     (myos_dir / "Project.md").write_text("# MyOS Project\n")
     (myos_dir / "Templates.md").write_text("# Templates\nStandard\n")
 
-    templates_dir = project_root / "Templates" / "Standard"
+    templates_dir = project_root / ".MyOS" / "Templates" / "Standard"
     templates_dir.mkdir(parents=True, exist_ok=True)
 
 

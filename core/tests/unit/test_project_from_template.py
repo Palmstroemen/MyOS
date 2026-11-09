@@ -34,7 +34,7 @@ PARENT_ACLS = (
 
 @pytest.fixture
 def tree(tmp_path):
-    template = tmp_path / "Templates" / "Standard"
+    template = tmp_path / ".MyOS" / "Templates" / "Standard"
     (template / ".MyOS" / "ACLs-history").mkdir(parents=True)
     (template / "04_Finanz").mkdir()
     (template / "01_Info").mkdir()
@@ -106,7 +106,7 @@ def test_nothing_already_in_the_project_is_overwritten(tree):
 
 
 def test_with_several_templates_the_first_one_counts(tree, tmp_path):
-    other = tmp_path / "Templates" / "Person" / ".MyOS"
+    other = tmp_path / ".MyOS" / "Templates" / "Person" / ".MyOS"
     other.mkdir(parents=True)
     (other / "Desk.md").write_text("# Desk\nPanelTheme: Anders\n")
     (other / "Color.md").write_text("# Color\n#123456\n")

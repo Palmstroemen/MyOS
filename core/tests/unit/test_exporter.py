@@ -17,7 +17,7 @@ def _create_project(project_root: Path, template_name: str = "Standard") -> None
 
 
 def _create_templates(project_root: Path, template_name: str = "Standard") -> None:
-    templates_root = project_root / "Templates" / template_name
+    templates_root = project_root / ".MyOS" / "Templates" / template_name
     templates_root.mkdir(parents=True, exist_ok=True)
     (templates_root / "admin").mkdir(parents=True, exist_ok=True)
 
@@ -45,8 +45,24 @@ def test_export_subtree_includes_myos_and_templates():
         project_md = package_root / ".MyOS" / "Project.md"
         assert project_md.exists()
         assert "# Export" in project_md.read_text()
-        assert (package_root / "Templates" / "Standard" / "admin").exists()
+        assert (package_root / ".MyOS" / "Templates" / "Standard" / "admin").exists()
 
+
+
+def test_export_packs_only_the_templates_the_project_uses():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        project_root = tmp / "Project"
+        project_root.mkdir()
+        _create_project(project_root)
+        _create_templates(project_root)
+        _create_templates(project_root, "Person")
+        (project_root / "info").mkdir()
+
+        package_root = export_subtree(project_root / "info", tmp / "exports").package_path
+
+        assert sorted(p.name for p in (package_root / ".MyOS" / "Templates").iterdir()) == ["Standard"]
+        assert not (package_root / "Templates").exists()
 
 def test_export_metadata_contains_reference_path():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -174,4 +190,4 @@ def test_export_subproject_uses_runtime_inherited_templates():
 
         package_root = result.package_path
         assert (package_root / "finanz" / "note.txt").exists()
-        assert (package_root / "Templates" / "Standard" / "admin").exists()
+        assert (package_root / ".MyOS" / "Templates" / "Standard" / "admin").exists()

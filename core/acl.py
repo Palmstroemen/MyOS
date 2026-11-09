@@ -9,6 +9,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from core.config.parser import MarkdownConfigParser
 from core.project import ProjectConfig, find_config_in_parents
+from core.template_place import find_templates_dir
 
 try:
     import casbin as _casbin
@@ -364,7 +365,7 @@ def _casbin_path_match(request_path: str, policy_path: str) -> bool:
 
 def _roles_from_templates(project_root: Path, template_names: Iterable[str]) -> Set[str]:
     roles: Set[str] = set()
-    templates_root = _resolve_templates_dir(project_root)
+    templates_root = find_templates_dir(project_root)
     if not templates_root or not templates_root.exists():
         return roles
     for template in template_names:
@@ -380,28 +381,13 @@ def _template_folder_names(template_dir: Path) -> Set[str]:
 
 
 def is_template_root(path) -> bool:
-    """Whether path is a template (Templates/<name>): no project, its rights take effect
+    """Whether path is a template (.MyOS/Templates/<name>): no project, its rights take effect
     in the projects made from it."""
     path = Path(path).expanduser().resolve()
     if (path / ".MyOS" / "Project.md").exists():
         return False
-    templates_dir = _resolve_templates_dir(path)
+    templates_dir = find_templates_dir(path)
     return templates_dir is not None and path.parent == templates_dir.resolve()
-
-
-def _resolve_templates_dir(project_root: Path) -> Optional[Path]:
-    env_dir = os.environ.get("MYOS_TEMPLATES_DIR")
-    if env_dir:
-        return Path(env_dir).expanduser().resolve()
-    current = Path(project_root).expanduser().resolve()
-    while True:
-        candidate = current / "Templates"
-        if candidate.exists():
-            return candidate
-        if current == current.parent:
-            break
-        current = current.parent
-    return None
 
 
 def _roles_from_acls(

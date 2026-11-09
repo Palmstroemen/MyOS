@@ -19,7 +19,7 @@ def _setup_embryo_project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
     _write_project_marker(root)
     _write_templates_config(root, "Standard")
-    (root / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -28,10 +28,10 @@ def _setup_nested_embryo_project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
     _write_project_marker(root)
     _write_templates_config(root, "Standard")
-    (root / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
     # Nested embryo: 04_Finanz and 04_Finanz/Ausgaben
-    (root / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
-    (root / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -232,7 +232,7 @@ def test_move_entries_into_sub_embryo_of_born_folder(tmp_path, monkeypatch):
     """Parent already born, child still an embryo: the drop births just the child."""
     monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
     root = _setup_nested_embryo_project(tmp_path)
-    (root / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
     (root / "inbox").mkdir()
     (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
     (root / "inbox" / "b.txt").write_text("b", encoding="utf-8")
@@ -307,7 +307,7 @@ def test_navigating_into_nested_embryo_does_not_birth_but_drop_does(tmp_path, mo
     """Browsing into an embryo and its sub-embryo is read-only; dropping files there births the chain only."""
     monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
     root = _setup_nested_embryo_project(tmp_path)
-    (root / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
     parent = root / "04_Finanz"
     child = parent / "Ausgaben"
     api = ScopeApi(str(root))

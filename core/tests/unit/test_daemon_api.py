@@ -29,7 +29,7 @@ def _env(monkeypatch):
 
 @pytest.fixture
 def state(tmp_path):
-    (tmp_path / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
+    (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
     _project(root / "Musikstudio")
@@ -57,7 +57,7 @@ def test_the_lens_through_the_daemon(state, tmp_path):
     on = _ask(state, "put_on", lens=["04_Finanz"])["result"]
     assert on["active"] and on["cpd"] == "/04_Finanz/Projekte/Musikstudio"
     assert on["cwd"] == str((root / "Musikstudio").resolve())
-    finance_desk = (tmp_path / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md").resolve()
+    finance_desk = (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md").resolve()
     assert on["desk"] == "" and on["desk_save"] == str(finance_desk)  # A5: kept in the template
 
     moved = _ask(state, "move_to_project", project=["Reisen"])["result"]

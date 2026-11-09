@@ -45,7 +45,7 @@ def test_real_acls_file_from_env_is_enforced(tmp_path, monkeypatch):
     (root / ".MyOS").mkdir(parents=True)
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    (root / "Templates" / "Standard" / "finanz").mkdir(parents=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "finanz").mkdir(parents=True)
     (root / ".MyOS" / "ACLs.md").write_text(
         "# Permissions\n\n## Buchhalter\n- /finanz/: read, write\n\n# Users\nBertha: Buchhalter\n"
     )
@@ -87,7 +87,7 @@ def test_folder_rules_are_enforced_in_subproject_template_folders(tmp_path, monk
     (root / ".MyOS").mkdir(parents=True)
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    (root / "Templates" / "Standard" / "finanz").mkdir(parents=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "finanz").mkdir(parents=True)
     (root / ".MyOS" / "ACLs.md").write_text(
         "# Permissions\n\n## Folder\n- /{Folder}/: read, write\n\n## Familie\n- /Familie/: read\n\n"
         "# Users\nBertha: finanz, Familie\n"

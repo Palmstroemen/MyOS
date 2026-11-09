@@ -1,7 +1,7 @@
 # cloud_embryos.py - a project's embryos for a cloud (the MyOS row in Nextcloud's Files app)
 #
-# MyOS stays the one place that resolves templates (Templates.md, inherited, Templates/ found
-# upwards, several templates merged). Per project this computes a folder per embryo,
+# MyOS stays the one place that resolves templates (Templates.md, inherited, .MyOS/Templates
+# found upwards, several templates merged). Per project this computes a folder per embryo,
 # .MyOS/Embryos/<embryo>/, holding what its birth copies, and .MyOS/Embryos.json - the
 # template tree and the hash of each uploaded file, the sync's bookkeeping. The browser takes
 # the embryos of a level from the folders it may read there (each is readable for who may

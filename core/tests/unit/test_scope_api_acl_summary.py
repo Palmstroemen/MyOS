@@ -18,7 +18,7 @@ def _project(tmp_path: Path, acls: str = None) -> Path:
     (root / ".MyOS").mkdir(parents=True)
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    (root / "Templates" / "Standard" / "finanz").mkdir(parents=True)
+    (root / ".MyOS" / "Templates" / "Standard" / "finanz").mkdir(parents=True)
     (root / "finanz").mkdir()
     (root / "privat").mkdir()
     if acls is not None:

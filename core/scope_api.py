@@ -14,7 +14,8 @@ import json
 import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, Tuple, TypedDict
 from core.tags import read_tags
-from core.acl import ACLAuthorizer, _resolve_templates_dir, find_acl_project_root, is_template_root
+from core.acl import ACLAuthorizer, find_acl_project_root, is_template_root
+from core.template_place import find_templates_dir
 from core.acl_edit import (
     ACLEditError,
     ACLPersonExistsError,
@@ -2365,7 +2366,7 @@ class ScopeApi:
             return False
         if ProjectConfig._find_parent_myos(target) is None:
             return False  # creating needs a .MyOS above (ProjectConfig.create)
-        templates_dir = _resolve_templates_dir(target)
+        templates_dir = find_templates_dir(target)
         if templates_dir is not None:
             templates_dir = templates_dir.resolve()
             if target == templates_dir or templates_dir in target.parents:

@@ -22,7 +22,7 @@ def _project(tmp_path: Path, acls: str = None) -> Path:
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("finanz", "info", "work"):
-        (root / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
     if acls is not None:
         (root / ".MyOS" / "ACLs.md").write_text(acls)
     return root

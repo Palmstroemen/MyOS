@@ -207,7 +207,7 @@ def test_scope_and_postfix_share_what_myos_set_last(tree):
 def test_a_given_desk_overrules_the_projects_and_keeps_changes_where_it_says(tree, tmp_path):
     # The lens (Designdocument Perspective Resolver MVP.md, A5): its Desk overrules the
     # project's; what the user changes meanwhile goes where the caller says (the template).
-    lens_desk = tmp_path / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md"
+    lens_desk = tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md"
     lens_desk.parent.mkdir(parents=True)
     lens_desk.write_text("# Desk\nThemePreset: Finanz-Hell\n")
     desktop = FakeDesktop()

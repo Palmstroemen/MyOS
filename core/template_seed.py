@@ -1,6 +1,6 @@
 # template_seed.py - a new project gets what its templates' root .MyOS holds
 #
-# Templates are ordinary folder structures. Whatever lies in Templates/<name>/.MyOS
+# Templates are ordinary folder structures. Whatever lies in .MyOS/Templates/<name>/.MyOS
 # (ACLs.md, Desk.md, Color.md, ...) is copied into the .MyOS of a project when it is
 # created, like the .MyOS of a template folder when an embryo is born. Nothing already in
 # the project is overwritten; with several templates the first one that has a file wins.
@@ -13,7 +13,8 @@ import shutil
 from pathlib import Path
 from typing import List
 
-from core.acl import _resolve_templates_dir, find_acl_project_root
+from core.acl import find_acl_project_root
+from core.template_place import find_templates_dir
 from core.acl_edit import complete_people
 from core.identity import acl_user_for
 from core.project import ProjectConfig
@@ -27,7 +28,7 @@ def seed_from_templates(project_root: Path) -> List[Path]:
     # Before ACLs.md is copied: who the creator is and which ACLs governed the place so far.
     previous_root = find_acl_project_root(project_root)
     creator = acl_user_for(project_root)
-    templates_dir = _resolve_templates_dir(project_root)
+    templates_dir = find_templates_dir(project_root)
     if templates_dir is None:
         return []
     copied: List[Path] = []

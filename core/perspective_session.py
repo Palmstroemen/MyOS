@@ -17,7 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple, Union
 
-from core.acl import _resolve_templates_dir, _template_folder_names
+from core.acl import _template_folder_names
+from core.template_place import find_templates_dir
 from core.project import ProjectConfig
 
 Parts = Tuple[str, ...]
@@ -265,7 +266,7 @@ def holds_project(folder: Path) -> bool:
 
 def template_dirs(project_dir: Path) -> List[Path]:
     """The folders of the templates project_dir uses."""
-    templates_dir = _resolve_templates_dir(project_dir)
+    templates_dir = find_templates_dir(project_dir)
     if templates_dir is None:
         return []
     names = ProjectConfig(project_dir).get_effective_templates() or []

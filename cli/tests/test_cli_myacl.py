@@ -36,7 +36,7 @@ def _project(path: Path) -> Path:
 def _setup(tmp_path: Path) -> Path:
     root = _project(tmp_path / "Projekte")
     for folder in ("Finanz", "Info"):
-        (root / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
     (root / "Finanz" / "Archiv").mkdir()
     _project(root / "Familie")
     (root / ".MyOS" / "ACLs.md").write_text(ACLS)

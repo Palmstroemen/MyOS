@@ -40,7 +40,7 @@ def _env(monkeypatch):
 
 @pytest.fixture
 def world(tmp_path):
-    finance = tmp_path / "Templates" / "Standard" / "04_Finanz" / ".MyOS"
+    finance = tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS"
     finance.mkdir(parents=True)
     (finance / "Desk.md").write_text("# Desk\nThemePreset: Finanz-Hell\n")
     root = _project(tmp_path / "Projekte")

@@ -64,7 +64,7 @@ def _tidy_project(tmpdir: str) -> Path:
     (root / ".MyOS").mkdir(parents=True)
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    template = root / "Templates" / "Standard" / "04_Finanz"
+    template = root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
     (template / "Ausgaben").mkdir(parents=True)
     (template / "Einnahmen").mkdir(parents=True)
     (root / "04_Finanz" / "Ausgaben").mkdir(parents=True)

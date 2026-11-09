@@ -39,7 +39,7 @@ def _project(tmp_path: Path) -> Path:
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("finanz", "info", "work"):
-        (root / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
         (root / folder).mkdir()
     (root / "finanz" / "archiv").mkdir()
     (root / ".MyOS" / "ACLs.md").write_text(ACLS)

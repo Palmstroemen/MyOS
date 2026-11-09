@@ -16,6 +16,7 @@ import shutil
 import socket
 
 from core.project import ProjectConfig, ProjectFinder
+from core.template_place import TEMPLATES_REL, find_templates_dir
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,8 @@ def export_subtree(
     # Copy subtree contents
     _copy_tree_no_symlinks(export_root / subtree_rel, package_path / subtree_rel)
 
-    # Copy project .MyOS from export root
-    _copy_tree_no_symlinks(export_root / ".MyOS", package_path / ".MyOS")
+    # Copy project .MyOS from export root (its templates: only the used ones, below)
+    _copy_tree_no_symlinks(export_root / ".MyOS", package_path / ".MyOS", skip={TEMPLATES_REL.name})
 
     # Add export metadata
     _write_export_metadata(
@@ -108,12 +109,12 @@ def _copy_templates(export_root: Path, package_path: Path) -> None:
         logger.debug("No templates configured for %s", export_root)
         return
 
-    templates_source = _resolve_templates_dir(export_root)
+    templates_source = find_templates_dir(export_root)
     if not templates_source or not templates_source.exists():
         logger.warning("Templates directory not found for %s", export_root)
         return
 
-    target_root = package_path / "Templates"
+    target_root = package_path / TEMPLATES_REL
     target_root.mkdir(parents=True, exist_ok=True)
 
     for template_name in template_names:
@@ -124,22 +125,8 @@ def _copy_templates(export_root: Path, package_path: Path) -> None:
         _copy_tree_no_symlinks(source, target_root / template_name)
 
 
-def _resolve_templates_dir(export_root: Path) -> Optional[Path]:
-    env_dir = os.environ.get("MYOS_TEMPLATES_DIR")
-    if env_dir:
-        return Path(env_dir).expanduser().resolve()
-    current = Path(export_root).expanduser().resolve()
-    while True:
-        candidate = current / "Templates"
-        if candidate.exists():
-            return candidate
-        if current == current.parent:
-            break
-        current = current.parent
-    return export_root / "Templates"
-
-
-def _copy_tree_no_symlinks(src: Path, dst: Path) -> None:
+def _copy_tree_no_symlinks(src: Path, dst: Path, skip: Iterable[str] = ()) -> None:
+    """Copy src to dst without symlinks; skip: names of folders directly in src left out."""
     if not src.exists():
         raise FileNotFoundError(f"Source path not found: {src}")
 
@@ -150,7 +137,8 @@ def _copy_tree_no_symlinks(src: Path, dst: Path) -> None:
         target_root.mkdir(parents=True, exist_ok=True)
 
         # Filter out symlink dirs
-        dirs[:] = [d for d in dirs if not (root_path / d).is_symlink()]
+        dirs[:] = [d for d in dirs if not (root_path / d).is_symlink()
+                   and not (root_path == src and d in skip)]
 
         for name in files:
             src_file = root_path / name
