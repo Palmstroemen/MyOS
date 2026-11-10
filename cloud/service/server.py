@@ -43,10 +43,11 @@ Root = Union[str, Path, Callable[[], Optional[Path]]]
 
 
 def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[str]],
-                host: str = "127.0.0.1", port: int = 8080) -> ThreadingHTTPServer:
+                host: str = "127.0.0.1", port: int = 8080, place: str = "") -> ThreadingHTTPServer:
     """The service for the shadow tree at root (a folder, or a function naming the current
     one, None while there is none yet); person_for maps the account the bridge passes to a
-    person of "# Users" (None: not one of them)."""
+    person of "# Users" (None: not one of them). place: where root lies in the platform's
+    files ("/Projekte" for the Team folder), sent along with a real folder."""
     # Security: the secret is all that keeps others out; a short one is refused.
     if len(secret or "") < MIN_SECRET_LENGTH:
         raise ValueError(f"the shared secret needs at least {MIN_SECRET_LENGTH} characters")
@@ -73,6 +74,8 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
                 return self._answer(403, {"error": "denied"})
             if answer is None:
                 return self._answer(404, {"error": "not found"})
+            if answer["real"] is not None:
+                answer["place"] = place
             self._answer(200, answer)
 
         def _answer(self, status: int, body: dict) -> None:
@@ -109,7 +112,8 @@ def main() -> None:
         return nextcloud_person(shadow, account) if shadow is not None else None
 
     server = make_server(root, env.get("MYOS_CORE_SECRET", ""), person_for,
-                         host=env.get("MYOS_CORE_HOST", "127.0.0.1"), port=int(env.get("MYOS_CORE_PORT", "8080")))
+                         host=env.get("MYOS_CORE_HOST", "127.0.0.1"), port=int(env.get("MYOS_CORE_PORT", "8080")),
+                         place="/" + env.get("MYOS_NC_FOLDER", "").strip("/") if env.get("MYOS_NC_URL") else "")
     logger.info("MyOS core service on %s:%s for %s", *server.server_address[:2], where)
     server.serve_forever()
 

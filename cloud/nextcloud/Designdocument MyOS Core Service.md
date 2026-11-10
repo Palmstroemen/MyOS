@@ -146,7 +146,11 @@ the most and risk the least - the core sets no rules and writes nothing.
    the container next to `myos-nc` on the GMXtec, `myos_acl` passes `GET .../api/v1/lens` on
    (LensController.php); the integration test passes through the bridge. The shadow is
    rebuilt whole when the Team folder's ETag changes (seconds for the test folder; events
-   later). Missing: the view "Perspektiven" in Files.
+   later). The view "Perspectives" in Files (src/lens.js) since the same day: the virtual
+   levels as folders of their own, the real folders listed over WebDAV with the user's
+   rights, a folder opened at its turned path by an own default action (before the Files
+   app's "open-folder", which would open the real path). Left for this step: the integration
+   test through the browser, the view in the friend's Nextcloud.
 2. **Births and rights live** - `GET level?path=` (MyOS folders of a level: born, embryos,
    may create) and `GET birth?path=` (what the birth creates and copies); `myos_acl`
    proxies them and forwards events; the core sets the rules after each event. The row in

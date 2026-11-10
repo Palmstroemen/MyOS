@@ -6,8 +6,10 @@
 	<summary>Locks new entries on the way to folders opened by MyOS ACLs</summary>
 	<description><![CDATA[Companion of `myacl sync` (MyOS), which copies a project's ACLs.md into a Team folder with advanced permissions.
 
-Nextcloud needs read on every parent folder. Who may only work deep down gets read on the way there, and the other entries on the way are locked. An entry created later on that way would inherit the read: this app locks it right away, for everyone whose rule on its folder is a rule on the way (marked by myacl sync: it leaves share to be inherited, mask 15).]]></description>
-	<version>0.1.0</version>
+Nextcloud needs read on every parent folder. Who may only work deep down gets read on the way there, and the other entries on the way are locked. An entry created later on that way would inherit the read: this app locks it right away, for everyone whose rule on its folder is a rule on the way (marked by myacl sync: it leaves share to be inherited, mask 15).
+
+With the MyOS core service next to Nextcloud, Files gets the view "Perspectives": the projects seen from a department.]]></description>
+	<version>0.2.0</version>
 	<licence>MIT</licence>
 	<author>Oliver Rafelsberger</author>
 	<namespace>MyOSAcl</namespace>

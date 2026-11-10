@@ -18,7 +18,7 @@ SECRET = "s3cret-for-tests-only-0123456789"
 def service(shadow):
     (shadow / ".MyOS" / "Nextcloud.md").write_text(
         "# Nextcloud\nfolder: Projekte\n\n# Accounts\nOliver: oliver\nLisa: lisa.m\nKarl: karl\n")
-    server = make_server(shadow, SECRET, lambda account: nextcloud_person(shadow, account), port=0)
+    server = make_server(shadow, SECRET, lambda account: nextcloud_person(shadow, account), port=0, place="/Projekte")
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{server.server_address[1]}"
@@ -41,7 +41,10 @@ def test_a_lens_is_answered_for_the_account_s_person(service):
     status, body = _get(service + "/lens?path=/04_Finanz/Projekte")
 
     assert status == 200 and [entry["name"] for entry in body["entries"]] == ["Familie"]
-    assert _get(service + "/lens?path=/04_Finanz/Projekte/Familie")[1]["real"] == "/Familie/04_Finanz"
+    assert _get(service + "/lens?path=/04_Finanz/Projekte/Familie")[1] == {
+        "path": "/04_Finanz/Projekte/Familie", "real": "/Familie/04_Finanz", "fallback": False,
+        "place": "/Projekte"}  # where the real folder lies in the user's files: place + real
+    assert "place" not in body
 
 
 @pytest.mark.parametrize("secret", [None, "", "wrong"])

@@ -338,7 +338,14 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             [x] Erkenntnis: `myacl sync` lädt nur die Embryos hoch - `ACLs.md`, `Nextcloud.md`, Vorlagen lagen
                 gar nicht im Team-Ordner. Der Kern liest sie dort (der Team-Ordner ist die Quelle); im Test lädt
                 sie der Test hoch wie ein Sync-Client, vor dem Sync, damit ihre Regeln mitgesetzt werden
-            [ ] Eigene Ansicht "Perspektiven" in Files
+            [x] Ansicht "Perspectives" in Files (2026-11-10, src/lens.js, App 0.2.0): Abteilungen, Regal, dann die
+                echten Ordner mit den Rechten des Benutzers; Ordner öffnen sich am gedrehten Pfad (eigene
+                Standardaktion vor "open-folder"), die Pfadleiste bleibt in der Perspektive. Ersatzanzeige nur
+                lesend. Als Init-Skript geladen, sonst findet ein neu geladener Link die Ansicht nicht. Im
+                Browser als Lisa durchgeklickt
+            [ ] Gedachte Ebenen haben erfundene Quellen (`/.myos-perspectives/...`): Herunterladen oder
+                Seitenleiste darauf gehen ins Leere; Projekte im Regal könnten gleich ihren echten Ordner tragen
+            [ ] Bündel 296 kB (der WebDAV-Client kommt mit)
             [ ] Schatten bei jeder Änderung ganz neu (Sekunden im Test); später Ereignisse aus `myos_acl`
             [ ] Offen: Abteilungen, in denen man nirgends etwas lesen darf (`00_Admin`), zeigen ein leeres Regal;
                 Unterprojekte erreicht man nur über ihr Projekt (wie im Laufwerk)

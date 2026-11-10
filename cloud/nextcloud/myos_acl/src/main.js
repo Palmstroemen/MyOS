@@ -11,9 +11,10 @@
  * governs, as a subproject's own does.
  */
 import { getCurrentUser, getRequestToken } from '@nextcloud/auth'
-import { FileListFilter, Header, Permission, registerFileListFilter, registerFileListHeaders } from '@nextcloud/files'
+import { FileListFilter, Header, Permission, getNavigation, registerFileListFilter, registerFileListHeaders } from '@nextcloud/files'
 import { t } from '@nextcloud/l10n'
 import { generateRemoteUrl } from '@nextcloud/router'
+import { registerPerspectives } from './lens.js'
 
 const APP = 'myos_acl'
 const EMBRYO_OPACITY = 0.4 // as Scope's default for suggested folders
@@ -190,8 +191,8 @@ class MyOSFolders extends FileListFilter {
 	/** Notes which MyOS folders are born, and takes them out of the list (they are in the row). */
 	filter(nodes) {
 		const folder = state.folder
-		if (!folder) {
-			return nodes
+		if (!folder || getNavigation().active?.id !== 'files') {
+			return nodes // the row is only in "All files"
 		}
 		const here = nodes.filter(node => node.dirname === folder.path && node.type === 'folder').map(node => node.basename)
 		const born = new Set(here.filter(name => state.level?.names.includes(name)))
@@ -228,3 +229,5 @@ registerFileListHeaders(new Header({
 		show(folder)
 	},
 }))
+
+registerPerspectives()

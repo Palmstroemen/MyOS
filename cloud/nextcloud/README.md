@@ -41,6 +41,13 @@ browser never talks to the container. The project's `.MyOS` must lie in the Team
     occ config:app:set myos_acl core_url --value=http://myos-core:8080
     occ config:app:set myos_acl core_secret --sensitive --value=<MYOS_CORE_SECRET>
 
+In Files the view "Perspectives" (left bar, `src/lens.js`) shows the turned tree:
+departments, their folders, the shelf with the projects one may read, then the real
+folders and files - opening, downloading, renaming and deleting act on the real ones. A
+folder opens at its turned path, so the breadcrumbs stay in the lens. Where the department
+folder is not born in a project, the project's own folder is shown read-only (saving through
+a lens comes later). The view goes again for an account the core does not know.
+
 `core.env` (mode 600): `MYOS_CORE_SECRET` (24 characters at least), `MYOS_NC_URL`
 (`http://<nextcloud container>`), `MYOS_NC_USER`, `MYOS_NC_PASSWORD` (an app password of the
 service account: a person of the role Admin), `MYOS_NC_FOLDER`, optionally `MYOS_SHADOW_POLL`
