@@ -142,6 +142,11 @@ the most and risk the least - the core sets no rules and writes nothing.
    folder, then built from a WebDAV walk on the GMXtec, then an own view "Perspektiven" in
    Files (left bar). Done when: the integration test as Lisa sees `/04_Finanz/Projekte` with
    the projects she may read, and Tom does not see them.
+   State 2026-11-10: done up to the view - `cloud/service/` (lens.py, shadow.py, server.py),
+   the container next to `myos-nc` on the GMXtec, `myos_acl` passes `GET .../api/v1/lens` on
+   (LensController.php); the integration test passes through the bridge. The shadow is
+   rebuilt whole when the Team folder's ETag changes (seconds for the test folder; events
+   later). Missing: the view "Perspektiven" in Files.
 2. **Births and rights live** - `GET level?path=` (MyOS folders of a level: born, embryos,
    may create) and `GET birth?path=` (what the birth creates and copies); `myos_acl`
    proxies them and forwards events; the core sets the rules after each event. The row in

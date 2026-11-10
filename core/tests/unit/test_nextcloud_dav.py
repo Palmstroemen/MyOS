@@ -243,3 +243,16 @@ def test_exists_asks_the_cloud_for_the_entry():
 
     assert dav.exists("/Haus")
     assert not dav.exists("/Garten")
+
+
+def test_the_etag_of_the_team_folder_tells_whether_anything_below_changed():
+    # Nextcloud changes a folder's ETag when anything below it changes: one cheap request
+    # tells the core service whether its shadow tree is still current.
+    calls = []
+    server = {BASE + "/": _multistatus(_response(BASE + "/", True).replace(
+        "<d:resourcetype>", '<d:getetag>"6911a2"</d:getetag><d:resourcetype>'))}
+
+    assert _dav(server, calls=calls).etag() == '"6911a2"'
+    assert calls == [("PROPFIND", BASE + "/", "0")]
+    with pytest.raises(NextcloudError, match="Projekte"):
+        _dav({}).etag()

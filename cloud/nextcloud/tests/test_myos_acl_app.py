@@ -7,14 +7,19 @@ Runs only when asked for (not part of the suite):
 The instance needs the Team folder "Projekte" (advanced permissions on, "oliver" may manage
 them) given to the groups below, with the folders Familie/{Finanz,Fotos,Kind} and Job.
 Security: it changes that Team folder's rules - never point it at a real one.
+The lens tests need the MyOS core service next to the instance, set up in myos_acl
+(core_url, core_secret; cloud/service/server.py) and reading the Team folder "Projekte".
 """
 
 import base64
 import functools
+import json
 import os
 import subprocess
 import sys
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
@@ -58,6 +63,18 @@ def _dav(user, method, path, headers=None, body=None):
         return error.code, ""
 
 
+def _lens(user, path):
+    """The MyOS core's answer through myos_acl (OCS), as the browser asks for it."""
+    token = base64.b64encode(f"{user}:{_passwords()[user]}".encode()).decode()
+    url = f"{URL}/ocs/v2.php/apps/myos_acl/api/v1/lens?format=json&path={urllib.parse.quote(path)}"
+    request = urllib.request.Request(url, headers={"Authorization": f"Basic {token}", "OCS-APIRequest": "true"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status, json.loads(response.read())["ocs"]["data"]
+    except urllib.error.HTTPError as error:
+        return error.code, None
+
+
 def _sees(user, folder, name):
     status, body = _dav(user, "PROPFIND", folder, {"Depth": "1"})
     return status == 207 and f"/{name}" in body
@@ -79,9 +96,15 @@ def _sync(tmp_path):
     admin = root / ".MyOS" / "Templates" / "Standard" / "00_Admin"
     admin.mkdir(parents=True)
     (admin / "Liesmich.md").write_text("Nur für Admins")
+    # And the department 04_Finanz, empty: for the lenses (/04_Finanz/Projekte).
+    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir()
     # Familie a subproject: myacl sync puts its embryos into Familie/.MyOS.
     (root / "Familie" / ".MyOS").mkdir(parents=True)
     (root / "Familie" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    # The .MyOS files come into the Team folder as with a sync client (the core reads them
+    # there), before the sync, so it sets their rules as well.
+    _upload_myos(root, root)
+    _upload_myos(root, root / "Familie")
     script = Path(__file__).resolve().parents[3] / "cli" / "myacl.py"
     env = {k: v for k, v in os.environ.items() if not k.startswith("MYOS_ACL")}
     env.update(MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD=_passwords()["oliver"],
@@ -90,6 +113,16 @@ def _sync(tmp_path):
                             capture_output=True, text=True, env=env)
     assert result.returncode == 0, result.stdout + result.stderr
     return root, script, env
+
+
+def _upload_myos(root, project):
+    myos = project / ".MyOS"
+    for path in sorted([myos, *myos.rglob("*")]):
+        rel = path.relative_to(root).as_posix()
+        if path.is_dir():
+            assert _dav("oliver", "MKCOL", rel)[0] in (201, 405), rel
+        else:
+            assert _dav("oliver", "PUT", rel, body=path.read_bytes())[0] in (201, 204), rel
 
 
 @pytest.fixture
@@ -180,3 +213,18 @@ def test_who_may_write_a_project_may_not_write_its_rights_and_sync_files(synced)
     name = f"Desk-{uuid.uuid4().hex[:6]}.md"  # the rest of .MyOS as in MyOS: her rights
     assert _dav("lisa", "PUT", f"Familie/.MyOS/{name}", body=b"x")[0] in (201, 204)
     synced.append(f"Familie/.MyOS/{name}")
+
+
+def test_a_lens_shows_on_the_shelf_only_the_projects_one_may_read(synced):
+    # The core sees the sync once its shadow tree is rebuilt (it watches the Team folder's ETag).
+    deadline = time.time() + 60
+    while _lens("lisa", "/04_Finanz/Projekte")[0] != 200 or not _lens("lisa", "/04_Finanz/Projekte")[1]["entries"]:
+        assert time.time() < deadline, _lens("lisa", "/04_Finanz/Projekte")
+        time.sleep(2)
+
+    assert _lens("lisa", "/04_Finanz/Projekte")[1]["entries"] == [{"name": "Familie", "kind": "project"}]
+    assert _lens("tom", "/04_Finanz/Projekte")[1]["entries"] == []  # Tom only passes through Familie
+    status, body = _lens("lisa", "/04_Finanz/Projekte/Familie")
+    assert status == 200 and body["real"] == "/Familie" and body["fallback"]  # 04_Finanz not born there
+    assert _lens("tom", "/04_Finanz/Projekte/Familie")[0] == 403
+    assert _lens("mia", "/")[0] == 403  # an account without a person in # Accounts

@@ -329,10 +329,17 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                 nur mit Shared Secret, Konto -> Person über `# Accounts` in `Nextcloud.md`, unbekanntes Konto sieht
                 nichts. Image ohne Pakete außer Python (`cloud/service/Dockerfile`), läuft als Nicht-root, Schattenbaum
                 nur lesend
-            [ ] `docker buildx` (Paket `docker-buildx`): Image für amd64 und arm64; erst damit wirkt
-                `Dockerfile.dockerignore` (der alte Builder packt Tests und Doku mit)
-            [ ] Schattenbaum aus einem WebDAV-Durchlauf, Container auf der GMXtec neben `myos-nc`
-            [ ] `myos_acl` reicht die API durch, eigene Ansicht "Perspektiven" in Files
+            [x] `docker buildx` installiert (2026-11-10): `Dockerfile.dockerignore` wirkt, nur Code im Image
+            [ ] Image auch für arm64 (braucht QEMU/binfmt auf dem Dell, oder einen Mac/Raspberry Pi)
+            [x] GMXtec (2026-11-10): Schattenbaum aus einem WebDAV-Durchlauf (cloud/service/shadow.py), neu
+                gebaut, wenn sich das ETag des Team-Ordners ändert; Container `myos-core` im Netz `myos-net`
+                neben `myos-nc`, ohne offenen Port; `myos_acl` reicht `GET .../api/v1/lens` mit dem
+                angemeldeten Konto durch (LensController.php). Integrationstest über die Brücke grün (7/7)
+            [x] Erkenntnis: `myacl sync` lädt nur die Embryos hoch - `ACLs.md`, `Nextcloud.md`, Vorlagen lagen
+                gar nicht im Team-Ordner. Der Kern liest sie dort (der Team-Ordner ist die Quelle); im Test lädt
+                sie der Test hoch wie ein Sync-Client, vor dem Sync, damit ihre Regeln mitgesetzt werden
+            [ ] Eigene Ansicht "Perspektiven" in Files
+            [ ] Schatten bei jeder Änderung ganz neu (Sekunden im Test); später Ereignisse aus `myos_acl`
             [ ] Offen: Abteilungen, in denen man nirgends etwas lesen darf (`00_Admin`), zeigen ein leeres Regal;
                 Unterprojekte erreicht man nur über ihr Projekt (wie im Laufwerk)
         [ ] Schritt 2: API für Ebene und Geburt, Ereignisse aus `myos_acl`, Rechte live

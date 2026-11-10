@@ -25,6 +25,28 @@ Needs the Team folders app (groupfolders). Tested with Nextcloud 32 and Team fol
 `tests/test_myos_acl_app.py` runs against a test instance only (it changes the Team folder's
 rules); see its docstring. Without `MYOS_NC_TEST_URL` it is skipped.
 
+## The MyOS core next to Nextcloud (first piece: the lenses)
+
+The core runs as its own container (`cloud/service/`, see "Designdocument MyOS Core
+Service.md"). It reads the Team folder with the service account into a shadow tree (folders
+and `.MyOS` files) and rebuilds it when the folder's ETag changes. `myos_acl` passes
+`GET /ocs/v2.php/apps/myos_acl/api/v1/lens?path=` on with the logged-in account; the
+browser never talks to the container. The project's `.MyOS` must lie in the Team folder
+(sync client or browser), with `Nextcloud.md` naming the accounts.
+
+    docker buildx build --load -f cloud/service/Dockerfile -t myos-core:dev .   # repo root
+    docker network create myos-net && docker network connect myos-net <nextcloud container>
+    docker run -d --name myos-core --network myos-net --env-file core.env myos-core:dev
+    occ config:system:set trusted_domains <n> --value=<nextcloud container>
+    occ config:app:set myos_acl core_url --value=http://myos-core:8080
+    occ config:app:set myos_acl core_secret --sensitive --value=<MYOS_CORE_SECRET>
+
+`core.env` (mode 600): `MYOS_CORE_SECRET` (24 characters at least), `MYOS_NC_URL`
+(`http://<nextcloud container>`), `MYOS_NC_USER`, `MYOS_NC_PASSWORD` (an app password of the
+service account: a person of the role Admin), `MYOS_NC_FOLDER`, optionally `MYOS_SHADOW_POLL`
+(seconds, default 10). No port is published. After updating the app: `occ app:disable
+myos_acl && occ app:enable myos_acl`, so Nextcloud reads its new routes.
+
 ## The row of MyOS folders
 
 Above the file list the app shows the MyOS folders of the current folder, born ones in full

@@ -23,7 +23,7 @@ _DAV = "{DAV:}"
 _NC = "{http://nextcloud.org/ns}"
 _PROPFIND = (
     '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns"><d:prop>'
-    "<d:resourcetype/><nc:acl-enabled/><nc:acl-can-manage/><nc:acl-list/></d:prop></d:propfind>"
+    "<d:resourcetype/><d:getetag/><nc:acl-enabled/><nc:acl-can-manage/><nc:acl-list/></d:prop></d:propfind>"
 ).encode()
 
 # (method, url, body, headers, (user, password)) -> (HTTP status, body)
@@ -49,6 +49,7 @@ class Entry:
     rules: List[ExistingRule] = field(default_factory=list)
     acl_enabled: bool = False
     can_manage: bool = False
+    etag: str = ""  # changes when the entry (a folder: anything below it) changes
 
 
 def _urllib_transport(method, url, body, headers, auth):
@@ -92,6 +93,13 @@ class NextcloudDAV:
                     if entry.is_dir:
                         pending.append(child)
         return tree
+
+    def etag(self) -> str:
+        """The Team folder's ETag: Nextcloud changes it when anything below changes."""
+        top = self._list("/", depth="0").get("/")
+        if top is None:
+            raise NextcloudError(f"{self.folder} not found in the files of {self.user}")
+        return top.etag
 
     def set_rules(self, path: str, rules) -> None:
         """Replace all rules of path (relative to the Team folder) with rules (PlannedRule)."""
@@ -153,9 +161,9 @@ class NextcloudDAV:
     def _dav_path(self, path: str) -> str:
         return self._base + "".join("/" + quote(p) for p in path.split("/") if p)
 
-    def _list(self, path: str) -> Dict[str, Entry]:
+    def _list(self, path: str, depth: str = "1") -> Dict[str, Entry]:
         dav_path = self._dav_path(path) + "/"
-        headers = {"Depth": "1", "Content-Type": "application/xml; charset=utf-8"}
+        headers = {"Depth": depth, "Content-Type": "application/xml; charset=utf-8"}
         status, body = self._transport("PROPFIND", self.url + dav_path, _PROPFIND, headers, self._auth)
         if status == 401:
             raise NextcloudError(f"Nextcloud refused the login of {self.user} (app password?)")
@@ -190,6 +198,7 @@ class NextcloudDAV:
                 rules=rules,
                 acl_enabled=(prop.findtext(_NC + "acl-enabled") or "").strip() == "1",
                 can_manage=(prop.findtext(_NC + "acl-can-manage") or "").strip() == "1",
+                etag=(prop.findtext(_DAV + "getetag") or "").strip(),
             ))
         return entries
 

@@ -63,3 +63,13 @@ def test_denied_missing_and_unknown(service):
 def test_a_short_secret_is_refused(shadow):
     with pytest.raises(ValueError):
         make_server(shadow, "kurz", lambda account: None, port=0)
+
+
+def test_while_there_is_no_shadow_yet_the_service_says_so(shadow):
+    server = make_server(lambda: None, SECRET, lambda account: "lisa", port=0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        assert _get(f"http://127.0.0.1:{server.server_address[1]}/lens?path=/")[0] == 503
+    finally:
+        server.shutdown()
+        server.server_close()
