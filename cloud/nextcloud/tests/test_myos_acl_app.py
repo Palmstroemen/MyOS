@@ -7,8 +7,9 @@ Runs only when asked for (not part of the suite):
 The instance needs the Team folder "Projekte" (advanced permissions on, "oliver" may manage
 them) given to the groups below, with the folders Familie/{Finanz,Fotos,Kind} and Job.
 Security: it changes that Team folder's rules - never point it at a real one.
-The lens tests need the MyOS core service next to the instance, set up in myos_acl
-(core_url, core_secret; cloud/service/server.py) and reading the Team folder "Projekte".
+The MyOS core service runs next to the instance, set up in myos_acl (core_url, core_secret;
+cloud/service/server.py) and keeping the Team folder "Projekte" in step with its ACLs.md - the
+tests wait until it is (_settled), and some test it.
 """
 
 import base64
@@ -34,7 +35,7 @@ ACLS = (
     "## Admin\n- /*: read, write, delete, change\n\n"
     "## Familie\n- /Familie/: read, write, delete\n- /Familie/Finanz/: read\n\n"
     "## Kinder\n- /Familie/Kind/: read, write\n\n"
-    "## Buchhaltung\n- /Familie/Finanz/: read, write\n\n"
+    "## Buchhaltung\n- /Familie/Finanz/: read, write\n- /Familie/Steuer/: read, write\n\n"
     "## Team\n- /Job/: read, write\n\n"
     "# Users\nOliver: Admin\nLisa: Familie\nTom: Kinder\nAnna: Buchhaltung, Team\nKarl: Team\n"
 )
@@ -112,7 +113,20 @@ def _sync(tmp_path):
     result = subprocess.run([sys.executable, str(script), "sync", "--yes", str(root)],
                             capture_output=True, text=True, env=env)
     assert result.returncode == 0, result.stdout + result.stderr
+    _settled(script, root, env)
     return root, script, env
+
+
+def _settled(script, root, env, timeout=120):
+    """Wait until the Team folder holds what ACLs.md says and stays so - the core service
+    may still be bringing it in step - checked twice, a round of the core apart."""
+    deadline, quiet = time.time() + timeout, 0
+    while quiet < 2:
+        check = subprocess.run([sys.executable, str(script), "sync", "--dry-run", str(root)],
+                               capture_output=True, text=True, env=env)
+        quiet = quiet + 1 if " 0 change(s)" in check.stdout else 0
+        assert time.time() < deadline, check.stdout + check.stderr
+        time.sleep(8)
 
 
 def _upload_myos(root, project):
@@ -132,9 +146,7 @@ def synced(tmp_path):
     yield made
     for path in reversed(made):
         _dav("oliver", "DELETE", path)
-    check = subprocess.run([sys.executable, str(script), "sync", "--dry-run", str(root)],
-                           capture_output=True, text=True, env=env)
-    assert " 0 change(s)" in check.stdout, check.stdout + check.stderr
+    _settled(script, root, env)
 
 
 def test_a_new_folder_on_the_way_stays_hidden(synced):
@@ -228,3 +240,47 @@ def test_a_lens_shows_on_the_shelf_only_the_projects_one_may_read(synced):
     assert status == 200 and body["real"] == "/Familie" and body["fallback"]  # 04_Finanz not born there
     assert _lens("tom", "/04_Finanz/Projekte/Familie")[0] == 403
     assert _lens("mia", "/")[0] == 403  # an account without a person in # Accounts
+
+
+def _within(seconds, check, what):
+    deadline = time.time() + seconds
+    while not check():
+        assert time.time() < deadline, what
+        time.sleep(2)
+
+
+def test_a_folder_made_later_gets_its_rights_from_acls_md_without_a_sync(synced):
+    # Anna (Buchhaltung) may work in /Familie/Steuer/, which is not there yet. Lisa makes it;
+    # on the way through Familie it is locked for Anna at once (myos_acl), then the core gives
+    # her what ACLs.md says - no myacl sync.
+    assert _dav("lisa", "MKCOL", "Familie/Steuer")[0] == 201
+    synced.append("Familie/Steuer")
+
+    _within(90, lambda: _sees("anna", "Familie/", "Steuer"), "Anna does not see Familie/Steuer")
+    assert _dav("anna", "PUT", "Familie/Steuer/Beleg.txt", body=b"x")[0] in (201, 204)
+    assert not _sees("tom", "Familie/", "Steuer")
+
+
+def test_acls_md_edited_in_the_cloud_changes_the_rules(synced):
+    # Oliver (change) gives the Team read on /Familie/Fotos/ in the cloud; Karl sees it. Back
+    # as it was, he does not.
+    original = _dav("oliver", "GET", ".MyOS/ACLs.md")[1].encode()
+    edited = original.replace(b"## Team\n- /Job/: read, write\n", b"## Team\n- /Job/: read, write\n- /Familie/Fotos/: read\n")
+    assert edited != original
+    assert not _sees("karl", "Familie/", "Fotos")
+    try:
+        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=edited)[0] in (201, 204)
+        _within(90, lambda: _sees("karl", "Familie/", "Fotos"), "Karl does not see Familie/Fotos")
+    finally:
+        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=original)[0] in (201, 204)
+    _within(90, lambda: not _sees("karl", "Familie/", "Fotos"), "Karl still sees Familie/Fotos")
+
+
+def test_an_acls_md_that_leaves_no_one_to_change_the_rights_changes_nothing(synced):
+    original = _dav("oliver", "GET", ".MyOS/ACLs.md")[1].encode()
+    try:
+        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=b"kaputt\n")[0] in (201, 204)
+        time.sleep(30)  # a few rounds of the core
+        assert _sees("lisa", "Familie/", "Fotos") and _sees("karl", "", "Job")
+    finally:
+        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=original)[0] in (201, 204)

@@ -7,7 +7,17 @@ import errno
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple
 
-from fuse import FUSE, FuseOSError, Operations
+try:
+    from fuse import FUSE, FuseOSError, Operations
+except ImportError:  # the MyOS core service (Docker) has no FUSE: Blueprint without mounting
+    FUSE = None  # type: ignore
+
+    class FuseOSError(OSError):  # type: ignore
+        def __init__(self, code: int) -> None:
+            super().__init__(code, os.strerror(code))
+
+    class Operations:  # type: ignore
+        pass
 from core.project import ProjectConfig
 from core.template_place import TEMPLATES_REL, find_templates_dir
 from core.acl import ACLPolicy
@@ -767,6 +777,8 @@ class Blueprint(Operations):
 
     @staticmethod
     def mount(project_path: str | Path = Path.cwd(), foreground: bool = True):
+        if FUSE is None:
+            raise RuntimeError("fusepy is not installed")
         fuse = Blueprint(project_path)
         FUSE(fuse, str(fuse.project_root), foreground=foreground, allow_other=False)
 

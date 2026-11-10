@@ -22,6 +22,7 @@ from typing import Callable, Optional, Union
 from urllib.parse import parse_qs, urlsplit
 
 from cloud.service.lens import lens
+from cloud.service.reconcile import reconcile
 from cloud.service.shadow import ShadowKeeper
 from core.acl_nextcloud import read_nextcloud_md
 from core.nextcloud_dav import NextcloudDAV
@@ -95,9 +96,10 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     env = os.environ
     if env.get("MYOS_NC_URL"):
-        keeper = ShadowKeeper(Path(env.get("MYOS_SHADOW_BASE", "/tmp/myos-shadow")), NextcloudDAV(
-            env["MYOS_NC_URL"], env.get("MYOS_NC_USER", ""), env.get("MYOS_NC_PASSWORD", ""), env.get("MYOS_NC_FOLDER", "")))
-        threading.Thread(target=_keep, args=(keeper, float(env.get("MYOS_SHADOW_POLL", "10"))), daemon=True).start()
+        dav = NextcloudDAV(env["MYOS_NC_URL"], env.get("MYOS_NC_USER", ""), env.get("MYOS_NC_PASSWORD", ""),
+                           env.get("MYOS_NC_FOLDER", ""))
+        keeper = ShadowKeeper(Path(env.get("MYOS_SHADOW_BASE", "/tmp/myos-shadow")), dav)
+        threading.Thread(target=_keep, args=(keeper, dav, float(env.get("MYOS_SHADOW_POLL", "10"))), daemon=True).start()
         root: Root = lambda: keeper.root
         where = f"{env['MYOS_NC_URL']} {env.get('MYOS_NC_FOLDER', '')}"
     else:
@@ -117,14 +119,16 @@ def main() -> None:
     server.serve_forever()
 
 
-def _keep(keeper: ShadowKeeper, every: float) -> None:
-    """Keep the shadow current: look at the Team folder's ETag every so many seconds."""
+def _keep(keeper: ShadowKeeper, dav, every: float) -> None:
+    """Keep the shadow current - look at the Team folder's ETag every so many seconds - and
+    after each change the Team folder in step with its ACLs.md (cloud/service/reconcile.py)."""
     while True:
         try:
             if keeper.refresh():
                 logger.info("shadow tree built at %s", keeper.root)
-        except Exception as error:  # the service stays up; the next round tries again
-            logger.error("shadow tree not built: %s", error)
+                logger.info("rules: %s", reconcile(keeper.root, dav))
+        except Exception as error:  # the service stays up; the next change tries again
+            logger.error("%s: %s", type(error).__name__, error)
         time.sleep(every)
 
 

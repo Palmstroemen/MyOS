@@ -76,3 +76,12 @@ def test_while_there_is_no_shadow_yet_the_service_says_so(shadow):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_the_service_runs_without_fuse():
+    # The image has no FUSE (Designdocument MyOS Core Service.md, 9.2): nothing it loads may need it.
+    import subprocess
+    import sys
+    code = "import sys; sys.modules['fuse'] = None; import cloud.service.server, cloud.service.reconcile"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

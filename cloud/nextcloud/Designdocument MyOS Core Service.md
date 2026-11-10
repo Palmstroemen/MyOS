@@ -158,6 +158,16 @@ the most and risk the least - the core sets no rules and writes nothing.
    Scope (9.4): the web component, with the Files app as its first shell. Done when: the
    integration test births a folder as Lisa and the folder has its `ACLs.md` rights without
    a sync; editing `ACLs.md` in the cloud changes the rules.
+   State 2026-11-10: rights live are done, differently than first thought - no events yet.
+   After each rebuild of the shadow (the Team folder's ETag changed) the core does what
+   `myacl sync` does (core/nextcloud_sync.py, shared with the CLI) with the service account:
+   rules and `.MyOS/Embryos/`. A folder made later has its rights in about 10-30 seconds;
+   until then `LockNewEntries` keeps it locked on the way. An `ACLs.md` that leaves no one
+   who may change the rights is not sent (most likely broken: its parser is lenient, garbage
+   names no one); the rules stay. Births still copy from `.MyOS/Embryos/`, now kept by the
+   core. The integration test covers both criteria (10 tests, about 18 minutes with the
+   waiting). Left: `level`/`birth` for the row, events to be faster, a retry when a round
+   fails without a change after it.
 3. **Saving through a lens** - the core maps the path (the department folder born on the
    way, a birth from step 2), the browser writes there.
 4. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.

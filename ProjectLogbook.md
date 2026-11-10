@@ -353,6 +353,15 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             [ ] Offen: Abteilungen, in denen man nirgends etwas lesen darf (`00_Admin`), zeigen ein leeres Regal;
                 Unterprojekte erreicht man nur über ihr Projekt (wie im Laufwerk)
         [ ] Schritt 2: API für Ebene und Geburt, Ereignisse aus `myos_acl`, Rechte live
+            [x] Rechte live (2026-11-10): Nach jedem Neubau des Schattens tut der Kern, was `myacl sync` tut
+                (core/nextcloud_sync.py, gemeinsam mit der CLI), mit dem Dienstkonto - Regeln und Embryos. Ein
+                später angelegter Ordner hat seine Rechte nach etwa 10-30 Sekunden, eine in der Cloud geänderte
+                `ACLs.md` ändert die Regeln. Lässt `ACLs.md` niemanden übrig, der die Rechte ändern darf, bleibt
+                alles, wie es ist (wohl kaputt). Integrationstest 10/10, dauert wegen der Wartezeiten ~18 min
+            [x] `core/localBlueprintLayer.py` lädt ohne fusepy (der Kern im Container hat kein FUSE)
+            [ ] `level`/`birth` für die Ordnerzeile (statt `.MyOS/Embryos/` zu lesen)
+            [ ] Ereignisse aus `myos_acl` (schneller als das ETag); erneuter Versuch, wenn eine Runde scheitert
+                und keine Änderung folgt
         [x] Vorlagen wie Formulare (2026-11-08): `myacl sync` legt pro Embryo einen Ordner in `.MyOS/Embryos/` an,
             lesbar nur für wen, der den Ordner lesen darf, der daraus wird (wie Scope Embryos zeigt); wer in
             `/00_Admin` nichts darf, sieht weder Embryo noch Vorlage. `Embryos.json` ist nur noch Buchhaltung des
