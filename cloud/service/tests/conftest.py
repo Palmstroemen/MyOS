@@ -32,7 +32,10 @@ def shadow(tmp_path):
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
     template = root / ".MyOS" / "Templates" / "Standard"
     (template / "04_Finanz" / "Ausgaben").mkdir(parents=True)
-    (template / "07_Arbeit").mkdir()
+    (template / "07_Arbeit" / ".MyOS").mkdir(parents=True)  # what a birth of 07_Arbeit copies:
+    (template / "07_Arbeit" / ".MyOS" / "Desk.md").write_text("theme: dark\n")  # its hidden folders
+    (template / "07_Arbeit" / "Liesmich.md").write_text("Arbeit\n")  # and files
+    (template / "07_Arbeit" / "Aufgaben").mkdir()  # a deeper embryo, not copied
     (_project(root / "Familie") / "04_Finanz" / "Ausgaben").mkdir(parents=True)
     (_project(root / "Job") / "Kunden").mkdir()  # no 04_Finanz: the project itself is shown
     _project(root / "Wohnen" / "Garten")  # Wohnen holds a project, it is none itself

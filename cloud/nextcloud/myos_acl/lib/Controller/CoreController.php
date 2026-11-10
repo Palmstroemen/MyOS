@@ -18,12 +18,13 @@ use Psr\Log\LoggerInterface;
 
 /**
  * The bridge to the MyOS core service (cloud/service/server.py): what a turned path stands
- * for, as the core answers it for the logged-in account. No MyOS logic here - the core
- * decides, this only passes the account on ("Designdocument MyOS Core Service.md", 4 and 6).
+ * for (lens), the MyOS folders of a level (level) and what a birth does (birth), as the core
+ * answers them for the logged-in account. No MyOS logic here - the core decides, this only
+ * passes the account on ("Designdocument MyOS Core Service.md", 4 and 6).
  * Set by the admin: occ config:app:set myos_acl core_url --value=http://myos-core:8080
  * and occ config:app:set myos_acl core_secret --sensitive --value=...
  */
-class LensController extends OCSController {
+class CoreController extends OCSController {
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -37,7 +38,23 @@ class LensController extends OCSController {
 
 	#[NoAdminRequired]
 	#[ApiRoute(verb: 'GET', url: '/api/v1/lens')]
-	public function get(string $path = '/'): DataResponse {
+	public function lens(string $path = '/'): DataResponse {
+		return $this->ask('lens', $path);
+	}
+
+	#[NoAdminRequired]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/level')]
+	public function level(string $path = '/'): DataResponse {
+		return $this->ask('level', $path);
+	}
+
+	#[NoAdminRequired]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/birth')]
+	public function birth(string $path = '/'): DataResponse {
+		return $this->ask('birth', $path);
+	}
+
+	private function ask(string $question, string $path): DataResponse {
 		$user = $this->session->getUser();
 		if ($user === null) {
 			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
@@ -48,7 +65,7 @@ class LensController extends OCSController {
 			return new DataResponse(['error' => 'the MyOS core is not set up'], Http::STATUS_SERVICE_UNAVAILABLE);
 		}
 		try {
-			$response = $this->clients->newClient()->get($url . '/lens?' . http_build_query(['path' => $path]), [
+			$response = $this->clients->newClient()->get($url . '/' . $question . '?' . http_build_query(['path' => $path]), [
 				'headers' => ['X-MyOS-Secret' => $secret, 'X-MyOS-Account' => $user->getUID()],
 				'http_errors' => false,
 				'timeout' => 10,

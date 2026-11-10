@@ -5,7 +5,7 @@ import stat
 import time
 import errno
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 try:
     from fuse import FUSE, FuseOSError, Operations
@@ -495,10 +495,12 @@ class Blueprint(Operations):
         
         return embryos
 
-    def get_template_folders_at(self, rel_path: str) -> List[Tuple[str, bool]]:
+    def get_template_folders_at(self, rel_path: str,
+                                may_write: Optional[Callable[[str], bool]] = None) -> List[Tuple[str, bool]]:
         """
         Get all template folder names at the given relative path (embryo and born).
-        Returns list of (name, is_embryo). Embryos are only included when writable.
+        Returns list of (name, is_embryo). Embryos are only included when writable - for
+        the user of this process, or by may_write(rel_path) (the core service: a person).
         """
         if not rel_path:
             node = self.embryo_tree
@@ -512,7 +514,7 @@ class Blueprint(Operations):
         for name in node.keys():
             full_path = f"{rel_path}/{name}" if rel_path else name
             is_embryo = self.is_embryo(full_path)
-            if is_embryo and not self._can_write_embryo(full_path):
+            if is_embryo and not (may_write or self._can_write_embryo)(full_path):
                 continue
             result.append((name, is_embryo))
         return result

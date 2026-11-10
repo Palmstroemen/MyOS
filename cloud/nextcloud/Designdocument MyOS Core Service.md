@@ -144,7 +144,7 @@ the most and risk the least - the core sets no rules and writes nothing.
    the projects she may read, and Tom does not see them.
    State 2026-11-10: done up to the view - `cloud/service/` (lens.py, shadow.py, server.py),
    the container next to `myos-nc` on the GMXtec, `myos_acl` passes `GET .../api/v1/lens` on
-   (LensController.php); the integration test passes through the bridge. The shadow is
+   (LensController.php, since step 2 CoreController.php); the integration test passes through the bridge. The shadow is
    rebuilt whole when the Team folder's ETag changes (seconds for the test folder; events
    later). The view "Perspectives" in Files (src/lens.js) since the same day: the virtual
    levels as folders of their own, the real folders listed over WebDAV with the user's
@@ -166,8 +166,13 @@ the most and risk the least - the core sets no rules and writes nothing.
    who may change the rights is not sent (most likely broken: its parser is lenient, garbage
    names no one); the rules stay. Births still copy from `.MyOS/Embryos/`, now kept by the
    core. The integration test covers both criteria (10 tests, about 18 minutes with the
-   waiting). Left: `level`/`birth` for the row, events to be faster, a retry when a round
-   fails without a change after it.
+   waiting). `level`/`birth` since the same day (cloud/service/level.py): the row in Files
+   asks the core which MyOS folders a level holds - born ones the person may read, embryos
+   where the person may create, by Scope's code (`Blueprint.get_template_folders_at` with the
+   person's write check) - and what a birth creates and copies from `.MyOS/Embryos/`; the
+   browser does it with the user's rights. The paths are in the user's files: the service
+   takes the Team folder's place off and puts it back, so the browser needs not know it.
+   Left: events to be faster, a retry when a round fails without a change after it.
 3. **Saving through a lens** - the core maps the path (the department folder born on the
    way, a birth from step 2), the browser writes there.
 4. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.

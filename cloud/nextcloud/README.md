@@ -25,13 +25,13 @@ Needs the Team folders app (groupfolders). Tested with Nextcloud 32 and Team fol
 `tests/test_myos_acl_app.py` runs against a test instance only (it changes the Team folder's
 rules); see its docstring. Without `MYOS_NC_TEST_URL` it is skipped.
 
-## The MyOS core next to Nextcloud (first piece: the lenses)
+## The MyOS core next to Nextcloud
 
 The core runs as its own container (`cloud/service/`, see "Designdocument MyOS Core
 Service.md"). It reads the Team folder with the service account into a shadow tree (folders
 and `.MyOS` files) and rebuilds it when the folder's ETag changes. `myos_acl` passes
-`GET /ocs/v2.php/apps/myos_acl/api/v1/lens?path=` on with the logged-in account; the
-browser never talks to the container. The project's `.MyOS` must lie in the Team folder
+`GET /ocs/v2.php/apps/myos_acl/api/v1/{lens,level,birth}?path=` on with the logged-in
+account (lib/Controller/CoreController.php); the browser never talks to the container. The project's `.MyOS` must lie in the Team folder
 (sync client or browser), with `Nextcloud.md` naming the accounts.
 
     docker buildx build --load -f cloud/service/Dockerfile -t myos-core:dev .   # repo root
@@ -67,7 +67,7 @@ colour, embryos pale; clicking an embryo gives birth to it as MyOS does (the fol
 files and hidden folders of that template level). Born MyOS folders leave the list below
 (Nextcloud counts them as "hidden" there). Embryos show only where one may create.
 
-`myacl sync` uploads per project a folder per embryo, `.MyOS/Embryos/<embryo>/`, holding what
+`myacl sync` - or the core after each change - uploads per project a folder per embryo, `.MyOS/Embryos/<embryo>/`, holding what
 its birth copies (the files and hidden folders of that template level; its visible
 subfolders are the deeper embryos), and `.MyOS/Embryos.json` (the template tree and a hash
 per file, the sync's bookkeeping) (core/cloud_embryos.py). Everyone with rights in the
@@ -76,8 +76,9 @@ becomes, as Scope shows embryos: who may do nothing in `/00_Admin` sees neither 
 nor its template. Nothing else of `.MyOS` comes with it. What manages rights and the sync in
 any `.MyOS` (`ACLs.md`, `ACLs-history`, `Nextcloud.md`, `Embryos.json`, `Embryos/`) may only
 be written by who has `change` on that `ACLs.md` - so the account that syncs needs it too.
-The browser takes the nearest project up the path, lists the embryos it may read there and
-copies on the server.
+Which MyOS folders a level holds and what a birth creates and copies, the core answers
+(`level`, `birth`; cloud/service/level.py, by the same code as Scope); the browser creates
+the folders and copies from `.MyOS/Embryos/` on the server with the user's own rights.
 
 The browser part is `src/main.js`, built to `js/myos_acl-main.js` (committed, so installing
 needs no Node):

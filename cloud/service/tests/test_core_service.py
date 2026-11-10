@@ -85,3 +85,14 @@ def test_the_service_runs_without_fuse():
     code = "import sys; sys.modules['fuse'] = None; import cloud.service.server, cloud.service.reconcile"
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_level_and_birth_take_and_give_paths_in_the_user_s_files(service):
+    status, body = _get(service + "/level?path=/Projekte/Familie")
+    assert status == 200 and body == {"folders": [{"name": "04_Finanz", "born": True}, {"name": "07_Arbeit", "born": False}]}
+    status, body = _get(service + "/birth?path=/Projekte/Familie/07_Arbeit")
+    assert status == 200 and body["create"][0] == "/Projekte/Familie/07_Arbeit"
+    assert body["copy"][-1] == {"from": "/Projekte/Familie/.MyOS/Embryos/07_Arbeit/Liesmich.md",
+                                "to": "/Projekte/Familie/07_Arbeit/Liesmich.md"}
+    assert _get(service + "/level?path=/Andere/Familie")[0] == 404  # not in the Team folder
+    assert _get(service + "/birth?path=/Projekte/Job/07_Arbeit")[0] == 403

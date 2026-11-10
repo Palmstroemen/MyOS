@@ -359,7 +359,11 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                 `ACLs.md` ändert die Regeln. Lässt `ACLs.md` niemanden übrig, der die Rechte ändern darf, bleibt
                 alles, wie es ist (wohl kaputt). Integrationstest 10/10, dauert wegen der Wartezeiten ~18 min
             [x] `core/localBlueprintLayer.py` lädt ohne fusepy (der Kern im Container hat kein FUSE)
-            [ ] `level`/`birth` für die Ordnerzeile (statt `.MyOS/Embryos/` zu lesen)
+            [x] `level`/`birth` für die Ordnerzeile (2026-11-10, cloud/service/level.py, App 0.3.0): Der Kern sagt,
+                welche MyOS-Ordner eine Ebene hat (geborene, die man lesen darf; Embryos, wo man anlegen darf - mit
+                Scopes Code, `get_template_folders_at` bekommt die Prüfung der Person) und was eine Geburt anlegt und
+                aus `.MyOS/Embryos/` kopiert; der Browser tut es mit den eigenen Rechten. Die letzte MyOS-Logik ist aus
+                main.js heraus. Brücke heißt jetzt CoreController (lens, level, birth)
             [ ] Ereignisse aus `myos_acl` (schneller als das ETag); erneuter Versuch, wenn eine Runde scheitert
                 und keine Änderung folgt
         [x] Vorlagen wie Formulare (2026-11-08): `myacl sync` legt pro Embryo einen Ordner in `.MyOS/Embryos/` an,

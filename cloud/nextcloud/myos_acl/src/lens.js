@@ -1,7 +1,7 @@
 /**
  * The view "Perspectives" in the Files app: the projects seen from a department, the turned
  * path of MyOS (/04_Finanz/Projekte/Job = Projekte/Job/04_Finanz). What a turned path stands
- * for comes from the MyOS core (cloud/service/lens.py, through myos_acl's LensController):
+ * for comes from the MyOS core (cloud/service/lens.py, through myos_acl's CoreController):
  * the virtual levels - departments, their folders, the shelf with the projects one may read -
  * or the real folder, which is listed here over WebDAV with the user's rights. Opening,
  * downloading, renaming and deleting act on the real files.
@@ -9,11 +9,11 @@
  * The Files app opens a folder at its real path (node.path); inside this view a folder opens
  * at its turned path instead, so the breadcrumbs stay in the lens.
  */
-import { getCurrentUser, getRequestToken } from '@nextcloud/auth'
+import { getCurrentUser } from '@nextcloud/auth'
 import { DefaultType, FileAction, FileType, Folder, Permission, View, getNavigation, registerFileAction } from '@nextcloud/files'
 import { defaultRemoteURL, defaultRootPath, getClient, getDefaultPropfind, resultToNode } from '@nextcloud/files/dav'
 import { t } from '@nextcloud/l10n'
-import { generateOcsUrl } from '@nextcloud/router'
+import { askCore } from './core.js'
 
 const APP = 'myos_acl'
 const VIEW = 'myos-perspectives'
@@ -28,17 +28,6 @@ const virtualIds = new Map()
 
 function join(path, name) {
 	return path.replace(/\/$/, '') + '/' + name
-}
-
-/** The core's answer for a turned path: {status, data}. */
-async function askLens(path) {
-	const url = generateOcsUrl('apps/' + APP + '/api/v1/lens') + '?format=json&path=' + encodeURIComponent(path)
-	const response = await fetch(url, {
-		headers: { 'OCS-APIRequest': 'true', Accept: 'application/json', requesttoken: getRequestToken() ?? '' },
-		credentials: 'same-origin',
-	})
-	const body = await response.json().catch(() => null)
-	return { status: response.status, data: body?.ocs?.data ?? null }
 }
 
 /** A level that exists only in the lens (a department, the shelf, a project on it). */
@@ -85,7 +74,7 @@ async function realContents(path, answer) {
 
 async function getContents(path) {
 	path = '/' + (path ?? '/').split('/').filter(Boolean).join('/')
-	const { status, data } = await askLens(path)
+	const { status, data } = await askCore('lens', path)
 	if (status !== 200 || !data) {
 		return { folder: virtualFolder(path), contents: [] } // nothing here one may see
 	}
@@ -147,7 +136,7 @@ export function registerPerspectives() {
 		order: 30,
 		getContents,
 	}))
-	askLens('/').then(({ status }) => {
+	askCore('lens', '/').then(({ status }) => {
 		if (status !== 200) {
 			getNavigation().remove(VIEW)
 		}

@@ -64,16 +64,20 @@ def _dav(user, method, path, headers=None, body=None):
         return error.code, ""
 
 
-def _lens(user, path):
+def _core(user, question, path):
     """The MyOS core's answer through myos_acl (OCS), as the browser asks for it."""
     token = base64.b64encode(f"{user}:{_passwords()[user]}".encode()).decode()
-    url = f"{URL}/ocs/v2.php/apps/myos_acl/api/v1/lens?format=json&path={urllib.parse.quote(path)}"
+    url = f"{URL}/ocs/v2.php/apps/myos_acl/api/v1/{question}?format=json&path={urllib.parse.quote(path)}"
     request = urllib.request.Request(url, headers={"Authorization": f"Basic {token}", "OCS-APIRequest": "true"})
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             return response.status, json.loads(response.read())["ocs"]["data"]
     except urllib.error.HTTPError as error:
         return error.code, None
+
+
+def _lens(user, path):
+    return _core(user, "lens", path)
 
 
 def _sees(user, folder, name):
@@ -198,20 +202,28 @@ def test_an_embryo_is_readable_for_who_may_read_where_it_is_born(synced):
 
 
 def test_a_birth_as_the_browser_does_it_copies_the_template_and_stays_hidden_on_the_way(synced):
-    # What src/main.js does: MKCOL the folder, COPY what the embryo's folder holds besides
-    # its visible subfolders (the deeper embryos) - files and hidden folders.
-    name = f"Neu-{uuid.uuid4().hex[:6]}"  # a fresh name; the copy is what counts
-    assert _dav("lisa", "MKCOL", f"Familie/{name}")[0] == 201
-    synced.append(f"Familie/{name}")
-    destination = f"{URL}/remote.php/dav/files/lisa/Projekte/Familie/{name}/"
-    for rel in ("Liesmich.md", ".MyOS"):
-        status = _dav("lisa", "COPY", f".MyOS/Embryos/Familie/Neu/{rel}", {"Destination": destination + rel})[0]
-        assert status in (201, 204), rel
+    # What src/main.js does: ask the core what the level holds and what the birth does, then
+    # create and copy with the user's own rights.
+    status, body = _core("lisa", "level", "/Projekte/Familie")
+    assert status == 200 and {"name": "00_Admin", "born": False} in body["folders"]
+    assert _core("tom", "level", "/Projekte/Familie")[1]["folders"] == []  # Tom may create nothing there
+    status, todo = _core("lisa", "birth", "/Projekte/Familie/00_Admin")
+    assert status == 200 and todo["create"] == ["/Projekte/Familie/00_Admin"]
+    synced.append("Familie/00_Admin")
+    destination = f"{URL}/remote.php/dav/files/lisa"
+    for folder in todo["create"]:
+        assert _dav("lisa", "MKCOL", folder.removeprefix("/Projekte/"))[0] == 201, folder
+    for copy in todo["copy"]:
+        status = _dav("lisa", "COPY", copy["from"].removeprefix("/Projekte/"), {"Destination": destination + copy["to"]})[0]
+        assert status in (201, 204), copy
 
-    status, body = _dav("lisa", "GET", f"Familie/{name}/Liesmich.md")
-    assert status == 200 and body == "Neu in Familie"
-    assert _dav("lisa", "GET", f"Familie/{name}/.MyOS/Tags.md")[0] == 200
-    assert not _sees("tom", "Familie/", name)
+    status, text = _dav("lisa", "GET", "Familie/00_Admin/Liesmich.md")
+    assert status == 200 and text == "Nur für Admins"
+    assert not _sees("tom", "Familie/", "00_Admin")
+    _within(90, lambda: {"name": "00_Admin", "born": True} in _core("lisa", "level", "/Projekte/Familie")[1]["folders"],
+            "the core does not see 00_Admin born")
+    assert _core("lisa", "birth", "/Projekte/Familie/00_Admin")[0] == 404  # born already
+    assert _core("tom", "birth", "/Projekte/Familie/04_Finanz")[0] == 403
 
 
 def test_who_may_write_a_project_may_not_write_its_rights_and_sync_files(synced):

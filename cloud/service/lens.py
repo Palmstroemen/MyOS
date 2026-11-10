@@ -24,7 +24,7 @@ def lens(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
     A project on the shelf carries its real department folder ("real") where it is born.
     None when there is nothing; PermissionError when person may not read it."""
     root = Path(root).expanduser().resolve()
-    drive = PerspectiveDrive(root, may=_may_for(person))
+    drive = PerspectiveDrive(root, may=may_for(person))
     path = "/" + "/".join(p for p in str(path or "/").split("/") if p)
     node = drive.node(path)
     if node is None:
@@ -45,7 +45,8 @@ def lens(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
     return {"path": path, "real": None, "entries": entries}
 
 
-def _may_for(person: str) -> Callable[[Path, str], bool]:
+def may_for(person: str) -> Callable[[Path, str], bool]:
+    """may(path, action): whether person may act ("read", "write") on path in the shadow."""
     def may(path: Path, action: str) -> bool:
         if find_acl_project_root(path) is None:
             return True  # no ACLs.md: the platform's rights decide alone

@@ -2,7 +2,8 @@
 #
 # See "cloud/nextcloud/Designdocument MyOS Core Service.md", 4, 6 and 8.1. Reached only from
 # the platform's bridge (myos_acl for Nextcloud), never from a browser: the bridge sends the
-# shared secret and the logged-in account. Read-only so far: GET /lens?path=.
+# shared secret and the logged-in account. GET /lens?path= (a turned path), /level?path= and
+# /birth?path= (paths in the user's files); the browser acts with the user's own rights.
 #
 # The shadow tree is a folder (MYOS_SHADOW_ROOT, for tests) or built from the Team folder with
 # the service account and kept current (MYOS_NC_URL, _USER, _PASSWORD, _FOLDER; cloud/service/shadow.py):
@@ -22,6 +23,7 @@ from typing import Callable, Optional, Union
 from urllib.parse import parse_qs, urlsplit
 
 from cloud.service.lens import lens
+from cloud.service.level import birth, level
 from cloud.service.reconcile import reconcile
 from cloud.service.shadow import ShadowKeeper
 from core.acl_nextcloud import read_nextcloud_md
@@ -66,16 +68,25 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
             if not person:
                 return self._answer(403, {"error": "unknown account"})
             url = urlsplit(self.path)
-            if url.path != "/lens":
-                return self._answer(404, {"error": "not found"})
             path = parse_qs(url.query).get("path", ["/"])[0]
             try:
-                answer = lens(shadow, person, path)
+                if url.path == "/lens":
+                    answer = lens(shadow, person, path)
+                    if answer is not None:
+                        answer["place"] = place
+                elif url.path in ("/level", "/birth"):
+                    # These take and give paths in the user's files (place + the Team folder's).
+                    inner = _within(place, path)
+                    answer = None if inner is None else (level if url.path == "/level" else birth)(shadow, person, inner)
+                    if answer is not None and url.path == "/birth":
+                        answer = {"create": [place + p for p in answer["create"]],
+                                  "copy": [{"from": place + c["from"], "to": place + c["to"]} for c in answer["copy"]]}
+                else:
+                    answer = None
             except PermissionError:
                 return self._answer(403, {"error": "denied"})
             if answer is None:
                 return self._answer(404, {"error": "not found"})
-            answer["place"] = place
             self._answer(200, answer)
 
         def _answer(self, status: int, body: dict) -> None:
@@ -90,6 +101,16 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
             logger.info("%s %s", self.address_string(), format % args)
 
     return ThreadingHTTPServer((host, port), Handler)
+
+
+def _within(place: str, path: str) -> Optional[str]:
+    """path (in the user's files) relative to place, the Team folder; None outside it."""
+    path = "/" + "/".join(p for p in str(path or "").split("/") if p)
+    if not place:
+        return path
+    if path == place:
+        return "/"
+    return path[len(place):] if path.startswith(place + "/") else None
 
 
 def main() -> None:
