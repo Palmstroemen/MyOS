@@ -21,6 +21,7 @@ def lens(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
     "# Users"): {"path", "real": None, "entries": [{"name", "kind"}]} for a virtual level,
     {"path", "real": "/Job/04_Finanz", "fallback"} inside a project (real relative to root;
     fallback: the department folder is not born there, the project's own folder is shown).
+    A project on the shelf carries its real department folder ("real") where it is born.
     None when there is nothing; PermissionError when person may not read it."""
     root = Path(root).expanduser().resolve()
     drive = PerspectiveDrive(root, may=_may_for(person))
@@ -37,6 +38,10 @@ def lens(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
         entries = [entry for entry in entries if _visible(drive, _child(path, entry["name"]))]
         if not entries and path.split("/")[-1] != PROJECTS:
             raise PermissionError(path)  # a way that leads to nothing one may read
+        for entry in entries:
+            shown = drive.node(_child(path, entry["name"])) if entry["kind"] == "project" else None
+            if shown is not None and shown.fallback is None:
+                entry["real"] = "/" + shown.real.relative_to(root).as_posix()
     return {"path": path, "real": None, "entries": entries}
 
 

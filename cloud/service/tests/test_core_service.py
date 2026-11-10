@@ -44,7 +44,7 @@ def test_a_lens_is_answered_for_the_account_s_person(service):
     assert _get(service + "/lens?path=/04_Finanz/Projekte/Familie")[1] == {
         "path": "/04_Finanz/Projekte/Familie", "real": "/Familie/04_Finanz", "fallback": False,
         "place": "/Projekte"}  # where the real folder lies in the user's files: place + real
-    assert "place" not in body
+    assert body["place"] == "/Projekte" and body["entries"][0]["real"] == "/Familie/04_Finanz"
 
 
 @pytest.mark.parametrize("secret", [None, "", "wrong"])

@@ -47,7 +47,7 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
     """The service for the shadow tree at root (a folder, or a function naming the current
     one, None while there is none yet); person_for maps the account the bridge passes to a
     person of "# Users" (None: not one of them). place: where root lies in the platform's
-    files ("/Projekte" for the Team folder), sent along with a real folder."""
+    files ("/Projekte" for the Team folder), sent along: place + real is a real folder there."""
     # Security: the secret is all that keeps others out; a short one is refused.
     if len(secret or "") < MIN_SECRET_LENGTH:
         raise ValueError(f"the shared secret needs at least {MIN_SECRET_LENGTH} characters")
@@ -74,8 +74,7 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
                 return self._answer(403, {"error": "denied"})
             if answer is None:
                 return self._answer(404, {"error": "not found"})
-            if answer["real"] is not None:
-                answer["place"] = place
+            answer["place"] = place
             self._answer(200, answer)
 
         def _answer(self, status: int, body: dict) -> None:

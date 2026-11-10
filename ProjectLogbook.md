@@ -343,8 +343,11 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                 Standardaktion vor "open-folder"), die Pfadleiste bleibt in der Perspektive. Ersatzanzeige nur
                 lesend. Als Init-Skript geladen, sonst findet ein neu geladener Link die Ansicht nicht. Im
                 Browser als Lisa durchgeklickt
-            [ ] Gedachte Ebenen haben erfundene Quellen (`/.myos-perspectives/...`): Herunterladen oder
-                Seitenleiste darauf gehen ins Leere; Projekte im Regal könnten gleich ihren echten Ordner tragen
+            [x] Projekte im Regal tragen ihren echten Abteilungsordner (2026-11-10): Details, Herunterladen,
+                Teilen wirken auf `Familie/04_Finanz`, benannt nach dem Projekt, nur lesbar (Umbenennen dort
+                hieße den Abteilungsordner umbenennen). Wo er nicht geboren ist, bleibt das Projekt gedacht -
+                sonst holte Herunterladen aus dem Finanz-Regal das ganze Projekt
+            [ ] Abteilungen und das Regal selbst bleiben gedacht (erfundene Quellen): keine Aktionen darauf
             [ ] Bündel 296 kB (der WebDAV-Client kommt mit)
             [ ] Schatten bei jeder Änderung ganz neu (Sekunden im Test); später Ereignisse aus `myos_acl`
             [ ] Offen: Abteilungen, in denen man nirgends etwas lesen darf (`00_Admin`), zeigen ein leeres Regal;

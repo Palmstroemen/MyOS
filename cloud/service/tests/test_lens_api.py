@@ -29,13 +29,16 @@ def test_the_shelf_shows_only_the_projects_one_may_read_there(shadow):
     assert names("lisa") == ["Familie"]
     assert names("karl") == ["Job"]
     assert lens(shadow, "oliver", "/04_Finanz/Projekte")["entries"] == [
-        {"name": "Familie", "kind": "project"}, {"name": "Job", "kind": "project"},
+        {"name": "Familie", "kind": "project", "real": "/Familie/04_Finanz"},
+        {"name": "Job", "kind": "project"},  # 04_Finanz not born there: nothing real to carry
         {"name": "Wohnen", "kind": "way"}]  # no Clipboard
     assert names("tom") == []  # not listed: may read nothing
 
 
 def test_a_way_is_shown_only_when_it_leads_to_a_readable_project(shadow):
     assert lens(shadow, "oliver", "/04_Finanz/Projekte/Wohnen")["entries"] == [{"name": "Garten", "kind": "project"}]
+    assert lens(shadow, "oliver", "/04_Finanz/Ausgaben/Projekte")["entries"][0] == {
+        "name": "Familie", "kind": "project", "real": "/Familie/04_Finanz/Ausgaben"}
     with pytest.raises(PermissionError):
         lens(shadow, "lisa", "/04_Finanz/Projekte/Wohnen")
 

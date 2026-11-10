@@ -67,6 +67,7 @@ async function realContents(path, answer) {
 		client.getDirectoryContents(defaultRootPath + real, options),
 	])
 	const folder = resultToNode(self.data)
+	folder.displayname = path.split('/').pop() // the lens' name (Familie), not the real one (04_Finanz)
 	turned.set(folder.source, path)
 	if (answer.fallback) {
 		// The department folder is not born in this project: its own folder is shown. Saving
@@ -91,7 +92,29 @@ async function getContents(path) {
 	if (data.real !== null) {
 		return realContents(path, data)
 	}
-	return { folder: virtualFolder(path), contents: data.entries.map(entry => virtualFolder(join(path, entry.name))) }
+	const contents = await Promise.all(data.entries.map(entry => entry.real
+		? projectOnShelf(join(path, entry.name), data.place.replace(/\/$/, '') + entry.real)
+		: virtualFolder(join(path, entry.name))))
+	return { folder: virtualFolder(path), contents }
+}
+
+/**
+ * A project on the shelf as its real department folder (Familie = Familie/04_Finanz): the
+ * details, downloading and sharing act on that folder. Named after the project, and only to
+ * read here - renaming "Familie" must not rename Familie/04_Finanz.
+ */
+async function projectOnShelf(path, real) {
+	try {
+		const result = await getClient().stat(defaultRootPath + real, { details: true, data: getDefaultPropfind() })
+		const node = resultToNode(result.data)
+		node.displayname = path.split('/').pop()
+		node.permissions = Permission.READ
+		turned.set(node.source, path)
+		return node
+	} catch (error) {
+		console.error('MyOS', error)
+		return virtualFolder(path)
+	}
 }
 
 function open(path) {
@@ -119,7 +142,7 @@ export function registerPerspectives() {
 		name: t(APP, 'Perspectives'),
 		caption: t(APP, 'The projects seen from a department'),
 		emptyTitle: t(APP, 'Nothing here'),
-		emptyCaption: t(APP, 'No project has anything here you may see'),
+		emptyCaption: t(APP, 'This folder is empty, or holds nothing you may see'),
 		icon: glassesIcon,
 		order: 30,
 		getContents,
