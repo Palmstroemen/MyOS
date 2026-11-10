@@ -319,14 +319,30 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         Service.md): ein Docker-Image mit dem Python-Kern als API, `myos_acl` als Brücke; keine MyOS-Logik in PHP oder
         JS. Der Kern arbeitet auf einem Schattenbaum (Ordner, `.MyOS` mit den Vorlagen), entscheidet; der Nutzer handelt
         mit eigenen Rechten, Regeln setzt ein Dienstkonto sofort nach jedem Ereignis. Erst als Sidecar, später ExApp
-        [ ] Schritt 1: Container, Schattenbaum, API für Ebene und Geburt, Ereignisse aus `myos_acl`, Rechte live.
+        Reihenfolge umgestellt (2026-11-10): zuerst die Perspektiven, nur ansehen - zeigt am meisten, der Kern setzt
+        keine Regeln und schreibt nichts. Getestet wird auf Dell (Image, Kern gegen Schattenbaum im Ordner), GMXtec
+        (Kern neben `myos-nc`), später DS212+ als zweite Plattform von außen; die DS218 bleibt unberührt (Backups)
+        [ ] Schritt 1: Kern als Dienst mit den Perspektiven
+            [x] Auf dem Dell (2026-11-10): `cloud/service/` - `GET /lens?path=` (lens.py) über
+                core/perspective_drive.py und die Rechte aus `ACLs.md` wie in Scope (core/acl_view.py); im Regal nur
+                Projekte, die die Person dort lesen darf; sonst der echte Ordner, den der Browser selbst listet. HTTP
+                nur mit Shared Secret, Konto -> Person über `# Accounts` in `Nextcloud.md`, unbekanntes Konto sieht
+                nichts. Image ohne Pakete außer Python (`cloud/service/Dockerfile`), läuft als Nicht-root, Schattenbaum
+                nur lesend
+            [ ] `docker buildx` (Paket `docker-buildx`): Image für amd64 und arm64; erst damit wirkt
+                `Dockerfile.dockerignore` (der alte Builder packt Tests und Doku mit)
+            [ ] Schattenbaum aus einem WebDAV-Durchlauf, Container auf der GMXtec neben `myos-nc`
+            [ ] `myos_acl` reicht die API durch, eigene Ansicht "Perspektiven" in Files
+            [ ] Offen: Abteilungen, in denen man nirgends etwas lesen darf (`00_Admin`), zeigen ein leeres Regal;
+                Unterprojekte erreicht man nur über ihr Projekt (wie im Laufwerk)
+        [ ] Schritt 2: API für Ebene und Geburt, Ereignisse aus `myos_acl`, Rechte live
         [x] Vorlagen wie Formulare (2026-11-08): `myacl sync` legt pro Embryo einen Ordner in `.MyOS/Embryos/` an,
             lesbar nur für wen, der den Ordner lesen darf, der daraus wird (wie Scope Embryos zeigt); wer in
             `/00_Admin` nichts darf, sieht weder Embryo noch Vorlage. `Embryos.json` ist nur noch Buchhaltung des
             Syncs; der Browser liest die Embryos aus den Ordnern, die er sehen darf. Integrationstest und Browser grün
-        [ ] Schritt 2: Perspektiven als eigene Ansicht in Files
-        [ ] Schritt 3: Tags und Filter
-        [ ] Schritt 4: als ExApp (AppAPI) verpacken
+        [ ] Schritt 3: Speichern über eine Perspektive
+        [ ] Schritt 4: Tags und Filter
+        [ ] Schritt 5: als ExApp (AppAPI) verpacken
         [ ] Nextcloud ist der erste Adapter, nicht der einzige (Obsidian, OneDrive, Google, Dropbox, Synology ...):
             der Kern kennt keine Plattform; pro Plattform Dateien, Rechte, Oberfläche (Designdokument, Abschnitt 9)
     [x] Vorlagen in `.MyOS/Templates` (2026-11-09): Ein einfacher Ordner `Templates` kollidierte mit `~/Templates`

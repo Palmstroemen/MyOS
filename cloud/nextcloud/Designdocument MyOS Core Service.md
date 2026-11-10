@@ -64,7 +64,7 @@ Instead of rewriting the core for WebDAV, the container keeps a **shadow tree** 
 Team folder: every folder (empty), every `.MyOS` file - with `.MyOS/Templates/` and its
 files, where the templates live (since 2026-11-09). No user documents. That is all Blueprint,
 ACLAuthorizer and the perspective resolver read. Since the templates come into the Team folder
-with the project, a birth in step 1 can copy straight from `.MyOS/Templates`, by the core's
+with the project, a birth in step 2 can copy straight from `.MyOS/Templates`, by the core's
 answer; the copies in `.MyOS/Embryos/` are then no longer needed.
 
 - Built at start from a WebDAV walk (as `NextcloudDAV.tree()` does today), then kept current
@@ -110,20 +110,49 @@ One image, two ways to run it, the same code:
 
 The GMXtec is only our test host; nothing depends on it.
 
+**What a host needs:** Docker and a 64-bit processor, x86 or ARM (amd64 or arm64): Linux
+servers and PCs, Macs with Intel or M chips, Windows with Docker Desktop, a Raspberry Pi 4/5
+with a 64-bit system, newer Synology "+" models with Container Manager. Not: 32-bit devices
+and NAS models without Container Manager. So the image is built for both architectures from
+the start (`docker buildx`); only the core runs in it, without FUSE (9.2).
+
+### 7.1 Where We Test (decided 2026-11-10)
+
+| Machine   | Role                                                                               |
+|-----------|------------------------------------------------------------------------------------|
+| Dell      | builds the image, runs the core against a shadow tree in a folder, no Nextcloud;   |
+|           | the tests stay offscreen and away from `~/.config/MyOS`                           |
+| GMXtec    | the real setup: the core in its own Docker network with `myos-nc`, no open port;   |
+|           | the integration tests through the ssh tunnel as today; the other stack untouched  |
+| DS212+    | later the second platform (WebDAV), the core reaching it from outside - nothing    |
+|           | runs on it: 32-bit ARM, no Container Manager                                      |
+| DS218     | stays untouched: it holds the backups (and has no Container Manager either)        |
+
+arm64 is not tested on our machines yet (a Mac, a Raspberry Pi, or QEMU with `buildx`).
+
 ## 8. Steps
 
-1. **Core service, births and rights live** - the container with the shadow tree and the API
-   `GET level?path=` (MyOS folders of a level: born, embryos, may create) and
-   `GET birth?path=` (what the birth creates and copies); `myos_acl` proxies both and
-   forwards events; the core sets the rules after each event. The row in Files asks the API
-   instead of listing `.MyOS/Embryos/`, as the first piece of the small Scope (9.4): the
-   web component, with the Files app as its first shell. Done when: the integration test births a folder as Lisa and
-   the folder has its `ACLs.md` rights without a sync; editing `ACLs.md` in the cloud changes
-   the rules.
-2. **Perspectives** - an own view in Files (left bar), the resolver in the core answers what
-   a lens shows; saving through a lens: the core maps the path, the browser writes there.
-3. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.
-4. **ExApp packaging.**
+Reordered on 2026-11-10: the core service starts with the lenses, only looking. They show
+the most and risk the least - the core sets no rules and writes nothing.
+
+1. **Core service with the lenses** - the container with the shadow tree and the API
+   `GET lens?path=` (what a turned path stands for: the virtual levels with their entries,
+   the shelf only with projects the user may read; else the real folder, which the browser
+   lists over WebDAV with the user's rights). First on the Dell against a shadow tree in a
+   folder, then built from a WebDAV walk on the GMXtec, then an own view "Perspektiven" in
+   Files (left bar). Done when: the integration test as Lisa sees `/04_Finanz/Projekte` with
+   the projects she may read, and Tom does not see them.
+2. **Births and rights live** - `GET level?path=` (MyOS folders of a level: born, embryos,
+   may create) and `GET birth?path=` (what the birth creates and copies); `myos_acl`
+   proxies them and forwards events; the core sets the rules after each event. The row in
+   Files asks the API instead of listing `.MyOS/Embryos/`, as the first piece of the small
+   Scope (9.4): the web component, with the Files app as its first shell. Done when: the
+   integration test births a folder as Lisa and the folder has its `ACLs.md` rights without
+   a sync; editing `ACLs.md` in the cloud changes the rules.
+3. **Saving through a lens** - the core maps the path (the department folder born on the
+   way, a birth from step 2), the browser writes there.
+4. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.
+5. **ExApp packaging.**
 
 ## 9. Nextcloud Is the First, Not the Only One - the Whole Picture
 
@@ -165,7 +194,8 @@ programs, whose save dialogs understand only paths. In the cloud the save dialog
 plugin, which asks the core directly what a lens shows and where a file really belongs. The
 shadow tree is a plain folder. So the perspective logic must stay apart from the drive
 (`core/perspective.py` and the resolver on one side, `core/perspective_fuse.py` on the
-other); how cleanly they are apart today is checked in step 2.
+other). Checked 2026-11-10: `core/perspective_drive.py` maps the turned paths without FUSE;
+`core/perspective_fuse.py` only turns them into file operations - the lens API uses the first.
 
 ### 9.3 Small Adapters, Three Parts
 
@@ -182,7 +212,7 @@ other); how cleanly they are apart today is checked in step 2.
   (rights add up, nothing can be taken away deeper), so there the adapter must refuse or
   approximate, never pretend.
 - Today the Nextcloud parts live in `core/` (`acl_nextcloud.py`, `nextcloud_dav.py`); with
-  step 1 they move into the Nextcloud adapter, so `core/` keeps no platform code.
+  step 2 they move into the Nextcloud adapter, so `core/` keeps no platform code.
 
 ### 9.4 The Small Scope: Built Once, a Thin Shell per Platform
 

@@ -1,0 +1,12 @@
+# Only core/ and cloud/service/ go into the image (see Dockerfile), without tests and docs.
+**
+!core/
+!cloud/service/
+**/__pycache__
+**/*.py[cod]
+**/*.bac
+**/*.bak
+core/tests
+core/archive
+core/Dokumentation
+cloud/service/tests
