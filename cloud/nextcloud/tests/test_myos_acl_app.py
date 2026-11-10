@@ -296,3 +296,26 @@ def test_an_acls_md_that_leaves_no_one_to_change_the_rights_changes_nothing(sync
         assert _sees("lisa", "Familie/", "Fotos") and _sees("karl", "", "Job")
     finally:
         assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=original)[0] in (201, 204)
+
+
+def test_saving_through_a_lens_bears_the_department_folder(synced):
+    # What src/lens.js does when files are dropped on the unborn department folder: ask the
+    # core what to bear, do it with the user's rights, put the files in. Lisa, in the finance
+    # lens of Familie, where 04_Finanz is not born.
+    status, here = _lens("lisa", "/04_Finanz/Projekte/Familie")
+    assert status == 200 and here["fallback"] and here["unborn"] == "/Familie/04_Finanz"
+    assert _core("tom", "bear", "/04_Finanz/Projekte/Familie")[0] == 403
+    status, todo = _core("lisa", "bear", "/04_Finanz/Projekte/Familie")
+    assert status == 200 and todo["real"] == "/Projekte/Familie/04_Finanz"
+    synced.append("Familie/04_Finanz")
+    destination = f"{URL}/remote.php/dav/files/lisa"
+    for folder in todo["create"]:
+        assert _dav("lisa", "MKCOL", folder.removeprefix("/Projekte/"))[0] == 201, folder
+    for copy in todo["copy"]:
+        assert _dav("lisa", "COPY", copy["from"].removeprefix("/Projekte/"), {"Destination": destination + copy["to"]})[0] in (201, 204)
+    assert _dav("lisa", "PUT", "Familie/04_Finanz/Rechnung.txt", body=b"42")[0] in (201, 204)
+
+    _within(60, lambda: not _lens("lisa", "/04_Finanz/Projekte/Familie")[1]["fallback"], "the lens still shows the project")
+    assert _lens("lisa", "/04_Finanz/Projekte/Familie")[1]["real"] == "/Familie/04_Finanz"
+    assert _dav("lisa", "GET", "Familie/04_Finanz/Rechnung.txt")[1] == "42"
+    assert _dav("tom", "GET", "Familie/04_Finanz/Rechnung.txt")[0] == 404

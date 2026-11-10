@@ -8,12 +8,18 @@
  *
  * The Files app opens a folder at its real path (node.path); inside this view a folder opens
  * at its turned path instead, so the breadcrumbs stay in the lens.
+ *
+ * Saving through a lens: where a project's department folder is not born, the lens shows the
+ * project's own folder, read-only, and above it the department folder as an embryo. A click
+ * bears it (with every missing level, as the core plans it: bear), dropping files on it bears
+ * it and puts them in - "dropping into the lens creates the canonical target".
  */
 import { getCurrentUser } from '@nextcloud/auth'
-import { DefaultType, FileAction, FileType, Folder, Permission, View, getNavigation, registerFileAction } from '@nextcloud/files'
+import { emit } from '@nextcloud/event-bus'
+import { DefaultType, FileAction, FileType, Folder, Header, Permission, View, getNavigation, registerFileAction, registerFileListHeaders } from '@nextcloud/files'
 import { defaultRemoteURL, defaultRootPath, getClient, getDefaultPropfind, resultToNode } from '@nextcloud/files/dav'
 import { t } from '@nextcloud/l10n'
-import { askCore } from './core.js'
+import { askCore, carryOut, folderIcon, upload } from './core.js'
 
 const APP = 'myos_acl'
 const VIEW = 'myos-perspectives'
@@ -23,6 +29,9 @@ const glassesIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
 
 // Source of a folder shown in this view -> its turned path.
 const turned = new Map()
+// Source of a project's folder shown for its unborn department folder -> {path, department, project}.
+const unborn = new Map()
+const header = { el: null }
 let nextVirtualId = -1
 const virtualIds = new Map()
 
@@ -60,8 +69,13 @@ async function realContents(path, answer) {
 	turned.set(folder.source, path)
 	if (answer.fallback) {
 		// The department folder is not born in this project: its own folder is shown. Saving
-		// here would land in the wrong place, saving through a lens comes later.
+		// here would land in the project, not where it belongs: only through the embryo above.
 		folder.permissions = Permission.READ
+	}
+	if (answer.unborn) {
+		unborn.set(folder.source, { path, department: answer.unborn.slice(answer.real.length + 1), project: answer.real.split('/').pop() })
+	} else {
+		unborn.delete(folder.source)
 	}
 	const contents = entries.data.map(entry => resultToNode(entry))
 	for (const node of contents) {
@@ -110,6 +124,65 @@ function open(path) {
 	window.OCP.Files.Router.goToRoute(null, { view: VIEW }, { dir: path })
 }
 
+/**
+ * Bears the department folder the lens at path shows as an embryo, then puts files in it;
+ * folder is the one shown there (the project's), which the Files app then fetches anew.
+ */
+async function bearHere(path, folder, files) {
+	const { status, data } = await askCore('bear', path)
+	if (status !== 200 || !data) {
+		throw new Error(`bear ${path}: ${status}`)
+	}
+	await carryOut(data)
+	for (const file of files) {
+		await upload(data.real, file)
+	}
+	// The core sees the change a few seconds later (it rebuilds its shadow): wait for it, then
+	// the Files app asks this view again - now the lens shows the born folder.
+	for (let tries = 0; tries < 30; tries++) {
+		const { data } = await askCore('lens', path)
+		if (data && !data.fallback) {
+			break
+		}
+		await new Promise(resolve => setTimeout(resolve, 1000))
+	}
+	emit('files:node:updated', folder)
+}
+
+function renderUnborn(folder) {
+	const el = header.el
+	if (!el) {
+		return
+	}
+	el.replaceChildren()
+	const here = unborn.get(folder?.source)
+	if (!here) {
+		return
+	}
+	const label = document.createElement('span')
+	label.className = 'myos-row__label'
+	label.textContent = t(APP, 'Not in {project} yet:', { project: here.project })
+	const button = document.createElement('button')
+	button.type = 'button'
+	button.className = 'myos-folder myos-folder--embryo'
+	button.title = t(APP, 'Click to create it here, or drop files on it')
+	button.innerHTML = folderIcon
+	button.append(document.createTextNode(here.department))
+	const failed = error => console.error('MyOS', error)
+	button.addEventListener('click', () => bearHere(here.path, folder, []).catch(failed))
+	button.addEventListener('dragover', event => {
+		event.preventDefault()
+		button.classList.add('myos-folder--drop')
+	})
+	button.addEventListener('dragleave', () => button.classList.remove('myos-folder--drop'))
+	button.addEventListener('drop', event => {
+		event.preventDefault()
+		event.stopPropagation() // not also into the folder shown below
+		bearHere(here.path, folder, [...event.dataTransfer.files]).catch(failed)
+	})
+	el.append(label, button)
+}
+
 export function registerPerspectives() {
 	// The action at once (the Files app reads its actions early); it acts only in this view.
 	registerFileAction(new FileAction({
@@ -123,6 +196,20 @@ export function registerPerspectives() {
 		},
 		default: DefaultType.HIDDEN,
 		order: -101, // before the Files app's own "open-folder" (-100), which opens the real path
+	}))
+	registerFileListHeaders(new Header({
+		id: 'myos-lens-unborn',
+		order: 0,
+		enabled: (folder, view) => view.id === VIEW,
+		render(el, folder) {
+			header.el = document.createElement('div')
+			header.el.className = 'myos-row'
+			el.append(header.el)
+			renderUnborn(folder)
+		},
+		updated(folder) {
+			renderUnborn(folder)
+		},
 	}))
 	// The view at once too, so a page opened in it (reloaded, a link) finds it; it goes again
 	// for who is none of the people of a project the core knows.

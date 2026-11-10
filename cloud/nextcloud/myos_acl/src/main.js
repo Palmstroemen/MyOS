@@ -8,11 +8,9 @@
  * embryos where the user may create, as Scope with ACLs enforced. The browser shows that and
  * gives birth with the user's own rights - Nextcloud checks them once more.
  */
-import { getCurrentUser, getRequestToken } from '@nextcloud/auth'
 import { FileListFilter, Header, getNavigation, registerFileListFilter, registerFileListHeaders } from '@nextcloud/files'
 import { t } from '@nextcloud/l10n'
-import { generateRemoteUrl } from '@nextcloud/router'
-import { askCore } from './core.js'
+import { askCore, carryOut, folderIcon } from './core.js'
 import { registerPerspectives } from './lens.js'
 
 const APP = 'myos_acl'
@@ -20,15 +18,6 @@ const EMBRYO_OPACITY = 0.4 // as Scope's default for suggested folders
 
 // The folder shown and the core's answer for it: [{name, born}], null outside MyOS.
 const state = { folder: null, folders: null, el: null }
-
-function davUrl(path) {
-	const root = generateRemoteUrl('dav/files/' + encodeURIComponent(getCurrentUser().uid))
-	return root.replace(/\/$/, '') + path.split('/').filter(Boolean).map(p => '/' + encodeURIComponent(p)).join('')
-}
-
-function dav(method, url, headers = {}) {
-	return fetch(url, { method, headers: { requesttoken: getRequestToken() ?? '', ...headers }, credentials: 'same-origin' })
-}
 
 const style = `
 .myos-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px; }
@@ -41,8 +30,8 @@ const style = `
 .myos-folder--embryo { opacity: ${EMBRYO_OPACITY}; border-style: dashed; }
 .myos-folder--embryo:hover { opacity: 0.7; }
 .myos-folder svg { width: 18px; height: 18px; fill: var(--color-primary-element); }
+.myos-folder--drop { opacity: 1; background: var(--color-primary-element-light); }
 `
-const folderIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>'
 
 function childPath(name) {
 	return state.folder.path.replace(/\/$/, '') + '/' + name
@@ -52,24 +41,13 @@ function open(name) {
 	window.OCP.Files.Router.goToRoute(null, { view: 'files' }, { dir: childPath(name) })
 }
 
-async function must(response, what) {
-	if (!response.ok && response.status !== 405) { // 405: the folder is there already
-		throw new Error(`${what}: ${response.status}`)
-	}
-}
-
 /** Birth as the core says (as MyOS' BirthClinic does): the folders, then the copies. */
 async function birth(name) {
 	const { status, data } = await askCore('birth', childPath(name))
 	if (status !== 200 || !data) {
 		throw new Error(`birth ${name}: ${status}`)
 	}
-	for (const folder of data.create) {
-		await must(await dav('MKCOL', davUrl(folder)), `MKCOL ${folder}`)
-	}
-	for (const copy of data.copy) {
-		await must(await dav('COPY', davUrl(copy.from), { Destination: davUrl(copy.to), Overwrite: 'F' }), `COPY ${copy.to}`)
-	}
+	await carryOut(data)
 	open(name)
 }
 

@@ -185,6 +185,16 @@ the most and risk the least - the core sets no rules and writes nothing.
    round - fine for a Team folder of this size, to be measured on bigger ones.
 3. **Saving through a lens** - the core maps the path (the department folder born on the
    way, a birth from step 2), the browser writes there.
+   State 2026-11-11: where the department folder is born, the lens shows the real folder and
+   Files saves there as anywhere. Where it is not, the lens shows the project's own folder
+   read-only and above it the department folder as an embryo, as Scope draws it inside the
+   frame (Designdocument Perspective Resolver MVP, A3.5): a click bears it, dropping files on
+   it bears it and puts them in (A4: "dropping into the lens creates the canonical target").
+   The core plans it (`GET bear?path=`, cloud/service/level.py: every missing level, embryos
+   with their template content, the rest as plain folders - as `Blueprint.materialize_dir`
+   on the desktop); the browser does it with the user's rights, waits until the core sees the
+   born folder and lets Files fetch the lens anew. Uploads through Files' own button into the
+   project's folder stay refused there (read-only), so nothing lands in the wrong place.
 4. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.
 5. **ExApp packaging.**
 

@@ -20,7 +20,8 @@ def lens(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
     """The answer for path in the turned tree of root, seen by person (lower-case key of
     "# Users"): {"path", "real": None, "entries": [{"name", "kind"}]} for a virtual level,
     {"path", "real": "/Job/04_Finanz", "fallback"} inside a project (real relative to root;
-    fallback: the department folder is not born there, the project's own folder is shown).
+    fallback: the department folder is not born there, the project's own folder is shown;
+    unborn: then the department folder where saving lands, once born).
     A project on the shelf carries its real department folder ("real") where it is born.
     None when there is nothing; PermissionError when person may not read it."""
     root = Path(root).expanduser().resolve()
@@ -31,7 +32,11 @@ def lens(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
         return None
     if node.real is not None:
         real = "/" + node.real.relative_to(root).as_posix()
-        return {"path": path, "real": real.rstrip("/") or "/", "fallback": node.fallback is not None}
+        answer = {"path": path, "real": real.rstrip("/") or "/", "fallback": node.fallback is not None}
+        if node.fallback is not None and not node.rest:
+            # Saving here lands in the department folder, born on the way (level.bear).
+            answer["unborn"] = "/" + root.joinpath(*node.project, *node.lens).relative_to(root).as_posix()
+        return answer
     entries = [{"name": name, "kind": _kind(root, path, name)} for name in drive.listdir(path)]
     if node.lens and PROJECTS in path.split("/"):
         # On the shelf: only projects one may read there, and ways leading to one.

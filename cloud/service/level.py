@@ -1,7 +1,8 @@
 # level.py - the MyOS folders of a level and what a birth does, as the core service answers
 #
 # See "cloud/nextcloud/Designdocument MyOS Core Service.md", 8, step 2. For the row of MyOS
-# folders in Files: which template folders a level holds, born or embryo, by the same code as
+# folders in Files - and for saving through a lens (bear) - which template folders a level
+# holds, born or embryo, by the same code as
 # Scope (core/localBlueprintLayer.py), with the rights of the person asking (ACLs.md, as Scope
 # with enforcement on). A birth copies from the project's .MyOS/Embryos/, which the core keeps
 # (core/cloud_embryos.py: the files and hidden folders of that template level). The browser
@@ -17,6 +18,7 @@ from typing import Optional, Union
 from cloud.service.lens import may_for
 from core.cloud_embryos import PAYLOAD, birth_contents
 from core.localBlueprintLayer import Blueprint
+from core.perspective_drive import PerspectiveDrive
 
 
 def level(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
@@ -59,6 +61,39 @@ def birth(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
     payload = _in_root(root, project) + f"/{PAYLOAD}/{rel}"
     return {"create": [to] + [f"{to}/{d}" for d in dirs],
             "copy": [{"from": f"{payload}/{f}", "to": f"{to}/{f}"} for f in files]}
+
+
+def bear(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
+    """What saving through the lens at path (a turned path) needs first, where the lens shows
+    a project whose department folder is not born: {"real": the folder saving lands in,
+    "create", "copy"} as birth's - every missing level, embryos with their template content,
+    the rest as plain folders (as Blueprint.materialize_dir does on the desktop). None where
+    there is nothing to bear; PermissionError when person may not read or create it."""
+    root = Path(root).expanduser().resolve()
+    may = may_for(person)
+    node = PerspectiveDrive(root, may=may).node(path)
+    if node is None or node.fallback is None or node.rest:
+        return None
+    project = root.joinpath(*node.project)
+    blueprint = _blueprint(project)
+    create, copy, plain = [], [], False
+    for depth in range(1, len(node.lens) + 1):
+        rel = "/".join(node.lens[:depth])
+        folder = project / rel
+        if folder.exists():
+            continue
+        if not may(folder, "write"):
+            raise PermissionError(path)
+        to = "/" + folder.relative_to(root).as_posix()
+        create.append(to)
+        plain = plain or not blueprint.is_embryo(rel)
+        if not plain:
+            dirs, files = birth_contents(blueprint.birth_clinic.find_template_source(rel))
+            payload = _in_root(root, project) + f"/{PAYLOAD}/{rel}"
+            create.extend(f"{to}/{d}" for d in dirs)
+            copy.extend({"from": f"{payload}/{f}", "to": f"{to}/{f}"} for f in files)
+    real = "/" + project.joinpath(*node.lens).relative_to(root).as_posix()
+    return {"real": real, "create": create, "copy": copy}
 
 
 def _folder(root: Path, path: str) -> Optional[Path]:

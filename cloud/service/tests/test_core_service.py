@@ -144,3 +144,12 @@ def test_a_change_that_cannot_be_read_is_refused(poked):
 
     assert _post(url, ["kein", "Objekt"]) == 400
     assert pokes == []
+
+
+def test_bear_takes_a_turned_path_and_gives_paths_in_the_user_s_files(service):
+    status, body = _get(service + "/bear?path=/07_Arbeit/Projekte/Job", account="karl")
+
+    assert status == 200 and body["real"] == "/Projekte/Job/07_Arbeit"
+    assert body["create"][0] == "/Projekte/Job/07_Arbeit"
+    assert body["copy"][0]["from"] == "/Projekte/Job/.MyOS/Embryos/07_Arbeit/.MyOS/Desk.md"
+    assert _get(service + "/bear?path=/07_Arbeit/Projekte/Job")[0] == 403  # Lisa

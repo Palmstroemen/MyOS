@@ -50,9 +50,13 @@ def test_inside_a_project_the_real_folder_is_named(shadow):
 
 
 def test_without_the_department_folder_the_project_itself_is_shown(shadow):
+    # unborn: where saving here lands, once born (the Ausgaben of Job's 04_Finanz).
     assert lens(shadow, "karl", "/04_Finanz/Projekte/Job") == {
-        "path": "/04_Finanz/Projekte/Job", "real": "/Job", "fallback": True}
-    assert lens(shadow, "karl", "/04_Finanz/Projekte/Job/Kunden")["real"] == "/Job/Kunden"
+        "path": "/04_Finanz/Projekte/Job", "real": "/Job", "fallback": True, "unborn": "/Job/04_Finanz"}
+    assert lens(shadow, "karl", "/04_Finanz/Ausgaben/Projekte/Job")["unborn"] == "/Job/04_Finanz/Ausgaben"
+    # Deeper, in the project's own folders, one is in a real folder: saving lands there.
+    assert lens(shadow, "karl", "/04_Finanz/Projekte/Job/Kunden") == {
+        "path": "/04_Finanz/Projekte/Job/Kunden", "real": "/Job/Kunden", "fallback": True}
 
 
 def test_a_project_one_may_not_read_is_denied_not_missing(shadow):

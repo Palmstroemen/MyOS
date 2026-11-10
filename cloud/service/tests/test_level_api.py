@@ -6,7 +6,7 @@ that template level; visible subfolders stay embryos."""
 
 import pytest
 
-from cloud.service.level import birth, level
+from cloud.service.level import bear, birth, level
 
 
 def test_a_level_lists_born_ones_and_the_embryos_one_may_create(shadow):
@@ -51,3 +51,35 @@ def test_a_birth_needs_the_right_to_create_there(shadow):
 @pytest.mark.parametrize("path", ["/Familie/04_Finanz", "/Familie/Fremd", "/Familie/07_Arbeit/Aufgaben", "/"])
 def test_only_an_embryo_whose_parent_is_born_can_be_born(shadow, path):
     assert birth(shadow, "oliver", path) is None
+
+
+def test_saving_through_a_lens_bears_the_department_folder_on_the_way(shadow):
+    # As Blueprint.materialize_dir on the desktop: embryos on the way born with their content.
+    assert bear(shadow, "karl", "/07_Arbeit/Projekte/Job") == {
+        "real": "/Job/07_Arbeit",
+        "create": ["/Job/07_Arbeit", "/Job/07_Arbeit/.MyOS"],
+        "copy": [
+            {"from": "/Job/.MyOS/Embryos/07_Arbeit/.MyOS/Desk.md", "to": "/Job/07_Arbeit/.MyOS/Desk.md"},
+            {"from": "/Job/.MyOS/Embryos/07_Arbeit/Liesmich.md", "to": "/Job/07_Arbeit/Liesmich.md"},
+        ],
+    }
+    assert bear(shadow, "karl", "/04_Finanz/Ausgaben/Projekte/Job") == {
+        "real": "/Job/04_Finanz/Ausgaben", "create": ["/Job/04_Finanz", "/Job/04_Finanz/Ausgaben"], "copy": []}
+
+
+def test_only_what_is_missing_is_born(shadow):
+    (shadow / "Job" / "04_Finanz").mkdir()
+
+    assert bear(shadow, "karl", "/04_Finanz/Ausgaben/Projekte/Job")["create"] == ["/Job/04_Finanz/Ausgaben"]
+
+
+def test_bearing_needs_the_right_to_create_there(shadow):
+    with pytest.raises(PermissionError):
+        bear(shadow, "lisa", "/07_Arbeit/Projekte/Job")
+
+
+@pytest.mark.parametrize("path", ["/04_Finanz/Projekte/Familie",  # born: nothing to bear
+                                  "/04_Finanz/Projekte/Job/Kunden",  # a real folder of the project
+                                  "/04_Finanz/Projekte", "/04_Finanz", "/Nichts"])
+def test_nothing_to_bear_where_the_lens_shows_no_unborn_folder(shadow, path):
+    assert bear(shadow, "oliver", path) is None

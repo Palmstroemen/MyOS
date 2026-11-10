@@ -377,7 +377,13 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             lesbar nur für wen, der den Ordner lesen darf, der daraus wird (wie Scope Embryos zeigt); wer in
             `/00_Admin` nichts darf, sieht weder Embryo noch Vorlage. `Embryos.json` ist nur noch Buchhaltung des
             Syncs; der Browser liest die Embryos aus den Ordnern, die er sehen darf. Integrationstest und Browser grün
-        [ ] Schritt 3: Speichern über eine Perspektive
+        [x] Schritt 3: Speichern über eine Perspektive (2026-11-11, App 0.5.0): Wo der Abteilungsordner fehlt,
+            zeigt die Perspektive über dem Projektordner (nur lesbar) den Abteilungsordner als Embryo, wie Scope im
+            Rahmen. Klick gebiert ihn samt fehlender Ebenen, Dateien darauf ablegen gebiert ihn und legt sie hinein.
+            Plan vom Kern (`bear`, wie `Blueprint.materialize_dir`), der Browser tut es mit den eigenen Rechten,
+            wartet, bis der Kern den Ordner kennt, und lässt Files die Perspektive neu holen
+            (`files:node:updated`). Im Browser als Lisa: abgelegt, nach ~3 s im geborenen `Familie/04_Finanz`
+            [ ] Ablegen nur auf den Embryo; Hochladen über den Knopf von Files in die Ersatzanzeige bleibt gesperrt
         [ ] Schritt 4: Tags und Filter
         [ ] Schritt 5: als ExApp (AppAPI) verpacken
         [ ] Nextcloud ist der erste Adapter, nicht der einzige (Obsidian, OneDrive, Google, Dropbox, Synology ...):
