@@ -74,8 +74,11 @@ class NextcloudDAV:
         self._base = "/remote.php/dav/files/" + quote(user) + "".join("/" + quote(p) for p in self.folder.split("/") if p)
 
     def tree(self) -> Dict[str, Entry]:
-        """Every entry of the Team folder that the account may see, with its rules."""
-        root = self._list("/")
+        """Every entry of the Team folder that the account may see, with its rules: in one
+        request where the server allows infinite depth (Nextcloud does by default), else
+        folder by folder."""
+        whole = self._list("/", depth="infinity", refused=(400, 403, 501))
+        root = whole if whole is not None else self._list("/")
         top = root.get("/")
         if top is None:
             raise NextcloudError(f"{self.folder} not found in the files of {self.user}")
@@ -84,6 +87,8 @@ class NextcloudDAV:
         if not top.can_manage:
             raise NextcloudError(f"{self.user} may not manage the advanced permissions of {self.folder}")
         tree = dict(root)
+        if whole is not None:
+            return tree
         pending = [path for path, entry in root.items() if entry.is_dir and path != "/"]
         while pending:
             path = pending.pop()
@@ -161,12 +166,16 @@ class NextcloudDAV:
     def _dav_path(self, path: str) -> str:
         return self._base + "".join("/" + quote(p) for p in path.split("/") if p)
 
-    def _list(self, path: str, depth: str = "1") -> Dict[str, Entry]:
+    def _list(self, path: str, depth: str = "1", refused=()) -> Optional[Dict[str, Entry]]:
+        """The entries at path (the folder itself and below it to depth); None when the server
+        answers with a status of refused (it does not do that depth)."""
         dav_path = self._dav_path(path) + "/"
         headers = {"Depth": depth, "Content-Type": "application/xml; charset=utf-8"}
         status, body = self._transport("PROPFIND", self.url + dav_path, _PROPFIND, headers, self._auth)
         if status == 401:
             raise NextcloudError(f"Nextcloud refused the login of {self.user} (app password?)")
+        if status in refused:
+            return None
         if status == 404:
             return {}
         if status != 207:

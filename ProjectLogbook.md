@@ -364,8 +364,15 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                 Scopes Code, `get_template_folders_at` bekommt die Prüfung der Person) und was eine Geburt anlegt und
                 aus `.MyOS/Embryos/` kopiert; der Browser tut es mit den eigenen Rechten. Die letzte MyOS-Logik ist aus
                 main.js heraus. Brücke heißt jetzt CoreController (lens, level, birth)
-            [ ] Ereignisse aus `myos_acl` (schneller als das ETag); erneuter Versuch, wenn eine Runde scheitert
-                und keine Änderung folgt
+            [x] Ereignisse (2026-11-10, App 0.4.0): `myos_acl` meldet jede Änderung im Team-Ordner an den Kern
+                (ForwardChanges.php, POST /changed), der Kern entscheidet, ob sie den Schatten betrifft, und gleicht
+                sofort ab; das ETag alle 60 s bleibt als Netz. Gescheiterte Runde wird wiederholt (Steward), eine
+                abgelehnte `ACLs.md` wartet auf die nächste Änderung
+            [x] Schneller: Langsam waren nicht die Wartezeiten, sondern die Durchgänge (ein PROPFIND pro Ordner,
+                0,27 s auf der Testinstanz, 4-5 Durchgänge pro Runde, ~40 s). Jetzt ein PROPFIND mit
+                `Depth: infinity` (Rückfall auf Ordner für Ordner) und unveränderte `.MyOS`-Dateien per ETag aus dem
+                vorigen Schatten: neuer Ordner hat seine Rechte nach ~5 s
+            [ ] Schatten und Regeln werden pro Runde ganz neu gerechnet - bei großen Team-Ordnern messen
         [x] Vorlagen wie Formulare (2026-11-08): `myacl sync` legt pro Embryo einen Ordner in `.MyOS/Embryos/` an,
             lesbar nur für wen, der den Ordner lesen darf, der daraus wird (wie Scope Embryos zeigt); wer in
             `/00_Admin` nichts darf, sieht weder Embryo noch Vorlage. `Embryos.json` ist nur noch Buchhaltung des

@@ -2,6 +2,7 @@
 comparing its rules with the planned ones (myacl sync --dry-run). No network: a fake
 transport answers like Nextcloud 32 does."""
 
+import re
 from urllib.parse import quote
 
 import pytest
@@ -51,11 +52,24 @@ SERVER = {
 }
 
 
-def _transport(server, calls=None, patched=None, refuse=None):
+def _transport(server, calls=None, patched=None, refuse=None, infinity=False):
     def request(method, url, body, headers, auth):
         path = url.split("8081", 1)[1]
         if calls is not None:
             calls.append((method, path, headers.get("Depth")))
+        if headers.get("Depth") == "infinity":
+            if not infinity:  # as with dav.propfind.depth_infinity switched off
+                return 403, b""
+            # Each entry once, as a server answers (the fake's listings repeat a folder).
+            seen, responses = set(), []
+            for key in sorted(server):
+                if key.startswith(path):
+                    for response in re.findall(r"<d:response>.*?</d:response>", server[key].decode(), re.S):
+                        href = re.search(r"<d:href>(.*?)</d:href>", response).group(1)
+                        if href not in seen:
+                            seen.add(href)
+                            responses.append(response)
+            return 207, _multistatus(*responses)
         if method == "PROPPATCH":
             if patched is not None:
                 patched.append((path, body))
@@ -73,9 +87,9 @@ def _transport(server, calls=None, patched=None, refuse=None):
     return request
 
 
-def _dav(server=SERVER, calls=None, patched=None, refuse=None):
+def _dav(server=SERVER, calls=None, patched=None, refuse=None, infinity=False):
     return NextcloudDAV("http://localhost:8081", "oliver", "secret", "Projekte",
-                        transport=_transport(server, calls, patched, refuse))
+                        transport=_transport(server, calls, patched, refuse, infinity))
 
 
 def test_the_tree_holds_every_entry_with_its_rules():
@@ -87,12 +101,22 @@ def test_the_tree_holds_every_entry_with_its_rules():
     assert not tree["/Familie/Notiz für Tom.md"].is_dir
 
 
-def test_only_folders_are_listed_one_level_at_a_time():
+def test_without_infinite_depth_only_folders_are_listed_one_level_at_a_time():
     calls = []
     _dav(calls=calls).tree()
 
-    assert all(method == "PROPFIND" and depth == "1" for method, _path, depth in calls)
-    assert sorted(path for _m, path, _d in calls) == sorted(SERVER)
+    assert calls[0] == ("PROPFIND", BASE + "/", "infinity")  # refused: then folder by folder
+    assert all(method == "PROPFIND" and depth == "1" for method, _path, depth in calls[1:])
+    assert sorted(path for _m, path, _d in calls[1:]) == sorted(SERVER)
+
+
+def test_with_infinite_depth_one_request_gives_the_whole_tree():
+    # One PROPFIND instead of one per folder: seconds less for every round of the core service.
+    calls = []
+    tree = _dav(calls=calls, infinity=True).tree()
+
+    assert calls == [("PROPFIND", BASE + "/", "infinity")]
+    assert tree == _dav().tree()
 
 
 def test_exists_and_children_follow_the_cloud():

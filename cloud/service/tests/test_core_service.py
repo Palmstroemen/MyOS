@@ -96,3 +96,51 @@ def test_level_and_birth_take_and_give_paths_in_the_user_s_files(service):
                                 "to": "/Projekte/Familie/07_Arbeit/Liesmich.md"}
     assert _get(service + "/level?path=/Andere/Familie")[0] == 404  # not in the Team folder
     assert _get(service + "/birth?path=/Projekte/Job/07_Arbeit")[0] == 403
+
+
+def _post(url, body, secret=SECRET):
+    headers = {"Content-Type": "application/json"}
+    if secret is not None:
+        headers["X-MyOS-Secret"] = secret
+    request = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+
+
+@pytest.fixture
+def poked(shadow):
+    pokes = []
+    server = make_server(shadow, SECRET, lambda account: None, port=0, place="/Projekte", on_change=lambda: pokes.append(1))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/changed", pokes
+    server.shutdown()
+    server.server_close()
+
+
+def test_a_change_that_matters_wakes_the_core(poked):
+    url, pokes = poked
+
+    assert _post(url, {"folder": "Projekte", "changes": [{"path": "/Familie/Rechnung.pdf", "dir": False}]}) == 202
+    assert pokes == []  # a document: not in the shadow
+    assert _post(url, {"folder": "Projekte", "changes": [{"path": "/Familie/Neu", "dir": True}]}) == 202
+    assert pokes == [1]
+    assert _post(url, {"folder": "Anderes", "changes": [{"path": "/Neu", "dir": True}]}) == 202
+    assert pokes == [1]  # another Team folder: not the core's
+
+
+@pytest.mark.parametrize("secret", [None, "wrong"])
+def test_without_the_secret_no_change_is_taken(poked, secret):
+    url, pokes = poked
+
+    assert _post(url, {"folder": "Projekte", "changes": [{"path": "/Neu", "dir": True}]}, secret=secret) == 401
+    assert pokes == []
+
+
+def test_a_change_that_cannot_be_read_is_refused(poked):
+    url, pokes = poked
+
+    assert _post(url, ["kein", "Objekt"]) == 400
+    assert pokes == []

@@ -6,7 +6,8 @@
 # /birth?path= (paths in the user's files); the browser acts with the user's own rights.
 #
 # The shadow tree is a folder (MYOS_SHADOW_ROOT, for tests) or built from the Team folder with
-# the service account and kept current (MYOS_NC_URL, _USER, _PASSWORD, _FOLDER; cloud/service/shadow.py):
+# the service account and kept current (MYOS_NC_URL, _USER, _PASSWORD, _FOLDER; cloud/service/shadow.py),
+# told of changes by the platform (POST /changed) and looking at its ETag every MYOS_SHADOW_POLL s:
 #   MYOS_SHADOW_ROOT=/shadow MYOS_CORE_SECRET=... python3 -m cloud.service.server
 
 from __future__ import annotations
@@ -24,8 +25,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from cloud.service.lens import lens
 from cloud.service.level import birth, level
-from cloud.service.reconcile import reconcile
-from cloud.service.shadow import ShadowKeeper
+from cloud.service.reconcile import Steward
+from cloud.service.shadow import ShadowKeeper, matters
 from core.acl_nextcloud import read_nextcloud_md
 from core.nextcloud_dav import NextcloudDAV
 
@@ -46,11 +47,13 @@ Root = Union[str, Path, Callable[[], Optional[Path]]]
 
 
 def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[str]],
-                host: str = "127.0.0.1", port: int = 8080, place: str = "") -> ThreadingHTTPServer:
+                host: str = "127.0.0.1", port: int = 8080, place: str = "",
+                on_change: Callable[[], None] = lambda: None) -> ThreadingHTTPServer:
     """The service for the shadow tree at root (a folder, or a function naming the current
     one, None while there is none yet); person_for maps the account the bridge passes to a
     person of "# Users" (None: not one of them). place: where root lies in the platform's
-    files ("/Projekte" for the Team folder), sent along: place + real is a real folder there."""
+    files ("/Projekte" for the Team folder), sent along: place + real is a real folder there.
+    on_change: called when the platform tells of a change that matters to the shadow."""
     # Security: the secret is all that keeps others out; a short one is refused.
     if len(secret or "") < MIN_SECRET_LENGTH:
         raise ValueError(f"the shared secret needs at least {MIN_SECRET_LENGTH} characters")
@@ -58,6 +61,22 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
     expected = secret.encode()
 
     class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            if not hmac.compare_digest(self.headers.get("X-MyOS-Secret", "").encode(), expected):
+                return self._answer(401, {"error": "unauthorized"})
+            if urlsplit(self.path).path != "/changed":
+                return self._answer(404, {"error": "not found"})
+            try:
+                length = min(int(self.headers.get("Content-Length", "0")), 1 << 20)
+                body = json.loads(self.rfile.read(length) or b"null")
+                folder, changes = body["folder"], body["changes"]
+                woken = folder == place.strip("/") and any(matters(c["path"], c["dir"]) for c in changes)
+            except (ValueError, KeyError, TypeError):
+                return self._answer(400, {"error": "not a change"})
+            if woken:
+                on_change()
+            self._answer(202, {"woken": woken})
+
         def do_GET(self) -> None:
             if not hmac.compare_digest(self.headers.get("X-MyOS-Secret", "").encode(), expected):
                 return self._answer(401, {"error": "unauthorized"})
@@ -116,11 +135,13 @@ def _within(place: str, path: str) -> Optional[str]:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     env = os.environ
+    wake = threading.Event()
     if env.get("MYOS_NC_URL"):
         dav = NextcloudDAV(env["MYOS_NC_URL"], env.get("MYOS_NC_USER", ""), env.get("MYOS_NC_PASSWORD", ""),
                            env.get("MYOS_NC_FOLDER", ""))
         keeper = ShadowKeeper(Path(env.get("MYOS_SHADOW_BASE", "/tmp/myos-shadow")), dav)
-        threading.Thread(target=_keep, args=(keeper, dav, float(env.get("MYOS_SHADOW_POLL", "10"))), daemon=True).start()
+        threading.Thread(target=_keep, args=(Steward(keeper, dav), wake, float(env.get("MYOS_SHADOW_POLL", "60"))),
+                         daemon=True).start()
         root: Root = lambda: keeper.root
         where = f"{env['MYOS_NC_URL']} {env.get('MYOS_NC_FOLDER', '')}"
     else:
@@ -135,22 +156,25 @@ def main() -> None:
 
     server = make_server(root, env.get("MYOS_CORE_SECRET", ""), person_for,
                          host=env.get("MYOS_CORE_HOST", "127.0.0.1"), port=int(env.get("MYOS_CORE_PORT", "8080")),
-                         place="/" + env.get("MYOS_NC_FOLDER", "").strip("/") if env.get("MYOS_NC_URL") else "")
+                         place="/" + env.get("MYOS_NC_FOLDER", "").strip("/") if env.get("MYOS_NC_URL") else "",
+                         on_change=wake.set)
     logger.info("MyOS core service on %s:%s for %s", *server.server_address[:2], where)
     server.serve_forever()
 
 
-def _keep(keeper: ShadowKeeper, dav, every: float) -> None:
-    """Keep the shadow current - look at the Team folder's ETag every so many seconds - and
-    after each change the Team folder in step with its ACLs.md (cloud/service/reconcile.py)."""
+def _keep(steward: Steward, wake: threading.Event, every: float) -> None:
+    """Rounds of the steward: when the platform tells of a change (wake), else every so many
+    seconds - a look at the Team folder's ETag catches what no one told."""
     while True:
         try:
-            if keeper.refresh():
-                logger.info("shadow tree built at %s", keeper.root)
-                logger.info("rules: %s", reconcile(keeper.root, dav))
-        except Exception as error:  # the service stays up; the next change tries again
+            summary = steward.round()
+            if summary is not None:
+                logger.info("shadow tree at %s; rules: %s", steward.keeper.root, summary)
+        except Exception as error:  # the service stays up; a later round tries again
             logger.error("%s: %s", type(error).__name__, error)
-        time.sleep(every)
+        if wake.wait(timeout=every):
+            time.sleep(1)  # one change rarely comes alone (a birth: a folder, then its files)
+            wake.clear()
 
 
 if __name__ == "__main__":

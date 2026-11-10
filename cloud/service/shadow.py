@@ -3,37 +3,53 @@
 # See "cloud/nextcloud/Designdocument MyOS Core Service.md", 5: every folder (empty) and every
 # file of a .MyOS (with .MyOS/Templates), no user documents. Built from a WebDAV walk with the
 # service account; a cache, never a source - on doubt it is rebuilt. Here it is rebuilt when
-# the Team folder's ETag changes (Nextcloud changes it for anything below); file events from
-# myos_acl come later.
+# the Team folder's ETag changes (Nextcloud changes it for anything below); myos_acl tells the
+# core of each change at once (matters: whether it changes the shadow at all).
 
 from __future__ import annotations
 
 import itertools
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from core.nextcloud_dav import NextcloudError
 
 MYOS = ".MyOS"
 
 
-def build_shadow(dav, target: Path) -> None:
-    """Build the shadow of dav's Team folder at target (which must not exist yet)."""
+def matters(path: str, is_dir: bool) -> bool:
+    """Whether a change at path (in the Team folder) changes the shadow: a folder, or a file of
+    a .MyOS - documents are not in it."""
+    return bool(is_dir) or MYOS in [p for p in str(path).split("/") if p][:-1]
+
+
+def build_shadow(dav, target: Path, before: Optional[Path] = None, etags: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """Build the shadow of dav's Team folder at target (which must not exist yet); a file
+    whose ETag is the one in etags is taken from the shadow before instead of fetched. The
+    ETags of the files in the new shadow."""
     target = Path(target)
     tree = dav.tree()
     target.mkdir(parents=True)
+    kept: Dict[str, str] = {}
     for path in sorted(tree):
         parts = _parts(path)
         entry = tree[path]
         if entry.is_dir:
             target.joinpath(*parts).mkdir(parents=True, exist_ok=True)
         elif MYOS in parts[:-1]:
-            data = dav.get(path)
-            if data is not None:  # gone since the walk: the next ETag change brings it right
-                file = target.joinpath(*parts)
-                file.parent.mkdir(parents=True, exist_ok=True)
+            file = target.joinpath(*parts)
+            file.parent.mkdir(parents=True, exist_ok=True)
+            old = before.joinpath(*parts) if before is not None else None
+            if entry.etag and (etags or {}).get(path) == entry.etag and old is not None and old.is_file():
+                shutil.copyfile(old, file)
+            else:
+                data = dav.get(path)
+                if data is None:  # gone since the walk: the next change brings it right
+                    continue
                 file.write_bytes(data)
+            kept[path] = entry.etag
+    return kept
 
 
 class ShadowKeeper:
@@ -46,6 +62,7 @@ class ShadowKeeper:
         self._etag: Optional[str] = None
         self._count = itertools.count(1)
         self._built: List[Path] = []
+        self._etags: Dict[str, str] = {}  # of the files in root
 
     def refresh(self) -> bool:
         """Rebuild when the Team folder changed; whether it did. NextcloudError when the
@@ -57,11 +74,11 @@ class ShadowKeeper:
         target = self.base / f"shadow-{next(self._count)}"
         shutil.rmtree(target, ignore_errors=True)  # left from an earlier run of the service
         try:
-            build_shadow(self._dav, target)
+            etags = build_shadow(self._dav, target, self.root, self._etags)
         except Exception:
             shutil.rmtree(target, ignore_errors=True)
             raise
-        self.root, self._etag = target, etag
+        self.root, self._etag, self._etags = target, etag, etags
         self._built.append(target)
         # The one before stays: a request may still be reading it.
         while len(self._built) > 2:

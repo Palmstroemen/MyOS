@@ -4,7 +4,7 @@ the Team folder's ETag changes; a rebuild that fails keeps the shadow there was.
 
 import pytest
 
-from cloud.service.shadow import ShadowKeeper, build_shadow
+from cloud.service.shadow import ShadowKeeper, build_shadow, matters
 from core.nextcloud_dav import Entry, NextcloudError
 
 FILES = {
@@ -21,12 +21,13 @@ FOLDERS = ["/", "/.MyOS", "/.MyOS/Templates", "/.MyOS/Templates/Standard", "/.My
 class FakeDAV:
     def __init__(self, files=FILES, folders=FOLDERS):
         self.files, self.folders, self.tag, self.fail, self.got = dict(files), list(folders), '"1"', False, []
+        self.etags = {}
 
     def tree(self):
         if self.fail:
             raise NextcloudError("Nextcloud is not reachable")
         tree = {path: Entry(path, True) for path in self.folders}
-        tree.update({path: Entry(path, False) for path in self.files})
+        tree.update({path: Entry(path, False, etag=self.etags.get(path, '"a"')) for path in self.files})
         return tree
 
     def get(self, path):
@@ -93,3 +94,29 @@ def test_a_failed_rebuild_keeps_the_shadow_there_was(tmp_path):
     assert keeper.root == first and (first / "Familie").is_dir()
     dav.fail = False
     assert keeper.refresh()  # tried again: the ETag it failed on is not taken as done
+
+
+@pytest.mark.parametrize("path, is_dir, expected", [
+    ("/Familie/Neu", True, True),  # a folder: in the shadow
+    ("/Familie/.MyOS/ACLs.md", False, True),  # a .MyOS file: in the shadow
+    ("/.MyOS/Templates/Standard/04_Finanz/Liesmich.md", False, True),
+    ("/Familie/Rechnung.pdf", False, False),  # a document: not
+])
+def test_only_folders_and_myos_files_matter_to_the_shadow(path, is_dir, expected):
+    assert matters(path, is_dir) is expected
+
+
+def test_a_rebuild_takes_unchanged_files_from_the_shadow_before(tmp_path):
+    # Every request costs (a quarter of a second on the test instance): only what changed comes.
+    dav = FakeDAV()
+    keeper = ShadowKeeper(tmp_path / "base", dav)
+    keeper.refresh()
+    dav.got.clear()
+    dav.files["/.MyOS/ACLs.md"], dav.etags["/.MyOS/ACLs.md"] = b"# Permissions\nneu\n", '"b"'
+    dav.tag = '"2"'
+
+    keeper.refresh()
+
+    assert dav.got == ["/.MyOS/ACLs.md"]
+    assert (keeper.root / ".MyOS" / "ACLs.md").read_bytes() == b"# Permissions\nneu\n"
+    assert (keeper.root / ".MyOS" / "Project.md").read_bytes() == b"# MyOS Project\n"

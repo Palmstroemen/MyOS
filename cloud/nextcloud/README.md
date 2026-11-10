@@ -41,6 +41,9 @@ account (lib/Controller/CoreController.php); the browser never talks to the cont
     occ config:app:set myos_acl core_url --value=http://myos-core:8080
     occ config:app:set myos_acl core_secret --sensitive --value=<MYOS_CORE_SECRET>
 
+`myos_acl` tells the core of every change in a Team folder (POST /changed; the core decides
+what matters), so it starts at once; it also looks at the folder's ETag every
+`MYOS_SHADOW_POLL` seconds (default 60) for what no one told.
 After each change of the Team folder the core does what `myacl sync` does
 (core/nextcloud_sync.py) with the service account: a folder made later gets its rights from
 `ACLs.md` within seconds, and an `ACLs.md` edited in the cloud changes the rules - unless it
@@ -57,7 +60,7 @@ a lens comes later). The view goes again for an account the core does not know.
 `core.env` (mode 600): `MYOS_CORE_SECRET` (24 characters at least), `MYOS_NC_URL`
 (`http://<nextcloud container>`), `MYOS_NC_USER`, `MYOS_NC_PASSWORD` (an app password of the
 service account: a person of the role Admin), `MYOS_NC_FOLDER`, optionally `MYOS_SHADOW_POLL`
-(seconds, default 10). No port is published. After updating the app: `occ app:disable
+(seconds, default 60). No port is published. After updating the app: `occ app:disable
 myos_acl && occ app:enable myos_acl`, so Nextcloud reads its new routes.
 
 ## The row of MyOS folders

@@ -172,7 +172,17 @@ the most and risk the least - the core sets no rules and writes nothing.
    person's write check) - and what a birth creates and copies from `.MyOS/Embryos/`; the
    browser does it with the user's rights. The paths are in the user's files: the service
    takes the Team folder's place off and puts it back, so the browser needs not know it.
-   Left: events to be faster, a retry when a round fails without a change after it.
+   Events since the same day: `myos_acl` tells the core of every change in a Team folder
+   (ForwardChanges.php, POST /changed: path and whether a folder - no decision); the core
+   decides whether it matters to the shadow (folders and `.MyOS` files) and starts a round at
+   once. The look at the ETag stays as the net for what no one told (every 60 s). A round
+   that failed is tried again without a change; a refused `ACLs.md` waits for the next one.
+   What made the rounds slow was not the waiting but the walks: one PROPFIND per folder,
+   0.27 s each on the test instance, four to five walks a round (~40 s). Now one PROPFIND with
+   `Depth: infinity` (Nextcloud allows it by default; folder by folder where a server refuses)
+   and unchanged `.MyOS` files taken from the shadow before by their ETag: a folder made in
+   the browser has its rights after about 5 s. Shadow and rules are still rebuilt whole per
+   round - fine for a Team folder of this size, to be measured on bigger ones.
 3. **Saving through a lens** - the core maps the path (the department folder born on the
    way, a birth from step 2), the browser writes there.
 4. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.
