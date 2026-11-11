@@ -249,6 +249,8 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
         left = sync.send(comparison)
     except NextcloudError as exc:
         raise _Refused(f"{exc} (part of it may already be sent; run again)") from exc
+    if sync.refused_tags:
+        print("\nTags not made (may only admins make tags?): " + ", ".join(sync.refused_tags))
     if left:
         print(f"\nSent, but {len(left)} change(s) are still open:")
         _print_changes(left)

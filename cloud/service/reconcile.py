@@ -28,6 +28,8 @@ def reconcile(root: Path, dav) -> str:
     left = sync.send(comparison)
     summary = (f"sent {len(comparison.changes)} rule change(s), {len(comparison.pending)} embryo change(s), "
                f"{len(comparison.tags)} tag(s)")
+    if sync.refused_tags:
+        summary += f"; tags refused (only admins may make tags?): {', '.join(sync.refused_tags)}"
     return summary + (f"; {len(left)} still open" if left else "")
 
 

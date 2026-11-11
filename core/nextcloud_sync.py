@@ -18,7 +18,7 @@ from core.acl_edit import may_change_acls
 from core.acl_nextcloud import Change, Plan, diff, plan, read_nextcloud_md, rights_files, updates
 from core.cloud_embryos import EmbryoChange, EmbryoSet, cloud_paths, compare as compare_embryos, embryo_sets, readable_paths
 from core.cloud_embryos import send as send_embryos
-from core.nextcloud_dav import tree_functions
+from core.nextcloud_dav import NextcloudError, tree_functions
 from core.tags import all_project_tags
 
 
@@ -60,6 +60,7 @@ class NextcloudSync:
         self.policy = ACLPolicy.for_tree(self.project_root)
         self.embryos: List[EmbryoSet] = embryo_sets(self.project_root)
         self.dav = dav
+        self.refused_tags: List[str] = []  # by the last send: tags the instance would not make
 
     def someone_may_change(self) -> bool:
         """Whether one of the people of ACLs.md may still change the rights. Not so, the file
@@ -85,8 +86,6 @@ class NextcloudSync:
 
     def send(self, comparison: Comparison) -> List[Change]:
         """Send what comparison found; the changes still open afterwards (none when all went)."""
-        for tag in comparison.tags:
-            self.dav.create_system_tag(tag)
         # The embryos first: their rules (readable for who may read where they are born) need them there.
         by_path = {e.path: e for e in self.embryos}
         for change in comparison.pending:
@@ -94,6 +93,13 @@ class NextcloudSync:
         now = self.compare()
         for rule_path, rules in updates(now.plan.rules, now.changes):
             self.dav.set_rules(rule_path, rules)
+        # The tags last, and a refused one holds up nothing (tag creation may be for admins only).
+        self.refused_tags = []
+        for tag in comparison.tags:
+            try:
+                self.dav.create_system_tag(tag)
+            except NextcloudError:
+                self.refused_tags.append(tag)
         return self.compare().changes
 
 

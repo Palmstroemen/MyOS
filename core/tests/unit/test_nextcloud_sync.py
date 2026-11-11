@@ -121,3 +121,21 @@ def test_the_tags_of_every_project_s_tags_md_are_made_once(project):
 
     assert sorted(cloud.tags) == ["Rechnung", "Urlaub", "Wichtig"]
     assert NextcloudSync(project, cloud).compare().tags == []
+
+
+def test_a_tag_the_instance_refuses_does_not_hold_up_the_rights(project):
+    # Tag creation may be for admins only (Nextcloud's setting): the rules must still go.
+    from core.nextcloud_dav import NextcloudError
+
+    (project / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n")
+    cloud = FakeTeamFolder(["/", "/.MyOS", "/Familie"])
+
+    def refuse(name):
+        raise NextcloudError(f"Nextcloud answered 403 to POST /remote.php/dav/systemtags/{name}")
+
+    cloud.create_system_tag = refuse
+    sync = NextcloudSync(project, cloud)
+
+    assert sync.send(sync.compare()) == []  # no rule left open
+    assert any(r.account == "lisa" for r in cloud.entries["/Familie"].rules)
+    assert sync.refused_tags == ["Wichtig"]
