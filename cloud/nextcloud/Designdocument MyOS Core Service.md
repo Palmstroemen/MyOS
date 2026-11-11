@@ -208,9 +208,15 @@ the most and risk the least - the core sets no rules and writes nothing.
    folder's project suggests (`core/tags.py: project_tags`, Scope's own); a click shows only
    what carries the tag, its chip under the filters as Files shows its own. Colours (PostFix'
    `app.json`) not yet.
-   4b, filters: the core translates a `Filter.md` into a WebDAV SEARCH the browser runs with
-   the user's rights - flat by nature, each hit with its place. To be tried first: what
-   Nextcloud 32's SEARCH covers (patterns, paths, tags).
+   4b, filters: not built for the cloud for now (decided 2026-11-11). Tried: Nextcloud 32's
+   WebDAV SEARCH finds by name (`LIKE`), not by path - so a `Filter.md` (path rules, patterns
+   over paths, several forms of the path) cannot be put into a search, and filtering the rest
+   in the browser would be MyOS logic in JavaScript. The core could apply the filters itself
+   with Scope's code (`apply_filter_projection`), but then the shadow would have to hold the
+   names of all documents and be rebuilt on every document change. Too much for a feature
+   used seldom: in the cloud, the lenses cover the common case (one department across all
+   projects), the tag bar quick filtering, Nextcloud its own filters and search. Step 4 ends
+   with the tags; to be taken up again when someone needs filters in the cloud.
 5. **ExApp packaging.**
 
 ## 9. Nextcloud Is the First, Not the Only One - the Whole Picture
