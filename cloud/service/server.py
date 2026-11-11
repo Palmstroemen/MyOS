@@ -3,7 +3,7 @@
 # See "cloud/nextcloud/Designdocument MyOS Core Service.md", 4, 6 and 8.1. Reached only from
 # the platform's bridge (myos_acl for Nextcloud), never from a browser: the bridge sends the
 # shared secret and the logged-in account. GET /lens?path= and /bear?path= (turned paths),
-# /level?path= and /birth?path= (paths in the user's files); the browser acts with the
+# /level?path=, /birth?path= and /tags?path= (paths in the user's files); the browser acts with the
 # user's own rights.
 #
 # The shadow tree is a folder (MYOS_SHADOW_ROOT, for tests) or built from the Team folder with
@@ -25,7 +25,7 @@ from typing import Callable, Optional, Union
 from urllib.parse import parse_qs, urlsplit
 
 from cloud.service.lens import lens
-from cloud.service.level import bear, birth, level
+from cloud.service.level import bear, birth, level, tags
 from cloud.service.reconcile import Steward
 from cloud.service.shadow import ShadowKeeper, matters
 from core.acl_nextcloud import read_nextcloud_md
@@ -100,10 +100,11 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
                         answer = {"real": place + answer["real"],
                                   "create": [place + p for p in answer["create"]],
                                   "copy": [{"from": place + c["from"], "to": place + c["to"]} for c in answer["copy"]]}
-                elif url.path in ("/level", "/birth"):
+                elif url.path in ("/level", "/birth", "/tags"):
                     # These take and give paths in the user's files (place + the Team folder's).
                     inner = _within(place, path)
-                    answer = None if inner is None else (level if url.path == "/level" else birth)(shadow, person, inner)
+                    ask = {"/level": level, "/birth": birth, "/tags": tags}[url.path]
+                    answer = None if inner is None else ask(shadow, person, inner)
                     if answer is not None and url.path == "/birth":
                         answer = {"create": [place + p for p in answer["create"]],
                                   "copy": [{"from": place + c["from"], "to": place + c["to"]} for c in answer["copy"]]}

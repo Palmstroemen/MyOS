@@ -50,6 +50,10 @@ After each change of the Team folder the core does what `myacl sync` does
 leaves no one who may change the rights (then most likely broken: nothing is sent).
 `myacl sync` from a desktop stays possible and does the same.
 
+The tags of each project's `Tags.md` the core makes as Nextcloud's collaborative tags (one
+list for the instance; never removed). The row of MyOS folders shows the tags a folder's
+project suggests; a click shows only what carries the tag.
+
 In Files the view "Perspectives" (left bar, `src/lens.js`) shows the turned tree:
 departments, their folders, the shelf with the projects one may read, then the real
 folders and files - opening, downloading, renaming and deleting act on the real ones. A

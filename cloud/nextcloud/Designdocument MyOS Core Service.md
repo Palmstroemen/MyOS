@@ -196,6 +196,21 @@ the most and risk the least - the core sets no rules and writes nothing.
    born folder and lets Files fetch the lens anew. Uploads through Files' own button into the
    project's folder stay refused there (read-only), so nothing lands in the wrong place.
 4. **Tags and filters** - onto Nextcloud's collaborative tags where they fit.
+   Decided 2026-11-11: in the cloud, MyOS tags are Nextcloud's collaborative tags - the only
+   place Nextcloud keeps a mark per file; the Files list, search and its Tags view show them.
+   They are one list for the whole instance, seen by all its users. Desktop (xattr) and cloud
+   stay apart for now - the sync client carries no extended attributes; a bridge is a step of
+   its own. Values (`Wichtig=80`) stay on the desktop; Nextcloud has no place for them. Tags
+   before filters, so filters can later filter by tag.
+   4a, tags (2026-11-11): the core makes the tags of every project's `Tags.md` as
+   collaborative tags when it reconciles (core/nextcloud_sync.py, also `myacl sync`; never
+   removed - others on the instance may use them). `GET tags?path=` gives the row the tags a
+   folder's project suggests (`core/tags.py: project_tags`, Scope's own); a click shows only
+   what carries the tag, its chip under the filters as Files shows its own. Colours (PostFix'
+   `app.json`) not yet.
+   4b, filters: the core translates a `Filter.md` into a WebDAV SEARCH the browser runs with
+   the user's rights - flat by nature, each hit with its place. To be tried first: what
+   Nextcloud 32's SEARCH covers (patterns, paths, tags).
 5. **ExApp packaging.**
 
 ## 9. Nextcloud Is the First, Not the Only One - the Whole Picture

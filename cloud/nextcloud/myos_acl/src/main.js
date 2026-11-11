@@ -7,6 +7,10 @@
  * (cloud/service/level.py, through myos_acl's CoreController): born ones the user may read,
  * embryos where the user may create, as Scope with ACLs enforced. The browser shows that and
  * gives birth with the user's own rights - Nextcloud checks them once more.
+ *
+ * Next to them the tags the project suggests (its Tags.md, through the core; in the cloud they
+ * are Nextcloud's collaborative tags): a click shows only what carries that tag here, as
+ * Scope's tag bar does.
  */
 import { FileListFilter, Header, getNavigation, registerFileListFilter, registerFileListHeaders } from '@nextcloud/files'
 import { t } from '@nextcloud/l10n'
@@ -16,8 +20,9 @@ import { registerPerspectives } from './lens.js'
 const APP = 'myos_acl'
 const EMBRYO_OPACITY = 0.4 // as Scope's default for suggested folders
 
-// The folder shown and the core's answer for it: [{name, born}], null outside MyOS.
-const state = { folder: null, folders: null, el: null }
+// The folder shown and the core's answers for it: folders [{name, born}] and tags [names],
+// null outside MyOS; tag: the one chosen to filter by.
+const state = { folder: null, folders: null, tags: null, tag: null, el: null }
 
 const style = `
 .myos-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px; }
@@ -31,6 +36,11 @@ const style = `
 .myos-folder--embryo:hover { opacity: 0.7; }
 .myos-folder svg { width: 18px; height: 18px; fill: var(--color-primary-element); }
 .myos-folder--drop { opacity: 1; background: var(--color-primary-element-light); }
+.myos-row__label--tags { margin-inline-start: 12px; }
+.myos-tag { padding: 2px 10px; border: 1px solid var(--color-border); border-radius: var(--border-radius-pill, 16px);
+	background: var(--color-main-background); color: var(--color-main-text); cursor: pointer; }
+.myos-tag:hover { background: var(--color-background-hover); }
+.myos-tag--chosen { background: var(--color-primary-element); color: var(--color-primary-element-text); }
 `
 
 function childPath(name) {
@@ -58,13 +68,12 @@ function render() {
 	}
 	el.replaceChildren()
 	const folders = state.folders ?? []
-	if (folders.length === 0) {
-		return
+	if (folders.length > 0) {
+		const label = document.createElement('span')
+		label.className = 'myos-row__label'
+		label.textContent = t(APP, 'MyOS folders')
+		el.append(label)
 	}
-	const label = document.createElement('span')
-	label.className = 'myos-row__label'
-	label.textContent = t(APP, 'MyOS folders')
-	el.append(label)
 	for (const { name, born } of folders) {
 		const button = document.createElement('button')
 		button.type = 'button'
@@ -75,18 +84,53 @@ function render() {
 		button.addEventListener('click', () => (born ? open(name) : birth(name)).catch(error => console.error('MyOS', error)))
 		el.append(button)
 	}
+	const tags = state.tags ?? []
+	if (tags.length > 0) {
+		const label = document.createElement('span')
+		label.className = 'myos-row__label myos-row__label--tags'
+		label.textContent = t(APP, 'Tags')
+		el.append(label)
+	}
+	for (const tag of tags) {
+		const button = document.createElement('button')
+		button.type = 'button'
+		button.className = 'myos-tag' + (tag === state.tag ? ' myos-tag--chosen' : '')
+		button.title = t(APP, 'Show only what carries this tag')
+		button.textContent = '#' + tag
+		button.addEventListener('click', () => choose(tag === state.tag ? null : tag))
+		el.append(button)
+	}
+}
+
+/** Filters the list by tag (null: no more), as Scope's tag bar. */
+function choose(tag) {
+	state.tag = tag
+	render()
+	filter.changed()
 }
 
 async function show(folder) {
+	if (state.folder?.source !== folder.source) {
+		state.tag = null // a tag chosen there does not follow into another folder
+	}
 	state.folder = folder
 	state.folders = null
+	state.tags = null
 	render()
-	const { status, data } = await askCore('level', folder.path).catch(() => ({ status: 0 }))
+	const [level, tags] = await Promise.all([askCore('level', folder.path), askCore('tags', folder.path)]
+		.map(answer => answer.catch(() => ({ status: 0 }))))
 	if (state.folder === folder) {
-		state.folders = status === 200 ? data.folders : null
+		state.folders = level.status === 200 ? level.data.folders : null
+		state.tags = tags.status === 200 ? tags.data.tags : null
 		render()
 		filter.changed()
 	}
+}
+
+/** The names of the collaborative tags a node carries, as the Files app lists them. */
+function tagsOf(node) {
+	const raw = node.attributes?.['system-tags']?.['system-tag']
+	return [raw ?? []].flat().map(tag => String(typeof tag === 'object' ? tag?.text ?? '' : tag)).filter(Boolean)
 }
 
 class MyOSFolders extends FileListFilter {
@@ -94,17 +138,20 @@ class MyOSFolders extends FileListFilter {
 		super('myos-folders', 0)
 	}
 
-	/** Takes the born MyOS folders out of the list (they are in the row). */
+	/** Takes the born MyOS folders out of the list (they are in the row); with a tag chosen,
+	 * keeps only what carries it. */
 	filter(nodes) {
 		const folder = state.folder
 		if (!folder || getNavigation().active?.id !== 'files') {
 			return nodes // the row is only in "All files"
 		}
 		const born = new Set((state.folders ?? []).filter(f => f.born).map(f => f.name))
-		return nodes.filter(node => !(node.dirname === folder.path && node.type === 'folder' && born.has(node.basename)))
+		return nodes.filter(node => node.dirname !== folder.path
+			|| (!(node.type === 'folder' && born.has(node.basename)) && (!state.tag || tagsOf(node).includes(state.tag))))
 	}
 
 	changed() {
+		this.updateChips(state.tag ? [{ text: '#' + state.tag, onclick: () => choose(null) }] : [])
 		this.filterUpdated()
 	}
 }

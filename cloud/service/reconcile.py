@@ -26,7 +26,8 @@ def reconcile(root: Path, dav) -> str:
     if comparison.in_step:
         return "in step"
     left = sync.send(comparison)
-    summary = f"sent {len(comparison.changes)} rule change(s), {len(comparison.pending)} embryo change(s)"
+    summary = (f"sent {len(comparison.changes)} rule change(s), {len(comparison.pending)} embryo change(s), "
+               f"{len(comparison.tags)} tag(s)")
     return summary + (f"; {len(left)} still open" if left else "")
 
 

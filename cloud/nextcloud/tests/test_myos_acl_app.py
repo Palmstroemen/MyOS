@@ -15,6 +15,7 @@ tests wait until it is (_settled), and some test it.
 import base64
 import functools
 import json
+import re
 import os
 import subprocess
 import sys
@@ -91,6 +92,7 @@ def _sync(tmp_path):
     (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
     (root / ".MyOS" / "ACLs.md").write_text(ACLS)
     (root / ".MyOS" / "Nextcloud.md").write_text(NEXTCLOUD_MD)
+    (root / ".MyOS" / "Tags.md").write_text("# Tags\n#Rechnung\n#Wichtig\n")
     # A template: Familie (there) with the embryo Neu, whose birth copies Liesmich.md and .MyOS.
     (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
     neu = root / ".MyOS" / "Templates" / "Standard" / "Familie" / "Neu"
@@ -319,3 +321,21 @@ def test_saving_through_a_lens_bears_the_department_folder(synced):
     assert _lens("lisa", "/04_Finanz/Projekte/Familie")[1]["real"] == "/Familie/04_Finanz"
     assert _dav("lisa", "GET", "Familie/04_Finanz/Rechnung.txt")[1] == "42"
     assert _dav("tom", "GET", "Familie/04_Finanz/Rechnung.txt")[0] == 404
+
+
+def _system_tags(user):
+    token = base64.b64encode(f"{user}:{_passwords()[user]}".encode()).decode()
+    body = (b'<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop>'
+            b"<oc:display-name/></d:prop></d:propfind>")
+    request = urllib.request.Request(f"{URL}/remote.php/dav/systemtags/", data=body, method="PROPFIND",
+                                     headers={"Authorization": f"Basic {token}", "Depth": "1"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return set(re.findall(r"<oc:display-name>([^<]*)</oc:display-name>", response.read().decode()))
+
+
+def test_the_tags_of_tags_md_are_nextcloud_s_tags_and_the_row_s(synced):
+    # The core makes the tags of the projects' Tags.md as collaborative tags; the row asks
+    # for those of a folder - none where one may not read it.
+    assert {"Rechnung", "Wichtig"} <= _system_tags("lisa")
+    assert _core("lisa", "tags", "/Projekte/Familie") == (200, {"tags": ["Rechnung", "Wichtig"]})
+    assert _core("tom", "tags", "/Projekte/Familie") == (200, {"tags": []})

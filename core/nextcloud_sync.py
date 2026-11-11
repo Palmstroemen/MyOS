@@ -2,13 +2,14 @@
 #
 # What `myacl sync` does, as one piece the CLI and the MyOS core service share
 # ("cloud/nextcloud/Designdocument MyOS Core Service.md", 8, step 2): compare the Team folder
-# with what MyOS says - the rules of ACLs.md (core/acl_nextcloud.py) and the embryos of the
-# templates (core/cloud_embryos.py) - and send what differs. The project may be a local copy
+# with what MyOS says - the rules of ACLs.md (core/acl_nextcloud.py), the embryos of the
+# templates (core/cloud_embryos.py) and the tags of Tags.md (as the instance's collaborative
+# tags; never removed: others on the instance may use them) - and send what differs. The project may be a local copy
 # (myacl sync) or the shadow tree of the Team folder itself (the core service).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
@@ -18,6 +19,7 @@ from core.acl_nextcloud import Change, Plan, diff, plan, read_nextcloud_md, righ
 from core.cloud_embryos import EmbryoChange, EmbryoSet, cloud_paths, compare as compare_embryos, embryo_sets, readable_paths
 from core.cloud_embryos import send as send_embryos
 from core.nextcloud_dav import tree_functions
+from core.tags import all_project_tags
 
 
 class SyncRefused(Exception):
@@ -29,6 +31,7 @@ class Comparison:
     plan: Plan  # the rules ACLs.md gives, with notes on what Nextcloud cannot hold
     changes: List[Change]  # rules that differ from the Team folder's
     embryo_changes: List[EmbryoChange]
+    tags: List[str] = field(default_factory=list)  # tags of Tags.md the instance lacks
 
     @property
     def pending(self) -> List[EmbryoChange]:
@@ -37,7 +40,7 @@ class Comparison:
 
     @property
     def in_step(self) -> bool:
-        return not (self.changes or self.pending)
+        return not (self.changes or self.pending or self.tags)
 
 
 class NextcloudSync:
@@ -77,10 +80,13 @@ class NextcloudSync:
         exists, children = with_embryos(*tree_functions(tree), there)
         result = plan(self.policy, self.accounts, exists, children, base_groups=self.groups,
                       readable=readable_paths(there), protected=rights_files(all_paths(children)))
-        return Comparison(result, diff(result.rules, tree), embryo_changes)
+        missing = set(all_project_tags(self.project_root)) - set(self.dav.system_tags())
+        return Comparison(result, diff(result.rules, tree), embryo_changes, sorted(missing, key=str.lower))
 
     def send(self, comparison: Comparison) -> List[Change]:
         """Send what comparison found; the changes still open afterwards (none when all went)."""
+        for tag in comparison.tags:
+            self.dav.create_system_tag(tag)
         # The embryos first: their rules (readable for who may read where they are born) need them there.
         by_path = {e.path: e for e in self.embryos}
         for change in comparison.pending:

@@ -6,7 +6,7 @@ that template level; visible subfolders stay embryos."""
 
 import pytest
 
-from cloud.service.level import bear, birth, level
+from cloud.service.level import bear, birth, level, tags
 
 
 def test_a_level_lists_born_ones_and_the_embryos_one_may_create(shadow):
@@ -83,3 +83,18 @@ def test_bearing_needs_the_right_to_create_there(shadow):
                                   "/04_Finanz/Projekte", "/04_Finanz", "/Nichts"])
 def test_nothing_to_bear_where_the_lens_shows_no_unborn_folder(shadow, path):
     assert bear(shadow, "oliver", path) is None
+
+
+def test_the_tags_of_a_folder_are_those_of_its_project(shadow):
+    (shadow / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n#Rechnung\n")
+    (shadow / "Job" / ".MyOS" / "Tags.md").write_text("# Tags\n#Kunde\n")
+
+    assert tags(shadow, "lisa", "/Familie/04_Finanz") == {"tags": ["Rechnung", "Wichtig"]}  # Familie inherits
+    assert tags(shadow, "karl", "/Job/Kunden") == {"tags": ["Kunde"]}
+
+
+def test_no_tags_where_one_may_not_read(shadow):
+    (shadow / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n")
+
+    assert tags(shadow, "karl", "/Familie") == {"tags": []}
+    assert tags(shadow, "lisa", "/Familie/.MyOS") is None

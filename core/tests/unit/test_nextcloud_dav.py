@@ -2,6 +2,7 @@
 comparing its rules with the planned ones (myacl sync --dry-run). No network: a fake
 transport answers like Nextcloud 32 does."""
 
+import json
 import re
 from urllib.parse import quote
 
@@ -280,3 +281,45 @@ def test_the_etag_of_the_team_folder_tells_whether_anything_below_changed():
     assert calls == [("PROPFIND", BASE + "/", "0")]
     with pytest.raises(NextcloudError, match="Projekte"):
         _dav({}).etag()
+
+
+TAGS_URL = "/remote.php/dav/systemtags/"
+
+
+def _tag(tag_id, name):
+    return (f"<d:response><d:href>{TAGS_URL}{tag_id}</d:href><d:propstat><d:prop><oc:id>{tag_id}</oc:id>"
+            f"<oc:display-name>{name}</oc:display-name></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>")
+
+
+def test_the_instance_s_tags_are_read_by_name():
+    tags = _multistatus(f"<d:response><d:href>{TAGS_URL}</d:href></d:response>", _tag(1, "Wichtig"), _tag(4, "in Arbeit"))
+    calls = []
+
+    def transport(method, url, body, headers, auth):
+        calls.append((method, url.split("8081", 1)[1]))
+        return 207, tags
+
+    dav = NextcloudDAV("http://localhost:8081", "oliver", "secret", "Projekte", transport=transport)
+
+    assert dav.system_tags() == {"Wichtig": "1", "in Arbeit": "4"}
+    assert calls == [("PROPFIND", TAGS_URL)]
+
+
+@pytest.mark.parametrize("status", [201, 409])  # 409: someone made it meanwhile
+def test_a_tag_is_made_for_all_to_see_and_assign(status):
+    sent = []
+
+    def transport(method, url, body, headers, auth):
+        sent.append((method, url.split("8081", 1)[1], json.loads(body), headers.get("Content-Type")))
+        return status, b""
+
+    NextcloudDAV("http://localhost:8081", "oliver", "secret", "Projekte", transport=transport).create_system_tag("in Arbeit")
+
+    assert sent == [("POST", TAGS_URL, {"name": "in Arbeit", "userVisible": True, "userAssignable": True}, "application/json")]
+
+
+def test_a_tag_the_server_refuses_says_why():
+    dav = NextcloudDAV("http://localhost:8081", "oliver", "secret", "Projekte", transport=lambda *a: (403, b""))
+
+    with pytest.raises(NextcloudError, match="403"):
+        dav.create_system_tag("Wichtig")

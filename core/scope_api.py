@@ -13,7 +13,7 @@ import shutil
 import json
 import shlex
 from typing import Callable, Iterable, List, Optional, Dict, Any, Tuple, TypedDict
-from core.tags import read_tags
+from core.tags import hash_line_tags, project_tags, read_tags
 from core.acl import ACLAuthorizer, find_acl_project_root, is_template_root
 from core.template_place import find_templates_dir
 from core.acl_edit import (
@@ -97,34 +97,6 @@ def is_within(path: Path, root: Path) -> bool:
         return True
     except ValueError:
         return False
-
-
-def _read_markdown_tag_list(path: Path) -> List[str]:
-    if not path.exists():
-        return []
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except Exception:
-        return []
-    return _extract_hash_line_tags_from_text(text)
-
-
-def _extract_hash_line_tags_from_text(text: str) -> List[str]:
-    tags: List[str] = []
-    try:
-        for raw in str(text or "").splitlines():
-            line = raw.strip()
-            if not line.startswith("#"):
-                continue
-            # "# Tags" (hashes, then a space) is a Markdown heading, not a tag.
-            if line.lstrip("#")[:1].isspace():
-                continue
-            tag = line.lstrip("#").strip()
-            if tag:
-                tags.append(tag)
-    except Exception:
-        return []
-    return sorted(set(tags), key=str.lower)
 
 
 _MD_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
@@ -1432,11 +1404,7 @@ class ScopeApi:
     def list_project_tags(self, path: str) -> List[str]:
         # Like other configs, Tags.md inherits upwards: a subproject without one of its
         # own suggests the tags of the nearest parent project that has one.
-        target = self._resolve_path(path)
-        tags_file = find_config_in_parents(target, "Tags.md", honor_inherit_not=False)
-        if tags_file is None:
-            return []
-        return _read_markdown_tag_list(tags_file)
+        return project_tags(self._resolve_path(path))
 
     def list_folder_tags(self, path: str) -> List[str]:
         target = self._resolve_path(path)
@@ -1624,7 +1592,7 @@ class ScopeApi:
         except Exception:
             return result
         frontmatter, body = _split_frontmatter(text)
-        tags = _extract_hash_line_tags_from_text(body if frontmatter else text)
+        tags = hash_line_tags(body if frontmatter else text)
         result["tags"] = tags
         return result
 

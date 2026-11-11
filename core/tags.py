@@ -6,8 +6,10 @@ tags.py - MyOS tag storage utilities.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 import os
+
+from core.project import find_config_in_parents
 
 XATTR_KEY = "user.myos.tags"
 
@@ -64,3 +66,45 @@ def _format_tags(tags: Dict[str, Optional[int]]) -> str:
         else:
             parts.append(f"{key}={val}")
     return ", ".join(parts)
+
+
+def hash_line_tags(text: str) -> List[str]:
+    """The tags of a Tags.md text: its lines "#Tag" ("# Tags", hashes then a space, is a
+    Markdown heading, not a tag), sorted, each once."""
+    tags: List[str] = []
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("#") or line.lstrip("#")[:1].isspace():
+            continue
+        tag = line.lstrip("#").strip()
+        if tag:
+            tags.append(tag)
+    return sorted(set(tags), key=str.lower)
+
+
+def tag_list(path: Union[str, Path]) -> List[str]:
+    """The tags of the Tags.md at path; none when it cannot be read."""
+    try:
+        return hash_line_tags(Path(path).read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return []
+
+
+def project_tags(folder: Union[str, Path]) -> List[str]:
+    """The tags suggested in folder: those of the .MyOS/Tags.md of the nearest project up the
+    path that has one - like other configs it inherits, a subproject without one takes its
+    parent's."""
+    tags_file = find_config_in_parents(Path(folder), "Tags.md", honor_inherit_not=False)
+    return tag_list(tags_file) if tags_file is not None else []
+
+
+def all_project_tags(root: Union[str, Path]) -> List[str]:
+    """The tags of every project's Tags.md from root down (hidden folders such as .MyOS with
+    its templates skipped), sorted, each once."""
+    found = set()
+    for folder, dirs, _files in os.walk(Path(root)):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        myos = Path(folder) / ".MyOS"
+        if (myos / "Project.md").is_file() and (myos / "Tags.md").is_file():
+            found.update(tag_list(myos / "Tags.md"))
+    return sorted(found, key=str.lower)

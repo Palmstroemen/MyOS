@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -21,6 +22,8 @@ from core.acl_nextcloud import bits, mask_of
 
 _DAV = "{DAV:}"
 _NC = "{http://nextcloud.org/ns}"
+_OC = "{http://owncloud.org/ns}"
+_TAGS = "/remote.php/dav/systemtags/"
 _PROPFIND = (
     '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns"><d:prop>'
     "<d:resourcetype/><d:getetag/><nc:acl-enabled/><nc:acl-can-manage/><nc:acl-list/></d:prop></d:propfind>"
@@ -122,6 +125,30 @@ class NextcloudDAV:
                 why = " ".join((t or "").strip() for t in (
                     root.findtext(f".//{_DAV}responsedescription"), root.findtext(".//{http://sabredav.org/ns}message")) if t)
                 raise NextcloudError(f"Nextcloud refused the rules of {path}: {why or line.strip()}")
+
+    # The instance's collaborative tags, for the tags of the projects' Tags.md.
+
+    def system_tags(self) -> Dict[str, str]:
+        """The tags the account sees, name -> id."""
+        body = (
+            '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop>'
+            "<oc:id/><oc:display-name/></d:prop></d:propfind>"
+        ).encode()
+        headers = {"Depth": "1", "Content-Type": "application/xml; charset=utf-8"}
+        status, answer = self._transport("PROPFIND", self.url + _TAGS, body, headers, self._auth)
+        self._check(status, (207,), "PROPFIND", _TAGS)
+        tags = {}
+        for response in ET.fromstring(answer).iter(_DAV + "response"):
+            tag_id, name = response.findtext(f".//{_OC}id"), response.findtext(f".//{_OC}display-name")
+            if tag_id and name:
+                tags[name] = tag_id
+        return tags
+
+    def create_system_tag(self, name: str) -> None:
+        """Make the tag name, visible to all and for all to assign; one there already is fine."""
+        body = json.dumps({"name": name, "userVisible": True, "userAssignable": True}).encode()
+        status, _answer = self._transport("POST", self.url + _TAGS, body, {"Content-Type": "application/json"}, self._auth)
+        self._check(status, (201, 409), "POST", _TAGS + name)
 
     # Files (paths relative to the Team folder), for the embryos myacl sync uploads.
 

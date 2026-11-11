@@ -18,8 +18,8 @@ use Psr\Log\LoggerInterface;
 
 /**
  * The bridge to the MyOS core service (cloud/service/server.py): what a turned path stands
- * for (lens), the MyOS folders of a level (level), what a birth does (birth) and what saving
- * through a lens needs first (bear), as the core
+ * for (lens), the MyOS folders of a level (level), what a birth does (birth), what saving
+ * through a lens needs first (bear) and the tags a folder's project suggests (tags), as the core
  * answers them for the logged-in account. No MyOS logic here - the core decides, this only
  * passes the account on ("Designdocument MyOS Core Service.md", 4 and 6).
  * Set by the admin: occ config:app:set myos_acl core_url --value=http://myos-core:8080
@@ -59,6 +59,12 @@ class CoreController extends OCSController {
 	#[ApiRoute(verb: 'GET', url: '/api/v1/bear')]
 	public function bear(string $path = '/'): DataResponse {
 		return $this->ask('bear', $path);
+	}
+
+	#[NoAdminRequired]
+	#[ApiRoute(verb: 'GET', url: '/api/v1/tags')]
+	public function tags(string $path = '/'): DataResponse {
+		return $this->ask('tags', $path);
 	}
 
 	private function ask(string $question, string $path): DataResponse {

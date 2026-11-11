@@ -384,7 +384,15 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
             wartet, bis der Kern den Ordner kennt, und lässt Files die Perspektive neu holen
             (`files:node:updated`). Im Browser als Lisa: abgelegt, nach ~3 s im geborenen `Familie/04_Finanz`
             [ ] Ablegen nur auf den Embryo; Hochladen über den Knopf von Files in die Ersatzanzeige bleibt gesperrt
-        [ ] Schritt 4: Tags und Filter
+        [ ] Schritt 4: Tags und Filter (entschieden 2026-11-11: in der Cloud sind MyOS-Tags Nextcloud-Tags, für
+            die ganze Instanz; Desktop und Cloud vorerst getrennt - der Sync-Client trägt keine xattrs; Werte bleiben
+            auf dem Desktop; Tags vor Filtern)
+            [x] 4a Tags (App 0.6.0): Der Kern legt die Tags aller `Tags.md` als Nextcloud-Tags an (beim Abgleich,
+                auch `myacl sync`; nie gelöscht). Die Ordnerzeile zeigt die Tags des Projekts, ein Klick filtert die
+                Liste, der aktive Filter als Chip wie in Files. `project_tags` jetzt in core/tags.py (Scope nutzt es)
+            [ ] Farben aus PostFix' `app.json` als Farbe der Nextcloud-Tags
+            [ ] Brücke Desktop (xattr) <-> Cloud (Nextcloud-Tags)
+            [ ] 4b Filter: `Filter.md` als WebDAV-SEARCH, erst prüfen, was NC 32 dabei kann
         [ ] Schritt 5: als ExApp (AppAPI) verpacken
         [ ] Nextcloud ist der erste Adapter, nicht der einzige (Obsidian, OneDrive, Google, Dropbox, Synology ...):
             der Kern kennt keine Plattform; pro Plattform Dateien, Rechte, Oberfläche (Designdokument, Abschnitt 9)

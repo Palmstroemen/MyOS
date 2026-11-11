@@ -19,6 +19,7 @@ from cloud.service.lens import may_for
 from core.cloud_embryos import PAYLOAD, birth_contents
 from core.localBlueprintLayer import Blueprint
 from core.perspective_drive import PerspectiveDrive
+from core.tags import project_tags
 
 
 def level(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
@@ -94,6 +95,16 @@ def bear(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
             copy.extend({"from": f"{payload}/{f}", "to": f"{to}/{f}"} for f in files)
     real = "/" + project.joinpath(*node.lens).relative_to(root).as_posix()
     return {"real": real, "create": create, "copy": copy}
+
+
+def tags(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
+    """{"tags": [...]}: the tags the project suggests in the folder at path (relative to root),
+    as Scope's tag bar - none where person may not read the folder. None when there is none."""
+    root = Path(root).expanduser().resolve()
+    folder = _folder(root, path)
+    if folder is None or not folder.is_dir():
+        return None
+    return {"tags": project_tags(folder) if may_for(person)(folder, "read") else []}
 
 
 def _folder(root: Path, path: str) -> Optional[Path]:

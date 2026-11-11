@@ -66,7 +66,8 @@ def test_the_committed_files_are_the_generated_ones(made):
 def test_lesson_10_has_two_projects_each_with_its_own_tags(made):
     # Projects contain the flood of tags: each brings its own (.MyOS/Tags.md); its notes use
     # only those, and some notes are left to be tagged by the learner.
-    from core.scope_api import _read_markdown_content_tags, _read_markdown_tag_list
+    from core.scope_api import _read_markdown_content_tags
+    from core.tags import tag_list
 
     for lesson, sheet in (("DE/Lektion10", "Übungen zu Tags.md"), ("EN/Lesson10", "Tag exercises.md")):
         assert (made / lesson / sheet).is_file()
@@ -74,7 +75,7 @@ def test_lesson_10_has_two_projects_each_with_its_own_tags(made):
         assert len(projects) == 2
         vocabularies = []
         for project in projects:
-            vocabulary = set(_read_markdown_tag_list(project / ".MyOS" / "Tags.md"))
+            vocabulary = set(tag_list(project / ".MyOS" / "Tags.md"))
             assert len(vocabulary) >= 4
             vocabularies.append(vocabulary)
             notes = [n for n in project.rglob("*.md") if ".MyOS" not in n.parts]

@@ -19,12 +19,19 @@ class FakeTeamFolder:
     def __init__(self, folders):
         self.entries = {path: Entry(path, True, acl_enabled=True, can_manage=True) for path in folders}
         self.files = {}
+        self.tags = []
 
     def tree(self):
         return {path: Entry(e.path, e.is_dir, list(e.rules), e.acl_enabled, e.can_manage) for path, e in self.entries.items()}
 
     def set_rules(self, path, rules):
         self.entries[path].rules = [ExistingRule(r.kind, r.account, mask_of(r), bits(r.allowed)) for r in rules]
+
+    def system_tags(self):
+        return {name: str(i) for i, name in enumerate(self.tags, 1)}
+
+    def create_system_tag(self, name):
+        self.tags.append(name)
 
     def get(self, path):
         return self.files.get(path)
@@ -97,3 +104,20 @@ def test_an_acls_md_that_leaves_no_one_to_change_the_rights_is_noticed(project, 
     (project / ".MyOS" / "ACLs.md").write_text(acls)
 
     assert not NextcloudSync(project, FakeTeamFolder(["/"])).someone_may_change()
+
+
+def test_the_tags_of_every_project_s_tags_md_are_made_once(project):
+    (project / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n#Rechnung\n")
+    (project / "Familie" / ".MyOS").mkdir()
+    (project / "Familie" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (project / "Familie" / ".MyOS" / "Tags.md").write_text("# Tags\n#Urlaub\n#Wichtig\n")
+    cloud = FakeTeamFolder(["/", "/.MyOS", "/Familie"])
+    cloud.tags = ["Rechnung"]  # there already, from someone else on the instance
+    sync = NextcloudSync(project, cloud)
+
+    comparison = sync.compare()
+    assert comparison.tags == ["Urlaub", "Wichtig"] and not comparison.in_step
+    sync.send(comparison)
+
+    assert sorted(cloud.tags) == ["Rechnung", "Urlaub", "Wichtig"]
+    assert NextcloudSync(project, cloud).compare().tags == []

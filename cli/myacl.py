@@ -227,11 +227,14 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
                  "after": None if c.after is None else _nextcloud_order(c.after)} for c in changes]
         embryo_rows = [{"project": c.project, "missing": c.missing, "manifest": c.manifest_changed,
                         "upload": c.upload, "remove": c.remove} for c in comparison.embryo_changes]
-        print(json.dumps({"changes": rows, "embryos": embryo_rows, "notes": comparison.plan.notes}, indent=2, ensure_ascii=False))
+        print(json.dumps({"changes": rows, "embryos": embryo_rows, "tags": comparison.tags, "notes": comparison.plan.notes},
+                         indent=2, ensure_ascii=False))
         return 0
     sent = "nothing sent (--dry-run)" if dry_run else ("in sync" if comparison.in_step else "to send")
     print(f"{settings['url']}  {settings['folder']}  (as {user}): {len(changes)} change(s), {sent}")
     _print_embryo_changes(comparison.embryo_changes)
+    if comparison.tags:
+        print("\nTags to make (from Tags.md): " + ", ".join(comparison.tags))
     _print_changes(changes)
     _print_notes(comparison.plan.notes)
     if dry_run or comparison.in_step:
