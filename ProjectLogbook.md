@@ -398,6 +398,9 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
                 Dokumente im Schatten halten und bei jeder Dokumentänderung neu bauen. Zu viel für ein selten
                 genutztes Feature: Perspektiven, Tag-Leiste und Nextclouds eigene Filter decken das Meiste ab.
                 Wieder aufnehmen, wenn jemand Filter in der Cloud braucht
+        [x] AIO auf der GMXtec nachgestellt (2026-11-12): AIO installiert Nextcloud 35 (Team folders 23.0.1),
+            nicht 32. Alle 12 Integrationstests grün; App 0.6.1 erlaubt NC 32 bis 35. Die Instanz bleibt als
+            Ziel für die neueste Nextcloud (aktualisiert sich mit AIO); Anleitung im README
         [ ] Schritt 5: als ExApp (AppAPI) verpacken
         [ ] Nextcloud ist der erste Adapter, nicht der einzige (Obsidian, OneDrive, Google, Dropbox, Synology ...):
             der Kern kennt keine Plattform; pro Plattform Dateien, Rechte, Oberfläche (Designdokument, Abschnitt 9)

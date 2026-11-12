@@ -124,6 +124,10 @@ the start (`docker buildx`); only the core runs in it, without FUSE (9.2).
 |           | the tests stay offscreen and away from `~/.config/MyOS`                           |
 | GMXtec    | the real setup: the core in its own Docker network with `myos-nc`, no open port;   |
 |           | the integration tests through the ssh tunnel as today; the other stack untouched  |
+|           | and next to it AIO (2026-11-12): the newest Nextcloud as AIO installs it, the core |
+|           | `myos-core-aio` in the network `nextcloud-aio`, only on 127.0.0.1 (8180, 11000);  |
+|           | the same integration tests through a second tunnel (11000). Kept: AIO updates to   |
+|           | each new major version, so it is where we see a new Nextcloud first               |
 | DS212+    | later the second platform (WebDAV), the core reaching it from outside - nothing    |
 |           | runs on it: 32-bit ARM, no Container Manager                                      |
 | DS218     | stays untouched: it holds the backups (and has no Container Manager either)        |

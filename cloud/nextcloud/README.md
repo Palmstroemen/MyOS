@@ -12,7 +12,8 @@ Copy `myos_acl/` into the server's `custom_apps/` (owned by the web server user)
 
     occ app:enable myos_acl
 
-Needs the Team folders app (groupfolders). Tested with Nextcloud 32 and Team folders 20.1.
+Needs the Team folders app (groupfolders). Tested with Nextcloud 32 (Team folders 20.1) and
+Nextcloud 35 from All-in-One (Team folders 23.0.1); 33 and 34 are not tested.
 
 ## What `myacl sync` needs on the server
 
@@ -67,6 +68,24 @@ core plans it), dropping files on it bears it and puts them in. The view goes ag
 service account: a person of the role Admin), `MYOS_NC_FOLDER`, optionally `MYOS_SHADOW_POLL`
 (seconds, default 60). No port is published. After updating the app: `occ app:disable
 myos_acl && occ app:enable myos_acl`, so Nextcloud reads its new routes.
+
+## Nextcloud All-in-One (AIO)
+
+AIO keeps Nextcloud in the container `nextcloud-aio-nextcloud` and installs the newest major
+version (an AIO update moves to the next one). The same steps, with these names:
+
+    occ() { docker exec -u www-data nextcloud-aio-nextcloud php occ "$@"; }
+    occ app:install groupfolders
+    docker cp myos_acl nextcloud-aio-nextcloud:/var/www/html/custom_apps/
+    docker exec nextcloud-aio-nextcloud chown -R www-data:www-data /var/www/html/custom_apps/myos_acl
+    occ app:enable myos_acl
+    docker run -d --name myos-core --network nextcloud-aio --env-file core.env myos-core:dev
+    occ config:system:set trusted_domains 10 --value=nextcloud-aio-apache   # AIO sets 1 and 2 itself
+
+The core joins AIO's own network `nextcloud-aio`; in `core.env`
+`MYOS_NC_URL=http://nextcloud-aio-apache:<APACHE_PORT>` (11000 unless AIO was started with
+another). AIO's password policy is on: the service account's app password is fine, test
+accounts need long passwords.
 
 ## The row of MyOS folders
 
