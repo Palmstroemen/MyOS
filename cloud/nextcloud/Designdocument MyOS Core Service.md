@@ -102,11 +102,30 @@ One image, two ways to run it, the same code:
 1. **Sidecar (first):** `docker compose` next to Nextcloud; the admin sets the core's URL and
    secret in `myos_acl`. Needs Docker on the server and `myos_acl`, nothing else. Works for
    the friend's Nextcloud 32.0.1 if he can run a container there.
-2. **ExApp (later):** packaged for AppAPI (shipped with Nextcloud since 30.0.1), installed
-   from the app store; the admin needs a deploy daemon (HaRP is the recommended one for 32).
-   Then AppAPI does what the bridge does by hand. To be checked when we get there: whether
-   file events for ExApps go through webhooks (`nc_py_api` 0.20 dropped its events listener
-   for `nc_py_api.webhooks`) and how scripts get into the Files app.
+2. **ExApp (later, deferred 2026-11-12):** packaged for AppAPI (shipped with Nextcloud since
+   30.0.1), installed from the app store; the admin needs a deploy daemon (HaRP is the
+   recommended one from 32). What we found, from the AppAPI sources (main, 2026-11-12):
+   - It would replace only the sidecar: AppAPI pulls and starts the container, and its proxy
+     (`/apps/app_api/proxy/<app>/...`, `ExAppProxyController`) hands the logged-in user on -
+     no `docker run`, network, `trusted_domains`, shared secret or `CoreController`. The ExApp
+     may act as any user without a password (WebDAV too): no service account password, but a
+     lot of power.
+   - `myos_acl` stays a PHP app all the same. AppAPI loads an ExApp's scripts only on the
+     ExApp's own top-menu page (`ScriptsService::applyExAppScripts`, used by
+     `TopMenuController` alone): the row of MyOS folders and "Perspectives" need the PHP app.
+     An ExApp hears of a change only afterwards, so the locks (`LockNewEntries`) stay PHP.
+   - AppAPI's own file events for ExApps are gone ("removed FileEventsListener in favor of
+     webhooks_listener", 2025-04-14; its docs still describe them). `webhook_listeners`
+     delivers through background jobs, every 5 minutes with the default cron unless the admin
+     runs workers - `ForwardChanges` would stay and call the ExApp through AppAPI.
+   - So the admin installs two apps plus a deploy daemon (in AIO a switch in its interface,
+     elsewhere one more container; the Nextcloud forum shows HaRP trouble in 2026), and the
+     image must lie in a public registry.
+
+   Deferred: for a test with someone we know, the sidecar does the job (Nextcloud 32 and AIO
+   35). To be taken up when strangers are to install MyOS from the app store; a first try
+   then: HaRP switched on in the AIO test instance, the core registered as an ExApp with a
+   local image, nothing published.
 
 The GMXtec is only our test host; nothing depends on it.
 
@@ -221,7 +240,8 @@ the most and risk the least - the core sets no rules and writes nothing.
    used seldom: in the cloud, the lenses cover the common case (one department across all
    projects), the tag bar quick filtering, Nextcloud its own filters and search. Step 4 ends
    with the tags; to be taken up again when someone needs filters in the cloud.
-5. **ExApp packaging.**
+5. **ExApp packaging.** Deferred (2026-11-12), see 7: it would replace only the sidecar,
+   `myos_acl` stays; worth it once strangers install from the app store.
 
 ## 9. Nextcloud Is the First, Not the Only One - the Whole Picture
 

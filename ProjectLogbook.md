@@ -401,7 +401,11 @@ Die strategische Richtung (Lehren aus früheren Versuchen, Jetzt / Als Nächstes
         [x] AIO auf der GMXtec nachgestellt (2026-11-12): AIO installiert Nextcloud 35 (Team folders 23.0.1),
             nicht 32. Alle 12 Integrationstests grün; App 0.6.1 erlaubt NC 32 bis 35. Die Instanz bleibt als
             Ziel für die neueste Nextcloud (aktualisiert sich mit AIO); Anleitung im README
-        [ ] Schritt 5: als ExApp (AppAPI) verpacken
+        [-] Schritt 5: als ExApp (AppAPI) verpacken - zurückgestellt (2026-11-12). Die ExApp ersetzt nur den
+            Sidecar; myos_acl bleibt (AppAPI lädt ExApp-Skripte nicht in Files, Sperren müssen synchron in PHP,
+            AppAPIs Datei-Ereignisse sind entfernt, webhook_listeners kommt über Hintergrundjobs). Dazu ein Deploy
+            Daemon und ein öffentliches Image. Wieder aufnehmen, wenn Fremde MyOS aus dem App Store installieren
+            sollen; Einstieg: HaRP auf der AIO-Testinstanz, Kern mit lokalem Image als ExApp (Designdokument 7)
         [ ] Nextcloud ist der erste Adapter, nicht der einzige (Obsidian, OneDrive, Google, Dropbox, Synology ...):
             der Kern kennt keine Plattform; pro Plattform Dateien, Rechte, Oberfläche (Designdokument, Abschnitt 9)
     [x] Vorlagen in `.MyOS/Templates` (2026-11-09): Ein einfacher Ordner `Templates` kollidierte mit `~/Templates`
