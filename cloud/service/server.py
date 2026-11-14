@@ -29,7 +29,7 @@ from cloud.service.reconcile import Steward
 from cloud.service.shadow import ShadowKeeper, matters
 from core.acl_nextcloud import read_nextcloud_md
 from core.nextcloud_dav import NextcloudDAV
-from core.brand import META_DIR, env_name, getenv
+from core.brand import HTTP_HEADER_PREFIX, META_DIR, env_name, getenv
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:
-            if not hmac.compare_digest(self.headers.get("X-MyOS-Secret", "").encode(), expected):
+            if not hmac.compare_digest(self.headers.get(HTTP_HEADER_PREFIX + "Secret", "").encode(), expected):
                 return self._answer(401, {"error": "unauthorized"})
             if urlsplit(self.path).path != "/changed":
                 return self._answer(404, {"error": "not found"})
@@ -79,12 +79,12 @@ def make_server(root: Root, secret: str, person_for: Callable[[str], Optional[st
             self._answer(202, {"woken": woken})
 
         def do_GET(self) -> None:
-            if not hmac.compare_digest(self.headers.get("X-MyOS-Secret", "").encode(), expected):
+            if not hmac.compare_digest(self.headers.get(HTTP_HEADER_PREFIX + "Secret", "").encode(), expected):
                 return self._answer(401, {"error": "unauthorized"})
             shadow = current()
             if shadow is None:
                 return self._answer(503, {"error": "the shadow tree is being built"})
-            person = person_for(self.headers.get("X-MyOS-Account", ""))
+            person = person_for(self.headers.get(HTTP_HEADER_PREFIX + "Account", ""))
             if not person:
                 return self._answer(403, {"error": "unknown account"})
             url = urlsplit(self.path)
@@ -146,7 +146,7 @@ def main() -> None:
     if getenv("NC_URL"):
         dav = NextcloudDAV(getenv("NC_URL"), getenv("NC_USER", ""), getenv("NC_PASSWORD", ""),
                            getenv("NC_FOLDER", ""))
-        keeper = ShadowKeeper(Path(getenv("SHADOW_BASE", "/tmp/myos-shadow")), dav)
+        keeper = ShadowKeeper(Path(getenv("SHADOW_BASE", "/tmp/seiton-shadow")), dav)
         threading.Thread(target=_keep, args=(Steward(keeper, dav), wake, float(getenv("SHADOW_POLL", "60"))),
                          daemon=True).start()
         root: Root = lambda: keeper.root

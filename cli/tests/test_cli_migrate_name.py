@@ -5,13 +5,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from core.brand import CONFIG_DIR, ENV_PREFIX, META_DIR
+from core.brand import CONFIG_DIR, ENV_PREFIX, LEGACY_ENV_PREFIXES, META_DIR
 
 SCRIPT = Path(__file__).resolve().parents[2] / "cli" / "migrate_name.py"
 
 
 def _run(tmp_path, *args):
-    env = {k: v for k, v in os.environ.items() if not k.startswith(ENV_PREFIX)}
+    env = {k: v for k, v in os.environ.items() if not k.startswith((ENV_PREFIX, *LEGACY_ENV_PREFIXES))}
     env["XDG_CONFIG_HOME"] = str(tmp_path / "config")
     return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=env)
 

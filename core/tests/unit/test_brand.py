@@ -68,7 +68,7 @@ _CODE_DIRS = ("core", "cli", "cloud/service", "Scope", "PostFix", "SunTree", "da
 _DIRS = (brand.META_DIR, *brand.LEGACY_META_DIRS)
 _PREFIXES = (brand.ENV_PREFIX, *brand.LEGACY_ENV_PREFIXES)
 _LITERAL = re.compile(
-    r"(^|[^A-Za-z0-9])(" + "|".join(re.escape(d) for d in _DIRS) + r")($|[^A-Za-z0-9_])"
+    r"\bX-(MyOS|Seiton)-|(^|[^A-Za-z0-9])(" + "|".join(re.escape(d) for d in _DIRS) + r")($|[^A-Za-z0-9_])"
     r"|\b(" + "|".join(re.escape(p) for p in _PREFIXES) + r")[A-Z]"
     r"|^(" + "|".join(re.escape(n) for n in {brand.NAME, brand.CONFIG_DIR, "MyOS"}) + r")$")
 

@@ -27,9 +27,10 @@ import uuid
 from pathlib import Path
 
 import pytest
+from core.brand import ENV_PREFIX, LEGACY_ENV_PREFIXES, META_DIR, NAME, env_name, getenv
 
-URL = os.environ.get("MYOS_NC_TEST_URL", "")
-pytestmark = pytest.mark.skipif(not URL, reason="needs MYOS_NC_TEST_URL (a Nextcloud test instance)")
+URL = getenv("NC_TEST_URL", "")
+pytestmark = pytest.mark.skipif(not URL, reason=f"needs {env_name('NC_TEST_URL')} (a Nextcloud test instance)")
 
 ACLS = (
     "# Permissions\n\n"
@@ -49,7 +50,7 @@ NEXTCLOUD_MD = (
 @functools.lru_cache(maxsize=None)
 def _passwords():
     # Read once: the file may be a pipe (MYOS_NC_TEST_PASSWORDS=<(ssh host cat users.txt)).
-    lines = Path(os.environ["MYOS_NC_TEST_PASSWORDS"]).read_text().split("\n")
+    lines = Path(getenv("NC_TEST_PASSWORDS")).read_text().split("\n")
     return dict(line.split(None, 1) for line in lines if line.strip())
 
 
@@ -68,7 +69,7 @@ def _dav(user, method, path, headers=None, body=None):
 def _core(user, question, path):
     """The MyOS core's answer through myos_acl (OCS), as the browser asks for it."""
     token = base64.b64encode(f"{user}:{_passwords()[user]}".encode()).decode()
-    url = f"{URL}/ocs/v2.php/apps/myos_acl/api/v1/{question}?format=json&path={urllib.parse.quote(path)}"
+    url = f"{URL}/ocs/v2.php/apps/seiton/api/v1/{question}?format=json&path={urllib.parse.quote(path)}"
     request = urllib.request.Request(url, headers={"Authorization": f"Basic {token}", "OCS-APIRequest": "true"})
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
@@ -88,34 +89,34 @@ def _sees(user, folder, name):
 
 def _sync(tmp_path):
     root = tmp_path / "Projekte"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
-    (root / ".MyOS" / "Nextcloud.md").write_text(NEXTCLOUD_MD)
-    (root / ".MyOS" / "Tags.md").write_text("# Tags\n#Rechnung\n#Wichtig\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text(f"# {NAME} Project\n")
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
+    (root / META_DIR / "Nextcloud.md").write_text(NEXTCLOUD_MD)
+    (root / META_DIR / "Tags.md").write_text("# Tags\n#Rechnung\n#Wichtig\n")
     # A template: Familie (there) with the embryo Neu, whose birth copies Liesmich.md and .MyOS.
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    neu = root / ".MyOS" / "Templates" / "Standard" / "Familie" / "Neu"
-    (neu / ".MyOS").mkdir(parents=True)
-    (neu / ".MyOS" / "Tags.md").write_text("# Tags\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    neu = root / META_DIR / "Templates" / "Standard" / "Familie" / "Neu"
+    (neu / META_DIR).mkdir(parents=True)
+    (neu / META_DIR / "Tags.md").write_text("# Tags\n")
     (neu / "Liesmich.md").write_text("Neu in Familie")
     # And 00_Admin, which only the role Admin may read: nobody else sees it or its template.
-    admin = root / ".MyOS" / "Templates" / "Standard" / "00_Admin"
+    admin = root / META_DIR / "Templates" / "Standard" / "00_Admin"
     admin.mkdir(parents=True)
     (admin / "Liesmich.md").write_text("Nur für Admins")
     # And the department 04_Finanz, empty: for the lenses (/04_Finanz/Projekte).
-    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir()
+    (root / META_DIR / "Templates" / "Standard" / "04_Finanz").mkdir()
     # Familie a subproject: myacl sync puts its embryos into Familie/.MyOS.
-    (root / "Familie" / ".MyOS").mkdir(parents=True)
-    (root / "Familie" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / "Familie" / META_DIR).mkdir(parents=True)
+    (root / "Familie" / META_DIR / "Project.md").write_text(f"# {NAME} Project\n")
     # The .MyOS files come into the Team folder as with a sync client (the core reads them
     # there), before the sync, so it sets their rules as well.
     _upload_myos(root, root)
     _upload_myos(root, root / "Familie")
     script = Path(__file__).resolve().parents[3] / "cli" / "myacl.py"
-    env = {k: v for k, v in os.environ.items() if not k.startswith("MYOS_ACL")}
-    env.update(MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD=_passwords()["oliver"],
-               XDG_CONFIG_HOME=str(tmp_path / "config"))
+    env = {k: v for k, v in os.environ.items() if not k.startswith(tuple(p + "ACL" for p in (ENV_PREFIX, *LEGACY_ENV_PREFIXES)))}
+    env.update({env_name("NEXTCLOUD_USER"): "oliver", env_name("NEXTCLOUD_PASSWORD"): _passwords()["oliver"],
+                "XDG_CONFIG_HOME": str(tmp_path / "config")})
     result = subprocess.run([sys.executable, str(script), "sync", "--yes", str(root)],
                             capture_output=True, text=True, env=env)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -136,7 +137,7 @@ def _settled(script, root, env, timeout=120):
 
 
 def _upload_myos(root, project):
-    myos = project / ".MyOS"
+    myos = project / META_DIR
     for path in sorted([myos, *myos.rglob("*")]):
         rel = path.relative_to(root).as_posix()
         if path.is_dir():
@@ -191,14 +192,14 @@ def test_moved_and_copied_entries_stay_hidden(synced):
 
 def test_an_embryo_is_readable_for_who_may_read_where_it_is_born(synced):
     # As Scope shows an embryo: Lisa may read /Familie/Neu, not /00_Admin; Tom only /Familie/Kind.
-    assert _dav("lisa", "GET", ".MyOS/Embryos/Familie/Neu/Liesmich.md")[0] == 200
-    assert _dav("lisa", "GET", ".MyOS/Embryos/00_Admin/Liesmich.md")[0] == 404
-    assert _sees("lisa", ".MyOS/Embryos/", "Familie") and not _sees("lisa", ".MyOS/Embryos/", "00_Admin")
-    assert _dav("oliver", "GET", ".MyOS/Embryos/00_Admin/Liesmich.md")[0] == 200
-    assert _dav("tom", "PROPFIND", ".MyOS/Embryos", {"Depth": "0"})[0] == 207  # the list, for all in the project
-    assert not _sees("tom", ".MyOS/Embryos/", "Familie")
-    assert _dav("tom", "GET", ".MyOS/Embryos/Familie/Neu/Liesmich.md")[0] == 404
-    for secret in (".MyOS/Embryos.json", ".MyOS/ACLs.md", ".MyOS/Nextcloud.md", ".MyOS/Project.md"):
+    assert _dav("lisa", "GET", f"{META_DIR}/Embryos/Familie/Neu/Liesmich.md")[0] == 200
+    assert _dav("lisa", "GET", f"{META_DIR}/Embryos/00_Admin/Liesmich.md")[0] == 404
+    assert _sees("lisa", f"{META_DIR}/Embryos/", "Familie") and not _sees("lisa", f"{META_DIR}/Embryos/", "00_Admin")
+    assert _dav("oliver", "GET", f"{META_DIR}/Embryos/00_Admin/Liesmich.md")[0] == 200
+    assert _dav("tom", "PROPFIND", f"{META_DIR}/Embryos", {"Depth": "0"})[0] == 207  # the list, for all in the project
+    assert not _sees("tom", f"{META_DIR}/Embryos/", "Familie")
+    assert _dav("tom", "GET", f"{META_DIR}/Embryos/Familie/Neu/Liesmich.md")[0] == 404
+    for secret in (f"{META_DIR}/Embryos.json", f"{META_DIR}/ACLs.md", f"{META_DIR}/Nextcloud.md", f"{META_DIR}/Project.md"):
         assert _dav("tom", "GET", secret)[0] == 404, secret
         assert _dav("lisa", "GET", secret)[0] == 404, secret
 
@@ -231,14 +232,14 @@ def test_a_birth_as_the_browser_does_it_copies_the_template_and_stays_hidden_on_
 def test_who_may_write_a_project_may_not_write_its_rights_and_sync_files(synced):
     # Lisa may write in Familie (ACLs.md), but only who may change the rights may write
     # Familie/.MyOS/Embryos.json - else her file would be copied into other people's births.
-    status, body = _dav("lisa", "GET", "Familie/.MyOS/Embryos.json")
+    status, body = _dav("lisa", "GET", f"Familie/{META_DIR}/Embryos.json")
     assert status == 200
-    assert _dav("lisa", "PUT", "Familie/.MyOS/Embryos.json", body=b"{}")[0] == 403
-    assert _dav("lisa", "GET", "Familie/.MyOS/Embryos.json")[1] == body
-    assert _dav("lisa", "DELETE", "Familie/.MyOS/Embryos.json")[0] == 403
+    assert _dav("lisa", "PUT", f"Familie/{META_DIR}/Embryos.json", body=b"{}")[0] == 403
+    assert _dav("lisa", "GET", f"Familie/{META_DIR}/Embryos.json")[1] == body
+    assert _dav("lisa", "DELETE", f"Familie/{META_DIR}/Embryos.json")[0] == 403
     name = f"Desk-{uuid.uuid4().hex[:6]}.md"  # the rest of .MyOS as in MyOS: her rights
-    assert _dav("lisa", "PUT", f"Familie/.MyOS/{name}", body=b"x")[0] in (201, 204)
-    synced.append(f"Familie/.MyOS/{name}")
+    assert _dav("lisa", "PUT", f"Familie/{META_DIR}/{name}", body=b"x")[0] in (201, 204)
+    synced.append(f"Familie/{META_DIR}/{name}")
 
 
 def test_a_lens_shows_on_the_shelf_only_the_projects_one_may_read(synced):
@@ -278,26 +279,26 @@ def test_a_folder_made_later_gets_its_rights_from_acls_md_without_a_sync(synced)
 def test_acls_md_edited_in_the_cloud_changes_the_rules(synced):
     # Oliver (change) gives the Team read on /Familie/Fotos/ in the cloud; Karl sees it. Back
     # as it was, he does not.
-    original = _dav("oliver", "GET", ".MyOS/ACLs.md")[1].encode()
+    original = _dav("oliver", "GET", f"{META_DIR}/ACLs.md")[1].encode()
     edited = original.replace(b"## Team\n- /Job/: read, write\n", b"## Team\n- /Job/: read, write\n- /Familie/Fotos/: read\n")
     assert edited != original
     assert not _sees("karl", "Familie/", "Fotos")
     try:
-        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=edited)[0] in (201, 204)
+        assert _dav("oliver", "PUT", f"{META_DIR}/ACLs.md", body=edited)[0] in (201, 204)
         _within(90, lambda: _sees("karl", "Familie/", "Fotos"), "Karl does not see Familie/Fotos")
     finally:
-        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=original)[0] in (201, 204)
+        assert _dav("oliver", "PUT", f"{META_DIR}/ACLs.md", body=original)[0] in (201, 204)
     _within(90, lambda: not _sees("karl", "Familie/", "Fotos"), "Karl still sees Familie/Fotos")
 
 
 def test_an_acls_md_that_leaves_no_one_to_change_the_rights_changes_nothing(synced):
-    original = _dav("oliver", "GET", ".MyOS/ACLs.md")[1].encode()
+    original = _dav("oliver", "GET", f"{META_DIR}/ACLs.md")[1].encode()
     try:
-        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=b"kaputt\n")[0] in (201, 204)
+        assert _dav("oliver", "PUT", f"{META_DIR}/ACLs.md", body=b"kaputt\n")[0] in (201, 204)
         time.sleep(30)  # a few rounds of the core
         assert _sees("lisa", "Familie/", "Fotos") and _sees("karl", "", "Job")
     finally:
-        assert _dav("oliver", "PUT", ".MyOS/ACLs.md", body=original)[0] in (201, 204)
+        assert _dav("oliver", "PUT", f"{META_DIR}/ACLs.md", body=original)[0] in (201, 204)
 
 
 def test_saving_through_a_lens_bears_the_department_folder(synced):

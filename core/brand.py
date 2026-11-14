@@ -23,6 +23,7 @@ META_DIR = ".seiton"  # a project's (or a template's) own settings, inside the f
 CONFIG_DIR = "seiton"  # the user's settings, below XDG_CONFIG_HOME
 ENV_PREFIX = "SEITON_"
 XATTR_PREFIX = "user.seiton."
+HTTP_HEADER_PREFIX = "X-Seiton-"  # between the platform's bridge and the core service
 
 # Former names, newest first (MyOS until 2026-11-14): environment variables under them are
 # still read; settings folders, the user's settings and extended attributes under them are

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OCA\MyOSAcl\Listener;
+namespace OCA\Seiton\Listener;
 
 use OCA\GroupFolders\Mount\GroupMountPoint;
-use OCA\MyOSAcl\AppInfo\Application;
+use OCA\Seiton\AppInfo\Application;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\Files\Events\Node\AbstractNodeEvent;
@@ -17,11 +17,11 @@ use OCP\IAppConfig;
 use Psr\Log\LoggerInterface;
 
 /**
- * Tells the MyOS core service (cloud/service/server.py, POST /changed) what changed in a Team
+ * Tells the Seiton core service (cloud/service/server.py, POST /changed) what changed in a Team
  * folder: created, renamed, copied, deleted, written - the path in the Team folder and whether
- * it is a folder. No MyOS logic here: the core decides what matters (its shadow tree holds
- * folders and .MyOS files) and brings the rules in step at once, instead of at its next look
- * at the Team folder's ETag ("Designdocument MyOS Core Service.md", 4).
+ * it is a folder. No Seiton logic here: the core decides what matters (its shadow tree holds
+ * folders and .seiton files) and brings the rules in step at once, instead of at its next look
+ * at the Team folder's ETag ("Designdocument Seiton Core Service.md", 4).
  *
  * @template-implements IEventListener<Event>
  */
@@ -63,14 +63,14 @@ class ForwardChanges implements IEventListener {
 		}
 		try {
 			$this->clients->newClient()->post($url . '/changed', [
-				'headers' => ['X-MyOS-Secret' => $secret, 'Content-Type' => 'application/json'],
+				'headers' => ['X-Seiton-Secret' => $secret, 'Content-Type' => 'application/json'],
 				'body' => json_encode(['folder' => $folder, 'changes' => $changes]),
 				'timeout' => 2, // never hold up the user's request for long
 				'nextcloud' => ['allow_local_address' => true],
 			]);
 		} catch (\Throwable $e) {
 			// The core catches up at its next look at the Team folder's ETag.
-			$this->logger->warning('MyOS ACL: could not tell the MyOS core about a change: ' . $e->getMessage());
+			$this->logger->warning('Seiton: could not tell the Seiton core about a change: ' . $e->getMessage());
 		}
 	}
 

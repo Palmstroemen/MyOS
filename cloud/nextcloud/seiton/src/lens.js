@@ -1,7 +1,7 @@
 /**
  * The view "Perspectives" in the Files app: the projects seen from a department, the turned
- * path of MyOS (/04_Finanz/Projekte/Job = Projekte/Job/04_Finanz). What a turned path stands
- * for comes from the MyOS core (cloud/service/lens.py, through myos_acl's CoreController):
+ * path of Seiton (/04_Finanz/Projekte/Job = Projekte/Job/04_Finanz). What a turned path stands
+ * for comes from the Seiton core (cloud/service/lens.py, through seiton's CoreController):
  * the virtual levels - departments, their folders, the shelf with the projects one may read -
  * or the real folder, which is listed here over WebDAV with the user's rights. Opening,
  * downloading, renaming and deleting act on the real files.
@@ -21,9 +21,9 @@ import { defaultRemoteURL, defaultRootPath, getClient, getDefaultPropfind, resul
 import { t } from '@nextcloud/l10n'
 import { askCore, carryOut, folderIcon, upload } from './core.js'
 
-const APP = 'myos_acl'
-const VIEW = 'myos-perspectives'
-const VIRTUAL = '/.myos-perspectives' // under the user's root: no such folder, only keys for the store
+const APP = 'seiton'
+const VIEW = 'seiton-perspectives'
+const VIRTUAL = '/.seiton-perspectives' // under the user's root: no such folder, only keys for the store
 
 const glassesIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 10c-.5 0-.8.4-.8.9l.5 3C2.8 14.5 3.4 15 4 15h3c.6 0 1.4-.6 1.5-1.2l1-3.2c.2-.3 0-.6-.5-.6H3m4 7H4c-1.6 0-3-1.3-3.2-2.9l-.5-3C0 9.4 1.3 8 3 8h6c.9 0 1.7.4 2.1 1l.3.5c.4-.1.8-.1 1.2 0l.3-.5c.4-.6 1.2-1 2.1-1h6c1.7 0 3 1.4 2.7 3.1l-.5 3.1c-.2 1.5-1.6 2.8-3.2 2.8h-3c-1.6 0-3.1-1.2-3.5-2.7l-.9-2.7c-.4-.3-.9-.3-1.3 0l-.9 2.8C10.1 15.8 8.6 17 7 17m8-7c-.5 0-.6.4-.5.7l1 3.1c.2.6.9 1.2 1.5 1.2h3c.6 0 1.2-.5 1.3-1.1l.5-3.1c0-.4-.3-.8-.8-.8h-6z"/></svg>'
 
@@ -115,7 +115,7 @@ async function projectOnShelf(path, real) {
 		turned.set(node.source, path)
 		return node
 	} catch (error) {
-		console.error('MyOS', error)
+		console.error('Seiton', error)
 		return virtualFolder(path)
 	}
 }
@@ -160,21 +160,21 @@ function renderUnborn(folder) {
 		return
 	}
 	const label = document.createElement('span')
-	label.className = 'myos-row__label'
+	label.className = 'seiton-row__label'
 	label.textContent = t(APP, 'Not in {project} yet:', { project: here.project })
 	const button = document.createElement('button')
 	button.type = 'button'
-	button.className = 'myos-folder myos-folder--embryo'
+	button.className = 'seiton-folder seiton-folder--embryo'
 	button.title = t(APP, 'Click to create it here, or drop files on it')
 	button.innerHTML = folderIcon
 	button.append(document.createTextNode(here.department))
-	const failed = error => console.error('MyOS', error)
+	const failed = error => console.error('Seiton', error)
 	button.addEventListener('click', () => bearHere(here.path, folder, []).catch(failed))
 	button.addEventListener('dragover', event => {
 		event.preventDefault()
-		button.classList.add('myos-folder--drop')
+		button.classList.add('seiton-folder--drop')
 	})
-	button.addEventListener('dragleave', () => button.classList.remove('myos-folder--drop'))
+	button.addEventListener('dragleave', () => button.classList.remove('seiton-folder--drop'))
 	button.addEventListener('drop', event => {
 		event.preventDefault()
 		event.stopPropagation() // not also into the folder shown below
@@ -186,7 +186,7 @@ function renderUnborn(folder) {
 export function registerPerspectives() {
 	// The action at once (the Files app reads its actions early); it acts only in this view.
 	registerFileAction(new FileAction({
-		id: 'myos-open-in-lens',
+		id: 'seiton-open-in-lens',
 		displayName: () => t(APP, 'Open'),
 		iconSvgInline: () => glassesIcon,
 		enabled: (nodes, view) => view.id === VIEW && nodes.length === 1 && turned.has(nodes[0].source),
@@ -198,12 +198,12 @@ export function registerPerspectives() {
 		order: -101, // before the Files app's own "open-folder" (-100), which opens the real path
 	}))
 	registerFileListHeaders(new Header({
-		id: 'myos-lens-unborn',
+		id: 'seiton-lens-unborn',
 		order: 0,
 		enabled: (folder, view) => view.id === VIEW,
 		render(el, folder) {
 			header.el = document.createElement('div')
-			header.el.className = 'myos-row'
+			header.el.className = 'seiton-row'
 			el.append(header.el)
 			renderUnborn(folder)
 		},
@@ -227,5 +227,5 @@ export function registerPerspectives() {
 		if (status !== 200) {
 			getNavigation().remove(VIEW)
 		}
-	}).catch(error => console.error('MyOS', error))
+	}).catch(error => console.error('Seiton', error))
 }

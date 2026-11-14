@@ -1,10 +1,10 @@
 {
-  "name": "myos_acl",
+  "name": "seiton",
   "private": true,
-  "description": "Browser part of the Nextcloud app myos_acl: the row of MyOS folders in Files",
+  "description": "Browser part of the Nextcloud app seiton: the row of Seiton folders in Files",
   "license": "MIT",
   "scripts": {
-    "build": "esbuild src/main.js --bundle --minify --format=iife --target=es2020 --outfile=js/myos_acl-main.js"
+    "build": "esbuild src/main.js --bundle --minify --format=iife --target=es2020 --outfile=js/seiton-main.js"
   },
   "dependencies": {
     "@nextcloud/auth": "^2.4.0",

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\MyOSAcl\Listener;
+namespace OCA\Seiton\Listener;
 
 use OCA\GroupFolders\ACL\Rule;
 use OCA\GroupFolders\ACL\RuleManager;
@@ -47,7 +47,7 @@ class LockNewEntries implements IEventListener {
 			$this->lock($node);
 		} catch (\Throwable $e) {
 			// Security: the entry stays readable on the way until the next myacl sync.
-			$this->logger->error('MyOS ACL: could not lock ' . $node->getPath() . ': ' . $e->getMessage(), ['exception' => $e]);
+			$this->logger->error('Seiton: could not lock ' . $node->getPath() . ': ' . $e->getMessage(), ['exception' => $e]);
 		}
 	}
 

@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from core.brand import ENV_PREFIX, META_DIR, env_name
+from core.brand import ENV_PREFIX, LEGACY_ENV_PREFIXES, META_DIR, env_name
 
 ACLS = (
     "# Permissions\n\n"
@@ -18,7 +18,7 @@ ACLS = (
 
 def _run(args, tmp_path, **env):
     script = Path(__file__).parent.parent.parent / "cli" / "myacl.py"
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(ENV_PREFIX)}
+    environ = {k: v for k, v in os.environ.items() if not k.startswith((ENV_PREFIX, *LEGACY_ENV_PREFIXES))}
     environ.update({"XDG_CONFIG_HOME": str(tmp_path / "config"), **env})
     return subprocess.run(
         [sys.executable, str(script)] + args, capture_output=True, text=True, cwd=tmp_path, env=environ

@@ -10,7 +10,7 @@ import urllib.request
 import pytest
 
 from cloud.service.server import make_server, nextcloud_person
-from core.brand import META_DIR
+from core.brand import HTTP_HEADER_PREFIX, META_DIR
 
 SECRET = "s3cret-for-tests-only-0123456789"
 
@@ -28,9 +28,9 @@ def service(shadow):
 
 
 def _get(url, secret=SECRET, account="lisa.m"):
-    headers = {"X-MyOS-Account": account}
+    headers = {HTTP_HEADER_PREFIX + "Account": account}
     if secret is not None:
-        headers["X-MyOS-Secret"] = secret
+        headers[HTTP_HEADER_PREFIX + "Secret"] = secret
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=10) as response:
             return response.status, json.loads(response.read())
@@ -102,7 +102,7 @@ def test_level_and_birth_take_and_give_paths_in_the_user_s_files(service):
 def _post(url, body, secret=SECRET):
     headers = {"Content-Type": "application/json"}
     if secret is not None:
-        headers["X-MyOS-Secret"] = secret
+        headers[HTTP_HEADER_PREFIX + "Secret"] = secret
     request = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=10) as response:

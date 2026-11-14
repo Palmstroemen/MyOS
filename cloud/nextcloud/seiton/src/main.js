@@ -1,10 +1,10 @@
 /**
- * MyOS folders in the Files app: above the file list one row with the MyOS folders of the
+ * Seiton folders in the Files app: above the file list one row with the Seiton folders of the
  * current folder, always together - born ones in full colour, embryos (suggested, not yet
  * created) pale. The born ones leave the list below, so it holds what the user made.
  *
- * Which folders a level holds, and what a birth creates and copies, the MyOS core answers
- * (cloud/service/level.py, through myos_acl's CoreController): born ones the user may read,
+ * Which folders a level holds, and what a birth creates and copies, the Seiton core answers
+ * (cloud/service/level.py, through seiton's CoreController): born ones the user may read,
  * embryos where the user may create, as Scope with ACLs enforced. The browser shows that and
  * gives birth with the user's own rights - Nextcloud checks them once more.
  *
@@ -17,30 +17,30 @@ import { t } from '@nextcloud/l10n'
 import { askCore, carryOut, folderIcon } from './core.js'
 import { registerPerspectives } from './lens.js'
 
-const APP = 'myos_acl'
+const APP = 'seiton'
 const EMBRYO_OPACITY = 0.4 // as Scope's default for suggested folders
 
 // The folder shown and the core's answers for it: folders [{name, born}] and tags [names],
-// null outside MyOS; tag: the one chosen to filter by.
+// null outside Seiton; tag: the one chosen to filter by.
 const state = { folder: null, folders: null, tags: null, tag: null, el: null }
 
 const style = `
-.myos-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px; }
-.myos-row:empty { display: none; }
-.myos-row__label { color: var(--color-text-maxcontrast); font-size: 0.85em; margin-inline-end: 6px; }
-.myos-folder { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+.seiton-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 12px; }
+.seiton-row:empty { display: none; }
+.seiton-row__label { color: var(--color-text-maxcontrast); font-size: 0.85em; margin-inline-end: 6px; }
+.seiton-folder { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
 	border: 1px solid var(--color-border); border-radius: var(--border-radius-pill, 16px);
 	background: var(--color-main-background); color: var(--color-main-text); cursor: pointer; }
-.myos-folder:hover { background: var(--color-background-hover); }
-.myos-folder--embryo { opacity: ${EMBRYO_OPACITY}; border-style: dashed; }
-.myos-folder--embryo:hover { opacity: 0.7; }
-.myos-folder svg { width: 18px; height: 18px; fill: var(--color-primary-element); }
-.myos-folder--drop { opacity: 1; background: var(--color-primary-element-light); }
-.myos-row__label--tags { margin-inline-start: 12px; }
-.myos-tag { padding: 2px 10px; border: 1px solid var(--color-border); border-radius: var(--border-radius-pill, 16px);
+.seiton-folder:hover { background: var(--color-background-hover); }
+.seiton-folder--embryo { opacity: ${EMBRYO_OPACITY}; border-style: dashed; }
+.seiton-folder--embryo:hover { opacity: 0.7; }
+.seiton-folder svg { width: 18px; height: 18px; fill: var(--color-primary-element); }
+.seiton-folder--drop { opacity: 1; background: var(--color-primary-element-light); }
+.seiton-row__label--tags { margin-inline-start: 12px; }
+.seiton-tag { padding: 2px 10px; border: 1px solid var(--color-border); border-radius: var(--border-radius-pill, 16px);
 	background: var(--color-main-background); color: var(--color-main-text); cursor: pointer; }
-.myos-tag:hover { background: var(--color-background-hover); }
-.myos-tag--chosen { background: var(--color-primary-element); color: var(--color-primary-element-text); }
+.seiton-tag:hover { background: var(--color-background-hover); }
+.seiton-tag--chosen { background: var(--color-primary-element); color: var(--color-primary-element-text); }
 `
 
 function childPath(name) {
@@ -51,7 +51,7 @@ function open(name) {
 	window.OCP.Files.Router.goToRoute(null, { view: 'files' }, { dir: childPath(name) })
 }
 
-/** Birth as the core says (as MyOS' BirthClinic does): the folders, then the copies. */
+/** Birth as the core says (as Seiton' BirthClinic does): the folders, then the copies. */
 async function birth(name) {
 	const { status, data } = await askCore('birth', childPath(name))
 	if (status !== 200 || !data) {
@@ -70,31 +70,31 @@ function render() {
 	const folders = state.folders ?? []
 	if (folders.length > 0) {
 		const label = document.createElement('span')
-		label.className = 'myos-row__label'
-		label.textContent = t(APP, 'MyOS folders')
+		label.className = 'seiton-row__label'
+		label.textContent = t(APP, 'Seiton folders')
 		el.append(label)
 	}
 	for (const { name, born } of folders) {
 		const button = document.createElement('button')
 		button.type = 'button'
-		button.className = 'myos-folder' + (born ? '' : ' myos-folder--embryo')
+		button.className = 'seiton-folder' + (born ? '' : ' seiton-folder--embryo')
 		button.title = born ? name : t(APP, 'Suggested folder: click to create it')
 		button.innerHTML = folderIcon
 		button.append(document.createTextNode(name))
-		button.addEventListener('click', () => (born ? open(name) : birth(name)).catch(error => console.error('MyOS', error)))
+		button.addEventListener('click', () => (born ? open(name) : birth(name)).catch(error => console.error('Seiton', error)))
 		el.append(button)
 	}
 	const tags = state.tags ?? []
 	if (tags.length > 0) {
 		const label = document.createElement('span')
-		label.className = 'myos-row__label myos-row__label--tags'
+		label.className = 'seiton-row__label seiton-row__label--tags'
 		label.textContent = t(APP, 'Tags')
 		el.append(label)
 	}
 	for (const tag of tags) {
 		const button = document.createElement('button')
 		button.type = 'button'
-		button.className = 'myos-tag' + (tag === state.tag ? ' myos-tag--chosen' : '')
+		button.className = 'seiton-tag' + (tag === state.tag ? ' seiton-tag--chosen' : '')
 		button.title = t(APP, 'Show only what carries this tag')
 		button.textContent = '#' + tag
 		button.addEventListener('click', () => choose(tag === state.tag ? null : tag))
@@ -133,12 +133,12 @@ function tagsOf(node) {
 	return [raw ?? []].flat().map(tag => String(typeof tag === 'object' ? tag?.text ?? '' : tag)).filter(Boolean)
 }
 
-class MyOSFolders extends FileListFilter {
+class SeitonFolders extends FileListFilter {
 	constructor() {
-		super('myos-folders', 0)
+		super('seiton-folders', 0)
 	}
 
-	/** Takes the born MyOS folders out of the list (they are in the row); with a tag chosen,
+	/** Takes the born Seiton folders out of the list (they are in the row); with a tag chosen,
 	 * keeps only what carries it. */
 	filter(nodes) {
 		const folder = state.folder
@@ -156,7 +156,7 @@ class MyOSFolders extends FileListFilter {
 	}
 }
 
-const filter = new MyOSFolders()
+const filter = new SeitonFolders()
 
 const sheet = document.createElement('style')
 sheet.textContent = style
@@ -164,12 +164,12 @@ document.head.append(sheet)
 
 registerFileListFilter(filter)
 registerFileListHeaders(new Header({
-	id: 'myos-folders',
+	id: 'seiton-folders',
 	order: 0,
 	enabled: (folder, view) => view.id === 'files',
 	render(el, folder) {
 		state.el = document.createElement('div')
-		state.el.className = 'myos-row'
+		state.el.className = 'seiton-row'
 		el.append(state.el)
 		show(folder)
 	},
