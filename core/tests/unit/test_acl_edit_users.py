@@ -6,11 +6,12 @@ import pytest
 
 from core.acl_edit import ACLEditError, ACLPersonExistsError, add_user, set_user_roles
 from core.acl_view import ACLView
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _project_templates_only(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 ACLS = (
@@ -21,7 +22,7 @@ ACLS = (
     "\n"
     "## Admin\n"
     "- /*: read, write, execute\n"
-    "- /.MyOS/ACLs.md: read, write, change\n"
+    f"- /{META_DIR}/ACLs.md: read, write, change\n"
     "\n"
     "## Buchhalter\n"
     "- /finanz/: read, write\n"
@@ -39,18 +40,18 @@ ACLS = (
 
 def _project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("finanz", "work", "info"):
-        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / META_DIR / "Templates" / "Standard" / folder).mkdir(parents=True)
         (root / folder).mkdir()
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
     return root
 
 
 def _acls(root: Path) -> str:
-    return (root / ".MyOS" / "ACLs.md").read_text()
+    return (root / META_DIR / "ACLs.md").read_text()
 
 
 def _roles(root: Path, user: str) -> set:
@@ -123,7 +124,7 @@ def test_unknown_person_and_unknown_group_are_rejected(tmp_path):
 
 def test_commented_out_user_lines_are_left_alone(tmp_path):
     root = _project(tmp_path)
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     acl_file.write_text(ACLS.replace("Mia: Team\n", "<!--\nMia: Admin\n-->\nMia: Team\n"))
 
     set_user_roles(root, "Mia", {"Buchhalter"}, editor="anna")
@@ -135,7 +136,7 @@ def test_commented_out_user_lines_are_left_alone(tmp_path):
 def test_groups_unknown_here_are_kept(tmp_path):
     # e.g. a template folder role of another subproject: not offered here, so not dropped
     root = _project(tmp_path)
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     acl_file.write_text(ACLS.replace("Mia: Team\n", "Mia: Kind, Team\n"))
 
     set_user_roles(root, "Mia", {"Buchhalter"}, editor="anna")
@@ -158,7 +159,7 @@ def test_a_person_is_added_with_a_free_name_after_the_others(tmp_path):
 def test_without_a_users_section_nobody_may_add_people(tmp_path):
     # Only people in "# Users" can have the right to change the ACLs.
     root = _project(tmp_path)
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS[: ACLS.index("# Users")])
+    (root / META_DIR / "ACLs.md").write_text(ACLS[: ACLS.index("# Users")])
 
     with pytest.raises(PermissionError):
         add_user(root, "Zoe", {"Team"}, editor="anna")
@@ -166,7 +167,7 @@ def test_without_a_users_section_nobody_may_add_people(tmp_path):
 
 def test_a_person_lands_in_the_users_section_even_with_text_after_it(tmp_path):
     root = _project(tmp_path)
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS + "\n# Notizen\nIrgendwas\n")
+    (root / META_DIR / "ACLs.md").write_text(ACLS + "\n# Notizen\nIrgendwas\n")
 
     add_user(root, "Zoe", {"info"}, editor="anna")
 

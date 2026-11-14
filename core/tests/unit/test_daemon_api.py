@@ -14,24 +14,25 @@ import pytest
 from daemon.api import decode_request, decode_response, encode_request, encode_response
 from daemon.client import LocalSession
 from daemon.perspective_daemon import DaemonState, _end_when_free, _handle_request, socket_path_for
+from core.brand import META_DIR, env_name
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return path
 
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 @pytest.fixture
 def state(tmp_path):
-    (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
+    (tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     _project(root / "Musikstudio")
     _project(root / "Reisen")
     (root / "Reisen" / "lose.pdf").write_text("x")
@@ -57,7 +58,7 @@ def test_the_lens_through_the_daemon(state, tmp_path):
     on = _ask(state, "put_on", lens=["04_Finanz"])["result"]
     assert on["active"] and on["cpd"] == "/04_Finanz/Projekte/Musikstudio"
     assert on["cwd"] == str((root / "Musikstudio").resolve())
-    finance_desk = (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md").resolve()
+    finance_desk = (tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz" / META_DIR / "Desk.md").resolve()
     assert on["desk"] == "" and on["desk_save"] == str(finance_desk)  # A5: kept in the template
 
     moved = _ask(state, "move_to_project", project=["Reisen"])["result"]

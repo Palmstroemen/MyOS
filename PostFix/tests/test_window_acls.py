@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import pytest
+from core.brand import META_DIR, env_name
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -11,7 +12,7 @@ from PostFix import window_acls as wa
 
 ACLS = (
     "# Permissions\n\n"
-    "## Admin\n- /*: read, write, execute\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    f"## Admin\n- /*: read, write, execute\n- /{META_DIR}/ACLs.md: read, write, change\n\n"
     "## Buchhaltung\n- /finanz/: read, write\n- /finanz/geheim/: none\n\n"
     "# Users\nOliver: Admin\nBertha: Buchhaltung\n"
 )
@@ -19,16 +20,16 @@ ACLS = (
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    for key in ("MYOS_TEMPLATES_DIR", "MYOS_ACL_MODE", "MYOS_ACL_USER"):
+    for key in (env_name("TEMPLATES_DIR"), env_name("ACL_MODE"), env_name("ACL_USER")):
         monkeypatch.delenv(key, raising=False)
 
 
 def _project(tmp_path: Path, acls: str = ACLS) -> Path:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     if acls is not None:
-        (root / ".MyOS" / "ACLs.md").write_text(acls)
+        (root / META_DIR / "ACLs.md").write_text(acls)
     (root / "finanz" / "geheim").mkdir(parents=True)
     return root
 
@@ -60,11 +61,11 @@ def test_enforced_viewer_without_read_on_acls_sees_nothing(tmp_path, monkeypatch
     root = _project(tmp_path)
     note = root / "finanz" / "plan.md"
     note.write_text("x")
-    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+    monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
 
-    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    monkeypatch.setenv(env_name("ACL_USER"), "bertha")
     assert wa.acl_principals_for_document(note) == []
-    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    monkeypatch.setenv(env_name("ACL_USER"), "oliver")
     assert wa.acl_principals_for_document(note) != []
 
 
@@ -205,11 +206,11 @@ def test_chips_are_editable_only_for_users_with_change(tmp_path, monkeypatch):
     w = _Window()
     w.editor.current_path = note
 
-    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    monkeypatch.setenv(env_name("ACL_USER"), "oliver")
     w._reload_acl_context()
     assert w.left_sidebar.editable is True
 
-    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    monkeypatch.setenv(env_name("ACL_USER"), "bertha")
     w._reload_acl_context()
     assert w.left_sidebar.editable is False
 
@@ -220,18 +221,18 @@ def test_apply_role_rights_writes_and_reloads(tmp_path, monkeypatch):
     note.write_text("x")
     w = _Window()
     w.editor.current_path = note
-    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    monkeypatch.setenv(env_name("ACL_USER"), "oliver")
     w._reload_acl_context()
 
     error = w._apply_role_rights("buchhaltung", {"read"})
 
     assert error == ""
-    assert "- /finanz/plan.md: read\n" in (root / ".MyOS" / "ACLs.md").read_text()
+    assert "- /finanz/plan.md: read\n" in (root / META_DIR / "ACLs.md").read_text()
     rights = {p["name"]: p["rights"] for p in w.left_sidebar.principals}
     assert rights["Buchhaltung"] == ["read"]
 
     assert w._apply_role_rights("buchhaltung", None) == ""  # back to inherited
-    assert "plan.md" not in (root / ".MyOS" / "ACLs.md").read_text()
+    assert "plan.md" not in (root / META_DIR / "ACLs.md").read_text()
 
 
 def test_apply_without_permission_reports_and_changes_nothing(tmp_path, monkeypatch):
@@ -240,12 +241,12 @@ def test_apply_without_permission_reports_and_changes_nothing(tmp_path, monkeypa
     note.write_text("x")
     w = _Window()
     w.editor.current_path = note
-    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    monkeypatch.setenv(env_name("ACL_USER"), "bertha")
 
     error = w._apply_role_rights("buchhaltung", {"read"})
 
     assert error
-    assert (root / ".MyOS" / "ACLs.md").read_text() == ACLS
+    assert (root / META_DIR / "ACLs.md").read_text() == ACLS
 
 
 def test_role_editor_shows_rights_and_returns_the_choice():
@@ -306,17 +307,17 @@ def test_apply_user_groups_writes_and_reloads(tmp_path, monkeypatch):
     note.write_text("x")
     w = _Window()
     w.editor.current_path = note
-    monkeypatch.setenv("MYOS_ACL_USER", "oliver")
+    monkeypatch.setenv(env_name("ACL_USER"), "oliver")
     w._reload_acl_context()
 
     groups = {g["key"]: g for g in w._user_groups("bertha")["groups"]}
     assert groups["buchhaltung"]["member"] is True and groups["buchhaltung"]["rights"] == ["read", "write"]
 
     assert w._apply_user_groups("bertha", {"buchhaltung", "admin"}) == ""
-    assert "Bertha: Buchhaltung, Admin\n" in (root / ".MyOS" / "ACLs.md").read_text()
+    assert "Bertha: Buchhaltung, Admin\n" in (root / META_DIR / "ACLs.md").read_text()
     assert w._apply_user_groups("oliver", set()) == "You would lose your own right to change the rights."
     assert w._apply_user_groups("bertha", set()) == ""
-    assert "Bertha" not in (root / ".MyOS" / "ACLs.md").read_text()
+    assert "Bertha" not in (root / META_DIR / "ACLs.md").read_text()
     assert "Bertha" not in [p["name"] for p in w.left_sidebar.principals]
 
 

@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+from core.brand import CONFIG_DIR, META_DIR, env_name
 
 pytest.importorskip("reportlab")
 pytest.importorskip("PIL")
@@ -25,9 +26,9 @@ def machine(tmp_path):
         results=tmp_path / "MyOS-Testergebnisse",
         config=tmp_path / "config",
     )
-    (places.config / "MyOS").mkdir(parents=True)
-    (places.config / "MyOS" / "MyOS.conf").write_text("[Scope]\npreview = false\n", encoding="utf-8")
-    (places.config / "MyOS" / "Identity.md").write_text("# Identity\nNames: Mia Novak\n", encoding="utf-8")
+    (places.config / CONFIG_DIR).mkdir(parents=True)
+    (places.config / CONFIG_DIR / f"{CONFIG_DIR}.conf").write_text("[Scope]\npreview = false\n", encoding="utf-8")
+    (places.config / CONFIG_DIR / "Identity.md").write_text("# Identity\nNames: Mia Novak\n", encoding="utf-8")
     (places.config / "PostFixDev").mkdir()
     (places.config / "PostFixDev" / "PostFix.conf").write_text("[General]\n", encoding="utf-8")
     return places
@@ -42,7 +43,7 @@ def test_prepare_gives_a_fresh_copy_with_the_comment_note_and_default_settings(m
     assert comments.is_file() and "Kommentare" in comments.read_text(encoding="utf-8")
     marker = json.loads((machine.tutorial / testrun.MARKER).read_text(encoding="utf-8"))
     assert "started" in marker
-    assert not (machine.config / "MyOS").exists() and not (machine.config / "PostFixDev").exists()
+    assert not (machine.config / CONFIG_DIR).exists() and not (machine.config / "PostFixDev").exists()
 
 
 def test_finish_collects_what_the_tester_did_and_starts_over(machine):
@@ -53,8 +54,8 @@ def test_finish_collects_what_the_tester_did_and_starts_over(machine):
     (lesson / "Reiseideen.md").write_text("# Reiseideen\n\nLieber nach Island!\n", encoding="utf-8")
     (machine.tutorial / testrun.COMMENTS).write_text(
         "# Meine Kommentare\n\n## Lektion 4\nZu viele Dateien.\n", encoding="utf-8")
-    (machine.config / "MyOS").mkdir()
-    (machine.config / "MyOS" / "MyOS.conf").write_text("[Scope]\npathBar = false\n", encoding="utf-8")
+    (machine.config / CONFIG_DIR).mkdir()
+    (machine.config / CONFIG_DIR / f"{CONFIG_DIR}.conf").write_text("[Scope]\npathBar = false\n", encoding="utf-8")
 
     result = testrun.finish(machine, name="Anna B.")
 
@@ -65,13 +66,13 @@ def test_finish_collects_what_the_tester_did_and_starts_over(machine):
     assert "DE/Lektion04/Packliste.md" in changes  # gone from where it was
     assert "+Lieber nach Island!" in changes  # a changed note, as a diff
     assert (result / "Geändert" / "DE" / "Lektion04" / "Reiseideen.md").is_file()
-    assert (result / "Einstellungen" / "MyOS" / "MyOS.conf").is_file()
+    assert (result / "Einstellungen" / CONFIG_DIR / f"{CONFIG_DIR}.conf").is_file()
     summary = (result / "Zusammenfassung.md").read_text(encoding="utf-8")
     assert "Anna B." in summary and "Beginn" in summary
     # Ready for the next one: everything as at the start.
     assert (lesson / "Packliste.md").is_file() and not (lesson / "Urlaub Sommer 2026").exists()
     assert "Zu viele" not in (machine.tutorial / testrun.COMMENTS).read_text(encoding="utf-8")
-    assert not (machine.config / "MyOS").exists()
+    assert not (machine.config / CONFIG_DIR).exists()
 
 
 def test_without_a_name_testers_are_numbered(machine):
@@ -229,13 +230,13 @@ def test_the_tutorial_is_its_own_root_and_its_folders_can_become_projects(machin
     # lessons 5, 7 and 8 and the new project shows its suggested folders.
     from core.scope_api import ScopeApi
 
-    monkeypatch.delenv("MYOS_ACL_MODE", raising=False)
-    monkeypatch.delenv("MYOS_ROLES", raising=False)
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("ACL_MODE"), raising=False)
+    monkeypatch.delenv(env_name("ROLES"), raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     shutil.copytree(testrun.REPO_ROOT / "core" / "tests" / "unit" / "test_lab" / "Templates",
-                    machine.tutorial.parent / ".MyOS" / "Templates")
+                    machine.tutorial.parent / META_DIR / "Templates")
     testrun.prepare(machine)
-    root = machine.tutorial / ".MyOS"
+    root = machine.tutorial / META_DIR
     assert (root / "Project.md").is_file() and not (root / "ACLs.md").exists()
     assert "Standard" in (root / "Templates.md").read_text(encoding="utf-8")
 

@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from core.brand import META_DIR
 
 
 def _run_cmd(args, cwd, env):
@@ -19,7 +20,7 @@ def _run_cmd(args, cwd, env):
 
 
 def _create_project(path: Path) -> None:
-    myos_dir = path / ".MyOS"
+    myos_dir = path / META_DIR
     myos_dir.mkdir(parents=True, exist_ok=True)
     (myos_dir / "Project.md").write_text("# MyOS Project\n")
 
@@ -36,7 +37,7 @@ def test_myedit_creates_target_file():
         result = _run_cmd(["tags", str(root)], cwd=tmpdir, env=env)
 
         assert result.returncode == 0
-        assert (root / ".MyOS" / "Tags.md").exists()
+        assert (root / META_DIR / "Tags.md").exists()
 
 
 def test_myedit_errors_when_no_project():

@@ -1,16 +1,17 @@
 from pathlib import Path
 
 from core.scope_api import ScopeApi
+from core.brand import META_DIR, env_name
 
 
 def _write_project_marker(root: Path) -> None:
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir(parents=True, exist_ok=True)
     (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
 
 def _write_templates_config(root: Path, template_name: str) -> None:
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir(parents=True, exist_ok=True)
     (myos / "Templates.md").write_text(f"# Templates\n{template_name}\n", encoding="utf-8")
 
@@ -19,7 +20,7 @@ def _setup_embryo_project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
     _write_project_marker(root)
     _write_templates_config(root, "Standard")
-    (root / ".MyOS" / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    (root / META_DIR / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -28,10 +29,10 @@ def _setup_nested_embryo_project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
     _write_project_marker(root)
     _write_templates_config(root, "Standard")
-    (root / ".MyOS" / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    (root / META_DIR / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
     # Nested embryo: 04_Finanz and 04_Finanz/Ausgaben
-    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
-    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
+    (root / META_DIR / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
+    (root / META_DIR / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -117,7 +118,7 @@ def test_move_entry_materializes_embryo_target_dir(tmp_path):
 
 def test_move_entry_materializes_nested_embryo_target_dir(tmp_path, monkeypatch):
     """Move into unborn subfolder of embryo (e.g. 04_Finanz/Ausgaben) materializes parent and child, file ends up there."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)  # use project's Templates, not test_lab
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)  # use project's Templates, not test_lab
     root = _setup_nested_embryo_project(tmp_path)
     source = root / "inbox" / "doc.txt"
     source.parent.mkdir(parents=True, exist_ok=True)
@@ -142,7 +143,7 @@ def test_move_entry_materializes_nested_embryo_target_dir(tmp_path, monkeypatch)
 
 def test_resolve_or_materialize_target_dir_nested_embryo(tmp_path, monkeypatch):
     """_resolve_or_materialize_target_dir for nested embryo path returns resolved dir and materializes both levels."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     root = _setup_nested_embryo_project(tmp_path)
     target_dir = root / "04_Finanz" / "Ausgaben"
 
@@ -160,7 +161,7 @@ def test_resolve_or_materialize_target_dir_nested_embryo(tmp_path, monkeypatch):
 
 def test_move_entries_materializes_nested_embryo_target_dir(tmp_path, monkeypatch):
     """Move multiple files into nested embryo 04_Finanz/Ausgaben materializes parent and child."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     root = _setup_nested_embryo_project(tmp_path)
     (root / "inbox").mkdir(parents=True, exist_ok=True)
     (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
@@ -230,9 +231,9 @@ def test_delete_entries_reports_missing_and_ignores_duplicate(tmp_path):
 
 def test_move_entries_into_sub_embryo_of_born_folder(tmp_path, monkeypatch):
     """Parent already born, child still an embryo: the drop births just the child."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     root = _setup_nested_embryo_project(tmp_path)
-    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
+    (root / META_DIR / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
     (root / "inbox").mkdir()
     (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
     (root / "inbox" / "b.txt").write_text("b", encoding="utf-8")
@@ -249,7 +250,7 @@ def test_move_entries_into_sub_embryo_of_born_folder(tmp_path, monkeypatch):
 
 def _born_chain_with_file(tmp_path, monkeypatch):
     """04_Finanz/Ausgaben born by dropping a.txt into it; returns (api, root, file)."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     root = _setup_nested_embryo_project(tmp_path)
     (root / "inbox").mkdir()
     (root / "inbox" / "a.txt").write_text("a", encoding="utf-8")
@@ -290,7 +291,7 @@ def test_move_entry_single_also_reabsorbs(tmp_path, monkeypatch):
 
 
 def test_emptied_user_folder_is_kept(tmp_path, monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     root = _setup_nested_embryo_project(tmp_path)
     (root / "Privat").mkdir()
     (root / "Privat" / "a.txt").write_text("a", encoding="utf-8")
@@ -305,9 +306,9 @@ def test_emptied_user_folder_is_kept(tmp_path, monkeypatch):
 
 def test_navigating_into_nested_embryo_does_not_birth_but_drop_does(tmp_path, monkeypatch):
     """Browsing into an embryo and its sub-embryo is read-only; dropping files there births the chain only."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     root = _setup_nested_embryo_project(tmp_path)
-    (root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
+    (root / META_DIR / "Templates" / "Standard" / "04_Finanz" / "Einnahmen").mkdir(parents=True, exist_ok=True)
     parent = root / "04_Finanz"
     child = parent / "Ausgaben"
     api = ScopeApi(str(root))

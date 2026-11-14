@@ -18,34 +18,39 @@ import os
 from pathlib import Path
 from typing import Mapping, Optional, Union
 
-NAME = "MyOS"
-META_DIR = ".MyOS"  # a project's (or a template's) own settings, inside the folder
-CONFIG_DIR = "MyOS"  # the user's settings, below XDG_CONFIG_HOME
-ENV_PREFIX = "MYOS_"
-XATTR_PREFIX = "user.myos."
+NAME = "Seiton"
+META_DIR = ".seiton"  # a project's (or a template's) own settings, inside the folder
+CONFIG_DIR = "seiton"  # the user's settings, below XDG_CONFIG_HOME
+ENV_PREFIX = "SEITON_"
+XATTR_PREFIX = "user.seiton."
 
-# Prefixes of former names, read when the current one is not set (newest first).
-LEGACY_ENV_PREFIXES: tuple = ()
+# Former names, newest first (MyOS until 2026-11-14): environment variables under them are
+# still read; settings folders, the user's settings and extended attributes under them are
+# moved over by core/name_migration.py (python3 cli/migrate_name.py).
+LEGACY_ENV_PREFIXES: tuple = ("MYOS_",)
+LEGACY_META_DIRS: tuple = (".MyOS",)
+LEGACY_CONFIG_DIRS: tuple = ("MyOS",)
+LEGACY_XATTR_PREFIXES: tuple = ("user.myos.",)
 
 
 def meta_dir(folder: Union[str, Path]) -> Path:
-    """The folder's own settings folder (folder/.MyOS); it need not exist."""
+    """The folder's own settings folder (folder/.seiton); it need not exist."""
     return Path(folder) / META_DIR
 
 
 def config_dir(env: Optional[Mapping[str, str]] = None) -> Path:
-    """The user's settings folder (~/.config/MyOS, or below XDG_CONFIG_HOME)."""
+    """The user's settings folder (~/.config/seiton, or below XDG_CONFIG_HOME)."""
     env = os.environ if env is None else env
     return Path(env.get("XDG_CONFIG_HOME") or Path.home() / ".config") / CONFIG_DIR
 
 
 def env_name(key: str) -> str:
-    """The environment variable for key under the current name (ACL_MODE -> MYOS_ACL_MODE)."""
+    """The environment variable for key under the current name (ACL_MODE -> SEITON_ACL_MODE)."""
     return ENV_PREFIX + key
 
 
 def getenv(key: str, default: Optional[str] = None, env: Optional[Mapping[str, str]] = None) -> Optional[str]:
-    """The environment variable for key (ACL_MODE: MYOS_ACL_MODE); under a former name when
+    """The environment variable for key (ACL_MODE: SEITON_ACL_MODE); under a former name when
     the current one is not set, else default. An empty value counts as set."""
     env = os.environ if env is None else env
     for prefix in (ENV_PREFIX, *LEGACY_ENV_PREFIXES):

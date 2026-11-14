@@ -11,11 +11,12 @@ import pytest
 
 from daemon.client import LocalSession
 from daemon.lens_link import LensLink
+from core.brand import META_DIR, env_name
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return path
 
 
@@ -35,16 +36,16 @@ class FakeApi:
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 @pytest.fixture
 def world(tmp_path):
-    finance = tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS"
+    finance = tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz" / META_DIR
     finance.mkdir(parents=True)
     (finance / "Desk.md").write_text("# Desk\nThemePreset: Finanz-Hell\n")
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     return {"root": root.resolve(), "studio": _project(root / "Musikstudio").resolve(),
             "finance_desk": (finance / "Desk.md").resolve()}
 

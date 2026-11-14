@@ -9,7 +9,7 @@ import configparser
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from core.brand import NAME, config_dir
+from core.brand import CONFIG_DIR, config_dir
 
 # "Group/name": (kind, default, allowed: (low, high) for numbers, a set for text, None)
 SETTINGS: Dict[str, Tuple[type, Any, Any]] = {
@@ -47,7 +47,7 @@ SETTINGS: Dict[str, Tuple[type, Any, Any]] = {
 
 
 def settings_path() -> Path:
-    return config_dir() / f"{NAME}.conf"
+    return config_dir() / f"{CONFIG_DIR}.conf"
 
 
 def _checked(key: str, value: Any) -> Optional[Any]:

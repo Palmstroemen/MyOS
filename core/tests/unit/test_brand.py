@@ -57,14 +57,20 @@ def test_qml_takes_the_name_from_brand_js():
     for name in ("main.qml", "FolderBrowser.qml"):
         qml = (REPO / "Scope" / name).read_text(encoding="utf-8")
         code = "\n".join(line.split("//", 1)[0] for line in qml.splitlines())
-        assert not re.search(r'"\.?MyOS"', code), name
+        for value in (brand.NAME, brand.META_DIR, "MyOS", ".MyOS"):
+            assert f'"{value}"' not in code, (name, value)
 
 
 # Security: To avoid a rename that leaves parts behind, code outside core/brand.py must not
 # spell the settings folder or an environment variable itself (comments and docstrings may).
 # ClipboardTool stands alone (started by CopyQ, see core/brand.py).
 _CODE_DIRS = ("core", "cli", "cloud/service", "Scope", "PostFix", "SunTree", "daemon", "scripts")
-_LITERAL = re.compile(r"(^|[^A-Za-z0-9])\.MyOS($|[^A-Za-z0-9_])|\bMYOS_[A-Z]|^MyOS$")
+_DIRS = (brand.META_DIR, *brand.LEGACY_META_DIRS)
+_PREFIXES = (brand.ENV_PREFIX, *brand.LEGACY_ENV_PREFIXES)
+_LITERAL = re.compile(
+    r"(^|[^A-Za-z0-9])(" + "|".join(re.escape(d) for d in _DIRS) + r")($|[^A-Za-z0-9_])"
+    r"|\b(" + "|".join(re.escape(p) for p in _PREFIXES) + r")[A-Z]"
+    r"|^(" + "|".join(re.escape(n) for n in {brand.NAME, brand.CONFIG_DIR, "MyOS"}) + r")$")
 
 
 def _strings(tree: ast.AST):
@@ -78,6 +84,8 @@ def _strings(tree: ast.AST):
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
             yield node.lineno, node.value
+        elif isinstance(node, ast.keyword) and node.arg:  # dict(os.environ, MYOS_X="0")
+            yield node.lineno, node.arg
 
 
 @pytest.mark.parametrize("folder", _CODE_DIRS)

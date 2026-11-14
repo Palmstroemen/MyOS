@@ -10,32 +10,33 @@ from pathlib import Path
 import pytest
 
 from core.perspective_session import PerspectiveSession
+from core.brand import META_DIR, env_name
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return path
 
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 @pytest.fixture
 def world(tmp_path):
-    template = tmp_path / ".MyOS" / "Templates" / "Standard"
-    (template / "04_Finanz" / "Ausgangsrechnungen" / ".MyOS").mkdir(parents=True)
-    (template / "04_Finanz" / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (template / "04_Finanz" / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Hell\n")
+    template = tmp_path / META_DIR / "Templates" / "Standard"
+    (template / "04_Finanz" / "Ausgangsrechnungen" / META_DIR).mkdir(parents=True)
+    (template / "04_Finanz" / META_DIR).mkdir(parents=True, exist_ok=True)
+    (template / "04_Finanz" / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Hell\n")
     (template / "07_Arbeit").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     studio = _project(root / "Musikstudio")
     (studio / "04_Finanz" / "Ausgangsrechnungen" / "2026").mkdir(parents=True)
     (studio / "04_Finanz" / "Ausgangsrechnungen" / "2026" / "r1.pdf").write_text("r")
-    (studio / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Dunkel\n")
+    (studio / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Dunkel\n")
     reisen = _project(root / "Reisen")
     (reisen / "Fotos").mkdir()
     (reisen / "lose Rechnung.pdf").write_text("x")
@@ -190,21 +191,21 @@ def test_no_lens_outside_the_projects(world, tmp_path):
 def test_the_desk_of_the_department(world):
     session = _session(world)
     session.put_on(LENS)
-    assert session.desk_file() == world["template"] / "04_Finanz" / ".MyOS" / "Desk.md"
+    assert session.desk_file() == world["template"] / "04_Finanz" / META_DIR / "Desk.md"
 
     # Birth copies .MyOS: the copy in the project does not hide the template's Desk.
-    copy = world["studio"] / "04_Finanz" / ".MyOS"
+    copy = world["studio"] / "04_Finanz" / META_DIR
     copy.mkdir()
     (copy / "Desk.md").write_text("# Desk\nThemePreset: Alt\n")
-    assert session.desk_file() == world["template"] / "04_Finanz" / ".MyOS" / "Desk.md"
+    assert session.desk_file() == world["template"] / "04_Finanz" / META_DIR / "Desk.md"
 
-    deeper = world["template"] / "04_Finanz" / "Ausgangsrechnungen" / ".MyOS" / "Desk.md"
+    deeper = world["template"] / "04_Finanz" / "Ausgangsrechnungen" / META_DIR / "Desk.md"
     deeper.write_text("# Desk\nThemePreset: Rot\n")
     assert session.desk_file() == deeper  # the nearest one up the lens path
 
     session.put_on(("07_Arbeit",))
     assert session.desk_file() is None  # never the project's own Desk
-    own = world["studio"] / "07_Arbeit" / ".MyOS"
+    own = world["studio"] / "07_Arbeit" / META_DIR
     own.mkdir(parents=True)
     (own / "Desk.md").write_text("# Desk\nThemePreset: Eigen\n")
     assert session.desk_file() == own / "Desk.md"  # the template has none: the project's
@@ -214,14 +215,14 @@ def test_changes_to_the_lens_desk_are_saved_in_the_template(world):
     session = _session(world)
     assert session.desk_save_file() is None  # no lens: the project's rule (Desk.md, 12)
     session.put_on(LENS)
-    assert session.desk_save_file() == world["template"] / "04_Finanz" / ".MyOS" / "Desk.md"
+    assert session.desk_save_file() == world["template"] / "04_Finanz" / META_DIR / "Desk.md"
 
-    deeper = world["template"] / "04_Finanz" / "Ausgangsrechnungen" / ".MyOS" / "Desk.md"
+    deeper = world["template"] / "04_Finanz" / "Ausgangsrechnungen" / META_DIR / "Desk.md"
     deeper.write_text("# Desk\nThemePreset: Rot\n")
     assert session.desk_save_file() == deeper  # into the Desk that applies
 
     session.put_on(("07_Arbeit",))  # no Desk yet: born in the template on the first change
-    assert session.desk_save_file() == world["template"] / "07_Arbeit" / ".MyOS" / "Desk.md"
+    assert session.desk_save_file() == world["template"] / "07_Arbeit" / META_DIR / "Desk.md"
 
     session.take_off()
     assert session.desk_save_file() is None
@@ -238,7 +239,7 @@ def test_bearing_the_target_where_the_department_folder_is_missing(world):
     target = session.bear()
 
     assert target == world["reisen"].resolve() / "04_Finanz" / "Ausgangsrechnungen" / "2026"
-    assert target.is_dir() and (target.parent / ".MyOS").is_dir()  # born from the template
+    assert target.is_dir() and (target.parent / META_DIR).is_dir()  # born from the template
     assert session.shown() == (target, False)
 
 

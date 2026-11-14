@@ -1,10 +1,11 @@
 from pathlib import Path
 
 from core.scope_api import ScopeApi
+from core.brand import META_DIR
 
 
 def _write_project_marker(root: Path) -> None:
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir(parents=True, exist_ok=True)
     (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
@@ -22,7 +23,7 @@ def test_scope_api_lists_and_resolves_filters(tmp_path):
     sub = root / "Sub"
     sub.mkdir(parents=True)
     _write_project_marker(root)
-    _write_filter(root / ".MyOS" / "Filters" / "Finance.md", "Finance")
+    _write_filter(root / META_DIR / "Filters" / "Finance.md", "Finance")
     _write_filter(sub / "Filter.md", "Sub")
 
     api = ScopeApi(str(sub))
@@ -69,7 +70,7 @@ def test_a_filter_of_the_collection_leaves_the_listing_alone(tmp_path):
     root = tmp_path / "Project"
     (root / "Belege").mkdir(parents=True)
     _write_project_marker(root)
-    _write_filter(root / ".MyOS" / "Filters" / "Ausgaben.md", "Ausgaben", extra="## Filter\n*.txt\n")
+    _write_filter(root / META_DIR / "Filters" / "Ausgaben.md", "Ausgaben", extra="## Filter\n*.txt\n")
 
     api = ScopeApi(str(root))
     assert not api.resolve_active_filter(str(root)).get("active")

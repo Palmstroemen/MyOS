@@ -16,6 +16,7 @@ from core.desk_runtime import DeskRuntime, DeskRuntimeSettings
 from core.desk_service import DeskService
 from core.desktop_backends.base import BackendStepResult, DesktopBackend, DesktopState
 from core.scope_api import ScopeApi
+from core.brand import META_DIR, env_name
 
 
 class FakeDesktop(DesktopBackend):
@@ -43,28 +44,28 @@ class FakeDesktop(DesktopBackend):
 
 
 def _project(path: Path, theme=None) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     if theme:
-        (path / ".MyOS" / "Desk.md").write_text(f"# Desk\nThemePreset: {theme}\n")
+        (path / META_DIR / "Desk.md").write_text(f"# Desk\nThemePreset: {theme}\n")
     return path
 
 
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setenv("MYOS_SCOPE_START_DAEMON", "0")
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
+    monkeypatch.setenv(env_name("SCOPE_START_DAEMON"), "0")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
-    finance = tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS"
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
+    finance = tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz" / META_DIR
     finance.mkdir(parents=True)
     (finance / "Desk.md").write_text("# Desk\nThemePreset: Finanz-Hell\n")
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     studio = _project(root / "Musikstudio", "Studio-Dunkel")
-    (studio / "04_Finanz" / ".MyOS").mkdir(parents=True)  # born: with a copy of the template's Desk
-    (studio / "04_Finanz" / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Alte-Kopie\n")
+    (studio / "04_Finanz" / META_DIR).mkdir(parents=True)  # born: with a copy of the template's Desk
+    (studio / "04_Finanz" / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Alte-Kopie\n")
     reisen = _project(root / "Reisen", "Reisen-Blau")
     return {"studio": studio, "reisen": reisen, "finance_desk": finance / "Desk.md"}
 
@@ -117,5 +118,5 @@ def test_changes_with_the_lens_on_are_kept_in_the_template(world, scope):
     scope.lens("take_off", {})
 
     assert "ThemePreset: Finanz-Gold\n" in world["finance_desk"].read_text()
-    assert "Finanz-Gold" not in (world["studio"] / ".MyOS" / "Desk.md").read_text()
+    assert "Finanz-Gold" not in (world["studio"] / META_DIR / "Desk.md").read_text()
     assert scope.desktop.state.theme == "Studio-Dunkel"

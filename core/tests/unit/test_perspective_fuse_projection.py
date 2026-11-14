@@ -14,24 +14,25 @@ import pytest
 
 from core.perspective_drive import PerspectiveDrive
 from core.perspective_fuse import FuseOSError, PerspectiveDriveFuse
+from core.brand import META_DIR, env_name
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return path
 
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 @pytest.fixture
 def world(tmp_path):
-    (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
+    (tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     studio = _project(root / "Musikstudio")
     (studio / "04_Finanz").mkdir()
     (studio / "04_Finanz" / "r1.pdf").write_text("eins")
@@ -52,7 +53,7 @@ def test_virtual_levels_are_folders_and_real_files_are_files(world):
     assert stat.S_ISREG(fs.getattr("/04_Finanz/Projekte/Musikstudio/r1.pdf")["st_mode"])
     assert set(fs.readdir("/04_Finanz/Projekte", None)) == {".", "..", "Musikstudio", "Reisen"}
     assert _errno(lambda: fs.getattr("/04_Finanz/Projekte/Musikstudio/fehlt.pdf")) == errno.ENOENT
-    assert _errno(lambda: fs.getattr("/04_Finanz/Projekte/Musikstudio/.MyOS")) == errno.ENOENT
+    assert _errno(lambda: fs.getattr(f"/04_Finanz/Projekte/Musikstudio/{META_DIR}")) == errno.ENOENT
 
 
 def test_reading_a_file(world):
@@ -78,7 +79,7 @@ def test_saving_like_libreoffice_lands_in_the_department_folder(world):
 
     folder = world["reisen"] / "04_Finanz"
     assert (folder / "Rechnung.odt").read_bytes() == b"Rechnung"
-    assert sorted(p.name for p in folder.iterdir() if p.name != ".MyOS") == ["Rechnung.odt"]
+    assert sorted(p.name for p in folder.iterdir() if p.name != META_DIR) == ["Rechnung.odt"]
     assert "Rechnung.odt" in fs.readdir(base, None)
 
 

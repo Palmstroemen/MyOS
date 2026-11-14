@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+from core.brand import META_DIR
 
 REPO = Path(__file__).resolve().parents[2]
 TUTORIAL = REPO / "Learning MyOS"
@@ -71,18 +72,18 @@ def test_lesson_10_has_two_projects_each_with_its_own_tags(made):
 
     for lesson, sheet in (("DE/Lektion10", "Übungen zu Tags.md"), ("EN/Lesson10", "Tag exercises.md")):
         assert (made / lesson / sheet).is_file()
-        projects = [p.parent.parent for p in (made / lesson).rglob(".MyOS/Project.md")]
+        projects = [p.parent.parent for p in (made / lesson).rglob(f"{META_DIR}/Project.md")]
         assert len(projects) == 2
         vocabularies = []
         for project in projects:
-            vocabulary = set(tag_list(project / ".MyOS" / "Tags.md"))
+            vocabulary = set(tag_list(project / META_DIR / "Tags.md"))
             assert len(vocabulary) >= 4
             vocabularies.append(vocabulary)
-            notes = [n for n in project.rglob("*.md") if ".MyOS" not in n.parts]
+            notes = [n for n in project.rglob("*.md") if META_DIR not in n.parts]
             used = [set(_read_markdown_content_tags(n)) for n in notes]
             assert all(tags <= vocabulary for tags in used), project
             assert any(not tags for tags in used) and sum(1 for tags in used if tags) >= 3
-            assert any(p.is_dir() for p in project.iterdir() if p.name != ".MyOS")  # a folder to tag
+            assert any(p.is_dir() for p in project.iterdir() if p.name != META_DIR)  # a folder to tag
         assert not vocabularies[0] & vocabularies[1]  # different projects, different tags
 
 
@@ -105,5 +106,5 @@ def test_lesson_11_has_a_company_whose_rights_are_as_the_exercises_say(made):
         assert can("karl berger", work, "write") and not can("karl berger", secret, "read")
         assert can("eva muster", secret, "read")  # the management
         assert can("mia novak", info, "read") and not can("mia novak", work, "read")
-        changers = [p for p in policy.users if can(p, "/.MyOS/ACLs.md", "change")]
+        changers = [p for p in policy.users if can(p, f"/{META_DIR}/ACLs.md", "change")]
         assert changers == []  # nobody yet: the learner writes themselves in as admin

@@ -6,12 +6,13 @@ from pathlib import Path
 import pytest
 
 from core import trash
+from core.brand import META_DIR
 
 
 def _project(base: Path, name: str = "Project", project_md: str = "# MyOS Project\n") -> Path:
     root = base / name
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text(project_md)
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text(project_md)
     return root
 
 
@@ -24,8 +25,8 @@ def test_delete_moves_into_the_project_trash_with_info(tmp_path):
     entry = trash.move_to_trash(folder, deleted_by="oliver")
 
     assert not folder.exists()
-    assert (root / ".MyOS" / "Trash" / "files" / "Steuer" / "beleg.pdf").read_text() == "x"
-    info = (root / ".MyOS" / "Trash" / "info" / "Steuer.trashinfo").read_text()
+    assert (root / META_DIR / "Trash" / "files" / "Steuer" / "beleg.pdf").read_text() == "x"
+    info = (root / META_DIR / "Trash" / "info" / "Steuer.trashinfo").read_text()
     assert info.startswith("[Trash Info]\n")
     assert "Path=Ich/Steuer\n" in info  # project-relative, freedesktop style (no leading /)
     assert "DeletedBy=oliver\n" in info
@@ -41,8 +42,8 @@ def test_subproject_has_its_own_trash(tmp_path):
 
     trash.move_to_trash(note, deleted_by="oliver")
 
-    assert (sub / ".MyOS" / "Trash" / "files" / "Ferien.md").exists()
-    assert not (root / ".MyOS" / "Trash").exists()
+    assert (sub / META_DIR / "Trash" / "files" / "Ferien.md").exists()
+    assert not (root / META_DIR / "Trash").exists()
 
 
 def test_same_names_get_unique_trash_names(tmp_path):
@@ -106,7 +107,7 @@ def test_delete_finally(tmp_path):
     trash.delete_finally(root, "x")
 
     assert trash.list_trash(root) == []
-    assert not (root / ".MyOS" / "Trash" / "files" / "x").exists()
+    assert not (root / META_DIR / "Trash" / "files" / "x").exists()
 
 
 def test_cleanup_removes_entries_older_than_the_retention(tmp_path):
@@ -150,7 +151,7 @@ def test_the_trash_itself_and_project_folders_cannot_be_trashed(tmp_path):
     with pytest.raises(trash.TrashError):
         trash.move_to_trash(root, deleted_by="oliver")
     with pytest.raises(trash.TrashError):
-        trash.move_to_trash(root / ".MyOS", deleted_by="oliver")
+        trash.move_to_trash(root / META_DIR, deleted_by="oliver")
 
 
 def test_restored_folder_names_keep_dots(tmp_path):
@@ -166,10 +167,10 @@ def test_restore_refuses_paths_leading_out_of_the_project(tmp_path):
     root = _project(tmp_path)
     (root / "x.md").write_text("x")
     trash.move_to_trash(root / "x.md", deleted_by="oliver")
-    info = root / ".MyOS" / "Trash" / "info" / "x.md.trashinfo"
+    info = root / META_DIR / "Trash" / "info" / "x.md.trashinfo"
     info.write_text(info.read_text().replace("Path=x.md", "Path=../../outside.md"))
 
     with pytest.raises(trash.TrashError):
         trash.restore(root, "x.md")
     assert not (tmp_path.parent / "outside.md").exists()
-    assert (root / ".MyOS" / "Trash" / "files" / "x.md").exists()
+    assert (root / META_DIR / "Trash" / "files" / "x.md").exists()

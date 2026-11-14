@@ -10,13 +10,14 @@ import urllib.request
 import pytest
 
 from cloud.service.server import make_server, nextcloud_person
+from core.brand import META_DIR
 
 SECRET = "s3cret-for-tests-only-0123456789"
 
 
 @pytest.fixture
 def service(shadow):
-    (shadow / ".MyOS" / "Nextcloud.md").write_text(
+    (shadow / META_DIR / "Nextcloud.md").write_text(
         "# Nextcloud\nfolder: Projekte\n\n# Accounts\nOliver: oliver\nLisa: lisa.m\nKarl: karl\n")
     server = make_server(shadow, SECRET, lambda account: nextcloud_person(shadow, account), port=0, place="/Projekte")
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -92,7 +93,7 @@ def test_level_and_birth_take_and_give_paths_in_the_user_s_files(service):
     assert status == 200 and body == {"folders": [{"name": "04_Finanz", "born": True}, {"name": "07_Arbeit", "born": False}]}
     status, body = _get(service + "/birth?path=/Projekte/Familie/07_Arbeit")
     assert status == 200 and body["create"][0] == "/Projekte/Familie/07_Arbeit"
-    assert body["copy"][-1] == {"from": "/Projekte/Familie/.MyOS/Embryos/07_Arbeit/Liesmich.md",
+    assert body["copy"][-1] == {"from": f"/Projekte/Familie/{META_DIR}/Embryos/07_Arbeit/Liesmich.md",
                                 "to": "/Projekte/Familie/07_Arbeit/Liesmich.md"}
     assert _get(service + "/level?path=/Andere/Familie")[0] == 404  # not in the Team folder
     assert _get(service + "/birth?path=/Projekte/Job/07_Arbeit")[0] == 403
@@ -151,5 +152,5 @@ def test_bear_takes_a_turned_path_and_gives_paths_in_the_user_s_files(service):
 
     assert status == 200 and body["real"] == "/Projekte/Job/07_Arbeit"
     assert body["create"][0] == "/Projekte/Job/07_Arbeit"
-    assert body["copy"][0]["from"] == "/Projekte/Job/.MyOS/Embryos/07_Arbeit/.MyOS/Desk.md"
+    assert body["copy"][0]["from"] == f"/Projekte/Job/{META_DIR}/Embryos/07_Arbeit/{META_DIR}/Desk.md"
     assert _get(service + "/bear?path=/07_Arbeit/Projekte/Job")[0] == 403  # Lisa

@@ -10,6 +10,7 @@ import pytest
 
 from core.acl import ACLPolicy
 from core.acl_nextcloud import local_tree, plan, read_nextcloud_md, rights_files
+from core.brand import META_DIR, env_name
 
 ACLS = (
     "# Permissions\n\n"
@@ -25,15 +26,15 @@ ACCOUNTS = {"oliver": "oliver", "lisa": "lisa", "tom": "tom", "anna": "anna", "p
 
 @pytest.fixture(autouse=True)
 def _project_templates_only(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 @pytest.fixture
 def project(tmp_path):
     root = tmp_path / "Projekte"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
     for folder in ("Familie/Finanz/2026", "Familie/Fotos", "Familie/Kind/Schule", "Job"):
         (root / folder).mkdir(parents=True)
     (root / "Familie" / "Notiz.md").write_text("x")
@@ -70,8 +71,8 @@ def test_rules_only_where_the_rights_change(project):
 
     assert lisa["/Familie"] == {"read", "write", "create"}
     assert lisa["/Familie/Finanz"] == {"read"}
-    assert lisa["/Job"] == set() and lisa["/.MyOS"] == set()
-    assert set(lisa) == {"/", "/.MyOS", "/Job", "/Familie", "/Familie/Finanz"}
+    assert lisa["/Job"] == set() and lisa[f"/{META_DIR}"] == set()
+    assert set(lisa) == {"/", f"/{META_DIR}", "/Job", "/Familie", "/Familie/Finanz"}
 
 
 def test_rights_deep_down_need_read_on_the_way_and_lock_the_rest(project):
@@ -80,7 +81,7 @@ def test_rights_deep_down_need_read_on_the_way_and_lock_the_rest(project):
     assert tom["/"] == {"read"}
     assert _effective(tom, "/Familie") == {"read"}
     assert tom["/Job"] == set()
-    assert tom["/.MyOS"] == set()
+    assert tom[f"/{META_DIR}"] == set()
     assert tom["/Familie/Finanz"] == set()
     assert tom["/Familie/Fotos"] == set()
     assert tom["/Familie/Notiz.md"] == set()
@@ -160,15 +161,15 @@ def test_a_way_rule_leaves_share_to_be_inherited(project):
 
 # The list of embryos for everyone with rights in the project, each embryo's folder (with
 # what its birth copies) for who may read the folder it becomes.
-EMBRYOS = [("/.MyOS/Embryos", None), ("/.MyOS/Embryos/Familie", "/Familie"),
-           ("/.MyOS/Embryos/Familie/Neu", "/Familie/Neu"), ("/.MyOS/Embryos/00_Admin", "/00_Admin")]
+EMBRYOS = [(f"/{META_DIR}/Embryos", None), (f"/{META_DIR}/Embryos/Familie", "/Familie"),
+           (f"/{META_DIR}/Embryos/Familie/Neu", "/Familie/Neu"), (f"/{META_DIR}/Embryos/00_Admin", "/00_Admin")]
 
 
 def _with_embryos(root):
-    (root / ".MyOS" / "Embryos.json").write_text("{}")
+    (root / META_DIR / "Embryos.json").write_text("{}")
     for embryo in ("Familie/Neu", "00_Admin"):
-        (root / ".MyOS" / "Embryos" / embryo).mkdir(parents=True)
-        (root / ".MyOS" / "Embryos" / embryo / "Liesmich.md").write_text("x")
+        (root / META_DIR / "Embryos" / embryo).mkdir(parents=True)
+        (root / META_DIR / "Embryos" / embryo / "Liesmich.md").write_text("x")
     return root
 
 
@@ -182,35 +183,35 @@ def test_an_embryo_is_readable_for_who_may_read_where_it_is_born(project):
     rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
     lisa = _of(rules, "lisa")
 
-    assert _effective(lisa, "/.MyOS/Embryos") == {"read"}
-    assert _effective(lisa, "/.MyOS/Embryos/Familie/Neu/Liesmich.md") == {"read"}
-    assert _effective(lisa, "/.MyOS/Embryos/00_Admin") == set()  # nothing for her there
-    assert _effective(lisa, "/.MyOS/Embryos/00_Admin/Liesmich.md") == set()
-    assert _effective(_of(rules, "oliver"), "/.MyOS/Embryos/00_Admin/Liesmich.md") >= {"read"}
+    assert _effective(lisa, f"/{META_DIR}/Embryos") == {"read"}
+    assert _effective(lisa, f"/{META_DIR}/Embryos/Familie/Neu/Liesmich.md") == {"read"}
+    assert _effective(lisa, f"/{META_DIR}/Embryos/00_Admin") == set()  # nothing for her there
+    assert _effective(lisa, f"/{META_DIR}/Embryos/00_Admin/Liesmich.md") == set()
+    assert _effective(_of(rules, "oliver"), f"/{META_DIR}/Embryos/00_Admin/Liesmich.md") >= {"read"}
 
 
 def test_who_works_deep_down_sees_the_list_but_not_the_embryos_of_others(project):
     rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
     tom = _of(rules, "tom")  # only /Familie/Kind
 
-    assert _effective(tom, "/.MyOS/Embryos") == {"read"}
-    assert _effective(tom, "/.MyOS/Embryos/Familie") == set()
-    assert _effective(tom, "/.MyOS/Embryos/Familie/Neu/Liesmich.md") == set()
-    assert _effective(tom, "/.MyOS") == {"read"}  # on the way
-    assert _effective(tom, "/.MyOS/Embryos.json") == set()
-    assert _effective(tom, "/.MyOS/ACLs.md") == set()
+    assert _effective(tom, f"/{META_DIR}/Embryos") == {"read"}
+    assert _effective(tom, f"/{META_DIR}/Embryos/Familie") == set()
+    assert _effective(tom, f"/{META_DIR}/Embryos/Familie/Neu/Liesmich.md") == set()
+    assert _effective(tom, f"/{META_DIR}") == {"read"}  # on the way
+    assert _effective(tom, f"/{META_DIR}/Embryos.json") == set()
+    assert _effective(tom, f"/{META_DIR}/ACLs.md") == set()
 
 
 def test_reading_the_embryos_adds_no_write(project):
     rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
 
-    assert _effective(_of(rules, "lisa"), "/.MyOS/Embryos/Familie/Neu") == {"read"}
+    assert _effective(_of(rules, "lisa"), f"/{META_DIR}/Embryos/Familie/Neu") == {"read"}
 
 
 def test_who_has_no_rights_in_the_project_does_not_see_the_embryos(project):
     rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
 
-    assert _effective(_of(rules, "paul"), "/.MyOS/Embryos") == set()
+    assert _effective(_of(rules, "paul"), f"/{META_DIR}/Embryos") == set()
 
 
 def test_embryos_not_there_yet_are_no_note(project):
@@ -224,13 +225,13 @@ def test_an_entry_on_the_way_gets_its_own_rule_even_when_it_reads_as_the_way(pro
     rules, _notes = _readable_rules(_with_embryos(project), EMBRYOS)
     tom = _of(rules, "tom")
 
-    assert tom["/.MyOS/Embryos"] == {"read"}
+    assert tom[f"/{META_DIR}/Embryos"] == {"read"}
 
 
 # --- .MyOS: what manages rights and the sync, only for who may change the rights ---
 
 def _with_settings(root):
-    myos = root / "Familie" / ".MyOS"
+    myos = root / "Familie" / META_DIR
     (myos / "ACLs-history").mkdir(parents=True)
     for name in ("ACLs.md", "Nextcloud.md", "Embryos.json", "Desk.md"):
         (myos / name).write_text("x")
@@ -244,8 +245,8 @@ def _protected_rules(root, protected):
     return {(r.kind, r.account, r.path): set(r.allowed) for r in result.rules}
 
 
-PROTECTED = ["/Familie/.MyOS/ACLs.md", "/Familie/.MyOS/ACLs-history", "/Familie/.MyOS/Nextcloud.md",
-             "/Familie/.MyOS/Embryos.json", "/Familie/.MyOS/Embryos"]
+PROTECTED = [f"/Familie/{META_DIR}/ACLs.md", f"/Familie/{META_DIR}/ACLs-history", f"/Familie/{META_DIR}/Nextcloud.md",
+             f"/Familie/{META_DIR}/Embryos.json", f"/Familie/{META_DIR}/Embryos"]
 
 
 def test_who_may_write_a_folder_may_not_write_the_rights_and_sync_files_of_its_myos(project):
@@ -254,26 +255,26 @@ def test_who_may_write_a_folder_may_not_write_the_rights_and_sync_files_of_its_m
 
     for path in PROTECTED:
         assert _effective(lisa, path) == {"read"}, path
-    assert _effective(lisa, "/Familie/.MyOS/Embryos/Neu") == {"read"}
-    assert _effective(lisa, "/Familie/.MyOS/Desk.md") == {"read", "write", "create"}  # as in MyOS
+    assert _effective(lisa, f"/Familie/{META_DIR}/Embryos/Neu") == {"read"}
+    assert _effective(lisa, f"/Familie/{META_DIR}/Desk.md") == {"read", "write", "create"}  # as in MyOS
 
 
 def test_who_may_change_the_rights_keeps_writing_them(project):
     rules = _protected_rules(_with_settings(project), PROTECTED)
 
-    assert _effective(_of(rules, "oliver"), "/Familie/.MyOS/Embryos.json") == {"read", "write", "create"}
+    assert _effective(_of(rules, "oliver"), f"/Familie/{META_DIR}/Embryos.json") == {"read", "write", "create"}
 
 
 def test_protection_gives_no_read_to_who_had_none(project):
     rules = _protected_rules(_with_settings(project), PROTECTED)
 
-    assert _effective(_of(rules, "tom"), "/Familie/.MyOS/ACLs.md") == set()
-    assert ("user", "paul", "/Familie/.MyOS/ACLs.md") not in rules
+    assert _effective(_of(rules, "tom"), f"/Familie/{META_DIR}/ACLs.md") == set()
+    assert ("user", "paul", f"/Familie/{META_DIR}/ACLs.md") not in rules
 
 
 def test_rights_files_finds_them_in_every_myos_folder():
-    paths = ["/", "/.MyOS", "/.MyOS/ACLs.md", "/.MyOS/Desk.md", "/Haus/.MyOS/Embryos", "/Haus/.MyOS/Embryos/Neu",
-             "/Haus/ACLs.md", "/Haus/.MyOS/ACLs-history", "/Haus/.MyOS/Nextcloud.md", "/x/.MyOS/Embryos.json"]
+    paths = ["/", f"/{META_DIR}", f"/{META_DIR}/ACLs.md", f"/{META_DIR}/Desk.md", f"/Haus/{META_DIR}/Embryos", f"/Haus/{META_DIR}/Embryos/Neu",
+             "/Haus/ACLs.md", f"/Haus/{META_DIR}/ACLs-history", f"/Haus/{META_DIR}/Nextcloud.md", f"/x/{META_DIR}/Embryos.json"]
 
-    assert rights_files(paths) == ["/.MyOS/ACLs.md", "/Haus/.MyOS/ACLs-history", "/Haus/.MyOS/Embryos",
-                                   "/Haus/.MyOS/Nextcloud.md", "/x/.MyOS/Embryos.json"]
+    assert rights_files(paths) == [f"/{META_DIR}/ACLs.md", f"/Haus/{META_DIR}/ACLs-history", f"/Haus/{META_DIR}/Embryos",
+                                   f"/Haus/{META_DIR}/Nextcloud.md", f"/x/{META_DIR}/Embryos.json"]

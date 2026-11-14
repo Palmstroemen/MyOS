@@ -15,7 +15,7 @@ In dieser Lektion liegen zwei kleine Projekte: **Wohnungsrenovierung** und **Hau
 Öffne jetzt die *Haushaltsfinanzen* (**[▶ Haushaltsfinanzen öffnen](<myos:open?scope=Haushaltsfinanzen>)**) und gib dem Ordner *Belege 2026* einen Tag. Die Vorschläge sind ganz andere: #bezahlt, #nicht-bezahlt, #wartend ... So halten Projekte die Flut an Tags im Zaum. Filtere dann nach #nicht-bezahlt: Was musst du noch bezahlen?
 
 ## 5. Wo die Tags eines Projekts stehen
-Die Tags eines Projekts stehen in einer Notiz: *.MyOS/Tags.md* im Projektordner. *.MyOS* ist ein versteckter Ordner – in Scope zeigst du ihn mit ⚙ → Scope → Versteckte Ordner. Ergänze dort eine Zeile #Steuer: Ab jetzt wird sie dir in diesem Projekt vorgeschlagen.
+Die Tags eines Projekts stehen in einer Notiz: *.seiton/Tags.md* im Projektordner. *.seiton* ist ein versteckter Ordner – in Scope zeigst du ihn mit ⚙ → Scope → Versteckte Ordner. Ergänze dort eine Zeile #Steuer: Ab jetzt wird sie dir in diesem Projekt vorgeschlagen.
 
 ---
 Noch nicht möglich: beliebige Dateien wie PDFs oder Fotos zu taggen, und Tags mit einer Zahl (zu 40 % erledigt). Daran arbeiten wir.

@@ -11,19 +11,20 @@ from pathlib import Path
 import pytest
 
 from core.filing import date_of, file_due, read_rule, virtual_groups
+from core.brand import META_DIR
 
 
 def _project(tmp_path: Path) -> Path:
     root = tmp_path / "Projekt"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return root
 
 
 def _sorted_folder(root: Path, rule: str = "Pattern: {{YYYY}}/{{MM}}\nDateSource: filename\nNewLevelFrom: 3\n") -> Path:
     folder = root / "Rechnungen"
-    (folder / ".MyOS").mkdir(parents=True)
-    (folder / ".MyOS" / "Sort.md").write_text("# Sort\n" + rule)
+    (folder / META_DIR).mkdir(parents=True)
+    (folder / META_DIR / "Sort.md").write_text("# Sort\n" + rule)
     return folder
 
 
@@ -36,7 +37,7 @@ def _put(folder: Path, *names: str) -> None:
 
 def _tree(folder: Path):
     return sorted(str(p.relative_to(folder)) for p in folder.rglob("*")
-                  if p.is_file() and ".MyOS" not in p.parts and not p.name.startswith("."))
+                  if p.is_file() and META_DIR not in p.parts and not p.name.startswith("."))
 
 
 @pytest.fixture
@@ -63,8 +64,8 @@ def test_defaults_and_where_rules_count(tmp_path):
     assert rule.new_level_from == 20
 
     outside = tmp_path / "Lose"
-    (outside / ".MyOS").mkdir(parents=True)
-    (outside / ".MyOS" / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}\n")
+    (outside / META_DIR).mkdir(parents=True)
+    (outside / META_DIR / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}\n")
     assert read_rule(outside) is None  # only inside projects
     assert read_rule(root) is None     # no rule there
 
@@ -232,10 +233,10 @@ def test_all_sorted_folders_below_a_path(tmp_path):
     root = _project(tmp_path)
     one = _sorted_folder(root)
     two = root / "Fotos"
-    (two / ".MyOS").mkdir(parents=True)
-    (two / ".MyOS" / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}\n")
-    (root / ".versteckt" / ".MyOS").mkdir(parents=True)
-    (root / ".versteckt" / ".MyOS" / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}\n")
+    (two / META_DIR).mkdir(parents=True)
+    (two / META_DIR / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}\n")
+    (root / ".versteckt" / META_DIR).mkdir(parents=True)
+    (root / ".versteckt" / META_DIR / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}\n")
 
     assert sorted_folders(root) == sorted([one.resolve(), two.resolve()])
 

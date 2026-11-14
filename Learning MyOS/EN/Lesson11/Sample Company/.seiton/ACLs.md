@@ -2,7 +2,7 @@
 
 ## Admin
 - /*: read, write, execute, delete
-- /.MyOS/ACLs.md: read, write, change
+- /.seiton/ACLs.md: read, write, change
 
 ## Management
 - /*: read

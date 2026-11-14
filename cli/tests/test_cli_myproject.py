@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from core.brand import META_DIR, env_name
 
 
 def _run_myproject(args, cwd):
@@ -22,14 +23,14 @@ def test_myproject_create_success():
         child = root / "Child"
         child.mkdir(parents=True)
 
-        myos_dir = root / ".MyOS"
+        myos_dir = root / META_DIR
         myos_dir.mkdir(parents=True)
         (myos_dir / "Project.md").write_text("# MyOS Project\n")
 
         result = _run_myproject(["create", str(child)], cwd=tmpdir)
 
         assert result.returncode == 0
-        assert (child / ".MyOS" / "Project.md").exists()
+        assert (child / META_DIR / "Project.md").exists()
 
 
 def test_myproject_create_without_parent_fails():
@@ -47,7 +48,7 @@ def test_myproject_create_new_path_with_flag():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir) / "Root"
         root.mkdir()
-        myos_dir = root / ".MyOS"
+        myos_dir = root / META_DIR
         myos_dir.mkdir(parents=True)
         (myos_dir / "Project.md").write_text("# MyOS Project\n")
 
@@ -55,16 +56,16 @@ def test_myproject_create_new_path_with_flag():
         result = _run_myproject(["create", "--new", str(target)], cwd=tmpdir)
 
         assert result.returncode == 0
-        assert (target / ".MyOS" / "Project.md").exists()
+        assert (target / META_DIR / "Project.md").exists()
 
 
 def _tidy_project(tmpdir: str) -> Path:
     """Project with born 04_Finanz/Ausgaben (unused) and Einnahmen (holds a user file)."""
     root = Path(tmpdir) / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    template = root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    template = root / META_DIR / "Templates" / "Standard" / "04_Finanz"
     (template / "Ausgaben").mkdir(parents=True)
     (template / "Einnahmen").mkdir(parents=True)
     (root / "04_Finanz" / "Ausgaben").mkdir(parents=True)
@@ -76,7 +77,7 @@ def _tidy_project(tmpdir: str) -> Path:
 
 def _env_without_templates_override():
     import os
-    return {k: v for k, v in os.environ.items() if k not in ("MYOS_TEMPLATES_DIR", "MYOS_ROLES")}
+    return {k: v for k, v in os.environ.items() if k not in (env_name("TEMPLATES_DIR"), env_name("ROLES"))}
 
 
 def test_myproject_tidy_turns_unused_born_folders_back_into_embryos():
@@ -106,8 +107,8 @@ def test_myproject_tidy_outside_project_fails():
 def test_myproject_tidy_also_tidies_nested_sub_projects():
     with tempfile.TemporaryDirectory() as tmpdir:
         parent = Path(tmpdir) / "Parent"
-        (parent / ".MyOS").mkdir(parents=True)
-        (parent / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (parent / META_DIR).mkdir(parents=True)
+        (parent / META_DIR / "Project.md").write_text("# MyOS Project\n")
         sub = _tidy_project(str(parent))
         script = Path(__file__).parent.parent.parent / "cli" / "myproject.py"
 
@@ -124,8 +125,8 @@ def test_myproject_tidy_also_tidies_nested_sub_projects():
 def _trash_project(tmpdir):
     import os
     root = Path(tmpdir) / "Root"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     for name in ("Alt", "Neu"):
         (root / name).mkdir()
         (root / name / "a.md").write_text(name)
@@ -134,8 +135,8 @@ def _trash_project(tmpdir):
 
 def _env():
     import os
-    env = {k: v for k, v in os.environ.items() if not k.startswith("MYOS_ACL")}
-    env["MYOS_ACL_USER"] = "tester"
+    env = {k: v for k, v in os.environ.items() if not k.startswith(env_name("ACL"))}
+    env[env_name("ACL_USER")] = "tester"
     return env
 
 

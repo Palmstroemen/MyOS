@@ -25,6 +25,8 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from PySide6.QtCore import QObject, QTimer, QUrl, Slot
 from PySide6.QtWidgets import QInputDialog, QLineEdit
 
+from core.brand import env_name
+
 SCHEME = "myos"
 PLACE_INTERVAL_MS = 250
 PLACE_TRIES = 80  # the windows have 20 seconds to appear (a file browser starting cold is slow)
@@ -174,7 +176,7 @@ class ExerciseLauncher(QObject):
         for argv in commands(action, self._repo_root):
             # Scope without the "Perspektiven" drive: the tutorial does not use it, and started
             # at a lesson's project it would mount it inside the tutorial.
-            env = dict(os.environ, MYOS_SCOPE_START_DAEMON="0") if argv[0] != "xdg-open" else None
+            env = dict(os.environ, **{env_name("SCOPE_START_DAEMON"): "0"}) if argv[0] != "xdg-open" else None
             try:
                 process = self._popen(argv, cwd=str(self._repo_root), start_new_session=True, env=env)
             except OSError as error:
@@ -204,7 +206,7 @@ class ExerciseLauncher(QObject):
         confirmed, name = self.confirm_finish()
         if not confirmed:
             return
-        env = dict(os.environ, MYOS_TUTORIAL_DIR=str(root))
+        env = dict(os.environ, **{env_name("TUTORIAL_DIR"): str(root)})
         self._start([sys.executable, str(self._repo_root / "scripts" / "testrun.py"), "finish", "--name", name.strip()],
                     env=env)
 

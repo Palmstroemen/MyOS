@@ -10,6 +10,7 @@ from core.thumbnailer.markdown_thumbnailer import (
     normalize_hex_color,
     sanitize_markdown_for_preview,
 )
+from core.brand import META_DIR
 
 
 def test_normalize_hex_color():
@@ -72,15 +73,15 @@ def test_detect_note_style_uses_line_thresholds():
     assert detect_note_style(long_note) == "notebook"
 
 
-def test_detect_note_style_prefers_config_inside_myos_folder(tmp_path):
-    path = tmp_path / "Project" / ".MyOS" / "Manifest.md"
+def test_detect_note_style_prefers_config_inside_settings_folder(tmp_path):
+    path = tmp_path / "Project" / META_DIR / "Manifest.md"
     path.parent.mkdir(parents=True)
     text = "\n".join(f"line {i}" for i in range(50))
     assert detect_note_style(text, input_path=path) == "config"
 
 
-def test_detect_note_style_prefers_config_inside_lowercase_myos_folder(tmp_path):
-    path = tmp_path / "Project" / ".myos" / "Manifest.md"
+def test_detect_note_style_prefers_config_inside_other_case_settings_folder(tmp_path):
+    path = tmp_path / "Project" / META_DIR.upper() / "Manifest.md"
     path.parent.mkdir(parents=True)
     text = "\n".join(f"line {i}" for i in range(50))
     assert detect_note_style(text, input_path=path) == "config"
@@ -102,7 +103,7 @@ def test_detect_note_style_chat_not_triggered_for_single_speaker():
 
 
 def test_detect_note_style_explicit_style_overrides_autodetect_and_path(tmp_path):
-    path = tmp_path / "Project" / ".MyOS" / "Templates.md"
+    path = tmp_path / "Project" / META_DIR / "Templates.md"
     path.parent.mkdir(parents=True)
     md = """---
 note_style: postit

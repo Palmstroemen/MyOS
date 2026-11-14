@@ -8,24 +8,25 @@ from pathlib import Path
 import pytest
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
+from core.brand import META_DIR, env_name
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return path
 
 
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setenv("MYOS_SCOPE_START_DAEMON", "0")
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
+    monkeypatch.setenv(env_name("SCOPE_START_DAEMON"), "0")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
-    (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
+    (tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     return {"root": root.resolve(), "studio": _project(root / "Musikstudio").resolve(),
             "reisen": _project(root / "Reisen").resolve()}
 

@@ -10,11 +10,12 @@ from core.project import ProjectConfig, ProjectFinder
 from core.project import find_projects, resolve_cwp
 from core.project import find_config_in_parents
 from core.config.parser import MarkdownConfigParser
+from core.brand import META_DIR
 
 # Helper function for test setup
 def setup_complete_test_config(root_dir: Path):
     """Create comprehensive test configuration for all tests."""
-    myos_dir = root_dir / ".MyOS"
+    myos_dir = root_dir / META_DIR
     myos_dir.mkdir(exist_ok=True)
     
     # 1. Project.md (required)
@@ -82,7 +83,7 @@ class TestProjectConfig:
             project_path.mkdir()
             
             # Create .MyOS/ with empty Project.md
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# MyOS Project\n")
             
@@ -101,7 +102,7 @@ class TestProjectConfig:
             project_path.mkdir()
             
             # Create .MyOS/ structure with templates matching our config
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# MyOS Project\n")
             
@@ -124,7 +125,7 @@ Finanzen
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# MyOS Project\n")
             
@@ -159,7 +160,7 @@ Priority: High
             result = config.save()
             assert result
             
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             assert myos_dir.exists()
             assert (myos_dir / "Project.md").exists()
             assert (myos_dir / "Templates.md").exists()
@@ -184,7 +185,7 @@ Priority: High
             project_path.mkdir()
             
             # Create initial structure
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# Old Project\n")
             (myos_dir / "Templates.md").write_text("# Old\n- OldTemplate\n")
@@ -216,7 +217,7 @@ Priority: High
             project_path.mkdir()
             
             # Create .MyOS/ but NO Project.md
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             myos_dir.mkdir()
             # Only templates.md, no Project.md
             (myos_dir / "Templates.md").write_text("# Templates\n- Standard\n")
@@ -267,7 +268,7 @@ class TestProjectInheritance:
         config = ProjectConfig.create(child_dir)
         
         # Check minimal marker exists
-        child_myos = child_dir / ".MyOS"
+        child_myos = child_dir / META_DIR
         assert (child_myos / "Project.md").exists()
         assert not (child_myos / "Templates.md").exists()
         assert not (child_myos / "ACLs.md").exists()
@@ -305,7 +306,7 @@ class TestProjectInheritance:
         child_dir.mkdir()
         ProjectConfig.create(child_dir)
 
-        child_myos = child_dir / ".MyOS"
+        child_myos = child_dir / META_DIR
         (child_myos / "Templates.md").write_text("# Templates\nOnlyLocal\n")
 
         child_cfg = ProjectConfig(child_dir)
@@ -318,7 +319,7 @@ class TestProjectInheritance:
         child_dir.mkdir()
         ProjectConfig.create(child_dir)
 
-        child_myos = child_dir / ".MyOS"
+        child_myos = child_dir / META_DIR
         (child_myos / "Config.md").write_text("# Templates\ninherit: not\n")
 
         child_cfg = ProjectConfig(child_dir)
@@ -357,7 +358,7 @@ class TestProjectFinder:
             subdir.mkdir(parents=True)
             
             # Create project at project_dir
-            myos_dir = project_dir / ".MyOS"
+            myos_dir = project_dir / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# Project\n")
             
@@ -373,7 +374,7 @@ class TestProjectFinder:
             project_dir = Path(tmpdir) / "project"
             project_dir.mkdir()
             
-            myos_dir = project_dir / ".MyOS"
+            myos_dir = project_dir / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# Project\n")
             
@@ -399,17 +400,17 @@ class TestProjectFinder:
             # Valid project
             valid = Path(tmpdir) / "valid_project"
             valid.mkdir()
-            (valid / ".MyOS").mkdir()
-            (valid / ".MyOS" / "Project.md").write_text("# Project\n")
+            (valid / META_DIR).mkdir()
+            (valid / META_DIR / "Project.md").write_text("# Project\n")
             
             assert ProjectFinder.is_project(valid)
             
             # Invalid: no Project.md
             invalid1 = Path(tmpdir) / "invalid1"
             invalid1.mkdir()
-            (invalid1 / ".MyOS").mkdir()
+            (invalid1 / META_DIR).mkdir()
             # Only templates.md, no Project.md
-            (invalid1 / ".MyOS" / "Templates.md").write_text("# Templates\n")
+            (invalid1 / META_DIR / "Templates.md").write_text("# Templates\n")
             
             assert not ProjectFinder.is_project(invalid1)
             
@@ -431,7 +432,7 @@ class TestProjectConfigEdgeCases:
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# Project\n")
             
@@ -452,7 +453,7 @@ class TestProjectConfigEdgeCases:
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            myos_dir = project_path / ".MyOS"
+            myos_dir = project_path / META_DIR
             myos_dir.mkdir()
             (myos_dir / "Project.md").write_text("# Project\n")
             
@@ -489,10 +490,10 @@ def test_find_projects_orders_by_specificity():
         deep = sub / "Deep"
         deep.mkdir(parents=True)
 
-        (root / ".MyOS").mkdir(parents=True)
-        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-        (sub / ".MyOS").mkdir(parents=True)
-        (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (root / META_DIR).mkdir(parents=True)
+        (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+        (sub / META_DIR).mkdir(parents=True)
+        (sub / META_DIR / "Project.md").write_text("# MyOS Project\n")
 
         results = find_projects(deep)
 
@@ -506,10 +507,10 @@ def test_resolve_cwp_returns_nearest_project():
         deep = sub / "Deep"
         deep.mkdir(parents=True)
 
-        (root / ".MyOS").mkdir(parents=True)
-        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-        (sub / ".MyOS").mkdir(parents=True)
-        (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+        (root / META_DIR).mkdir(parents=True)
+        (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+        (sub / META_DIR).mkdir(parents=True)
+        (sub / META_DIR / "Project.md").write_text("# MyOS Project\n")
 
         cwp = resolve_cwp(deep)
 
@@ -533,16 +534,16 @@ def test_find_config_in_parents_returns_nearest_project_config():
         deep = child / "Deep"
         deep.mkdir(parents=True)
 
-        (root / ".MyOS").mkdir(parents=True)
-        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-        (root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+        (root / META_DIR).mkdir(parents=True)
+        (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+        (root / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
 
-        (child / ".MyOS").mkdir(parents=True)
-        (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-        (child / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Child\n", encoding="utf-8")
+        (child / META_DIR).mkdir(parents=True)
+        (child / META_DIR / "Project.md").write_text("# MyOS Project\n")
+        (child / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Child\n", encoding="utf-8")
 
         found = find_config_in_parents(deep, "Desk.md")
-        assert found == (child / ".MyOS" / "Desk.md")
+        assert found == (child / META_DIR / "Desk.md")
 
 
 def test_find_config_in_parents_honors_inherit_not():
@@ -552,13 +553,13 @@ def test_find_config_in_parents_honors_inherit_not():
         deep = child / "Deep"
         deep.mkdir(parents=True)
 
-        (root / ".MyOS").mkdir(parents=True)
-        (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-        (root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+        (root / META_DIR).mkdir(parents=True)
+        (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+        (root / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
 
-        (child / ".MyOS").mkdir(parents=True)
-        (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-        (child / ".MyOS" / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
+        (child / META_DIR).mkdir(parents=True)
+        (child / META_DIR / "Project.md").write_text("# MyOS Project\n")
+        (child / META_DIR / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
 
         found = find_config_in_parents(deep, "Desk.md")
         assert found is None

@@ -6,11 +6,12 @@ import pytest
 
 from core.acl_edit import ACLEditError, set_role_rights
 from core.acl_view import ACLView
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _project_templates_only(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 ACLS = (
@@ -22,7 +23,7 @@ ACLS = (
     "\n"
     "## Admin\n"
     "- /*: read, write, execute\n"
-    "- /.MyOS/ACLs.md: read, write, change\n"
+    f"- /{META_DIR}/ACLs.md: read, write, change\n"
     "\n"
     "## Buchhalter\n"
     "- /finanz/: read, write\n"
@@ -35,19 +36,19 @@ ACLS = (
 
 def _project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("finanz", "info", "work"):
-        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / META_DIR / "Templates" / "Standard" / folder).mkdir(parents=True)
         (root / folder).mkdir()
     (root / "finanz" / "archiv").mkdir()
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
     return root
 
 
 def _acls(root: Path) -> str:
-    return (root / ".MyOS" / "ACLs.md").read_text()
+    return (root / META_DIR / "ACLs.md").read_text()
 
 
 def _rights(root: Path, role: str, path: Path) -> set:
@@ -120,7 +121,7 @@ def test_editor_cannot_take_away_their_own_change_right(tmp_path):
     root = _project(tmp_path)
 
     with pytest.raises(ACLEditError):
-        set_role_rights(root / ".MyOS" / "ACLs.md", "Admin", {"read", "write"}, editor="anna")
+        set_role_rights(root / META_DIR / "ACLs.md", "Admin", {"read", "write"}, editor="anna")
     assert _acls(root) == ACLS
 
 
@@ -129,7 +130,7 @@ def test_previous_version_is_kept_with_date_and_editor(tmp_path):
 
     set_role_rights(root / "finanz", "Buchhalter", {"read"}, editor="anna")
 
-    kept = list((root / ".MyOS" / "ACLs-history").glob("ACLs-*-anna.md"))
+    kept = list((root / META_DIR / "ACLs-history").glob("ACLs-*-anna.md"))
     assert len(kept) == 1
     assert kept[0].read_text() == ACLS
 
@@ -147,8 +148,8 @@ def test_unknown_role_and_unknown_right_are_rejected(tmp_path):
 def test_paths_in_subprojects_are_written_relative_to_the_acl_project(tmp_path):
     root = _project(tmp_path)
     sub = root / "Familie"
-    (sub / ".MyOS").mkdir(parents=True)
-    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (sub / META_DIR).mkdir(parents=True)
+    (sub / META_DIR / "Project.md").write_text("# MyOS Project\n")
     (sub / "Ich").mkdir()
 
     set_role_rights(sub / "Ich", "Buchhalter", {"read"}, editor="anna")
@@ -187,7 +188,7 @@ def test_rules_follow_a_renamed_folder(tmp_path):
     assert "/finanz/" not in text
     assert "- /{Folder}/: read, write\n" in text  # folder rules are no fixed paths
     assert _rights(root, "buchhalter", root / "Finanzen" / "archiv") == {"read"}
-    assert list((root / ".MyOS" / "ACLs-history").glob("ACLs-*-karl.md"))
+    assert list((root / META_DIR / "ACLs-history").glob("ACLs-*-karl.md"))
 
 
 def test_moving_without_rules_changes_nothing(tmp_path):
@@ -223,7 +224,7 @@ def test_commented_out_rules_are_not_edited(tmp_path):
     from core.acl_edit import own_rule
 
     root = _project(tmp_path)
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     acl_file.write_text(ACLS.replace("- /finanz/: read, write\n", "- /finanz/: read, write\n" + COMMENTED))
 
     assert own_rule(root / "finanz" / "archiv", "Buchhalter") is None
@@ -238,7 +239,7 @@ def test_commented_out_rules_neither_follow_nor_block_a_move(tmp_path):
     from core.acl_edit import check_move_rules, move_rules
 
     root = _project(tmp_path)
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     acl_file.write_text(ACLS.replace("- /finanz/: read, write\n", "- /finanz/: read, write\n" + COMMENTED))
 
     check_move_rules(root / "work", root / "Neu")  # only a commented rule waits there
@@ -253,7 +254,7 @@ def test_own_rule_ignores_an_inline_comment(tmp_path):
     from core.acl_edit import own_rule
 
     root = _project(tmp_path)
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     acl_file.write_text(ACLS.replace("- /finanz/: read, write\n",
                                      "- /finanz/: read, write  # seit 2026\n- /finanz/archiv/: none # gesperrt\n"))
 
@@ -265,7 +266,7 @@ def test_a_rule_with_a_trailing_comment_is_edited_like_any_rule(tmp_path):
     from core.acl_edit import own_rule
 
     root = _project(tmp_path)
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     acl_file.write_text(ACLS.replace("- /finanz/: read, write\n", "- /finanz/: read, write <!-- seit 2026 -->\n"))
 
     assert own_rule(root / "finanz", "Buchhalter") == {"read", "write"}

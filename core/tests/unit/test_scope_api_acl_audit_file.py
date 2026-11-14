@@ -3,6 +3,7 @@ import json
 from core.acl import ACLAuthorizer, ACLPolicy, PermissionRule
 from core.acl_enforcement import ACLEnforcementService
 from core.scope_api import ScopeApi
+from core.brand import META_DIR
 
 
 def _build_monitor_service() -> ACLEnforcementService:
@@ -20,7 +21,7 @@ def _build_monitor_service() -> ACLEnforcementService:
 def test_scope_api_writes_acl_audit_events_to_file(tmp_path):
     root = tmp_path / "lab"
     root.mkdir()
-    audit_path = root / ".MyOS" / "audit.log"
+    audit_path = root / META_DIR / "audit.log"
 
     api = ScopeApi(str(root))
     api.set_acl_enforcement(_build_monitor_service(), user="bertha")
@@ -41,8 +42,8 @@ def test_scope_api_writes_acl_audit_events_to_file(tmp_path):
 def test_scope_api_rotates_acl_audit_file_when_limit_exceeded(tmp_path):
     root = tmp_path / "lab"
     root.mkdir()
-    audit_path = root / ".MyOS" / "audit.log"
-    rotated_path = root / ".MyOS" / "audit.log.1"
+    audit_path = root / META_DIR / "audit.log"
+    rotated_path = root / META_DIR / "audit.log.1"
 
     api = ScopeApi(str(root))
     api.set_acl_enforcement(_build_monitor_service(), user="bertha")

@@ -7,6 +7,7 @@ that template level; visible subfolders stay embryos."""
 import pytest
 
 from cloud.service.level import bear, birth, level, tags
+from core.brand import META_DIR
 
 
 def test_a_level_lists_born_ones_and_the_embryos_one_may_create(shadow):
@@ -28,17 +29,17 @@ def test_who_may_not_read_there_sees_nothing_of_it(shadow):
     assert level(shadow, "karl", "/Familie") == {"folders": []}
 
 
-@pytest.mark.parametrize("path", ["/Nichts", "/Familie/../Job", "/Familie/.MyOS"])
+@pytest.mark.parametrize("path", ["/Nichts", "/Familie/../Job", f"/Familie/{META_DIR}"])
 def test_no_level_where_there_is_no_folder(shadow, path):
     assert level(shadow, "oliver", path) is None
 
 
 def test_a_birth_creates_the_folder_and_its_hidden_folders_and_copies_the_files(shadow):
     assert birth(shadow, "lisa", "/Familie/07_Arbeit") == {
-        "create": ["/Familie/07_Arbeit", "/Familie/07_Arbeit/.MyOS"],
+        "create": ["/Familie/07_Arbeit", f"/Familie/07_Arbeit/{META_DIR}"],
         "copy": [
-            {"from": "/Familie/.MyOS/Embryos/07_Arbeit/.MyOS/Desk.md", "to": "/Familie/07_Arbeit/.MyOS/Desk.md"},
-            {"from": "/Familie/.MyOS/Embryos/07_Arbeit/Liesmich.md", "to": "/Familie/07_Arbeit/Liesmich.md"},
+            {"from": f"/Familie/{META_DIR}/Embryos/07_Arbeit/{META_DIR}/Desk.md", "to": f"/Familie/07_Arbeit/{META_DIR}/Desk.md"},
+            {"from": f"/Familie/{META_DIR}/Embryos/07_Arbeit/Liesmich.md", "to": "/Familie/07_Arbeit/Liesmich.md"},
         ],
     }
 
@@ -57,10 +58,10 @@ def test_saving_through_a_lens_bears_the_department_folder_on_the_way(shadow):
     # As Blueprint.materialize_dir on the desktop: embryos on the way born with their content.
     assert bear(shadow, "karl", "/07_Arbeit/Projekte/Job") == {
         "real": "/Job/07_Arbeit",
-        "create": ["/Job/07_Arbeit", "/Job/07_Arbeit/.MyOS"],
+        "create": ["/Job/07_Arbeit", f"/Job/07_Arbeit/{META_DIR}"],
         "copy": [
-            {"from": "/Job/.MyOS/Embryos/07_Arbeit/.MyOS/Desk.md", "to": "/Job/07_Arbeit/.MyOS/Desk.md"},
-            {"from": "/Job/.MyOS/Embryos/07_Arbeit/Liesmich.md", "to": "/Job/07_Arbeit/Liesmich.md"},
+            {"from": f"/Job/{META_DIR}/Embryos/07_Arbeit/{META_DIR}/Desk.md", "to": f"/Job/07_Arbeit/{META_DIR}/Desk.md"},
+            {"from": f"/Job/{META_DIR}/Embryos/07_Arbeit/Liesmich.md", "to": "/Job/07_Arbeit/Liesmich.md"},
         ],
     }
     assert bear(shadow, "karl", "/04_Finanz/Ausgaben/Projekte/Job") == {
@@ -86,15 +87,15 @@ def test_nothing_to_bear_where_the_lens_shows_no_unborn_folder(shadow, path):
 
 
 def test_the_tags_of_a_folder_are_those_of_its_project(shadow):
-    (shadow / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n#Rechnung\n")
-    (shadow / "Job" / ".MyOS" / "Tags.md").write_text("# Tags\n#Kunde\n")
+    (shadow / META_DIR / "Tags.md").write_text("# Tags\n#Wichtig\n#Rechnung\n")
+    (shadow / "Job" / META_DIR / "Tags.md").write_text("# Tags\n#Kunde\n")
 
     assert tags(shadow, "lisa", "/Familie/04_Finanz") == {"tags": ["Rechnung", "Wichtig"]}  # Familie inherits
     assert tags(shadow, "karl", "/Job/Kunden") == {"tags": ["Kunde"]}
 
 
 def test_no_tags_where_one_may_not_read(shadow):
-    (shadow / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n")
+    (shadow / META_DIR / "Tags.md").write_text("# Tags\n#Wichtig\n")
 
     assert tags(shadow, "karl", "/Familie") == {"tags": []}
-    assert tags(shadow, "lisa", "/Familie/.MyOS") is None
+    assert tags(shadow, "lisa", f"/Familie/{META_DIR}") is None

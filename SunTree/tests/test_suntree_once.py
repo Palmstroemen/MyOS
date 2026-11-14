@@ -8,6 +8,7 @@ from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
 from SunTree.tests.test_suntree_crown import _call, _dive, _gone, _prop, suntree, window, world  # noqa: F401
+from core.brand import META_DIR
 
 RULE = "# Sort\nPattern: {{YYYY}}/{{MM}}\nDateSource: filename\nNewLevelFrom: 2\n"
 
@@ -49,8 +50,8 @@ def test_a_drop_is_reported_and_can_be_undone(world, suntree, tmp_path):
 
 def test_undo_finds_a_file_that_was_filed_on(world, suntree, tmp_path):
     belege = world["studio"] / "Belege"
-    (belege / ".MyOS").mkdir(parents=True)
-    (belege / ".MyOS" / "Sort.md").write_text(RULE)
+    (belege / META_DIR).mkdir(parents=True)
+    (belege / META_DIR / "Sort.md").write_text(RULE)
     for name in ("a 2024-01-01.pdf", "b 2024-02-01.pdf"):  # enough for levels (core/filing.py)
         (belege / name).write_text(name)
     source = _incoming(tmp_path, "c 2025-01-01.pdf")

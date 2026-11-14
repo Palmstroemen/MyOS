@@ -11,11 +11,12 @@ import pytest
 from core.desk import DeskConfig
 from core.desktop_backends import build_backend, detect_backend_name
 from core.desktop_backends.base import DesktopState
+from core.brand import META_DIR, env_name
 
 
 def _config(tmp_path: Path, **values) -> DeskConfig:
     data = {"Desk": {key: [value] for key, value in values.items()}}
-    return DeskConfig.from_data(tmp_path / ".MyOS" / "Desk.md", data)
+    return DeskConfig.from_data(tmp_path / META_DIR / "Desk.md", data)
 
 
 class FakeGsettings:
@@ -56,7 +57,7 @@ def gsettings(monkeypatch):
 def test_auto_detects_the_running_desktop(monkeypatch, desktop, expected):
     monkeypatch.setenv("XDG_CURRENT_DESKTOP", desktop)
     assert detect_backend_name() == expected
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "auto")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "auto")
     assert build_backend("auto").name == expected
 
 
@@ -161,7 +162,7 @@ def test_gnome_sets_and_reads_the_taskbar(gsettings, tmp_path):
 
 
 def _taskbar(tmp_path: Path, apps) -> DeskConfig:
-    return DeskConfig.from_data(tmp_path / ".MyOS" / "Desk.md", {"Desk": {"Taskbar": list(apps)}})
+    return DeskConfig.from_data(tmp_path / META_DIR / "Desk.md", {"Desk": {"Taskbar": list(apps)}})
 
 
 @pytest.mark.parametrize("app", ["-a.desktop", "a b.desktop", "x'.desktop", "../x.desktop", "firefox", "a\n.desktop"])

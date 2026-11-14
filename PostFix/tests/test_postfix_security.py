@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from core.brand import META_DIR
 
 pytest.importorskip("PySide6")
 
@@ -32,7 +33,7 @@ def test_assign_tag_color_rejects_malicious_tag_names():
 
 
 def test_scope_tags_reader_writer_drop_malicious_entries(tmp_path: Path):
-    tags_md = tmp_path / ".MyOS" / "Tags.md"
+    tags_md = tmp_path / META_DIR / "Tags.md"
     ok = write_scope_tags(
         tags_md,
         [

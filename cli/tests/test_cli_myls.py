@@ -11,6 +11,7 @@ import pytest  # For capsys fixture
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from cli.myls import MyOSLister
+from core.brand import XATTR_PREFIX
 
 class TestMyOSListerBasic(unittest.TestCase):
     
@@ -167,7 +168,7 @@ class TestMyOSListerBasic(unittest.TestCase):
         tag_target.write_text("tagged")
 
         try:
-            os.setxattr(str(tag_target), "user.myos.tags", b"wichtig=60, dringend=20")
+            os.setxattr(str(tag_target), XATTR_PREFIX + "tags", b"wichtig=60, dringend=20")
         except OSError:
             self.skipTest("xattr not supported on this filesystem")
 

@@ -3,12 +3,13 @@
 from pathlib import Path
 
 from core.scope_api import ScopeApi
+from core.brand import META_DIR
 
 
 def _project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     return root
 
 
@@ -103,7 +104,7 @@ def test_file_entries_carry_their_size(tmp_path):
 def test_viewing_a_folder_does_not_touch_project_md(tmp_path):
     root = _project(tmp_path)
     _tree(root / "Docs")
-    project_md = root / ".MyOS" / "Project.md"
+    project_md = root / META_DIR / "Project.md"
     before = project_md.read_text(encoding="utf-8")
     api = ScopeApi(str(root))
 
@@ -146,8 +147,8 @@ def test_list_entries_skips_details_of_unreadable_children(tmp_path):
     root = _project(tmp_path)
     (root / "ok.txt").write_text("x", encoding="utf-8")
     locked = root / "Locked"
-    (locked / ".MyOS").mkdir(parents=True)
-    (locked / ".MyOS" / "myTags.md").write_text("#tag\n", encoding="utf-8")
+    (locked / META_DIR).mkdir(parents=True)
+    (locked / META_DIR / "myTags.md").write_text("#tag\n", encoding="utf-8")
     locked.chmod(0o000)
     try:
         names = {e["name"] for e in ScopeApi(str(root)).list_entries(str(root))}

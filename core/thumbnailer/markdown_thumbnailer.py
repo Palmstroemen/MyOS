@@ -8,7 +8,7 @@ import os
 import re
 from pathlib import Path
 from textwrap import wrap
-from core.brand import getenv
+from core.brand import META_DIR, getenv
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -201,7 +201,7 @@ def _is_myos_path(input_path: Path | None) -> bool:
         return False
 
     def _contains_myos(parts: tuple[str, ...]) -> bool:
-        return any(part.lower() == ".myos" for part in parts)
+        return any(part.lower() == META_DIR.lower() for part in parts)
 
     if _contains_myos(input_path.parts):
         return True

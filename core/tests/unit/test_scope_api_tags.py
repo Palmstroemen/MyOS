@@ -2,13 +2,14 @@ from pathlib import Path
 
 import core.scope_api as scope_api_module
 from core.scope_api import ScopeApi
+from core.brand import META_DIR
 
 
 def test_list_project_tags_reads_hash_lines(tmp_path):
     project = tmp_path / "DemoProject"
-    tags_md = project / ".MyOS" / "Tags.md"
+    tags_md = project / META_DIR / "Tags.md"
     tags_md.parent.mkdir(parents=True)
-    (project / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     tags_md.write_text(
         "\n".join(
             [
@@ -62,7 +63,7 @@ def test_directory_sidecar_mytags_is_used_without_project_flag(tmp_path, monkeyp
     root.mkdir()
     folder = root / "Invoices"
     folder.mkdir()
-    sidecar = folder / ".MyOS"
+    sidecar = folder / META_DIR
     sidecar.mkdir()
     (sidecar / "myTags.md").write_text("#finance\n#urgent\n", encoding="utf-8")
 
@@ -121,7 +122,7 @@ def test_directory_tags_ignore_xattr_and_use_only_sidecar(tmp_path, monkeypatch)
     root.mkdir()
     folder = root / "Folder"
     folder.mkdir()
-    sidecar = folder / ".MyOS"
+    sidecar = folder / META_DIR
     sidecar.mkdir()
     (sidecar / "myTags.md").write_text("#from-sidecar\n", encoding="utf-8")
 
@@ -191,7 +192,7 @@ def test_folder_sidecar_roundtrip_and_cleanup_on_empty_tags(tmp_path):
     api = ScopeApi(str(root))
     assert api.set_folder_tags(str(folder), ["One", "#two"]) is True
 
-    sidecar = folder / ".MyOS" / "myTags.md"
+    sidecar = folder / META_DIR / "myTags.md"
     text = sidecar.read_text(encoding="utf-8")
     assert "#One" in text or "#one" in text
     assert "#two" in text
@@ -199,8 +200,8 @@ def test_folder_sidecar_roundtrip_and_cleanup_on_empty_tags(tmp_path):
     tags = api.list_folder_tags(str(folder))
     assert sorted(tags, key=str.lower) == ["One", "two"]
     assert api.set_folder_tags(str(folder), []) is True
-    assert not (folder / ".MyOS" / "myTags.md").exists()
-    assert not (folder / ".MyOS").exists()
+    assert not (folder / META_DIR / "myTags.md").exists()
+    assert not (folder / META_DIR).exists()
 
 
 def test_set_folder_tags_keeps_myos_directory_when_other_files_exist(tmp_path):
@@ -209,7 +210,7 @@ def test_set_folder_tags_keeps_myos_directory_when_other_files_exist(tmp_path):
     folder = root / "Folder"
     folder.mkdir()
 
-    myos_dir = folder / ".MyOS"
+    myos_dir = folder / META_DIR
     myos_dir.mkdir()
     (myos_dir / "other.md").write_text("keep", encoding="utf-8")
 
@@ -240,7 +241,7 @@ def test_list_tag_buckets_splits_folder_and_file_tags(tmp_path):
 def test_list_entries_does_not_create_sidecar_for_untagged_folders(tmp_path):
     project = tmp_path / "Project"
     project.mkdir()
-    myos = project / ".MyOS"
+    myos = project / META_DIR
     myos.mkdir()
     (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     folder = project / "Folder"
@@ -249,8 +250,8 @@ def test_list_entries_does_not_create_sidecar_for_untagged_folders(tmp_path):
     api = ScopeApi(str(project))
     api.list_entries(str(project))
 
-    assert not (folder / ".MyOS").exists()
-    assert not (folder / ".MyOS" / "myTags.md").exists()
+    assert not (folder / META_DIR).exists()
+    assert not (folder / META_DIR / "myTags.md").exists()
 
 
 def test_folder_tag_colors_roundtrip_and_bucket_exposure(tmp_path):
@@ -421,8 +422,8 @@ def test_scope_api_rejects_unsafe_config_name_for_security(tmp_path):
     secret.write_text("do not touch", encoding="utf-8")
     project_root = root / "Project"
     project_root.mkdir(parents=True)
-    (project_root / ".MyOS").mkdir(parents=True)
-    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / META_DIR).mkdir(parents=True)
+    (project_root / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
     api = ScopeApi(str(project_root))
 
@@ -440,8 +441,8 @@ def test_scope_api_rejects_overlong_config_name_for_security(tmp_path):
     root.mkdir(parents=True)
     project_root = root / "Project"
     project_root.mkdir(parents=True)
-    (project_root / ".MyOS").mkdir(parents=True)
-    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / META_DIR).mkdir(parents=True)
+    (project_root / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     api = ScopeApi(str(project_root))
     long_name = "A" * 200 + ".md"
 
@@ -458,8 +459,8 @@ def test_scope_api_rejects_non_ascii_spoofed_config_name_for_security(tmp_path):
     root.mkdir(parents=True)
     project_root = root / "Project"
     project_root.mkdir(parents=True)
-    (project_root / ".MyOS").mkdir(parents=True)
-    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / META_DIR).mkdir(parents=True)
+    (project_root / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     api = ScopeApi(str(project_root))
     spoofed = "Dеsk.md"  # Cyrillic e
 
@@ -477,11 +478,11 @@ def test_scope_api_list_config_targets_shows_nearest_parent_when_inherited(tmp_p
     child = project_root / "Child"
     child.mkdir(parents=True)
 
-    (project_root / ".MyOS").mkdir(parents=True)
-    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (project_root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
-    (child / ".MyOS").mkdir(parents=True)
-    (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / META_DIR).mkdir(parents=True)
+    (project_root / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+    (child / META_DIR).mkdir(parents=True)
+    (child / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
     api = ScopeApi(str(child))
     targets = api.list_config_targets(str(child), "Desk.md")
@@ -497,12 +498,12 @@ def test_scope_api_list_config_targets_hides_parent_when_inherit_not(tmp_path):
     child = project_root / "Child"
     child.mkdir(parents=True)
 
-    (project_root / ".MyOS").mkdir(parents=True)
-    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (project_root / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
-    (child / ".MyOS").mkdir(parents=True)
-    (child / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (child / ".MyOS" / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
+    (project_root / META_DIR).mkdir(parents=True)
+    (project_root / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project_root / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Root\n", encoding="utf-8")
+    (child / META_DIR).mkdir(parents=True)
+    (child / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (child / META_DIR / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
 
     api = ScopeApi(str(child))
     targets = api.list_config_targets(str(child), "Desk.md")
@@ -514,16 +515,16 @@ def test_scope_api_list_config_targets_hides_parent_when_inherit_not(tmp_path):
 
 def test_list_project_tags_inherits_from_the_parent_project(tmp_path):
     parent = tmp_path / "Parent"
-    (parent / ".MyOS").mkdir(parents=True)
-    (parent / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (parent / ".MyOS" / "Tags.md").write_text("#alpha\n#beta\n", encoding="utf-8")
+    (parent / META_DIR).mkdir(parents=True)
+    (parent / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (parent / META_DIR / "Tags.md").write_text("#alpha\n#beta\n", encoding="utf-8")
     sub = parent / "Sub"
-    (sub / ".MyOS").mkdir(parents=True)
-    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (sub / META_DIR).mkdir(parents=True)
+    (sub / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     own = parent / "Own"
-    (own / ".MyOS").mkdir(parents=True)
-    (own / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (own / ".MyOS" / "Tags.md").write_text("#gamma\n", encoding="utf-8")
+    (own / META_DIR).mkdir(parents=True)
+    (own / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (own / META_DIR / "Tags.md").write_text("#gamma\n", encoding="utf-8")
 
     api = ScopeApi(str(parent))
 
@@ -536,9 +537,9 @@ def test_list_project_tags_inherits_from_the_parent_project(tmp_path):
 def test_list_project_tags_skips_markdown_headings(tmp_path):
     # PostFix writes Tags.md with a "# Tags" heading; a heading is not a tag.
     project = tmp_path / "DemoProject"
-    (project / ".MyOS").mkdir(parents=True)
-    (project / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (project / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n## Notes\n#Dringend\n", encoding="utf-8")
+    (project / META_DIR).mkdir(parents=True)
+    (project / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (project / META_DIR / "Tags.md").write_text("# Tags\n#Wichtig\n## Notes\n#Dringend\n", encoding="utf-8")
 
     api = ScopeApi(str(project))
 

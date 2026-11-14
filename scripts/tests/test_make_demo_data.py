@@ -4,6 +4,7 @@ an earlier demo rebuilt, anything else left alone."""
 from pathlib import Path
 
 import pytest
+from core.brand import META_DIR
 
 pytest.importorskip("reportlab")
 pytest.importorskip("PIL")
@@ -16,8 +17,8 @@ def templates(tmp_path):
     standard = tmp_path / "templates" / "Standard"
     for folder in ("00_Admin", "04_Finanz/Ausgaben", "04_Finanz/Einnahmen", "08_Dokumentation/Bilder"):
         (standard / folder).mkdir(parents=True)
-    (standard / ".MyOS").mkdir()
-    (standard / ".MyOS" / "ACLs.md").write_text("# Permissions\n", encoding="utf-8")
+    (standard / META_DIR).mkdir()
+    (standard / META_DIR / "ACLs.md").write_text("# Permissions\n", encoding="utf-8")
     return tmp_path / "templates"
 
 
@@ -28,7 +29,7 @@ def demo(tmp_path, templates, monkeypatch):
 
 
 def _is_project(folder: Path) -> bool:
-    return (folder / ".MyOS" / "Project.md").is_file()
+    return (folder / META_DIR / "Project.md").is_file()
 
 
 def test_the_scenes_find_what_they_need(demo):
@@ -44,7 +45,7 @@ def test_the_scenes_find_what_they_need(demo):
 
 
 def test_the_templates_lie_in_the_projects_root(demo):
-    assert (demo / "Projekte" / ".MyOS" / "Templates" / "Standard" / "04_Finanz").is_dir()
+    assert (demo / "Projekte" / META_DIR / "Templates" / "Standard" / "04_Finanz").is_dir()
     assert not (demo / "Templates").exists()
 
 

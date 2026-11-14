@@ -2,24 +2,25 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from core.brand import META_DIR
 
 
 def _write_templates(project_root: Path, template_name: str, folders: list[str]) -> None:
-    templates_root = project_root / ".MyOS" / "Templates" / template_name
+    templates_root = project_root / META_DIR / "Templates" / template_name
     templates_root.mkdir(parents=True, exist_ok=True)
     for folder in folders:
         (templates_root / folder).mkdir(parents=True, exist_ok=True)
 
 
 def _write_project_config(project_root: Path, template_name: str) -> None:
-    myos_dir = project_root / ".MyOS"
+    myos_dir = project_root / META_DIR
     myos_dir.mkdir(parents=True, exist_ok=True)
     (myos_dir / "Project.md").write_text("# MyOS Project\n")
     (myos_dir / "Templates.md").write_text(f"# Templates\n{template_name}\n")
 
 
 def _write_acls(project_root: Path) -> None:
-    myos_dir = project_root / ".MyOS"
+    myos_dir = project_root / META_DIR
     (myos_dir / "ACLs.md").write_text(
         "# Permissions\n"
         "\n"
@@ -29,7 +30,7 @@ def _write_acls(project_root: Path) -> None:
         "\n"
         "## Admin\n"
         "- /*: read, write, execute\n"
-        "- /.MyOS/ACLs.md: change\n"
+        f"- /{META_DIR}/ACLs.md: change\n"
         "\n"
         "## Worker\n"
         "- /info/: read\n"
@@ -81,7 +82,7 @@ def test_acl_permissions_basic_checks():
         assert policy.can_access("admin", "/admin", "read")
         assert policy.can_access("admin", "/any/other/path", "write")
         assert not policy.can_access("admin", "/any/other/path", "change")
-        assert policy.can_access("admin", "/.MyOS/ACLs.md", "change")
+        assert policy.can_access("admin", f"/{META_DIR}/ACLs.md", "change")
 
         assert policy.can_access("info", "/info", "write")
         assert policy.can_access("kommunikation", "/kommunikation", "read")
@@ -118,7 +119,7 @@ def test_acl_roles_from_inherited_templates_runtime_resolution():
         _write_project_config(root, "Standard")
         _write_acls(root)
 
-        child_myos = child / ".MyOS"
+        child_myos = child / META_DIR
         child_myos.mkdir(parents=True)
         (child_myos / "Project.md").write_text("# MyOS Project\n")
 
@@ -212,7 +213,7 @@ def test_template_role_gets_its_folder_with_original_case(tmp_path):
     project_root.mkdir()
     _write_templates(project_root, "Standard", ["04_Finanz", "01_Info"])
     _write_project_config(project_root, "Standard")
-    (project_root / ".MyOS" / "ACLs.md").write_text(
+    (project_root / META_DIR / "ACLs.md").write_text(
         "# Permissions\n\n## Folder\n- /{Folder}/: read, write\n"
     )
 
@@ -229,7 +230,7 @@ def test_display_names_keep_original_case(tmp_path):
     project_root.mkdir()
     _write_templates(project_root, "Standard", ["04_Finanz"])
     _write_project_config(project_root, "Standard")
-    (project_root / ".MyOS" / "ACLs.md").write_text(
+    (project_root / META_DIR / "ACLs.md").write_text(
         "# Permissions\n\n## Buchhaltung\n- /04_Finanz/: read\n\n# Users\nAnna: Buchhaltung\n"
     )
 

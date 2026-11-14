@@ -10,11 +10,12 @@ import pytest
 from core.acl import ACLAuthorizer, ACLPolicy, PermissionRule
 from core.acl_enforcement import ACLEnforcementService
 from core.scope_api import ScopeApi
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    for key in ("MYOS_TEMPLATES_DIR", "MYOS_ACL_MODE", "MYOS_ACL_USER", "MYOS_ACL_BACKEND", "MYOS_ACL_AUDIT"):
+    for key in (env_name("TEMPLATES_DIR"), env_name("ACL_MODE"), env_name("ACL_USER"), env_name("ACL_BACKEND"), env_name("ACL_AUDIT")):
         monkeypatch.delenv(key, raising=False)
 
 
@@ -42,18 +43,18 @@ def test_relative_rule_filters_listing(tmp_path):
 
 def test_real_acls_file_from_env_is_enforced(tmp_path, monkeypatch):
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    (root / ".MyOS" / "Templates" / "Standard" / "finanz").mkdir(parents=True)
-    (root / ".MyOS" / "ACLs.md").write_text(
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates" / "Standard" / "finanz").mkdir(parents=True)
+    (root / META_DIR / "ACLs.md").write_text(
         "# Permissions\n\n## Buchhalter\n- /finanz/: read, write\n\n# Users\nBertha: Buchhalter\n"
     )
     (root / "finanz").mkdir()
     (root / "privat").mkdir()
-    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
-    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
-    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
+    monkeypatch.setenv(env_name("ACL_BACKEND"), "legacy")
+    monkeypatch.setenv(env_name("ACL_USER"), "bertha")
 
     api = ScopeApi(str(root))
     names = [e["name"] for e in api.list_entries(str(root))]
@@ -64,18 +65,18 @@ def test_real_acls_file_from_env_is_enforced(tmp_path, monkeypatch):
 
 def test_subproject_is_enforced_with_the_parent_acls(tmp_path, monkeypatch):
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "ACLs.md").write_text(
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "ACLs.md").write_text(
         "# Permissions\n\n## Buchhalter\n- /finanz/: read, write\n\n# Users\nBertha: Buchhalter\n"
     )
     sub = root / "finanz" / "Kunde"
-    (sub / ".MyOS").mkdir(parents=True)
-    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (sub / META_DIR).mkdir(parents=True)
+    (sub / META_DIR / "Project.md").write_text("# MyOS Project\n")
     (sub / "rechnungen").mkdir()
-    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
-    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
-    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
+    monkeypatch.setenv(env_name("ACL_BACKEND"), "legacy")
+    monkeypatch.setenv(env_name("ACL_USER"), "bertha")
 
     api = ScopeApi(str(sub))
 
@@ -84,23 +85,23 @@ def test_subproject_is_enforced_with_the_parent_acls(tmp_path, monkeypatch):
 
 def test_folder_rules_are_enforced_in_subproject_template_folders(tmp_path, monkeypatch):
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    (root / ".MyOS" / "Templates" / "Standard" / "finanz").mkdir(parents=True)
-    (root / ".MyOS" / "ACLs.md").write_text(
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates" / "Standard" / "finanz").mkdir(parents=True)
+    (root / META_DIR / "ACLs.md").write_text(
         "# Permissions\n\n## Folder\n- /{Folder}/: read, write\n\n## Familie\n- /Familie/: read\n\n"
         "# Users\nBertha: finanz, Familie\n"
     )
     sub = root / "Familie"
-    (sub / ".MyOS").mkdir(parents=True)
-    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (sub / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (sub / META_DIR).mkdir(parents=True)
+    (sub / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (sub / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     (sub / "finanz").mkdir()
     (sub / "finanz" / "beleg.md").write_text("x")
-    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
-    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
-    monkeypatch.setenv("MYOS_ACL_USER", "bertha")
+    monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
+    monkeypatch.setenv(env_name("ACL_BACKEND"), "legacy")
+    monkeypatch.setenv(env_name("ACL_USER"), "bertha")
 
     api = ScopeApi(str(sub))
 

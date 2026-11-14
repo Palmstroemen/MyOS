@@ -7,24 +7,25 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtGui import QCursor, QGuiApplication
+from core.brand import META_DIR, env_name
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return path
 
 
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setenv("MYOS_SCOPE_START_DAEMON", "0")
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
+    monkeypatch.setenv(env_name("SCOPE_START_DAEMON"), "0")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
-    (tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
+    (tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True)
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     studio = _project(root / "Musikstudio").resolve()
     (studio / "Noten" / "2025").mkdir(parents=True)
     (studio / "Noten" / "2026").mkdir()
@@ -166,7 +167,7 @@ def _texts(window):
 def test_no_top_band_only_the_stem(world, window):
     # The development helpers (filter buttons, "Dummy Ablage") are gone; SunTree is the crown
     # and its stem.
-    filters = world["studio"] / ".MyOS" / "Filters"
+    filters = world["studio"] / META_DIR / "Filters"
     filters.mkdir()
     (filters / "Ausgaben.md").write_text("## Perspective 04_Finanz/Ausgaben\n")
     _call(window, "refreshModels")

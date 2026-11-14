@@ -1,9 +1,10 @@
 from core.scope_api import ScopeApi
+from core.brand import META_DIR
 
 
 def test_get_project_color_prefers_color_md_over_project_md(tmp_path):
     root = tmp_path / "ProjectA"
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir(parents=True)
     (myos / "Project.md").write_text("color: #112233\n", encoding="utf-8")
     (myos / "Color.md").write_text("#445566\n", encoding="utf-8")
@@ -16,7 +17,7 @@ def test_resolve_project_color_inherits_from_parent_project(tmp_path):
     root = tmp_path / "ProjectA"
     child = root / "notes" / "daily"
     child.mkdir(parents=True)
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir(parents=True)
     (myos / "Project.md").write_text("Theme #A1B2C3", encoding="utf-8")
 
@@ -27,7 +28,7 @@ def test_resolve_project_color_inherits_from_parent_project(tmp_path):
 def test_resolve_project_color_uses_cache_after_first_read(tmp_path):
     root = tmp_path / "ProjectA"
     root.mkdir()
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir()
     (myos / "Color.md").write_text("#101112", encoding="utf-8")
 
@@ -46,8 +47,8 @@ def test_find_color_upwards_checks_dotmyos_then_plain_color(tmp_path):
     leaf = base / "One" / "Sub"
     leaf.mkdir(parents=True)
     (leaf / "Color.md").write_text("#999999", encoding="utf-8")
-    (leaf / ".MyOS").mkdir()
-    (leaf / ".MyOS" / "Color.md").write_text("#123ABC", encoding="utf-8")
+    (leaf / META_DIR).mkdir()
+    (leaf / META_DIR / "Color.md").write_text("#123ABC", encoding="utf-8")
 
     api = ScopeApi(str(tmp_path))
     assert api._find_color_upwards(leaf, base) == "#123ABC"

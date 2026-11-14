@@ -7,17 +7,18 @@ from pathlib import Path
 import pytest
 
 from core.exporter import export_subtree
+from core.brand import META_DIR
 
 
 def _create_project(project_root: Path, template_name: str = "Standard") -> None:
-    myos_dir = project_root / ".MyOS"
+    myos_dir = project_root / META_DIR
     myos_dir.mkdir(parents=True, exist_ok=True)
     (myos_dir / "Project.md").write_text("# MyOS Project\n")
     (myos_dir / "Templates.md").write_text(f"# Templates\n{template_name}\n")
 
 
 def _create_templates(project_root: Path, template_name: str = "Standard") -> None:
-    templates_root = project_root / ".MyOS" / "Templates" / template_name
+    templates_root = project_root / META_DIR / "Templates" / template_name
     templates_root.mkdir(parents=True, exist_ok=True)
     (templates_root / "admin").mkdir(parents=True, exist_ok=True)
 
@@ -41,11 +42,11 @@ def test_export_subtree_includes_myos_and_templates():
 
         package_root = result.package_path
         assert (package_root / "finanz" / "ausgaben" / "rechnung.txt").exists()
-        assert (package_root / ".MyOS" / "Project.md").exists()
-        project_md = package_root / ".MyOS" / "Project.md"
+        assert (package_root / META_DIR / "Project.md").exists()
+        project_md = package_root / META_DIR / "Project.md"
         assert project_md.exists()
         assert "# Export" in project_md.read_text()
-        assert (package_root / ".MyOS" / "Templates" / "Standard" / "admin").exists()
+        assert (package_root / META_DIR / "Templates" / "Standard" / "admin").exists()
 
 
 
@@ -61,7 +62,7 @@ def test_export_packs_only_the_templates_the_project_uses():
 
         package_root = export_subtree(project_root / "info", tmp / "exports").package_path
 
-        assert sorted(p.name for p in (package_root / ".MyOS" / "Templates").iterdir()) == ["Standard"]
+        assert sorted(p.name for p in (package_root / META_DIR / "Templates").iterdir()) == ["Standard"]
         assert not (package_root / "Templates").exists()
 
 def test_export_metadata_contains_reference_path():
@@ -80,7 +81,7 @@ def test_export_metadata_contains_reference_path():
         output_dir = tmp / "exports"
 
         result = export_subtree(subtree, output_dir)
-        project_md = result.package_path / ".MyOS" / "Project.md"
+        project_md = result.package_path / META_DIR / "Project.md"
         content = project_md.read_text()
 
         assert "ReferencePath:" in content
@@ -177,7 +178,7 @@ def test_export_subproject_uses_runtime_inherited_templates():
         _create_project(root, template_name="Standard")
         _create_templates(root, template_name="Standard")
 
-        child_myos = child / ".MyOS"
+        child_myos = child / META_DIR
         child_myos.mkdir(parents=True, exist_ok=True)
         (child_myos / "Project.md").write_text("# MyOS Project\n")
 
@@ -190,4 +191,4 @@ def test_export_subproject_uses_runtime_inherited_templates():
 
         package_root = result.package_path
         assert (package_root / "finanz" / "note.txt").exists()
-        assert (package_root / ".MyOS" / "Templates" / "Standard" / "admin").exists()
+        assert (package_root / META_DIR / "Templates" / "Standard" / "admin").exists()

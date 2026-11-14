@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from core.acl import ACLPolicy
+from core.brand import META_DIR
 
 HEAD = "# Permissions\n\n## Team\n- /Arbeit/: read, write\n"
 LOCK = "- /Arbeit/Geheim/: none\n"
@@ -15,9 +16,9 @@ TAIL = "\n## Gast\n- /Info/: read\n\n# Users\nKarl: Team\nMia: Gast\n"
 
 def _policy(tmp_path: Path, between: str) -> ACLPolicy:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "ACLs.md").write_text(HEAD + between + LOCK + TAIL)
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "ACLs.md").write_text(HEAD + between + LOCK + TAIL)
     return ACLPolicy.from_project(root)
 
 
@@ -52,7 +53,7 @@ def test_commented_out_rules_do_not_apply(tmp_path):
 
 def test_inline_hash_comment_after_a_rule(tmp_path):
     policy = _policy(tmp_path, "")
-    acls = tmp_path / "Project" / ".MyOS" / "ACLs.md"
+    acls = tmp_path / "Project" / META_DIR / "ACLs.md"
     acls.write_text(acls.read_text().replace(LOCK, "- /Arbeit/Geheim/: none  # seit 2026 gesperrt\n"))
 
     assert ACLPolicy.from_project(tmp_path / "Project").rights_for("team", "/Arbeit/Geheim/x.md") == {"none"}
@@ -61,7 +62,7 @@ def test_inline_hash_comment_after_a_rule(tmp_path):
 def test_users_after_a_blank_line_and_a_note(tmp_path):
     _policy(tmp_path, "")
     root = tmp_path / "Project"
-    acls = root / ".MyOS" / "ACLs.md"
+    acls = root / META_DIR / "ACLs.md"
     acls.write_text(acls.read_text().replace("Karl: Team\n", "Karl: Team\n\nNeu seit Oktober\nTom: Gast\n"))
 
     policy = ACLPolicy.from_project(root)

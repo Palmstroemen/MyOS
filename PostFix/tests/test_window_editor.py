@@ -11,6 +11,7 @@ import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
+from core.brand import env_name
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -19,7 +20,7 @@ NOTE = "---\nbackground_color: '#fff8b0'\n---\n# Lektion\n\nErster Absatz.\n\n[w
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
-    monkeypatch.setenv("MYOS_POSTFIX_EDITOR", "codemirror")
+    monkeypatch.setenv(env_name("POSTFIX_EDITOR"), "codemirror")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     app = QApplication.instance() or QApplication([])
     from PostFix import editor_host
@@ -119,7 +120,7 @@ def test_a_link_opens_the_note_in_the_same_window(setup):
 
 def test_without_the_switch_postfix_edits_in_the_editor(setup, monkeypatch):
     app, window, folder, editor_host = setup
-    monkeypatch.delenv("MYOS_POSTFIX_EDITOR")
+    monkeypatch.delenv(env_name("POSTFIX_EDITOR"))
     w = window(folder / "Erste.md")
     w._take_editor()
     assert w.editor.preview_suspended()
@@ -127,7 +128,7 @@ def test_without_the_switch_postfix_edits_in_the_editor(setup, monkeypatch):
 
 def test_the_line_editor_is_still_there_when_asked_for(setup, monkeypatch):
     app, window, folder, editor_host = setup
-    monkeypatch.setenv("MYOS_POSTFIX_EDITOR", "line")
+    monkeypatch.setenv(env_name("POSTFIX_EDITOR"), "line")
     w = window(folder / "Erste.md")
     w._take_editor()
     assert not w.editor.preview_suspended()

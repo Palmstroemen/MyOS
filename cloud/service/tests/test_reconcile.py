@@ -5,6 +5,7 @@ import pytest
 
 from cloud.service.reconcile import Steward, reconcile
 from core.nextcloud_sync import SyncRefused
+from core.brand import META_DIR
 
 
 class Untouchable:
@@ -15,8 +16,8 @@ class Untouchable:
 
 
 def test_an_acls_md_that_leaves_no_one_to_change_the_rights_is_not_sent(shadow):
-    (shadow / ".MyOS" / "Nextcloud.md").write_text("# Nextcloud\ngroup: Projekte\n\n# Accounts\nLisa: lisa\n")
-    (shadow / ".MyOS" / "ACLs.md").write_text("kaputt\n")
+    (shadow / META_DIR / "Nextcloud.md").write_text("# Nextcloud\ngroup: Projekte\n\n# Accounts\nLisa: lisa\n")
+    (shadow / META_DIR / "ACLs.md").write_text("kaputt\n")
 
     with pytest.raises(SyncRefused, match="kept"):
         reconcile(shadow, Untouchable())

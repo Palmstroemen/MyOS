@@ -11,6 +11,7 @@ from PySide6.QtGui import QGuiApplication, QWheelEvent
 from PySide6.QtQml import QQmlApplicationEngine, QQmlProperty
 from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
+from core.brand import env_name
 
 SCOPE_DIR = Path(__file__).resolve().parents[1]
 
@@ -267,8 +268,8 @@ def test_the_wheel_still_scrolls_the_list(dragging):
 @pytest.fixture
 def backend(tmp_path, monkeypatch):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setenv("MYOS_SCOPE_START_DAEMON", "0")
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
+    monkeypatch.setenv(env_name("SCOPE_START_DAEMON"), "0")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     import Scope.Scope as S
     from core.scope_api import ScopeApi

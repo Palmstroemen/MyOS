@@ -15,6 +15,7 @@ import pytest
 from core.desk_runtime import DeskRuntime, DeskRuntimeSettings
 from core.desk_service import DeskService, desk_home
 from core.desktop_backends.base import BackendStepResult, DesktopBackend, DesktopState
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +24,7 @@ def _own_config_home(monkeypatch, tmp_path_factory):
     # here too, not only in the root conftest.py (which is missing when the file is
     # run from elsewhere), so the user's ~/.config/MyOS is never touched.
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "none")
 
 
 class FakeDesktop(DesktopBackend):
@@ -81,10 +82,10 @@ def _service(desktop: FakeDesktop) -> DeskService:
 
 
 def _project(path: Path, desk: Optional[str] = None) -> Path:
-    (path / ".MyOS").mkdir(parents=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     if desk is not None:
-        (path / ".MyOS" / "Desk.md").write_text(desk)
+        (path / META_DIR / "Desk.md").write_text(desk)
     return path
 
 
@@ -101,7 +102,7 @@ def tree(tmp_path):
 
 
 def _desk(path: Path) -> str:
-    return (path / ".MyOS" / "Desk.md").read_text()
+    return (path / META_DIR / "Desk.md").read_text()
 
 
 def test_entering_projects_applies_the_nearest_desk(tree):
@@ -129,8 +130,8 @@ def test_the_users_own_desktop_is_kept_and_restored_outside_projects(tree):
 
 
 def test_a_desk_above_the_projects_tree_is_ignored(tree, tmp_path):
-    (tmp_path / ".MyOS").mkdir()
-    (tmp_path / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Fremd\n")
+    (tmp_path / META_DIR).mkdir()
+    (tmp_path / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Fremd\n")
     desktop = FakeDesktop()
 
     _service(desktop).refresh_context(tree["outside"])
@@ -188,7 +189,7 @@ def test_myos_own_changes_are_not_saved_as_user_changes(tree):
     for place in ("garten", "haus", "hecke", "outside", "haus"):
         service.refresh_context(tree[place])
 
-    assert not (tree["haus"] / ".MyOS" / "Desk.md").exists()
+    assert not (tree["haus"] / META_DIR / "Desk.md").exists()
     assert "Projekte-Theme" not in (desk_home() / "Desk.md").read_text()
 
 
@@ -207,7 +208,7 @@ def test_scope_and_postfix_share_what_myos_set_last(tree):
 def test_a_given_desk_overrules_the_projects_and_keeps_changes_where_it_says(tree, tmp_path):
     # The lens (Designdocument Perspective Resolver MVP.md, A5): its Desk overrules the
     # project's; what the user changes meanwhile goes where the caller says (the template).
-    lens_desk = tmp_path / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md"
+    lens_desk = tmp_path / META_DIR / "Templates" / "Standard" / "04_Finanz" / META_DIR / "Desk.md"
     lens_desk.parent.mkdir(parents=True)
     lens_desk.write_text("# Desk\nThemePreset: Finanz-Hell\n")
     desktop = FakeDesktop()
@@ -221,7 +222,7 @@ def test_a_given_desk_overrules_the_projects_and_keeps_changes_where_it_says(tre
     desktop.user_changes(theme="Finanz-Gold")
     service.refresh_context(tree["haus"])  # lens off: the project's Desk again
     assert "ThemePreset: Finanz-Gold\n" in lens_desk.read_text()
-    assert not (tree["haus"] / ".MyOS" / "Desk.md").exists()
+    assert not (tree["haus"] / META_DIR / "Desk.md").exists()
     assert desktop.state.theme == "Projekte-Theme"
 
 
@@ -233,7 +234,7 @@ def test_an_empty_owner_keeps_changes_nowhere(tree):
     desktop.user_changes(theme="Weg-Theme")
     service.refresh_context(tree["garten"])
 
-    assert not (tree["haus"] / ".MyOS" / "Desk.md").exists()
+    assert not (tree["haus"] / META_DIR / "Desk.md").exists()
     assert "Weg-Theme" not in _desk(tree["top"])
 
 
@@ -262,7 +263,7 @@ def test_without_a_desktop_backend_nothing_is_written(tree):
     service.refresh_context(tree["garten"])
 
     assert not (desk_home() / "Desk.md").exists()
-    assert not (tree["haus"] / ".MyOS" / "Desk.md").exists()
+    assert not (tree["haus"] / META_DIR / "Desk.md").exists()
 
 
 def test_writing_keeps_other_lines_and_refuses_symlinks(tmp_path):
@@ -285,7 +286,7 @@ def test_writing_keeps_other_lines_and_refuses_symlinks(tmp_path):
 
 
 def test_inherit_not_stops_the_search_upwards(tree):
-    (tree["haus"] / ".MyOS" / "Desk.md").write_text("# Desk\nInherit: not\n")
+    (tree["haus"] / META_DIR / "Desk.md").write_text("# Desk\nInherit: not\n")
     desktop = FakeDesktop("Mint-Y", "/usr/share/backgrounds/default.jpg")
     service = _service(desktop)
     service.refresh_context(tree["garten"])
@@ -343,8 +344,8 @@ def test_the_panel_theme_follows_the_projects_too(tree):
 def test_what_a_desk_leaves_open_does_not_stay_from_the_previous_project(tree):
     # Garten has a blue taskbar; Haus only sets a wallpaper. In Haus the taskbar must not
     # stay blue: the theme comes from Projekte, the taskbar from the user's own desktop.
-    (tree["garten"] / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Garten-Theme\nPanelTheme: Mint-Y-Blue\n")
-    (tree["haus"] / ".MyOS" / "Desk.md").write_text("# Desk\nWallpaperPath: /bg/haus.jpg\n")
+    (tree["garten"] / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Garten-Theme\nPanelTheme: Mint-Y-Blue\n")
+    (tree["haus"] / META_DIR / "Desk.md").write_text("# Desk\nWallpaperPath: /bg/haus.jpg\n")
     desktop = FakeDesktop(panel_theme="Linux Mint")
     service = _service(desktop)
     service.refresh_context(tree["garten"])
@@ -357,7 +358,7 @@ def test_what_a_desk_leaves_open_does_not_stay_from_the_previous_project(tree):
 
 
 def test_the_taskbar_follows_the_projects(tree):
-    (tree["garten"] / ".MyOS" / "Desk.md").write_text(
+    (tree["garten"] / META_DIR / "Desk.md").write_text(
         "# Desk\nThemePreset: Garten-Theme\n\n## Taskbar\n- nemo.desktop\n- gimp.desktop\n"
     )
     desktop = FakeDesktop(taskbar=("nemo.desktop", "firefox.desktop"))
@@ -382,7 +383,7 @@ def test_an_existing_system_default_learns_the_own_taskbar(tree):
     service = _service(desktop)
     service.refresh_context(tree["outside"])
     assert "Taskbar" not in (desk_home() / "Desk.md").read_text()
-    (tree["garten"] / ".MyOS" / "Desk.md").write_text("# Desk\nThemePreset: Garten-Theme\n## Taskbar\n- gimp.desktop\n")
+    (tree["garten"] / META_DIR / "Desk.md").write_text("# Desk\nThemePreset: Garten-Theme\n## Taskbar\n- gimp.desktop\n")
 
     desktop.state = replace(desktop.state, taskbar=("nemo.desktop", "firefox.desktop"))  # MyOS now reads it
     service.refresh_context(tree["garten"])

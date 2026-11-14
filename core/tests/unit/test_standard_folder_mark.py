@@ -4,19 +4,20 @@ shows them on top together with the pale ones."""
 import pytest
 
 from core.scope_api import ScopeApi
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture
 def project(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.setenv("MYOS_TEMPLATES_DIR", str(tmp_path / "Templates"))
-    monkeypatch.delenv("MYOS_ACL_MODE", raising=False)
+    monkeypatch.setenv(env_name("TEMPLATES_DIR"), str(tmp_path / "Templates"))
+    monkeypatch.delenv(env_name("ACL_MODE"), raising=False)
     for name in ("01_Info", "04_Finanz/Ausgaben"):
         (tmp_path / "Templates" / "Standard" / name).mkdir(parents=True)
     root = tmp_path / "Projekt"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     (root / "04_Finanz" / "Ausgaben").mkdir(parents=True)
     (root / "04_Finanz" / "Eigenes").mkdir()
     (root / "Eigenes").mkdir()

@@ -6,16 +6,17 @@ import pytest
 
 from cloud.service.shadow import ShadowKeeper, build_shadow, matters
 from core.nextcloud_dav import Entry, NextcloudError
+from core.brand import META_DIR
 
 FILES = {
-    "/.MyOS/Project.md": b"# MyOS Project\n",
-    "/.MyOS/ACLs.md": b"# Permissions\n",
-    "/.MyOS/Templates/Standard/04_Finanz/.MyOS/Desk.md": b"theme: light\n",
-    "/Familie/.MyOS/Project.md": b"# MyOS Project\n",
+    f"/{META_DIR}/Project.md": b"# MyOS Project\n",
+    f"/{META_DIR}/ACLs.md": b"# Permissions\n",
+    f"/{META_DIR}/Templates/Standard/04_Finanz/{META_DIR}/Desk.md": b"theme: light\n",
+    f"/Familie/{META_DIR}/Project.md": b"# MyOS Project\n",
     "/Familie/Rechnung.pdf": b"%PDF",
 }
-FOLDERS = ["/", "/.MyOS", "/.MyOS/Templates", "/.MyOS/Templates/Standard", "/.MyOS/Templates/Standard/04_Finanz",
-           "/.MyOS/Templates/Standard/04_Finanz/.MyOS", "/Familie", "/Familie/.MyOS", "/Familie/Fotos"]
+FOLDERS = ["/", f"/{META_DIR}", f"/{META_DIR}/Templates", f"/{META_DIR}/Templates/Standard", f"/{META_DIR}/Templates/Standard/04_Finanz",
+           f"/{META_DIR}/Templates/Standard/04_Finanz/{META_DIR}", "/Familie", f"/Familie/{META_DIR}", "/Familie/Fotos"]
 
 
 class FakeDAV:
@@ -43,13 +44,13 @@ def test_folders_and_myos_files_come_documents_do_not(tmp_path):
     build_shadow(dav, tmp_path / "s")
 
     assert (tmp_path / "s" / "Familie" / "Fotos").is_dir()
-    assert (tmp_path / "s" / ".MyOS" / "ACLs.md").read_bytes() == b"# Permissions\n"
-    assert (tmp_path / "s" / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / ".MyOS" / "Desk.md").is_file()
+    assert (tmp_path / "s" / META_DIR / "ACLs.md").read_bytes() == b"# Permissions\n"
+    assert (tmp_path / "s" / META_DIR / "Templates" / "Standard" / "04_Finanz" / META_DIR / "Desk.md").is_file()
     assert not (tmp_path / "s" / "Familie" / "Rechnung.pdf").exists()
     assert "/Familie/Rechnung.pdf" not in dav.got
 
 
-@pytest.mark.parametrize("bad", ["/../.MyOS/x.md", "/a/./.MyOS/x.md", "/a\\..\\.MyOS/x.md"])
+@pytest.mark.parametrize("bad", [f"/../{META_DIR}/x.md", f"/a/./{META_DIR}/x.md", f"/a\\..\\{META_DIR}/x.md"])
 def test_a_path_that_could_leave_the_shadow_is_refused(tmp_path, bad):
     dav = FakeDAV(files={bad: b"x", **FILES})
 
@@ -98,8 +99,8 @@ def test_a_failed_rebuild_keeps_the_shadow_there_was(tmp_path):
 
 @pytest.mark.parametrize("path, is_dir, expected", [
     ("/Familie/Neu", True, True),  # a folder: in the shadow
-    ("/Familie/.MyOS/ACLs.md", False, True),  # a .MyOS file: in the shadow
-    ("/.MyOS/Templates/Standard/04_Finanz/Liesmich.md", False, True),
+    (f"/Familie/{META_DIR}/ACLs.md", False, True),  # a .MyOS file: in the shadow
+    (f"/{META_DIR}/Templates/Standard/04_Finanz/Liesmich.md", False, True),
     ("/Familie/Rechnung.pdf", False, False),  # a document: not
 ])
 def test_only_folders_and_myos_files_matter_to_the_shadow(path, is_dir, expected):
@@ -112,11 +113,11 @@ def test_a_rebuild_takes_unchanged_files_from_the_shadow_before(tmp_path):
     keeper = ShadowKeeper(tmp_path / "base", dav)
     keeper.refresh()
     dav.got.clear()
-    dav.files["/.MyOS/ACLs.md"], dav.etags["/.MyOS/ACLs.md"] = b"# Permissions\nneu\n", '"b"'
+    dav.files[f"/{META_DIR}/ACLs.md"], dav.etags[f"/{META_DIR}/ACLs.md"] = b"# Permissions\nneu\n", '"b"'
     dav.tag = '"2"'
 
     keeper.refresh()
 
-    assert dav.got == ["/.MyOS/ACLs.md"]
-    assert (keeper.root / ".MyOS" / "ACLs.md").read_bytes() == b"# Permissions\nneu\n"
-    assert (keeper.root / ".MyOS" / "Project.md").read_bytes() == b"# MyOS Project\n"
+    assert dav.got == [f"/{META_DIR}/ACLs.md"]
+    assert (keeper.root / META_DIR / "ACLs.md").read_bytes() == b"# Permissions\nneu\n"
+    assert (keeper.root / META_DIR / "Project.md").read_bytes() == b"# MyOS Project\n"

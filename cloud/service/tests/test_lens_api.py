@@ -8,6 +8,7 @@ shows only projects the person may read there."""
 import pytest
 
 from cloud.service.lens import lens
+from core.brand import META_DIR
 
 
 def test_the_top_lists_the_departments(shadow):
@@ -65,12 +66,12 @@ def test_a_project_one_may_not_read_is_denied_not_missing(shadow):
 
 
 @pytest.mark.parametrize("path", ["/09_Nichts", "/04_Finanz/Projekte/Nichts", "/04_Finanz/../Familie",
-                                  "/04_Finanz/Projekte/Familie/.MyOS", "/04_Finanz/Projekte/Clipboard"])
+                                  f"/04_Finanz/Projekte/Familie/{META_DIR}", "/04_Finanz/Projekte/Clipboard"])
 def test_nothing_there_or_not_allowed_is_none(shadow, path):
     assert lens(shadow, "oliver", path) is None
 
 
 def test_a_broken_acls_md_hides_everything(shadow):
-    (shadow / ".MyOS" / "ACLs.md").write_bytes(b"\xff\xfe broken")
+    (shadow / META_DIR / "ACLs.md").write_bytes(b"\xff\xfe broken")
 
     assert lens(shadow, "oliver", "/04_Finanz/Projekte")["entries"] == []

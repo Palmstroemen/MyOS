@@ -10,6 +10,7 @@ import pytest
 
 from core.acl_nextcloud import PlannedRule, diff, updates
 from core.nextcloud_dav import ExistingRule, NextcloudDAV, NextcloudError, tree_functions
+from core.brand import META_DIR
 
 BASE = "/remote.php/dav/files/oliver/Projekte"
 
@@ -234,22 +235,22 @@ def _files_dav(answers, calls):
 
 def test_get_returns_the_content_or_none():
     calls = []
-    dav = _files_dav({("GET", BASE + "/.MyOS/Embryos.json"): (200, b"{}")}, calls)
+    dav = _files_dav({("GET", BASE + f"/{META_DIR}/Embryos.json"): (200, b"{}")}, calls)
 
-    assert dav.get("/.MyOS/Embryos.json") == b"{}"
-    assert dav.get("/.MyOS/fehlt.json") is None
+    assert dav.get(f"/{META_DIR}/Embryos.json") == b"{}"
+    assert dav.get(f"/{META_DIR}/fehlt.json") is None
 
 
 def test_put_mkcol_and_delete_accept_what_nextcloud_answers():
     calls = []
     dav = _files_dav({
         ("PUT", BASE + "/" + quote("Für Tom.md")): (201, b""),
-        ("MKCOL", BASE + "/.MyOS"): (405, b""),  # already there
+        ("MKCOL", BASE + f"/{META_DIR}"): (405, b""),  # already there
         ("DELETE", BASE + "/alt.md"): (204, b""),
     }, calls)
 
     dav.put("/Für Tom.md", b"x")
-    dav.mkcol("/.MyOS")
+    dav.mkcol(f"/{META_DIR}")
     dav.delete("/alt.md")
     dav.delete("/schon-weg.md")  # 404: gone already
 

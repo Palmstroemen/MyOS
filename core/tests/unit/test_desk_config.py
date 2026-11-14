@@ -7,6 +7,7 @@ import string
 from core.desk import DeskConfig, find_desks, resolve_active_desk
 from core.desk_runtime import DeskRuntime, DeskRuntimeSettings
 from core.desktop_backends.base import BackendStepResult, DesktopBackend
+from core.brand import META_DIR
 
 
 def _write_desk(path: Path, theme: str) -> None:
@@ -68,15 +69,15 @@ def test_find_desks_and_nearest_ancestor_selection(tmp_path):
     root = tmp_path / "Project"
     deep = root / "Sub" / "Deep"
     deep.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
-    _write_desk(root / "Sub" / ".MyOS" / "Desk.md", "SubTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
+    _write_desk(root / "Sub" / META_DIR / "Desk.md", "SubTheme")
 
     matches = find_desks(deep)
 
     assert len(matches) >= 2
-    assert matches[0][0] == (root / "Sub" / ".MyOS" / "Desk.md")
+    assert matches[0][0] == (root / "Sub" / META_DIR / "Desk.md")
     assert matches[0][1].theme_preset == "SubTheme"
-    assert matches[1][0] == (root / ".MyOS" / "Desk.md")
+    assert matches[1][0] == (root / META_DIR / "Desk.md")
     assert matches[1][1].theme_preset == "RootTheme"
 
 
@@ -84,12 +85,12 @@ def test_resolve_active_desk_inherits_from_parent_when_child_missing(tmp_path):
     root = tmp_path / "Project"
     child = root / "Child"
     child.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
 
     resolved = resolve_active_desk(child)
 
     assert resolved is not None
-    assert resolved.source_path == (root / ".MyOS" / "Desk.md")
+    assert resolved.source_path == (root / META_DIR / "Desk.md")
     assert resolved.theme_preset == "RootTheme"
 
 
@@ -97,15 +98,15 @@ def test_resolve_active_desk_skips_malformed_local_file_and_falls_back(tmp_path)
     root = tmp_path / "Project"
     child = root / "Child"
     child.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
-    malformed = child / ".MyOS" / "Desk.md"
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
+    malformed = child / META_DIR / "Desk.md"
     malformed.parent.mkdir(parents=True, exist_ok=True)
     malformed.write_text("this line is not parser compatible\n", encoding="utf-8")
 
     resolved = resolve_active_desk(child)
 
     assert resolved is not None
-    assert resolved.source_path == (root / ".MyOS" / "Desk.md")
+    assert resolved.source_path == (root / META_DIR / "Desk.md")
     assert resolved.theme_preset == "RootTheme"
 
 
@@ -113,7 +114,7 @@ def test_manual_override_wins_over_nearest_ancestor(tmp_path):
     root = tmp_path / "Project"
     sub = root / "Sub"
     sub.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
     manual = tmp_path / "ManualDesk.md"
     _write_desk(manual, "ManualTheme")
 
@@ -142,7 +143,7 @@ def test_filter_linked_desk_overrides_nearest_ancestor(tmp_path):
     root = tmp_path / "Project"
     work = root / "Work"
     work.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
     _write_desk(work / "FinanceDesk.md", "FinanceTheme")
     (work / "Filter.md").write_text(
         "\n".join(
@@ -169,10 +170,10 @@ def test_symlinked_local_desk_is_ignored_for_security(tmp_path):
     root = tmp_path / "Project"
     child = root / "Child"
     child.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
     outside = tmp_path / "OutsideDesk.md"
     _write_desk(outside, "OutsideTheme")
-    symlink_path = child / ".MyOS" / "Desk.md"
+    symlink_path = child / META_DIR / "Desk.md"
     symlink_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         symlink_path.symlink_to(outside)
@@ -182,7 +183,7 @@ def test_symlinked_local_desk_is_ignored_for_security(tmp_path):
     resolved = resolve_active_desk(child)
 
     assert resolved is not None
-    assert resolved.source_path == (root / ".MyOS" / "Desk.md")
+    assert resolved.source_path == (root / META_DIR / "Desk.md")
     assert resolved.theme_preset == "RootTheme"
 
 
@@ -190,7 +191,7 @@ def test_filter_symlink_escape_is_ignored_for_security(tmp_path):
     root = tmp_path / "Project"
     work = root / "Work"
     work.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
     outside = tmp_path / "OutsideDesk.md"
     _write_desk(outside, "OutsideTheme")
     desk_link = work / "DeskLink.md"
@@ -206,7 +207,7 @@ def test_filter_symlink_escape_is_ignored_for_security(tmp_path):
     resolved = resolve_active_desk(work)
 
     assert resolved is not None
-    assert resolved.source_path == (root / ".MyOS" / "Desk.md")
+    assert resolved.source_path == (root / META_DIR / "Desk.md")
     assert resolved.theme_preset == "RootTheme"
 
 
@@ -214,8 +215,8 @@ def test_runtime_reapplies_only_when_profile_identity_changes(tmp_path):
     root = tmp_path / "Project"
     sub = root / "Sub"
     sub.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
-    _write_desk(sub / ".MyOS" / "Desk.md", "SubTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
+    _write_desk(sub / META_DIR / "Desk.md", "SubTheme")
 
     backend = _RecordingBackend()
     runtime = DeskRuntime(
@@ -236,11 +237,11 @@ def test_runtime_reapplies_only_when_profile_identity_changes(tmp_path):
 
     assert first["ok"] is True
     assert first["reason"] == "dry_run"
-    assert first["source"] == str(sub / ".MyOS" / "Desk.md")
+    assert first["source"] == str(sub / META_DIR / "Desk.md")
     assert second["reason"] == "unchanged"
     assert third["ok"] is True
     assert third["reason"] == "dry_run"
-    assert third["source"] == str(root / ".MyOS" / "Desk.md")
+    assert third["source"] == str(root / META_DIR / "Desk.md")
     # Two apply cycles x 4 ordered operations.
     assert backend.calls == [
         "theme",
@@ -257,7 +258,7 @@ def test_runtime_reapplies_only_when_profile_identity_changes(tmp_path):
 def test_runtime_stops_on_first_failed_step_and_triggers_rollback(tmp_path):
     root = tmp_path / "Project"
     root.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
 
     backend = _FailingDockBackend()
     runtime = DeskRuntime(
@@ -282,7 +283,7 @@ def test_runtime_stops_on_first_failed_step_and_triggers_rollback(tmp_path):
 
 
 def test_desk_config_from_data_handles_weird_types_without_crash(tmp_path):
-    path = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    path = tmp_path / "Project" / META_DIR / "Desk.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     weird = {
         "Desk": [
@@ -309,7 +310,7 @@ def test_desk_config_from_data_handles_weird_types_without_crash(tmp_path):
 
 
 def test_resolve_active_desk_handles_malformed_manual_path_and_uses_fallback(tmp_path):
-    fallback = tmp_path / "fallback" / ".MyOS" / "Desk.md"
+    fallback = tmp_path / "fallback" / META_DIR / "Desk.md"
     _write_desk(fallback, "FallbackTheme")
 
     resolved = resolve_active_desk(tmp_path, manual="bad\0path", fallback=fallback)
@@ -324,7 +325,7 @@ def test_desk_config_fuzz_from_data_is_stable_and_never_throws(tmp_path):
 
     rng = random.Random(1337)
     allowed_inherit = {"dynamic", "fix", "not"}
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
 
@@ -374,7 +375,7 @@ def test_desk_config_fuzz_markdown_parse_is_stable(tmp_path):
     rng = random.Random(4242)
     root = tmp_path / "Project"
     root.mkdir(parents=True, exist_ok=True)
-    fallback = root / ".MyOS" / "Desk.md"
+    fallback = root / META_DIR / "Desk.md"
     _write_desk(fallback, "FallbackTheme")
     manual = root / "manual.md"
 
@@ -408,7 +409,7 @@ def test_desk_config_fuzz_markdown_parse_is_stable(tmp_path):
 
 
 def test_desk_values_may_contain_spaces_and_blank_lines_do_not_end_the_section(tmp_path):
-    desk = tmp_path / ".MyOS" / "Desk.md"
+    desk = tmp_path / META_DIR / "Desk.md"
     desk.parent.mkdir(parents=True)
     desk.write_text(
         "# Desk\n"
@@ -431,7 +432,7 @@ def test_desk_values_may_contain_spaces_and_blank_lines_do_not_end_the_section(t
 
 def _desk_file(path: Path, text: str) -> Path:
     path.mkdir(parents=True, exist_ok=True)
-    desk = path / ".MyOS" / "Desk.md"
+    desk = path / META_DIR / "Desk.md"
     desk.parent.mkdir(exist_ok=True)
     desk.write_text("# Desk\n" + text, encoding="utf-8")
     return desk

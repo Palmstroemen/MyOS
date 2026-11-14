@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from core.xray import xray_listing
+from core.brand import META_DIR
 
 
 def _files(base: Path, *names: str) -> None:
@@ -25,8 +26,8 @@ def folder(tmp_path):
            "Fotos/a.jpg", "Fotos/b.jpg", "Fotos/c.jpg", "Fotos/d.jpg", "Fotos/e.jpg",
            "Projekt/p.txt", ".versteckt/h.txt")
     (tmp_path / "Leer").mkdir()
-    (tmp_path / "Projekt" / ".MyOS").mkdir()
-    (tmp_path / "Projekt" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (tmp_path / "Projekt" / META_DIR).mkdir()
+    (tmp_path / "Projekt" / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return tmp_path
 
 
@@ -69,8 +70,8 @@ def test_deep_folders_show_where_the_file_lies(tmp_path):
 
 def test_folders_holding_a_project_or_unreadable_parts_stay_closed(tmp_path):
     _files(tmp_path, "Mix/m.txt", "Mix/Sub/s.txt", "Zu/z.txt", "Offen/o.txt")
-    (tmp_path / "Mix" / "Sub" / ".MyOS").mkdir()
-    (tmp_path / "Mix" / "Sub" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (tmp_path / "Mix" / "Sub" / META_DIR).mkdir()
+    (tmp_path / "Mix" / "Sub" / META_DIR / "Project.md").write_text("# MyOS Project\n")
 
     shown = _shown(xray_listing(tmp_path, budget=20, may_read=lambda p: p.name != "Zu"))
 

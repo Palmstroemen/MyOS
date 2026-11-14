@@ -9,22 +9,23 @@ from pathlib import Path
 import pytest
 
 from core.acl_view import ACLView
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _project_templates_only(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 def _project(tmp_path: Path, acls: str = None) -> Path:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("finanz", "info", "work"):
-        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / META_DIR / "Templates" / "Standard" / folder).mkdir(parents=True)
     if acls is not None:
-        (root / ".MyOS" / "ACLs.md").write_text(acls)
+        (root / META_DIR / "ACLs.md").write_text(acls)
     return root
 
 
@@ -37,7 +38,7 @@ ACLS = (
     "\n"
     "## Admin\n"
     "- /*: read, write, execute\n"
-    "- /.MyOS/ACLs.md: change\n"
+    f"- /{META_DIR}/ACLs.md: change\n"
     "\n"
     "## Buchhalter\n"
     "- /finanz/: read, write, execute\n"
@@ -222,10 +223,10 @@ def test_listing_summary_accepts_unresolved_entry_paths(tmp_path):
 
 def _subproject(parent: Path, rel: str, acls: str = None) -> Path:
     sub = parent / rel
-    (sub / ".MyOS").mkdir(parents=True)
-    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (sub / META_DIR).mkdir(parents=True)
+    (sub / META_DIR / "Project.md").write_text("# MyOS Project\n")
     if acls is not None:
-        (sub / ".MyOS" / "ACLs.md").write_text(acls)
+        (sub / META_DIR / "ACLs.md").write_text(acls)
     return sub
 
 
@@ -255,7 +256,7 @@ def test_subproject_with_own_acls_uses_them(tmp_path):
 
 
 def test_may_view_requires_read_on_acls_file_for_a_named_viewer(tmp_path):
-    root = _project(tmp_path, ACLS.replace("- /.MyOS/ACLs.md: change\n", "- /.MyOS/ACLs.md: read, change\n"))
+    root = _project(tmp_path, ACLS.replace(f"- /{META_DIR}/ACLs.md: change\n", f"- /{META_DIR}/ACLs.md: read, change\n"))
     view = ACLView.for_path(root)
 
     assert view.may_view(None) is True  # no enforcement: everybody sees the panel
@@ -276,7 +277,7 @@ def test_delete_is_a_right_of_its_own_and_part_of_star(tmp_path):
 
 def _templated_subproject(root: Path, rel: str) -> Path:
     sub = _subproject(root, rel)
-    (sub / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (sub / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("finanz", "info", "work"):
         (sub / folder).mkdir(parents=True, exist_ok=True)
     return sub

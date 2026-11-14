@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+from core.brand import META_DIR
 
 pytest.importorskip("PySide6")
 
@@ -21,7 +22,7 @@ def postfix_test_lab(tmp_path: Path) -> dict[str, Path]:
     """Small PostFix-focused test lab with vault + project layout."""
     vault = tmp_path / "vault"
     project = vault / "Projects" / "Demo"
-    myos = project / ".MyOS"
+    myos = project / META_DIR
     obsidian = vault / ".obsidian"
     obsidian.mkdir(parents=True, exist_ok=True)
     myos.mkdir(parents=True, exist_ok=True)

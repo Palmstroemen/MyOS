@@ -6,19 +6,20 @@ import pytest
 
 from core import trash
 from core.scope_api import ScopeApi
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    for key in ("MYOS_TEMPLATES_DIR", "MYOS_ACL_MODE", "MYOS_ACL_BACKEND"):
+    for key in (env_name("TEMPLATES_DIR"), env_name("ACL_MODE"), env_name("ACL_BACKEND")):
         monkeypatch.delenv(key, raising=False)
-    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    monkeypatch.setenv(env_name("ACL_USER"), "anna")
 
 
 def _project(tmp_path: Path) -> Path:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     (root / "Ordner").mkdir()
     (root / "Ordner" / "a.md").write_text("a")
     return root
@@ -90,12 +91,12 @@ def test_list_restore_and_delete_finally(tmp_path):
 def test_trash_shows_only_what_the_user_could_delete(tmp_path, monkeypatch):
     root = _project(tmp_path)
     (root / "Offen").mkdir()
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
-    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
-    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
+    monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
+    monkeypatch.setenv(env_name("ACL_BACKEND"), "legacy")
     ScopeApi(str(root)).delete_entries([str(root / "Ordner"), str(root / "Offen")])  # by anna
 
-    monkeypatch.setenv("MYOS_ACL_USER", "karl")
+    monkeypatch.setenv(env_name("ACL_USER"), "karl")
     karl = ScopeApi(str(root))
 
     assert [e["name"] for e in karl.trash_entries(str(root))] == ["Offen"]
@@ -106,10 +107,10 @@ def test_trash_shows_only_what_the_user_could_delete(tmp_path, monkeypatch):
 
 def test_expired_entries_are_cleaned_up_when_the_project_is_opened(tmp_path):
     root = _project(tmp_path)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\ntrash_days: 0\n")
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\ntrash_days: 0\n")
     api = ScopeApi(str(root))
     api.delete_entries([str(root / "Ordner")])
-    info = next((root / ".MyOS" / "Trash" / "info").glob("*.trashinfo"))
+    info = next((root / META_DIR / "Trash" / "info").glob("*.trashinfo"))
     info.write_text(info.read_text().replace("DeletionDate=20", "DeletionDate=19"))  # a century ago
 
     ScopeApi(str(root))  # opening the project
@@ -120,15 +121,15 @@ def test_expired_entries_are_cleaned_up_when_the_project_is_opened(tmp_path):
 def test_empty_removes_what_the_user_may_delete(tmp_path, monkeypatch):
     root = _project(tmp_path)
     (root / "Offen").mkdir()
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
-    monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
-    monkeypatch.setenv("MYOS_ACL_BACKEND", "legacy")
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
+    monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
+    monkeypatch.setenv(env_name("ACL_BACKEND"), "legacy")
     ScopeApi(str(root)).delete_entries([str(root / "Ordner"), str(root / "Offen")])  # by anna
 
-    monkeypatch.setenv("MYOS_ACL_USER", "karl")
+    monkeypatch.setenv(env_name("ACL_USER"), "karl")
     assert ScopeApi(str(root)).trash_empty(str(root)) == {"ok": True, "deleted": 1, "skipped": 1}
     assert [e.name for e in trash.list_trash(root)] == ["Ordner"]
 
-    monkeypatch.setenv("MYOS_ACL_USER", "anna")
+    monkeypatch.setenv(env_name("ACL_USER"), "anna")
     assert ScopeApi(str(root)).trash_empty(str(root)) == {"ok": True, "deleted": 1, "skipped": 0}
     assert trash.list_trash(root) == []

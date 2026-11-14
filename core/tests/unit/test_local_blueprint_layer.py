@@ -9,14 +9,15 @@ import tempfile
 import stat
 
 from core.localBlueprintLayer import Blueprint
+from core.brand import META_DIR, env_name
 
 TEST_LAB_ROOT = Path(__file__).parent / "test_lab"
 TEMPLATE_DIR = TEST_LAB_ROOT / "Templates"
 PLATE_DIR = TEST_LAB_ROOT / "plate"
 
 _TEST_ENV = {
-    "MYOS_TEMPLATES_DIR": str(TEMPLATE_DIR),
-    "MYOS_ROLES": "admin, info, kommunikation",
+    env_name("TEMPLATES_DIR"): str(TEMPLATE_DIR),
+    env_name("ROLES"): "admin, info, kommunikation",
 }
 
 # Module scope (not import time) so these values do not leak into other test modules.
@@ -121,7 +122,7 @@ def test_lab_structure():
 
 def _create_test_project(project_dir, template_name):
     project_dir.mkdir(parents=True, exist_ok=True)
-    myos_dir = project_dir / ".MyOS"
+    myos_dir = project_dir / META_DIR
     myos_dir.mkdir(exist_ok=True)
     
     (myos_dir / "Project.md").write_text("# MyOS Project\n")
@@ -132,14 +133,14 @@ def _create_test_project(project_dir, template_name):
 
 
 def _write_acl_policy(project_dir: Path) -> None:
-    myos_dir = project_dir / ".MyOS"
+    myos_dir = project_dir / META_DIR
     (myos_dir / "ACLs.md").write_text(
         "# Permissions\n"
         "## Folder\n"
         "- /{Folder}/: read\n"
         "## Admin\n"
         "- /*: read, write, execute\n"
-        "- /.MyOS/ACLs.md: change\n"
+        f"- /{META_DIR}/ACLs.md: change\n"
         "## Info\n"
         "- /info/: read, write\n"
         "# Users\n"
@@ -304,14 +305,14 @@ def test_07_specific_embryo_exists(mount_haus):
 
 def test_birth_path_nested_embryo_materializes_parent_then_child(tmp_path, monkeypatch):
     """_birth_path with nested path (e.g. 04_Finanz/Ausgaben) materializes parent then child."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)  # use project's Templates
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)  # use project's Templates
     project_root = tmp_path / "Project"
     project_root.mkdir()
-    (project_root / ".MyOS").mkdir()
-    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (project_root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    (project_root / ".MyOS" / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
-    (project_root / ".MyOS" / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
+    (project_root / META_DIR).mkdir()
+    (project_root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (project_root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    (project_root / META_DIR / "Templates" / "Standard" / "04_Finanz").mkdir(parents=True, exist_ok=True)
+    (project_root / META_DIR / "Templates" / "Standard" / "04_Finanz" / "Ausgaben").mkdir(parents=True, exist_ok=True)
 
     layer = Blueprint(project_root)
     assert not (project_root / "04_Finanz").exists()
@@ -327,12 +328,12 @@ def test_birth_path_nested_embryo_materializes_parent_then_child(tmp_path, monke
 def _setup_finanz_template_project(tmp_path):
     """Project whose Standard template has 04_Finanz with .MyOS, a file and two sub-embryos."""
     project_root = tmp_path / "Project"
-    (project_root / ".MyOS").mkdir(parents=True)
-    (project_root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (project_root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    finanz = project_root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
-    (finanz / ".MyOS").mkdir(parents=True)
-    (finanz / ".MyOS" / "batch.svg").write_text("<svg/>")
+    (project_root / META_DIR).mkdir(parents=True)
+    (project_root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (project_root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    finanz = project_root / META_DIR / "Templates" / "Standard" / "04_Finanz"
+    (finanz / META_DIR).mkdir(parents=True)
+    (finanz / META_DIR / "batch.svg").write_text("<svg/>")
     (finanz / "Liesmich.md").write_text("Finanzen")
     (finanz / "Ausgaben" / "2026").mkdir(parents=True)
     (finanz / "Einnahmen").mkdir(parents=True)
@@ -341,7 +342,7 @@ def _setup_finanz_template_project(tmp_path):
 
 def test_birth_materializes_only_the_folder_and_keeps_subfolders_as_embryos(tmp_path, monkeypatch):
     """Birth copies the folder's own files and .MyOS config, but no visible subfolders."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     project_root = _setup_finanz_template_project(tmp_path)
     layer = Blueprint(project_root)
 
@@ -349,7 +350,7 @@ def test_birth_materializes_only_the_folder_and_keeps_subfolders_as_embryos(tmp_
 
     born = project_root / "04_Finanz"
     assert born.is_dir()
-    assert (born / ".MyOS" / "batch.svg").is_file()
+    assert (born / META_DIR / "batch.svg").is_file()
     assert (born / "Liesmich.md").read_text() == "Finanzen"
     assert not (born / "Ausgaben").exists()
     assert not (born / "Einnahmen").exists()
@@ -360,7 +361,7 @@ def test_birth_materializes_only_the_folder_and_keeps_subfolders_as_embryos(tmp_
 
 def test_nested_birth_does_not_materialize_siblings_or_grandchildren(tmp_path, monkeypatch):
     """Birth of 04_Finanz/Ausgaben creates exactly that chain; siblings and deeper levels stay embryos."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     project_root = _setup_finanz_template_project(tmp_path)
     layer = Blueprint(project_root)
 
@@ -376,7 +377,7 @@ def test_nested_birth_does_not_materialize_siblings_or_grandchildren(tmp_path, m
 
 def test_sub_embryo_of_born_folder_can_be_born(tmp_path, monkeypatch):
     """With one-level births a born parent with embryo children is the normal case."""
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     project_root = _setup_finanz_template_project(tmp_path)
     layer = Blueprint(project_root)
     layer._birth_path("/04_Finanz")
@@ -438,8 +439,8 @@ def test_acl_embryo_visibility(monkeypatch):
         _create_test_project(project_root, "Standard")
         _write_acl_policy(project_root)
 
-        monkeypatch.setenv("MYOS_ROLES", "info")
-        monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+        monkeypatch.setenv(env_name("ROLES"), "info")
+        monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
 
         layer = Blueprint(project_root)
         entries = layer.readdir("/", None)
@@ -456,8 +457,8 @@ def test_acl_birth_denied_without_write(monkeypatch):
         _create_test_project(project_root, "Standard")
         _write_acl_policy(project_root)
 
-        monkeypatch.setenv("MYOS_ROLES", "info")
-        monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+        monkeypatch.setenv(env_name("ROLES"), "info")
+        monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
 
         layer = Blueprint(project_root)
 
@@ -474,8 +475,8 @@ def test_acl_no_roles_no_embryos(monkeypatch):
         _create_test_project(project_root, "Standard")
         _write_acl_policy(project_root)
 
-        monkeypatch.delenv("MYOS_ROLES", raising=False)
-        monkeypatch.setenv("MYOS_ACL_MODE", "enforce")
+        monkeypatch.delenv(env_name("ROLES"), raising=False)
+        monkeypatch.setenv(env_name("ACL_MODE"), "enforce")
 
         layer = Blueprint(project_root)
         entries = layer.readdir("/", None)
@@ -495,11 +496,11 @@ def test_without_enforcement_everyone_sees_the_suggestions(monkeypatch, mode):
         _create_test_project(project_root, "Standard")
         _write_acl_policy(project_root)
 
-        monkeypatch.delenv("MYOS_ROLES", raising=False)
+        monkeypatch.delenv(env_name("ROLES"), raising=False)
         if mode is None:
-            monkeypatch.delenv("MYOS_ACL_MODE", raising=False)
+            monkeypatch.delenv(env_name("ACL_MODE"), raising=False)
         else:
-            monkeypatch.setenv("MYOS_ACL_MODE", mode)
+            monkeypatch.setenv(env_name("ACL_MODE"), mode)
 
         layer = Blueprint(project_root)
         entries = layer.readdir("/", None)

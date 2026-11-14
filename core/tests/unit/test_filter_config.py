@@ -8,6 +8,7 @@ import pytest
 from core.perspective import FilterConfig
 from core.perspective import apply_filter_projection, find_filters, find_filters_layers, resolve_active_filter
 from core.perspective import resolve_effective_filter
+from core.brand import META_DIR
 
 
 def _write_filter(path: Path) -> None:
@@ -127,7 +128,7 @@ def test_find_filters_orders_by_specificity():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / ".MyOS"
+        myos_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
@@ -144,7 +145,7 @@ def test_resolve_active_filter_manual_wins():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / ".MyOS"
+        myos_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
@@ -163,7 +164,7 @@ def test_resolve_active_filter_auto_nearest_folder():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / ".MyOS"
+        myos_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
@@ -180,7 +181,7 @@ def test_resolve_active_filter_falls_back_to_project():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / ".MyOS"
+        myos_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
         myos_dir.mkdir(parents=True)
@@ -197,7 +198,7 @@ def test_find_filters_layers_includes_collection_files():
         tmp = Path(tmpdir)
         root = tmp / "Project"
         sub = root / "Sub"
-        coll = root / ".MyOS" / "Filters"
+        coll = root / META_DIR / "Filters"
         sub.mkdir(parents=True)
         coll.mkdir(parents=True)
         _write_named_filter(coll / "Finance.md", "Finance")
@@ -386,8 +387,8 @@ def test_the_nearest_filter_names_the_lens(tmp_path):
 def _collection(tmp_path, body="# Filter\nName: Ausgaben\n\n## Perspective\n04_Finanz/Ausgaben\n"):
     root = tmp_path / "Job"
     (root / "Belege").mkdir(parents=True)
-    (root / ".MyOS" / "Filters").mkdir(parents=True)
-    path = root / ".MyOS" / "Filters" / "Ausgaben.md"
+    (root / META_DIR / "Filters").mkdir(parents=True)
+    path = root / META_DIR / "Filters" / "Ausgaben.md"
     path.write_text(body, encoding="utf-8")
     return root, path
 

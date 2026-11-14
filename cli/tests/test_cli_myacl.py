@@ -5,11 +5,12 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from core.brand import ENV_PREFIX, META_DIR, env_name
 
 ACLS = (
     "# Permissions\n\n"
     "## Folder\n- /{Folder}/: read, write\n- /Info/: read\n\n"
-    "## Admin\n- /*: read, write\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    f"## Admin\n- /*: read, write\n- /{META_DIR}/ACLs.md: read, write, change\n\n"
     "## Buchhaltung\n- /Finanz/: read, write, delete\n- /Finanz/Archiv/: read\n\n"
     "# Users\nOliver: Admin\nAnna: Buchhaltung\n"
 )
@@ -17,7 +18,7 @@ ACLS = (
 
 def _run(args, tmp_path, **env):
     script = Path(__file__).parent.parent.parent / "cli" / "myacl.py"
-    environ = {k: v for k, v in os.environ.items() if not k.startswith("MYOS_")}
+    environ = {k: v for k, v in os.environ.items() if not k.startswith(ENV_PREFIX)}
     environ.update({"XDG_CONFIG_HOME": str(tmp_path / "config"), **env})
     return subprocess.run(
         [sys.executable, str(script)] + args, capture_output=True, text=True, cwd=tmp_path, env=environ
@@ -25,9 +26,9 @@ def _run(args, tmp_path, **env):
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (path / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (path / META_DIR).mkdir(parents=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("Finanz", "Info"):
         (path / folder).mkdir()
     return path
@@ -36,10 +37,10 @@ def _project(path: Path) -> Path:
 def _setup(tmp_path: Path) -> Path:
     root = _project(tmp_path / "Projekte")
     for folder in ("Finanz", "Info"):
-        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / META_DIR / "Templates" / "Standard" / folder).mkdir(parents=True)
     (root / "Finanz" / "Archiv").mkdir()
     _project(root / "Familie")
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
     return root
 
 
@@ -113,15 +114,15 @@ def test_rules_as_text_list_role_path_and_rights(tmp_path):
 def test_with_enforcement_only_who_may_read_the_acls_sees_them(tmp_path):
     root = _setup(tmp_path)
 
-    anna = _run(["show", str(root / "Finanz")], tmp_path, MYOS_ACL_MODE="enforce", MYOS_ACL_USER="anna")
-    oliver = _run(["show", str(root / "Finanz")], tmp_path, MYOS_ACL_MODE="enforce", MYOS_ACL_USER="oliver")
+    anna = _run(["show", str(root / "Finanz")], tmp_path, **{env_name("ACL_MODE"): "enforce", env_name("ACL_USER"): "anna"})
+    oliver = _run(["show", str(root / "Finanz")], tmp_path, **{env_name("ACL_MODE"): "enforce", env_name("ACL_USER"): "oliver"})
 
     assert anna.returncode == 2 and "may not see" in anna.stderr
     assert oliver.returncode == 0 and "Buchhaltung" in oliver.stdout
 
 
 def _nextcloud_md(root: Path) -> None:
-    (root / ".MyOS" / "Nextcloud.md").write_text(
+    (root / META_DIR / "Nextcloud.md").write_text(
         "# Nextcloud\nurl: http://localhost:8081\nfolder: Projekte\ngroup: Projekte\n\n# Accounts\nOliver: oliver\nAnna: anna\n"
     )
 
@@ -164,7 +165,7 @@ def test_sync_needs_the_login_too(tmp_path):
 
     result = _run(["sync", "--yes", str(root)], tmp_path)
 
-    assert result.returncode == 2 and "MYOS_NEXTCLOUD_USER" in result.stderr
+    assert result.returncode == 2 and env_name("NEXTCLOUD_USER") in result.stderr
 
 
 def test_dry_run_needs_the_login_from_the_environment(tmp_path):
@@ -173,23 +174,23 @@ def test_dry_run_needs_the_login_from_the_environment(tmp_path):
 
     result = _run(["sync", "--dry-run", str(root)], tmp_path)
 
-    assert result.returncode == 2 and "MYOS_NEXTCLOUD_USER" in result.stderr
+    assert result.returncode == 2 and env_name("NEXTCLOUD_USER") in result.stderr
 
 
 def test_dry_run_needs_url_and_folder(tmp_path):
     root = _setup(tmp_path)
-    (root / ".MyOS" / "Nextcloud.md").write_text("# Accounts\nAnna: anna\n")
+    (root / META_DIR / "Nextcloud.md").write_text("# Accounts\nAnna: anna\n")
 
-    result = _run(["sync", "--dry-run", str(root)], tmp_path, MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD="x")
+    result = _run(["sync", "--dry-run", str(root)], tmp_path, **{env_name("NEXTCLOUD_USER"): "oliver", env_name("NEXTCLOUD_PASSWORD"): "x"})
 
     assert result.returncode == 2 and "url" in result.stderr and "folder" in result.stderr
 
 
 def test_dry_run_needs_the_groups_of_the_team_folder(tmp_path):
     root = _setup(tmp_path)
-    (root / ".MyOS" / "Nextcloud.md").write_text("# Nextcloud\nurl: http://localhost:8081\nfolder: Projekte\n\n# Accounts\nAnna: anna\n")
+    (root / META_DIR / "Nextcloud.md").write_text("# Nextcloud\nurl: http://localhost:8081\nfolder: Projekte\n\n# Accounts\nAnna: anna\n")
 
-    result = _run(["sync", "--dry-run", str(root)], tmp_path, MYOS_NEXTCLOUD_USER="oliver", MYOS_NEXTCLOUD_PASSWORD="x")
+    result = _run(["sync", "--dry-run", str(root)], tmp_path, **{env_name("NEXTCLOUD_USER"): "oliver", env_name("NEXTCLOUD_PASSWORD"): "x"})
 
     assert result.returncode == 2 and "group" in result.stderr
 
@@ -209,9 +210,9 @@ def test_the_plan_lets_read_an_embryo_who_may_read_where_it_is_born(tmp_path):
 
     rows = [line.split(None, 3) for line in _run(["sync", "--plan", str(root)], tmp_path).stdout.splitlines()]
 
-    assert ["/.MyOS", "user", "anna", "read (way)"] in rows
-    assert ["/.MyOS/Embryos", "user", "anna", "read"] in rows
-    assert ["/.MyOS/Embryos/Info", "user", "anna", "-"] in rows  # she may not read /Info
-    assert not any(row[:1] == ["/.MyOS/Embryos/Finanz"] and row[2:3] == ["anna"] for row in rows)  # read, as above
-    assert ["/.MyOS/Embryos.json", "user", "anna", "-"] in rows
-    assert ["/.MyOS/ACLs.md", "user", "anna", "-"] in rows
+    assert [f"/{META_DIR}", "user", "anna", "read (way)"] in rows
+    assert [f"/{META_DIR}/Embryos", "user", "anna", "read"] in rows
+    assert [f"/{META_DIR}/Embryos/Info", "user", "anna", "-"] in rows  # she may not read /Info
+    assert not any(row[:1] == [f"/{META_DIR}/Embryos/Finanz"] and row[2:3] == ["anna"] for row in rows)  # read, as above
+    assert [f"/{META_DIR}/Embryos.json", "user", "anna", "-"] in rows
+    assert [f"/{META_DIR}/ACLs.md", "user", "anna", "-"] in rows

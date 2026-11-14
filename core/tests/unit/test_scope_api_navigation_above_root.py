@@ -7,14 +7,15 @@ from pathlib import Path
 import pytest
 
 from core.scope_api import ScopeApi, find_project_root, find_top_project_root
+from core.brand import META_DIR
 
 
 def _setup_myos_test_structure(tmp_path: Path) -> dict:
     """Create MyOS_Test/Projekte/MyOS/Dateien structure."""
     myos_test = tmp_path / "MyOS_Test"
     myos_test.mkdir()
-    (myos_test / ".MyOS").mkdir()
-    (myos_test / ".MyOS" / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (myos_test / META_DIR).mkdir()
+    (myos_test / META_DIR / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
     projekte = myos_test / "Projekte"
     projekte.mkdir()
@@ -138,8 +139,8 @@ def test_list_children_path_above_myos_root_still_lists_real_dirs(tmp_path):
 
     myos_test = tmp_path / "MyOS_Test"
     myos_test.mkdir()
-    (myos_test / ".MyOS").mkdir()
-    (myos_test / ".MyOS" / "Project.md").write_text("# Project\n", encoding="utf-8")
+    (myos_test / META_DIR).mkdir()
+    (myos_test / META_DIR / "Project.md").write_text("# Project\n", encoding="utf-8")
 
     api = ScopeApi(str(myos_test))
 

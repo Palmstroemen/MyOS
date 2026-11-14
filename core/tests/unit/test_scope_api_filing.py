@@ -6,11 +6,12 @@ from pathlib import Path
 import pytest
 
 from core.scope_api import ScopeApi
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch, tmp_path_factory):
-    for key in ("MYOS_TEMPLATES_DIR", "MYOS_ACL_MODE", "MYOS_ACL_USER"):
+    for key in (env_name("TEMPLATES_DIR"), env_name("ACL_MODE"), env_name("ACL_USER")):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
 
@@ -21,11 +22,11 @@ RULE = "# Sort\nPattern: {{YYYY}}/{{MM}}\nDateSource: filename\nNewLevelFrom: 2\
 @pytest.fixture
 def project(tmp_path):
     root = tmp_path / "Projekt"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     folder = root / "Rechnungen"
-    (folder / ".MyOS").mkdir(parents=True)
-    (folder / ".MyOS" / "Sort.md").write_text(RULE)
+    (folder / META_DIR).mkdir(parents=True)
+    (folder / META_DIR / "Sort.md").write_text(RULE)
     return root
 
 
@@ -84,7 +85,7 @@ def test_enabling_sorting_puts_a_rule_into_the_folder(project):
 
     result = api.enable_sorting(str(fotos))
 
-    assert result["ok"] and (fotos / ".MyOS" / "Sort.md").read_text().startswith("# Sort\nPattern: {{YYYY}}/{{MM}}\n")
+    assert result["ok"] and (fotos / META_DIR / "Sort.md").read_text().startswith("# Sort\nPattern: {{YYYY}}/{{MM}}\n")
     assert api.enable_sorting(str(fotos))["reason"] == "exists"
     assert api.enable_sorting(str(project.parent))["reason"] == "no_project"
 
@@ -93,11 +94,11 @@ def test_enabling_sorting_puts_a_rule_into_the_folder(project):
 def few(tmp_path):
     """A sorted folder with few files: they stay loose, shown in virtual folders."""
     root = tmp_path / "Projekt"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     folder = root / "Rechnungen"
-    (folder / ".MyOS").mkdir(parents=True)
-    (folder / ".MyOS" / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}/{{MM}}\nDateSource: filename\nNewLevelFrom: 10\n")
+    (folder / META_DIR).mkdir(parents=True)
+    (folder / META_DIR / "Sort.md").write_text("# Sort\nPattern: {{YYYY}}/{{MM}}\nDateSource: filename\nNewLevelFrom: 10\n")
     _put(folder, "a 2024-01-01.pdf", "b 2024-03-01.pdf", "c 2025-01-01.pdf", "ohne Datum.pdf")
     return folder
 

@@ -5,11 +5,12 @@ from pathlib import Path
 import pytest
 
 from core.scope_api import ScopeApi
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch, tmp_path_factory):
-    for key in ("MYOS_TEMPLATES_DIR", "MYOS_ACL_MODE", "MYOS_ACL_USER"):
+    for key in (env_name("TEMPLATES_DIR"), env_name("ACL_MODE"), env_name("ACL_USER")):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
 
@@ -17,8 +18,8 @@ def _env(monkeypatch, tmp_path_factory):
 @pytest.fixture
 def project(tmp_path):
     root = tmp_path / "Projekt"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     (root / "Rechnungen" / "2024").mkdir(parents=True)
     (root / "Rechnungen" / "2024" / "r1.pdf").write_text("r1")
     (root / "notiz.md").write_text("n")

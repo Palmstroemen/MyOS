@@ -5,24 +5,25 @@ from pathlib import Path
 import pytest
 
 from core.localBlueprintLayer import Blueprint
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _no_external_templates(monkeypatch):
     # Templates come from the project's own Templates/ folder in these tests.
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
-    monkeypatch.delenv("MYOS_ROLES", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
+    monkeypatch.delenv(env_name("ROLES"), raising=False)
 
 
 def _project(tmp_path: Path) -> Path:
     """Standard template: 04_Finanz (.MyOS, Liesmich.md) with sub-embryos Ausgaben/2026 and Einnahmen."""
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    finanz = root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
-    (finanz / ".MyOS").mkdir(parents=True)
-    (finanz / ".MyOS" / "batch.svg").write_text("<svg/>")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    finanz = root / META_DIR / "Templates" / "Standard" / "04_Finanz"
+    (finanz / META_DIR).mkdir(parents=True)
+    (finanz / META_DIR / "batch.svg").write_text("<svg/>")
     (finanz / "Liesmich.md").write_text("Finanzen")
     (finanz / "Ausgaben" / "2026").mkdir(parents=True)
     (finanz / "Einnahmen").mkdir(parents=True)
@@ -65,16 +66,16 @@ def test_modified_template_copy_is_user_content(tmp_path):
 
 def test_folder_tags_keep_the_folder(tmp_path):
     root, layer = _born(tmp_path)
-    (root / "04_Finanz" / ".MyOS" / "myTags.md").write_text("#steuer\n")
+    (root / "04_Finanz" / META_DIR / "myTags.md").write_text("#steuer\n")
 
     assert layer.reabsorb_upwards("04_Finanz") == []
-    assert (root / "04_Finanz" / ".MyOS" / "myTags.md").is_file()
+    assert (root / "04_Finanz" / META_DIR / "myTags.md").is_file()
 
 
 def test_tag_cache_alone_does_not_keep_the_folder(tmp_path):
     root, layer = _born(tmp_path)
     (root / "04_Finanz" / ".TagsHere.json").write_text("{}")
-    (root / "04_Finanz" / ".MyOS" / "empty_leftover").mkdir()
+    (root / "04_Finanz" / META_DIR / "empty_leftover").mkdir()
 
     assert layer.reabsorb_upwards("04_Finanz") == [root / "04_Finanz"]
     assert not (root / "04_Finanz").exists()
@@ -161,8 +162,8 @@ def test_sub_project_is_not_reabsorbed_with_parent_templates(tmp_path):
     root = _project(tmp_path)
     layer = Blueprint(root)
     sub = root / "04_Finanz"
-    (sub / ".MyOS").mkdir(parents=True)
-    (sub / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (sub / META_DIR).mkdir(parents=True)
+    (sub / META_DIR / "Project.md").write_text("# MyOS Project\n")
     (sub / "Ausgaben").mkdir()
 
     assert layer.reabsorb_all() == []

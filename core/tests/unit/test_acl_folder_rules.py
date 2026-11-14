@@ -8,25 +8,26 @@ import pytest
 
 from core.acl_edit import own_rule, set_role_rights
 from core.acl_view import ACLView
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _project_templates_only(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 BASE = (
     "# Permissions\n\n"
     "## Folder\n- /{Folder}/: read, write\n- /Info/: read\n\n"
-    "## Admin\n- /*: read, write\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    f"## Admin\n- /*: read, write\n- /{META_DIR}/ACLs.md: read, write, change\n\n"
 )
 USERS = "# Users\nOliver: Admin\n"
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (path / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (path / META_DIR).mkdir(parents=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("Finanz", "Info"):
         (path / folder).mkdir()
     return path
@@ -35,10 +36,10 @@ def _project(path: Path) -> Path:
 def _setup(tmp_path: Path, section: str = "") -> tuple:
     root = _project(tmp_path / "Projekte")
     for folder in ("Finanz", "Info"):
-        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / META_DIR / "Templates" / "Standard" / folder).mkdir(parents=True)
     (root / "Finanz" / "Belege").mkdir()
     sub = _project(root / "Familie")
-    (root / ".MyOS" / "ACLs.md").write_text(BASE + section + USERS)
+    (root / META_DIR / "ACLs.md").write_text(BASE + section + USERS)
     return root, sub
 
 
@@ -62,7 +63,7 @@ def test_the_section_holds_only_the_explicit_entry(tmp_path):
 
     set_role_rights(root / "Finanz" / "Belege", "Finanz", {"read"}, editor="oliver")
 
-    text = (root / ".MyOS" / "ACLs.md").read_text()
+    text = (root / META_DIR / "ACLs.md").read_text()
     section = text[text.index("## Finanz"):text.index("# Users")]
     assert section == "## Finanz\n- /Finanz/Belege/: read\n\n"
     assert own_rule(root / "Finanz", "Finanz") is None  # inherited from "## Folder"

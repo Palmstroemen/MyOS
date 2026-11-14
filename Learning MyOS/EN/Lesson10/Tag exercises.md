@@ -15,7 +15,7 @@ Open the folder *Bathroom*. On the right, under **This folder**, there is a pale
 Now open *Household finances* (**[▶ Open Household finances](<myos:open?scope=Household finances>)**) and give the folder *Receipts 2026* a tag. The suggestions are quite different: #paid, #not-paid, #waiting ... That's how projects keep the flood of tags in check. Then filter by #not-paid: what do you still have to pay?
 
 ## 5. Where a project's tags are
-A project's tags are in a note: *.MyOS/Tags.md* in the project folder. *.MyOS* is a hidden folder – in Scope you show it with ⚙ → Scope → Hidden folders. Add a line #tax there: from now on it is suggested in this project.
+A project's tags are in a note: *.seiton/Tags.md* in the project folder. *.seiton* is a hidden folder – in Scope you show it with ⚙ → Scope → Hidden folders. Add a line #tax there: from now on it is suggested in this project.
 
 ---
 Not possible yet: tagging any file, like PDFs or photos, and tags with a number (40 % done). We are working on it.

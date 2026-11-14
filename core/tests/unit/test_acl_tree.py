@@ -8,26 +8,27 @@ import pytest
 
 from core.acl import ACLPolicy
 from core.acl_view import ACLView
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _project_templates_only(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 ACLS = (
     "# Permissions\n\n"
     "## Folder\n- /{Folder}/: read, write\n- /Info/: read\n\n"
-    "## Admin\n- /*: read, write\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    f"## Admin\n- /*: read, write\n- /{META_DIR}/ACLs.md: read, write, change\n\n"
     "## Buchhaltung\n- /Finanz/: read, write, delete\n- /Finanz/Archiv/: read\n\n"
     "# Users\nOliver: Admin\nAnna: Buchhaltung\n"
 )
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (path / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (path / META_DIR).mkdir(parents=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     for folder in ("Finanz", "Info"):
         (path / folder).mkdir()
     return path
@@ -36,10 +37,10 @@ def _project(path: Path) -> Path:
 def _setup(tmp_path: Path) -> tuple:
     root = _project(tmp_path / "Projekte")
     for folder in ("Finanz", "Info"):
-        (root / ".MyOS" / "Templates" / "Standard" / folder).mkdir(parents=True)
+        (root / META_DIR / "Templates" / "Standard" / folder).mkdir(parents=True)
     (root / "Finanz" / "Archiv").mkdir()
     family = _project(root / "Familie")
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
     return root, family
 
 
@@ -83,7 +84,7 @@ def test_the_tree_lists_each_rule_once(tmp_path):
 
 def test_a_subproject_with_its_own_acls_is_not_part_of_the_tree(tmp_path):
     root, family = _setup(tmp_path)
-    (family / ".MyOS" / "ACLs.md").write_text("# Permissions\n\n## Familie\n- /*: read\n")
+    (family / META_DIR / "ACLs.md").write_text("# Permissions\n\n## Familie\n- /*: read\n")
 
     paths = {rule.path for rules in ACLPolicy.for_tree(root).permissions.values() for rule in rules}
 

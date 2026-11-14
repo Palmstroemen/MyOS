@@ -7,6 +7,7 @@ import pytest
 from core.acl_nextcloud import bits, mask_of
 from core.nextcloud_dav import Entry, ExistingRule
 from core.nextcloud_sync import NextcloudSync, SyncRefused
+from core.brand import META_DIR, env_name
 
 ACLS = (
     "# Permissions\n\n## Admin\n- /*: read, write, delete, change\n\n"
@@ -53,18 +54,18 @@ class FakeTeamFolder:
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 @pytest.fixture
 def project(tmp_path):
     root = tmp_path / "Projekte"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS)
-    (root / ".MyOS" / "Nextcloud.md").write_text(NEXTCLOUD_MD)
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
-    finanz = root / ".MyOS" / "Templates" / "Standard" / "04_Finanz"
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR / "ACLs.md").write_text(ACLS)
+    (root / META_DIR / "Nextcloud.md").write_text(NEXTCLOUD_MD)
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
+    finanz = root / META_DIR / "Templates" / "Standard" / "04_Finanz"
     finanz.mkdir(parents=True)
     (finanz / "Liesmich.md").write_text("Finanzen")
     (root / "Familie").mkdir()
@@ -72,27 +73,27 @@ def project(tmp_path):
 
 
 def test_what_differs_is_sent_and_then_all_is_in_step(project):
-    cloud = FakeTeamFolder(["/", "/.MyOS", "/Familie"])
+    cloud = FakeTeamFolder(["/", f"/{META_DIR}", "/Familie"])
     sync = NextcloudSync(project, cloud)
 
     first = sync.compare()
     assert first.changes and first.pending and not first.in_step
 
     assert sync.send(first) == []
-    assert cloud.files["/.MyOS/Embryos/04_Finanz/Liesmich.md"] == b"Finanzen"
+    assert cloud.files[f"/{META_DIR}/Embryos/04_Finanz/Liesmich.md"] == b"Finanzen"
     assert any(r.account == "lisa" for r in cloud.entries["/Familie"].rules)
     assert NextcloudSync(project, cloud).compare().in_step
 
 
 def test_without_the_team_folder_s_groups_nothing_is_compared(project):
-    (project / ".MyOS" / "Nextcloud.md").write_text("# Nextcloud\nfolder: Projekte\n\n# Accounts\nLisa: lisa\n")
+    (project / META_DIR / "Nextcloud.md").write_text("# Nextcloud\nfolder: Projekte\n\n# Accounts\nLisa: lisa\n")
 
     with pytest.raises(SyncRefused, match="group"):
         NextcloudSync(project, FakeTeamFolder(["/"]))
 
 
 def test_without_nextcloud_md_nothing_is_compared(project):
-    (project / ".MyOS" / "Nextcloud.md").unlink()
+    (project / META_DIR / "Nextcloud.md").unlink()
 
     with pytest.raises(SyncRefused, match="Nextcloud.md"):
         NextcloudSync(project, FakeTeamFolder(["/"]))
@@ -101,17 +102,17 @@ def test_without_nextcloud_md_nothing_is_compared(project):
 @pytest.mark.parametrize("acls", ["Unsinn ohne Abschnitte\n", ACLS.replace("read, write, delete, change", "read, write")])
 def test_an_acls_md_that_leaves_no_one_to_change_the_rights_is_noticed(project, acls):
     assert NextcloudSync(project, FakeTeamFolder(["/"])).someone_may_change()
-    (project / ".MyOS" / "ACLs.md").write_text(acls)
+    (project / META_DIR / "ACLs.md").write_text(acls)
 
     assert not NextcloudSync(project, FakeTeamFolder(["/"])).someone_may_change()
 
 
 def test_the_tags_of_every_project_s_tags_md_are_made_once(project):
-    (project / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n#Rechnung\n")
-    (project / "Familie" / ".MyOS").mkdir()
-    (project / "Familie" / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (project / "Familie" / ".MyOS" / "Tags.md").write_text("# Tags\n#Urlaub\n#Wichtig\n")
-    cloud = FakeTeamFolder(["/", "/.MyOS", "/Familie"])
+    (project / META_DIR / "Tags.md").write_text("# Tags\n#Wichtig\n#Rechnung\n")
+    (project / "Familie" / META_DIR).mkdir()
+    (project / "Familie" / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (project / "Familie" / META_DIR / "Tags.md").write_text("# Tags\n#Urlaub\n#Wichtig\n")
+    cloud = FakeTeamFolder(["/", f"/{META_DIR}", "/Familie"])
     cloud.tags = ["Rechnung"]  # there already, from someone else on the instance
     sync = NextcloudSync(project, cloud)
 
@@ -127,8 +128,8 @@ def test_a_tag_the_instance_refuses_does_not_hold_up_the_rights(project):
     # Tag creation may be for admins only (Nextcloud's setting): the rules must still go.
     from core.nextcloud_dav import NextcloudError
 
-    (project / ".MyOS" / "Tags.md").write_text("# Tags\n#Wichtig\n")
-    cloud = FakeTeamFolder(["/", "/.MyOS", "/Familie"])
+    (project / META_DIR / "Tags.md").write_text("# Tags\n#Wichtig\n")
+    cloud = FakeTeamFolder(["/", f"/{META_DIR}", "/Familie"])
 
     def refuse(name):
         raise NextcloudError(f"Nextcloud answered 403 to POST /remote.php/dav/systemtags/{name}")

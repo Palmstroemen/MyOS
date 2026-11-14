@@ -3,16 +3,17 @@ from pathlib import Path
 from core.acl import ACLAuthorizer, ACLPolicy, PermissionRule
 from core.acl_enforcement import ACLEnforcementService
 from core.scope_api import ScopeApi
+from core.brand import META_DIR
 
 
 def _write_project_marker(root: Path) -> None:
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir(parents=True, exist_ok=True)
     (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
 
 def _write_templates_config(root: Path, template_name: str) -> None:
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     myos.mkdir(parents=True, exist_ok=True)
     (myos / "Templates.md").write_text(f"# Templates\n{template_name}\n", encoding="utf-8")
 
@@ -21,7 +22,7 @@ def _setup_embryo_project(tmp_path: Path) -> Path:
     root = tmp_path / "lab"
     _write_project_marker(root)
     _write_templates_config(root, "Standard")
-    (root / ".MyOS" / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
+    (root / META_DIR / "Templates" / "Standard" / "admin").mkdir(parents=True, exist_ok=True)
     return root
 
 

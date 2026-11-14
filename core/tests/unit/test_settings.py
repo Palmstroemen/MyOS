@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from core.settings import Settings, settings_path
+from core.brand import CONFIG_DIR
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def config(tmp_path, monkeypatch):
 
 
 def test_one_file_under_the_config_home(config):
-    assert settings_path() == config / "MyOS" / "MyOS.conf"
+    assert settings_path() == config / CONFIG_DIR / f"{CONFIG_DIR}.conf"
 
 
 def test_defaults_without_a_file(config):

@@ -10,21 +10,22 @@ import pytest
 
 from core import identity
 from core.acl_edit import ACLEditError
+from core.brand import META_DIR, env_name
 
 
 @pytest.fixture(autouse=True)
 def _own_config_home(monkeypatch, tmp_path_factory):
     # Security: Identity.md is the user's own file; never touch the real one.
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
-    monkeypatch.delenv("MYOS_ACL_USER", raising=False)
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("ACL_USER"), raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
     monkeypatch.setenv("LOGNAME", "orafelsberger")
     monkeypatch.setenv("USER", "orafelsberger")
 
 
 ACLS = (
     "# Permissions\n\n"
-    "## Admin\n- /*: read, write, execute\n- /.MyOS/ACLs.md: read, write, change\n\n"
+    f"## Admin\n- /*: read, write, execute\n- /{META_DIR}/ACLs.md: read, write, change\n\n"
     "## Team\n- /work/: read, write\n\n"
     "# Users\nOliver Rafelsberger: Admin\nAnna Huber: Team\nKarl: Team\n"
 )
@@ -32,10 +33,10 @@ ACLS = (
 
 def _project(tmp_path: Path, acls: str = ACLS) -> Path:
     root = tmp_path / "Project"
-    (root / ".MyOS").mkdir(parents=True)
-    (root / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (root / META_DIR).mkdir(parents=True)
+    (root / META_DIR / "Project.md").write_text("# MyOS Project\n")
     (root / "work").mkdir()
-    (root / ".MyOS" / "ACLs.md").write_text(acls)
+    (root / META_DIR / "ACLs.md").write_text(acls)
     return root
 
 
@@ -56,7 +57,7 @@ def test_the_first_own_name_the_project_lists_counts():
 
 def test_myos_acl_user_wins(monkeypatch):
     identity.add_own_name("Oliver")
-    monkeypatch.setenv("MYOS_ACL_USER", "Anna")
+    monkeypatch.setenv(env_name("ACL_USER"), "Anna")
 
     assert identity.person_in({"oliver", "anna"}) == "anna"
 
@@ -92,7 +93,7 @@ def test_the_user_of_a_project_follows_identity_and_acls(tmp_path):
     identity.add_own_name("Oliver Rafelsberger")
     assert identity.acl_user_for(root / "work") == "oliver rafelsberger"
 
-    (root / ".MyOS" / "ACLs.md").write_text(ACLS.replace("Oliver Rafelsberger: Admin\n", "Oliver R.: Admin\n"))
+    (root / META_DIR / "ACLs.md").write_text(ACLS.replace("Oliver Rafelsberger: Admin\n", "Oliver R.: Admin\n"))
     assert identity.acl_user_for(root) == "orafelsberger"
 
 

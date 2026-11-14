@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 from core.exporter import export_subtree
+from core.brand import META_DIR
 
 
 def _run_cmd(script_name, args, cwd):
@@ -19,12 +20,12 @@ def _run_cmd(script_name, args, cwd):
 
 
 def _create_project(project_root: Path) -> None:
-    myos_dir = project_root / ".MyOS"
+    myos_dir = project_root / META_DIR
     myos_dir.mkdir(parents=True, exist_ok=True)
     (myos_dir / "Project.md").write_text("# MyOS Project\n")
     (myos_dir / "Templates.md").write_text("# Templates\nStandard\n")
 
-    templates_dir = project_root / ".MyOS" / "Templates" / "Standard"
+    templates_dir = project_root / META_DIR / "Templates" / "Standard"
     templates_dir.mkdir(parents=True, exist_ok=True)
 
 

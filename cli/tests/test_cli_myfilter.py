@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from core.brand import META_DIR
 
 
 def _run_cmd(args, cwd):
@@ -27,8 +28,8 @@ def test_myfilter_list_orders_by_specificity():
         sub = root / "Sub"
         sub.mkdir(parents=True)
 
-        (root / ".MyOS").mkdir(parents=True)
-        _write_filter(root / ".MyOS" / "Filter.md", "Root")
+        (root / META_DIR).mkdir(parents=True)
+        _write_filter(root / META_DIR / "Filter.md", "Root")
         _write_filter(sub / "Filter.md", "Sub")
 
         result = _run_cmd(["list", str(sub)], cwd=tmpdir)
@@ -46,7 +47,7 @@ def test_myfilter_resolve_manual_wins():
         sub = root / "Sub"
         sub.mkdir(parents=True)
 
-        manual = root / ".MyOS"
+        manual = root / META_DIR
         manual.mkdir(parents=True)
         _write_filter(manual / "Filter.md", "Manual")
         _write_filter(sub / "Filter.md", "Auto")
@@ -64,7 +65,7 @@ def test_myfilter_resolve_fallback():
         sub = root / "Sub"
         sub.mkdir(parents=True)
 
-        myos = root / ".MyOS"
+        myos = root / META_DIR
         myos.mkdir(parents=True)
         _write_filter(myos / "Filter.md", "Root")
 
@@ -80,7 +81,7 @@ def test_myfilter_activate_and_clear_manual_state():
         root = tmp / "Root"
         sub = root / "Sub"
         sub.mkdir(parents=True)
-        manual = root / ".MyOS"
+        manual = root / META_DIR
         manual.mkdir(parents=True)
         _write_filter(manual / "Filter.md", "Manual")
         _write_filter(sub / "Filter.md", "Auto")

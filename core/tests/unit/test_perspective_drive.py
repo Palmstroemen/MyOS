@@ -9,28 +9,29 @@ from pathlib import Path
 import pytest
 
 from core.perspective_drive import PerspectiveDrive
+from core.brand import META_DIR, env_name
 
 
 def _project(path: Path) -> Path:
-    (path / ".MyOS").mkdir(parents=True, exist_ok=True)
-    (path / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
+    (path / META_DIR).mkdir(parents=True, exist_ok=True)
+    (path / META_DIR / "Project.md").write_text("# MyOS Project\n")
     return path
 
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    monkeypatch.delenv("MYOS_TEMPLATES_DIR", raising=False)
+    monkeypatch.delenv(env_name("TEMPLATES_DIR"), raising=False)
 
 
 @pytest.fixture
 def world(tmp_path):
-    template = tmp_path / ".MyOS" / "Templates" / "Standard"
+    template = tmp_path / META_DIR / "Templates" / "Standard"
     (template / "04_Finanz" / "Ausgangsrechnungen").mkdir(parents=True)
-    (template / "04_Finanz" / ".MyOS").mkdir()
-    (template / "04_Finanz" / ".MyOS" / "batch.md").write_text("€\n")
+    (template / "04_Finanz" / META_DIR).mkdir()
+    (template / "04_Finanz" / META_DIR / "batch.md").write_text("€\n")
     (template / "07_Arbeit").mkdir()
     root = _project(tmp_path / "Projekte")
-    (root / ".MyOS" / "Templates.md").write_text("# Templates\nStandard\n")
+    (root / META_DIR / "Templates.md").write_text("# Templates\nStandard\n")
     studio = _project(root / "Musikstudio")
     (studio / "04_Finanz" / "Ausgangsrechnungen").mkdir(parents=True)
     (studio / "04_Finanz" / "Ausgangsrechnungen" / "r1.pdf").write_text("r1")
@@ -80,7 +81,7 @@ def test_saving_into_a_project_lands_in_its_department_folder(world):
 
     assert target == world["reisen"] / "04_Finanz" / "Rechnung.pdf"
     assert (world["reisen"] / "04_Finanz").is_dir()                       # born on the way,
-    assert (world["reisen"] / "04_Finanz" / ".MyOS" / "batch.md").exists()  # with its template content
+    assert (world["reisen"] / "04_Finanz" / META_DIR / "batch.md").exists()  # with its template content
     assert drive.listdir("/04_Finanz/Projekte/Reisen") == []  # from now on the department folder is shown
     deep = drive.target_for_create("/04_Finanz/Ausgangsrechnungen/2026/Projekte/Musikstudio/r2.pdf")
     assert deep == world["studio"] / "04_Finanz" / "Ausgangsrechnungen" / "2026" / "r2.pdf"

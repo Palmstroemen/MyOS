@@ -13,6 +13,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication
 
 from PostFix import exercise_links as ex
+from core.brand import env_name
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -221,7 +222,7 @@ def test_finish_asks_first_and_then_hands_over_to_the_test_run(tutorial_copy):
     launcher.confirm_finish = lambda: (True, "Anna")
     launcher.open(QUrl("myos:finish"))
     assert recorder.started == [[sys.executable, str(REPO / "scripts" / "testrun.py"), "finish", "--name", "Anna"]]
-    assert recorder.envs[-1]["MYOS_TUTORIAL_DIR"] == str(tutorial_copy.resolve())
+    assert recorder.envs[-1][env_name("TUTORIAL_DIR")] == str(tutorial_copy.resolve())
 
 
 def test_comment_and_finish_only_work_in_a_tutorial_copy(lesson):
@@ -244,7 +245,7 @@ def test_scope_from_an_exercise_starts_without_the_lens_drive(lesson):
     launcher = _launcher(lesson, recorder)
     launcher.open(QUrl("myos:open?scope=Urlaub 2025&files=Urlaub 2025"))
     scope_env = recorder.envs[0]
-    assert scope_env.get("MYOS_SCOPE_START_DAEMON") == "0"
+    assert scope_env.get(env_name("SCOPE_START_DAEMON")) == "0"
 
 
 def test_the_tutorials_pictures_need_no_qt_add_ons():

@@ -9,6 +9,7 @@ from core.desktop_backends.kde import KdeDesktopBackend
 from core.desktop_backends import build_backend
 from core.desktop_backends.base import NoopDesktopBackend
 from core.desk import DeskConfig
+from core.brand import META_DIR, env_name
 
 
 def _write_desk(path: Path, theme: str = "DemoTheme") -> None:
@@ -27,12 +28,12 @@ def test_env_flag_is_true_parses_expected_truthy_values():
 
 
 def test_runtime_settings_from_env(monkeypatch):
-    monkeypatch.setenv("MYOS_DESK_ENABLE", "1")
-    monkeypatch.setenv("MYOS_DESK_DRY_RUN", "0")
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "kde")
-    monkeypatch.setenv("MYOS_DESK_INCLUDE_ROOT", "1")
-    monkeypatch.setenv("MYOS_DESK_DISABLE_FILTER", "1")
-    monkeypatch.setenv("MYOS_DESK_FALLBACK", "/tmp/fallback/Desk.md")
+    monkeypatch.setenv(env_name("DESK_ENABLE"), "1")
+    monkeypatch.setenv(env_name("DESK_DRY_RUN"), "0")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "kde")
+    monkeypatch.setenv(env_name("DESK_INCLUDE_ROOT"), "1")
+    monkeypatch.setenv(env_name("DESK_DISABLE_FILTER"), "1")
+    monkeypatch.setenv(env_name("DESK_FALLBACK"), "/tmp/fallback/Desk.md")
 
     settings = DeskRuntimeSettings.from_env()
 
@@ -68,7 +69,7 @@ def test_runtime_returns_no_profile_for_empty_context(tmp_path):
 def test_runtime_disabled_tracks_profile_without_applying(tmp_path):
     project = tmp_path / "Project"
     project.mkdir()
-    _write_desk(project / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(project / META_DIR / "Desk.md", "RootTheme")
     runtime = DeskRuntime(
         settings=DeskRuntimeSettings(
             enabled=False,
@@ -85,7 +86,7 @@ def test_runtime_disabled_tracks_profile_without_applying(tmp_path):
 
     assert result["ok"] is True
     assert result["reason"] == "runtime_disabled"
-    assert active["source"] == str(project / ".MyOS" / "Desk.md")
+    assert active["source"] == str(project / META_DIR / "Desk.md")
     assert active["hash"]
 
 
@@ -117,7 +118,7 @@ def test_filter_desk_path_traversal_is_ignored(tmp_path):
     root = tmp_path / "Project"
     work = root / "Work"
     work.mkdir(parents=True)
-    _write_desk(root / ".MyOS" / "Desk.md", "RootTheme")
+    _write_desk(root / META_DIR / "Desk.md", "RootTheme")
     outside = tmp_path / "OutsideDesk.md"
     _write_desk(outside, "OutsideTheme")
     (work / "Filter.md").write_text(
@@ -128,22 +129,22 @@ def test_filter_desk_path_traversal_is_ignored(tmp_path):
     resolved = resolve_active_desk(work)
 
     assert resolved is not None
-    assert resolved.source_path == (root / ".MyOS" / "Desk.md")
+    assert resolved.source_path == (root / META_DIR / "Desk.md")
 
 
 def test_kde_backend_timeout_is_clamped(monkeypatch):
-    monkeypatch.setenv("MYOS_DESK_KDE_TIMEOUT_S", "9000")
+    monkeypatch.setenv(env_name("DESK_KDE_TIMEOUT_S"), "9000")
     kde_module = importlib.import_module("core.desktop_backends.kde")
     backend = kde_module.KdeDesktopBackend()
     assert backend.command_timeout_s == 120
 
-    monkeypatch.setenv("MYOS_DESK_KDE_TIMEOUT_S", "oops")
+    monkeypatch.setenv(env_name("DESK_KDE_TIMEOUT_S"), "oops")
     backend_invalid = kde_module.KdeDesktopBackend()
     assert backend_invalid.command_timeout_s == 15
 
 
 def test_kde_backend_rejects_nonexistent_wallpaper_path_for_security(tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     backend = KdeDesktopBackend()
@@ -165,7 +166,7 @@ def test_kde_backend_rejects_nonexistent_wallpaper_path_for_security(tmp_path):
 
 
 def test_kde_backend_rejects_relative_wallpaper_escape_for_security(tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     outside = tmp_path / "Project" / "outside.png"
@@ -190,7 +191,7 @@ def test_kde_backend_rejects_relative_wallpaper_escape_for_security(tmp_path):
 
 
 def test_kde_backend_rejects_relative_wallpaper_symlink_escape_for_security(tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     outside = tmp_path / "outside.png"
@@ -219,7 +220,7 @@ def test_kde_backend_rejects_relative_wallpaper_symlink_escape_for_security(tmp_
 
 
 def test_kde_backend_accepts_relative_wallpaper_symlink_inside_profile(monkeypatch, tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     local_target = source.parent / "local.png"
@@ -249,7 +250,7 @@ def test_kde_backend_accepts_relative_wallpaper_symlink_inside_profile(monkeypat
 
 
 def test_kde_backend_allows_explicit_wallpaper_symlink_outside_profile(monkeypatch, tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     outside_dir = tmp_path / "shared"
@@ -281,7 +282,7 @@ def test_kde_backend_allows_explicit_wallpaper_symlink_outside_profile(monkeypat
 
 
 def test_kde_backend_dry_run_does_not_execute_subprocess(monkeypatch, tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     config = DeskConfig(
@@ -310,7 +311,7 @@ def test_kde_backend_dry_run_does_not_execute_subprocess(monkeypatch, tmp_path):
 
 
 def test_kde_backend_refuses_unsafe_theme_names_and_keeps_argument_boundaries(monkeypatch, tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     payload = "BreezeDark; touch /tmp/pwned"
@@ -352,7 +353,7 @@ def test_kde_backend_refuses_unsafe_theme_names_and_keeps_argument_boundaries(mo
 
 
 def test_kde_backend_reports_timeout_without_throwing(monkeypatch, tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     config = DeskConfig(
@@ -380,7 +381,7 @@ def test_kde_backend_reports_timeout_without_throwing(monkeypatch, tmp_path):
 
 
 def test_kde_backend_handles_oserror_race_between_which_and_run(monkeypatch, tmp_path):
-    source = tmp_path / "Project" / ".MyOS" / "Desk.md"
+    source = tmp_path / "Project" / META_DIR / "Desk.md"
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("# Desk\n", encoding="utf-8")
     config = DeskConfig(

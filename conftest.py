@@ -3,6 +3,7 @@
 import os
 
 import pytest
+from core.brand import env_name
 
 # Browser pages (PostFix's editor) without a screen: Chromium's GPU emulation crashes when pages
 # are made and deleted one after another (measured); drawn without a GPU it does not. Set before
@@ -18,7 +19,7 @@ def no_real_desktop_changes(monkeypatch, tmp_path_factory):
     real desktop or that file: no backend (tests that need one pass a fake) and a
     config home of their own.
     """
-    monkeypatch.setenv("MYOS_DESK_BACKEND", "none")
+    monkeypatch.setenv(env_name("DESK_BACKEND"), "none")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
     # Nor start a perspective daemon that mounts a drive (Scope starts one by default).
-    monkeypatch.setenv("MYOS_SCOPE_START_DAEMON", "0")
+    monkeypatch.setenv(env_name("SCOPE_START_DAEMON"), "0")

@@ -2,6 +2,7 @@
 up the path that has one (Scope's tag bar, the MyOS core in the cloud)."""
 
 from core.tags import hash_line_tags, project_tags
+from core.brand import META_DIR
 
 
 def test_tags_are_the_hash_lines_not_the_headings():
@@ -10,9 +11,9 @@ def test_tags_are_the_hash_lines_not_the_headings():
 
 
 def _project(folder, tags):
-    (folder / ".MyOS").mkdir(parents=True)
-    (folder / ".MyOS" / "Project.md").write_text("# MyOS Project\n")
-    (folder / ".MyOS" / "Tags.md").write_text(tags)
+    (folder / META_DIR).mkdir(parents=True)
+    (folder / META_DIR / "Project.md").write_text("# MyOS Project\n")
+    (folder / META_DIR / "Tags.md").write_text(tags)
 
 
 def test_a_folder_takes_the_tags_of_the_nearest_project_s_tags_md(tmp_path):

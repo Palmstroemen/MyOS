@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from PostFix import window_tags as wt
+from core.brand import META_DIR
 
 
 class _DummyTimer:
@@ -90,7 +91,7 @@ def test_on_editor_tags_changed_normalizes_and_debounces():
 
 def test_sync_scope_tags_from_document_writes_and_propagates(tmp_path: Path):
     w = _DummyWindow()
-    w._scope_tags_path = tmp_path / ".MyOS" / "Tags.md"
+    w._scope_tags_path = tmp_path / META_DIR / "Tags.md"
     w._scope_tags = ["important"]
     w._doc_tags = ["important", "todo"]
     called = {"write": None, "propagate": 0}
@@ -158,7 +159,7 @@ def test_propagate_scope_tags_update_calls_notify(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(wt, "notify_config_changed", fake_notify)
     w = _DummyWindow()
-    w._scope_tags_path = tmp_path / ".MyOS" / "Tags.md"
+    w._scope_tags_path = tmp_path / META_DIR / "Tags.md"
 
     wt.WindowTagsMixin._propagate_scope_tags_update(w)
     assert calls == [(w._scope_tags_path, False)]
@@ -167,7 +168,7 @@ def test_propagate_scope_tags_update_calls_notify(monkeypatch, tmp_path: Path):
 def test_reload_tag_context_discovers_scope_and_sets_registry_path(tmp_path: Path):
     vault = tmp_path / "vault"
     project = vault / "Projects" / "Demo"
-    myos = project / ".MyOS"
+    myos = project / META_DIR
     obsidian = vault / ".obsidian"
     myos.mkdir(parents=True, exist_ok=True)
     obsidian.mkdir(parents=True, exist_ok=True)
