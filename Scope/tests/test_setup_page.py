@@ -438,7 +438,7 @@ def test_done_stands_top_left(page):
     assert done.x() < title.x() and abs(done.y() - title.y()) < 20
 
 
-def test_suggested_myos_folders_pale_with_a_live_preview_in_all_three_styles(page):
+def test_suggested_settings_folders_pale_with_a_live_preview_in_all_three_styles(page):
     # For the user embryos are "suggested MyOS folders". The preview shows a present one beside
     # a suggestion in each style, drawn as Scope's rows draw them: the fill and frame pale, the
     # badge as pale as its own slider says, the name full.
@@ -552,7 +552,7 @@ def _scene(view, name, x=0, y=0):
     return _named(view, name).mapToScene(QPointF(x, y))
 
 
-def test_display_on_top_myos_folders_above_projects_with_their_styles(page):
+def test_display_on_top_settings_folders_above_projects_with_their_styles(page):
     # "Display": per row its check item, right of it the row's three folder styles; the MyOS
     # folders first, as their row is the upper one. Then what both rows show.
     view, _ = page

@@ -22,8 +22,8 @@ def _setup_myos_test_structure(tmp_path: Path) -> dict:
     haus = projekte / "Haus"
     haus.mkdir()
 
-    myos_folder = myos_test / "MyOS"  # folder named MyOS (sibling of Projekte)
-    myos_folder.mkdir()
+    repo_folder = myos_test / "MyOS"  # folder named MyOS (sibling of Projekte)
+    repo_folder.mkdir()
 
     dateien = myos_test / "Dateien"
     dateien.mkdir()
@@ -32,7 +32,7 @@ def _setup_myos_test_structure(tmp_path: Path) -> dict:
         "myos_test": myos_test,
         "projekte": projekte,
         "haus": haus,
-        "myos_folder": myos_folder,
+        "repo_folder": repo_folder,
         "dateien": dateien,
     }
 
@@ -61,12 +61,12 @@ def test_list_children_at_projekte_includes_subfolders(tmp_path):
     assert "Haus" in names, f"Expected Haus in list_children result, got: {names}"
 
 
-def test_list_children_myos_folder_as_target(tmp_path):
+def test_list_children_settings_folder_as_target(tmp_path):
     """list_children(MyOS_Test/MyOS) must work - folder named MyOS."""
     paths = _setup_myos_test_structure(tmp_path)
     api = ScopeApi(str(paths["haus"]))
 
-    children = api.list_children(str(paths["myos_folder"]), include_embryos=True)
+    children = api.list_children(str(paths["repo_folder"]), include_embryos=True)
     # Should return list (possibly empty if no children), not raise
     assert isinstance(children, list)
 
@@ -80,11 +80,11 @@ def test_list_children_dateien_folder_as_target(tmp_path):
     assert isinstance(children, list)
 
 
-def test_find_project_root_for_myos_folder(tmp_path):
+def test_find_project_root_for_settings_folder(tmp_path):
     """find_project_root(MyOS_Test/MyOS) must find MyOS_Test."""
     paths = _setup_myos_test_structure(tmp_path)
 
-    root = find_project_root(paths["myos_folder"])
+    root = find_project_root(paths["repo_folder"])
     assert root is not None, "find_project_root must find MyOS_Test for MyOS folder"
     assert root == paths["myos_test"]
 
@@ -98,12 +98,12 @@ def test_find_project_root_for_dateien_folder(tmp_path):
     assert root == paths["myos_test"]
 
 
-def test_update_context_to_myos_folder(tmp_path):
+def test_update_context_to_settings_folder(tmp_path):
     """update_context(MyOS_Test/MyOS) must not raise and must update project_root."""
     paths = _setup_myos_test_structure(tmp_path)
     api = ScopeApi(str(paths["haus"]))
 
-    api.update_context(str(paths["myos_folder"]))
+    api.update_context(str(paths["repo_folder"]))
     root = api.get_project_root()
     assert root is not None, "project_root must be set after update_context to MyOS folder"
 
@@ -130,7 +130,7 @@ def test_list_children_above_project_root(tmp_path):
     assert "Dateien" in names
 
 
-def test_list_children_path_above_myos_root_still_lists_real_dirs(tmp_path):
+def test_list_children_path_above_top_root_still_lists_real_dirs(tmp_path):
     """Paths above MyOS root - list_children should still list real dirs (no filter)."""
     parent = tmp_path / "parent"
     parent.mkdir()

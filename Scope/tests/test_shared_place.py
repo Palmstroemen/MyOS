@@ -48,7 +48,7 @@ def programs(world, monkeypatch):
     app = QGuiApplication.instance() or QGuiApplication([])
     scope = S.Backend(ScopeApi(str(world["studio"])), app, QQmlApplicationEngine())
     scope.lens("set_cwd", {"path": str(world["studio"])})  # as Scope's QML does on start
-    suntree = T.SunTreeBackend(T.MyOSBackendAdapter(ScopeApi(str(world["studio"]))), str(world["studio"]))
+    suntree = T.SunTreeBackend(T.BackendAdapter(ScopeApi(str(world["studio"]))), str(world["studio"]))
     yield scope, suntree
     suntree.close()
 

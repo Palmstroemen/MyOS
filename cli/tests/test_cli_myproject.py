@@ -23,9 +23,9 @@ def test_myproject_create_success():
         child = root / "Child"
         child.mkdir(parents=True)
 
-        myos_dir = root / META_DIR
-        myos_dir.mkdir(parents=True)
-        (myos_dir / "Project.md").write_text("# MyOS Project\n")
+        settings_dir = root / META_DIR
+        settings_dir.mkdir(parents=True)
+        (settings_dir / "Project.md").write_text("# MyOS Project\n")
 
         result = _run_myproject(["create", str(child)], cwd=tmpdir)
 
@@ -48,9 +48,9 @@ def test_myproject_create_new_path_with_flag():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir) / "Root"
         root.mkdir()
-        myos_dir = root / META_DIR
-        myos_dir.mkdir(parents=True)
-        (myos_dir / "Project.md").write_text("# MyOS Project\n")
+        settings_dir = root / META_DIR
+        settings_dir.mkdir(parents=True)
+        (settings_dir / "Project.md").write_text("# MyOS Project\n")
 
         target = root / "NewChild"
         result = _run_myproject(["create", "--new", str(target)], cwd=tmpdir)

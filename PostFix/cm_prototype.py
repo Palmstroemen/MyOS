@@ -46,7 +46,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); }
 <script>
 new QWebChannel(qt.webChannelTransport, (channel) => {
   const bridge = channel.objects.bridge;
-  window.editor = MyOSEditor.create(document.getElementById("editor"), {
+  window.editor = PostFixEditor.create(document.getElementById("editor"), {
     doc: __DOC__,
     onChange: (text) => bridge.changed(text),
     onLink: (href) => bridge.link(href),

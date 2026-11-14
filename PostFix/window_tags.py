@@ -112,19 +112,19 @@ class WindowTagsMixin:
         self._scope_tags_path = None
         if file_path:
             current_dir = file_path.parent
-            nearest_myos_dir = None
+            nearest_settings_dir = None
             for parent in [current_dir, *current_dir.parents]:
-                myos_dir = parent / META_DIR
-                if nearest_myos_dir is None and myos_dir.exists():
-                    nearest_myos_dir = myos_dir
-                tags_md = myos_dir / "Tags.md"
+                settings_dir = parent / META_DIR
+                if nearest_settings_dir is None and settings_dir.exists():
+                    nearest_settings_dir = settings_dir
+                tags_md = settings_dir / "Tags.md"
                 if tags_md.exists():
                     self._scope_tags_path = tags_md
                     self._scope_tags = self._parse_scope_tags(tags_md)
                     break
-            if self._scope_tags_path is None and nearest_myos_dir is not None:
+            if self._scope_tags_path is None and nearest_settings_dir is not None:
                 # No explicit project tag config yet; keep a writable target.
-                self._scope_tags_path = nearest_myos_dir / "Tags.md"
+                self._scope_tags_path = nearest_settings_dir / "Tags.md"
 
         self._sync_scope_tags_from_document()
 

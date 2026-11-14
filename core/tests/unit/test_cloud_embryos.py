@@ -70,7 +70,7 @@ def test_a_birth_lists_its_files_with_their_hash_and_hidden_folders(tmp_path):
     }
 
 
-def test_the_birth_list_is_what_a_birth_in_myos_copies(tmp_path):
+def test_the_birth_list_is_what_a_birth_in_settings_copies(tmp_path):
     root = _project(tmp_path / "Projekt")
     (only,) = embryo_sets(root)
 

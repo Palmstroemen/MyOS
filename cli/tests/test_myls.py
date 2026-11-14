@@ -7,7 +7,7 @@ import tempfile
 import subprocess
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from cli.myls import MyOSLister, parse_arguments, main
+from cli.myls import Lister, parse_arguments, main
 
 def test_extended_flag_parsing(monkeypatch):
     """Test that the --extended flag is parsed correctly."""
@@ -32,7 +32,7 @@ def test_extended_view_without_api(capsys):
         (tmp / "file1.txt").touch()
         (tmp / "folder1").mkdir()
         
-        lister = MyOSLister(str(tmp))
+        lister = Lister(str(tmp))
         lister.list_extended()
         
         captured = capsys.readouterr()
@@ -69,12 +69,12 @@ def test_extended_view_with_mock_api(capsys, monkeypatch):
         (tmp / "src").mkdir()
         (tmp / "file.txt").touch()
         
-        lister = MyOSLister(str(tmp))
+        lister = Lister(str(tmp))
         
         # Mock API mit korrektem project_root
         mock_api = MockAPI(project_root=tmp)
         lister.api = mock_api
-        lister.in_myos_project = True
+        lister.in_project = True
         
         lister.list_extended()
         
@@ -110,9 +110,9 @@ def test_extended_color_output(capsys, monkeypatch):
             def get_template_name(self):
                 return "Test"
         
-        lister = MyOSLister(str(tmp))
+        lister = Lister(str(tmp))
         lister.api = SimpleMockAPI()
-        lister.in_myos_project = True
+        lister.in_project = True
         
         lister.list_extended(color=True)
         
@@ -148,7 +148,7 @@ def test_basic_extended():
         (tmp / "normal_dir").mkdir()
         (tmp / "normal_file.txt").touch()
         
-        lister = MyOSLister(str(tmp))
+        lister = Lister(str(tmp))
         # Should run without errors
         lister.list_extended()
         lister.list_extended(color=True)

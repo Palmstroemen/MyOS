@@ -91,7 +91,7 @@ def test_path_bar_and_preview_left_the_menus_for_the_back():
     assert "usePathBar: window.minimalView || setupPage.pathBarOn" in MAIN
 
 
-def test_the_projects_browser_offers_no_myos_suggestions():
+def test_the_projects_browser_offers_no_settings_suggestions():
     # MyOS folders are only on the left (Perspective Resolver MVP, A3.9); suggestions are MyOS
     # folders, so the projects browser could never show them.
     projects = MAIN[MAIN.index("id: projectsBrowser"):]

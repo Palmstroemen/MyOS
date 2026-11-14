@@ -39,7 +39,7 @@ class FakeDAV:
         return self.tag
 
 
-def test_folders_and_myos_files_come_documents_do_not(tmp_path):
+def test_folders_and_settings_files_come_documents_do_not(tmp_path):
     dav = FakeDAV()
     build_shadow(dav, tmp_path / "s")
 
@@ -103,7 +103,7 @@ def test_a_failed_rebuild_keeps_the_shadow_there_was(tmp_path):
     (f"/{META_DIR}/Templates/Standard/04_Finanz/Liesmich.md", False, True),
     ("/Familie/Rechnung.pdf", False, False),  # a document: not
 ])
-def test_only_folders_and_myos_files_matter_to_the_shadow(path, is_dir, expected):
+def test_only_folders_and_settings_files_matter_to_the_shadow(path, is_dir, expected):
     assert matters(path, is_dir) is expected
 
 

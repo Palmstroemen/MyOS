@@ -13,15 +13,15 @@ def _write_templates(project_root: Path, template_name: str, folders: list[str])
 
 
 def _write_project_config(project_root: Path, template_name: str) -> None:
-    myos_dir = project_root / META_DIR
-    myos_dir.mkdir(parents=True, exist_ok=True)
-    (myos_dir / "Project.md").write_text("# MyOS Project\n")
-    (myos_dir / "Templates.md").write_text(f"# Templates\n{template_name}\n")
+    settings_dir = project_root / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    (settings_dir / "Project.md").write_text("# MyOS Project\n")
+    (settings_dir / "Templates.md").write_text(f"# Templates\n{template_name}\n")
 
 
 def _write_acls(project_root: Path) -> None:
-    myos_dir = project_root / META_DIR
-    (myos_dir / "ACLs.md").write_text(
+    settings_dir = project_root / META_DIR
+    (settings_dir / "ACLs.md").write_text(
         "# Permissions\n"
         "\n"
         "## Folder\n"
@@ -119,9 +119,9 @@ def test_acl_roles_from_inherited_templates_runtime_resolution():
         _write_project_config(root, "Standard")
         _write_acls(root)
 
-        child_myos = child / META_DIR
-        child_myos.mkdir(parents=True)
-        (child_myos / "Project.md").write_text("# MyOS Project\n")
+        child_settings = child / META_DIR
+        child_settings.mkdir(parents=True)
+        (child_settings / "Project.md").write_text("# MyOS Project\n")
 
         policy = ACLPolicy.from_project(child)
         assert "admin" in policy.roles

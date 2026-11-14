@@ -211,7 +211,7 @@ def test_the_rendering_takes_over_where_the_editor_was_scrolled(setup):
     host = editor_host._shared
     _ready(app, host)
     first._take_editor()  # activation events of the second window must not have moved it
-    _js(app, host, "window.host.view.dispatch({effects: MyOSEditor.scrollToLine(window.host.view, 120)})")
+    _js(app, host, "window.host.view.dispatch({effects: PostFixEditor.scrollToLine(window.host.view, 120)})")
     assert _wait(app, lambda: (host.top_of(first._editor_key()) or (0,))[0] >= 118)
     second._take_editor()  # the editor leaves: the rendering shows the same lines
     line, _offset = first.editor.preview.top_line()

@@ -15,14 +15,14 @@ from core.brand import META_DIR
 # Helper function for test setup
 def setup_complete_test_config(root_dir: Path):
     """Create comprehensive test configuration for all tests."""
-    myos_dir = root_dir / META_DIR
-    myos_dir.mkdir(exist_ok=True)
+    settings_dir = root_dir / META_DIR
+    settings_dir.mkdir(exist_ok=True)
     
     # 1. Project.md (required)
-    (myos_dir / "Project.md").write_text("# MyOS Project\nRoot configuration for testing\n")
+    (settings_dir / "Project.md").write_text("# MyOS Project\nRoot configuration for testing\n")
     
     # 2. Templates.md
-    (myos_dir / "Templates.md").write_text("""# Templates
+    (settings_dir / "Templates.md").write_text("""# Templates
 Standard
 Person
 Finanzen
@@ -32,7 +32,7 @@ Finanzen
 """)
     
     # 3. Manifest.md
-    (myos_dir / "Manifest.md").write_text("""# Project
+    (settings_dir / "Manifest.md").write_text("""# Project
 Owner: Anna
 Created: 2025-01-27
 Status: Active
@@ -40,13 +40,13 @@ Priority: High
 """)
     
     # 4. Info.md (inherit: not) – "#### inherit: not" direkt nach Überschrift, damit Parser es erkennt
-    (myos_dir / "Info.md").write_text("""# Info
+    (settings_dir / "Info.md").write_text("""# Info
 #### inherit: not
 This project sets up the basic MyOS configuration.
 """)
     
     # 5. ACLs.md
-    (myos_dir / "ACLs.md").write_text("""# ACLs
+    (settings_dir / "ACLs.md").write_text("""# ACLs
 Access Control Lists are defined here.
 
 ## Roles
@@ -60,7 +60,7 @@ Roles have different access rights.
 """)
     
     # 6. Config.md (for inheritance tests) – keine Leerzeile nach Überschrift, sonst parst Parser Section leer
-    (myos_dir / "Config.md").write_text("""# Templates
+    (settings_dir / "Config.md").write_text("""# Templates
 inherit: dynamic
 items: Standard, Person
 
@@ -69,8 +69,8 @@ inherit: fix
 items: Dark, Compact
 """)
     
-    print(f"✓ Complete test config created in {myos_dir}")
-    return myos_dir
+    print(f"✓ Complete test config created in {settings_dir}")
+    return settings_dir
 
 
 class TestProjectConfig:
@@ -83,9 +83,9 @@ class TestProjectConfig:
             project_path.mkdir()
             
             # Create .MyOS/ with empty Project.md
-            myos_dir = project_path / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# MyOS Project\n")
+            settings_dir = project_path / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# MyOS Project\n")
             
             config = ProjectConfig(project_path)
             
@@ -102,12 +102,12 @@ class TestProjectConfig:
             project_path.mkdir()
             
             # Create .MyOS/ structure with templates matching our config
-            myos_dir = project_path / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# MyOS Project\n")
+            settings_dir = project_path / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# MyOS Project\n")
             
             # Write Templates.md matching our root configuration
-            (myos_dir / "Templates.md").write_text("""# Templates
+            (settings_dir / "Templates.md").write_text("""# Templates
 Standard
 Person
 Finanzen
@@ -125,12 +125,12 @@ Finanzen
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            myos_dir = project_path / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# MyOS Project\n")
+            settings_dir = project_path / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# MyOS Project\n")
             
             # Write Manifest.md
-            (myos_dir / "Manifest.md").write_text("""# Project
+            (settings_dir / "Manifest.md").write_text("""# Project
 Owner: Anna
 Created: 2025-01-27
 Status: Active
@@ -160,23 +160,23 @@ Priority: High
             result = config.save()
             assert result
             
-            myos_dir = project_path / META_DIR
-            assert myos_dir.exists()
-            assert (myos_dir / "Project.md").exists()
-            assert (myos_dir / "Templates.md").exists()
-            assert (myos_dir / "Manifest.md").exists()
+            settings_dir = project_path / META_DIR
+            assert settings_dir.exists()
+            assert (settings_dir / "Project.md").exists()
+            assert (settings_dir / "Templates.md").exists()
+            assert (settings_dir / "Manifest.md").exists()
             
             # Verify Templates.md content
-            templates_content = (myos_dir / "Templates.md").read_text()
+            templates_content = (settings_dir / "Templates.md").read_text()
             assert "Standard" in templates_content
             assert "Person" in templates_content
             
             # Verify Manifest.md content  
-            manifest_content = (myos_dir / "Manifest.md").read_text()
+            manifest_content = (settings_dir / "Manifest.md").read_text()
             assert "MyOS v1.0" in manifest_content
             assert "TestUser" in manifest_content
             
-            print(f"✓ Save created: {list(myos_dir.iterdir())}")
+            print(f"✓ Save created: {list(settings_dir.iterdir())}")
     
     def test_save_updates_existing_files(self):
         """Test that save() updates existing .md files."""
@@ -185,11 +185,11 @@ Priority: High
             project_path.mkdir()
             
             # Create initial structure
-            myos_dir = project_path / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# Old Project\n")
-            (myos_dir / "Templates.md").write_text("# Old\n- OldTemplate\n")
-            (myos_dir / "Manifest.md").write_text("Old: yes\n")
+            settings_dir = project_path / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# Old Project\n")
+            (settings_dir / "Templates.md").write_text("# Old\n- OldTemplate\n")
+            (settings_dir / "Manifest.md").write_text("Old: yes\n")
             
             config = ProjectConfig(project_path)
             config.templates = ["NewTemplate"]
@@ -200,11 +200,11 @@ Priority: High
             assert result
             
             # Check files were updated
-            templates_content = (myos_dir / "Templates.md").read_text()
+            templates_content = (settings_dir / "Templates.md").read_text()
             assert "NewTemplate" in templates_content
             assert "OldTemplate" not in templates_content
             
-            manifest_content = (myos_dir / "Manifest.md").read_text()
+            manifest_content = (settings_dir / "Manifest.md").read_text()
             assert "MyOS v2.0" in manifest_content
             assert "Old: yes" not in manifest_content
             
@@ -217,10 +217,10 @@ Priority: High
             project_path.mkdir()
             
             # Create .MyOS/ but NO Project.md
-            myos_dir = project_path / META_DIR
-            myos_dir.mkdir()
+            settings_dir = project_path / META_DIR
+            settings_dir.mkdir()
             # Only templates.md, no Project.md
-            (myos_dir / "Templates.md").write_text("# Templates\n- Standard\n")
+            (settings_dir / "Templates.md").write_text("# Templates\n- Standard\n")
             
             config = ProjectConfig(project_path)
             
@@ -268,12 +268,12 @@ class TestProjectInheritance:
         config = ProjectConfig.create(child_dir)
         
         # Check minimal marker exists
-        child_myos = child_dir / META_DIR
-        assert (child_myos / "Project.md").exists()
-        assert not (child_myos / "Templates.md").exists()
-        assert not (child_myos / "ACLs.md").exists()
-        assert not (child_myos / "Manifest.md").exists()
-        assert not (child_myos / "Config.md").exists()
+        child_settings = child_dir / META_DIR
+        assert (child_settings / "Project.md").exists()
+        assert not (child_settings / "Templates.md").exists()
+        assert not (child_settings / "ACLs.md").exists()
+        assert not (child_settings / "Manifest.md").exists()
+        assert not (child_settings / "Config.md").exists()
         
         print("✓ Minimal project marker created without dynamic copies")
     
@@ -306,8 +306,8 @@ class TestProjectInheritance:
         child_dir.mkdir()
         ProjectConfig.create(child_dir)
 
-        child_myos = child_dir / META_DIR
-        (child_myos / "Templates.md").write_text("# Templates\nOnlyLocal\n")
+        child_settings = child_dir / META_DIR
+        (child_settings / "Templates.md").write_text("# Templates\nOnlyLocal\n")
 
         child_cfg = ProjectConfig(child_dir)
         assert child_cfg.templates == ["OnlyLocal"]
@@ -319,8 +319,8 @@ class TestProjectInheritance:
         child_dir.mkdir()
         ProjectConfig.create(child_dir)
 
-        child_myos = child_dir / META_DIR
-        (child_myos / "Config.md").write_text("# Templates\ninherit: not\n")
+        child_settings = child_dir / META_DIR
+        (child_settings / "Config.md").write_text("# Templates\ninherit: not\n")
 
         child_cfg = ProjectConfig(child_dir)
         assert child_cfg.get_effective_templates() == []
@@ -358,9 +358,9 @@ class TestProjectFinder:
             subdir.mkdir(parents=True)
             
             # Create project at project_dir
-            myos_dir = project_dir / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# Project\n")
+            settings_dir = project_dir / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# Project\n")
             
             # Should find project from deep subdirectory
             found = ProjectFinder.find_nearest(subdir)
@@ -374,9 +374,9 @@ class TestProjectFinder:
             project_dir = Path(tmpdir) / "project"
             project_dir.mkdir()
             
-            myos_dir = project_dir / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# Project\n")
+            settings_dir = project_dir / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# Project\n")
             
             found = ProjectFinder.find_nearest(project_dir)
             assert found == project_dir
@@ -432,12 +432,12 @@ class TestProjectConfigEdgeCases:
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            myos_dir = project_path / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# Project\n")
+            settings_dir = project_path / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# Project\n")
             
             # Create empty Config.md
-            (myos_dir / "Config.md").write_text("")
+            (settings_dir / "Config.md").write_text("")
             
             config = ProjectConfig(project_path)
             
@@ -453,12 +453,12 @@ class TestProjectConfigEdgeCases:
             project_path = Path(tmpdir) / "test_project"
             project_path.mkdir()
             
-            myos_dir = project_path / META_DIR
-            myos_dir.mkdir()
-            (myos_dir / "Project.md").write_text("# Project\n")
+            settings_dir = project_path / META_DIR
+            settings_dir.mkdir()
+            (settings_dir / "Project.md").write_text("# Project\n")
             
             # Create malformed Templates.md (not proper markdown)
-            (myos_dir / "Templates.md").write_text("Invalid: Content: More: Data")
+            (settings_dir / "Templates.md").write_text("Invalid: Content: More: Data")
             
             config = ProjectConfig(project_path)
             

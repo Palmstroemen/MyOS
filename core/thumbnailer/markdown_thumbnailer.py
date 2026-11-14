@@ -196,17 +196,17 @@ def _looks_like_ai_chat(markdown_text: str) -> bool:
     return speaker_lines >= 8 and len(speakers) >= 2
 
 
-def _is_myos_path(input_path: Path | None) -> bool:
+def _is_settings_path(input_path: Path | None) -> bool:
     if not input_path:
         return False
 
-    def _contains_myos(parts: tuple[str, ...]) -> bool:
+    def _contains_settings_dir(parts: tuple[str, ...]) -> bool:
         return any(part.lower() == META_DIR.lower() for part in parts)
 
-    if _contains_myos(input_path.parts):
+    if _contains_settings_dir(input_path.parts):
         return True
     try:
-        return _contains_myos(input_path.resolve(strict=False).parts)
+        return _contains_settings_dir(input_path.resolve(strict=False).parts)
     except Exception:
         return False
 
@@ -218,7 +218,7 @@ def detect_note_style(markdown_text: str, input_path: Path | None = None) -> str
     if explicit:
         return explicit
 
-    if _is_myos_path(input_path):
+    if _is_settings_path(input_path):
         return "config"
     if _looks_like_ai_chat(markdown_text):
         return "chat"

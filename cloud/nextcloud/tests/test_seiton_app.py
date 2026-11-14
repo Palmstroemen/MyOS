@@ -111,8 +111,8 @@ def _sync(tmp_path):
     (root / "Familie" / META_DIR / "Project.md").write_text(f"# {NAME} Project\n")
     # The .MyOS files come into the Team folder as with a sync client (the core reads them
     # there), before the sync, so it sets their rules as well.
-    _upload_myos(root, root)
-    _upload_myos(root, root / "Familie")
+    _upload_settings_dir(root, root)
+    _upload_settings_dir(root, root / "Familie")
     script = Path(__file__).resolve().parents[3] / "cli" / "myacl.py"
     env = {k: v for k, v in os.environ.items() if not k.startswith(tuple(p + "ACL" for p in (ENV_PREFIX, *LEGACY_ENV_PREFIXES)))}
     env.update({env_name("NEXTCLOUD_USER"): "oliver", env_name("NEXTCLOUD_PASSWORD"): _passwords()["oliver"],
@@ -136,9 +136,9 @@ def _settled(script, root, env, timeout=120):
         time.sleep(8)
 
 
-def _upload_myos(root, project):
-    myos = project / META_DIR
-    for path in sorted([myos, *myos.rglob("*")]):
+def _upload_settings_dir(root, project):
+    settings_dir = project / META_DIR
+    for path in sorted([settings_dir, *settings_dir.rglob("*")]):
         rel = path.relative_to(root).as_posix()
         if path.is_dir():
             assert _dav("oliver", "MKCOL", rel)[0] in (201, 405), rel

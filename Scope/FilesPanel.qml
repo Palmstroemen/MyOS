@@ -180,8 +180,8 @@ Rectangle { // Files panel
     /// Unified navigation intent (double-click = CWD+CTD). gesture: "double", source: "filesPanel".
     signal navigationRequested(string path, string gesture, string source)
     signal fileActivated(string name)
-    signal openMyosFolder()
-    signal leaveMyosFolder()
+    signal openSettingsFolder()
+    signal leaveSettingsFolder()
     signal createProject()
     /// Context menu on one folder: make it a project, or an ordinary folder again.
     signal createProjectAtRequested(string path)
@@ -189,7 +189,7 @@ Rectangle { // Files panel
     /// What the context menu offers for a folder: "create", "remove" or "" (set by the window).
     property var projectActionFor: function(path) { return "" }
     property string contextProjectAction: ""
-    signal createMyosAndEnter()
+    signal createSettingsAndEnter()
     signal xrayClicked()
     /// X-ray view on (button highlighted); see visibleCapacity.
     property bool xrayActive: false
@@ -208,7 +208,7 @@ Rectangle { // Files panel
     signal listColumnsChangeRequested(var columns)
     /// Header click: sort by this key ("name", "modified", "size"); main flips the direction.
     signal sortRequested(string key)
-    property bool showLeaveMyosButton: false
+    property bool showLeaveSettingsButton: false
     /// Folder the P-Button turns into a project ("" = button off), chosen by the window.
     property string projectCreateTarget: ""
     readonly property bool canCreateProject: projectCreateTarget.length > 0
@@ -216,7 +216,7 @@ Rectangle { // Files panel
     property string projectRemoveTarget: ""
     readonly property bool canRemoveProject: !canCreateProject && projectRemoveTarget.length > 0
     signal removeProject()
-    property bool hasMyosDirInCwp: false
+    property bool hasSettingsDirInCwp: false
     /** Farbe für den P-Button wenn CWD nicht in einem Projekt liegt (Wurzelprojekt-Farbe). */
     property color pButtonActiveColor
 
@@ -372,7 +372,7 @@ Rectangle { // Files panel
         if (paths.length <= 1) {
             return paths.length === 1 ? paths[0] : ""
         }
-        return "__MYOS_PATHS__" + JSON.stringify(paths)
+        return "__SCOPE_PATHS__" + JSON.stringify(paths)
     }
 
     function selectedFolderPaths() {
@@ -894,13 +894,13 @@ Rectangle { // Files panel
 
                 // Edit-Button / Exit-Button: immer sichtbar, halbtransparent wenn kein .MyOS
                 Rectangle {
-                    objectName: "myosButton"
+                    objectName: "settingsButton"
                     width: root.topRightButtonSize
                     height: root.topRightButtonSize
                     color: "transparent"
                     border.width: 0
-                    visible: !root.showLeaveMyosButton
-                    opacity: root.hasMyosDirInCwp ? 1 : 0.5
+                    visible: !root.showLeaveSettingsButton
+                    opacity: root.hasSettingsDirInCwp ? 1 : 0.5
                     Image {
                         anchors.fill: parent
                         source: root.iconGear
@@ -910,7 +910,7 @@ Rectangle { // Files panel
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: root.hasMyosDirInCwp ? root.openMyosFolder() : root.createMyosAndEnter()
+                        onClicked: root.hasSettingsDirInCwp ? root.openSettingsFolder() : root.createSettingsAndEnter()
                     }
                 }
 
@@ -920,7 +920,7 @@ Rectangle { // Files panel
                     height: root.topRightButtonSize
                     color: root.smallButtonBg
                     border.color: root.smallButtonBorder
-                    visible: root.showLeaveMyosButton
+                    visible: root.showLeaveSettingsButton
                     Text {
                         anchors.centerIn: parent
                         text: "↑"
@@ -930,7 +930,7 @@ Rectangle { // Files panel
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: root.leaveMyosFolder()
+                        onClicked: root.leaveSettingsFolder()
                     }
                 }
             }

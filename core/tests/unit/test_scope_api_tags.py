@@ -204,24 +204,24 @@ def test_folder_sidecar_roundtrip_and_cleanup_on_empty_tags(tmp_path):
     assert not (folder / META_DIR).exists()
 
 
-def test_set_folder_tags_keeps_myos_directory_when_other_files_exist(tmp_path):
+def test_set_folder_tags_keeps_settings_directory_when_other_files_exist(tmp_path):
     root = tmp_path / "Workspace"
     root.mkdir()
     folder = root / "Folder"
     folder.mkdir()
 
-    myos_dir = folder / META_DIR
-    myos_dir.mkdir()
-    (myos_dir / "other.md").write_text("keep", encoding="utf-8")
+    settings_dir = folder / META_DIR
+    settings_dir.mkdir()
+    (settings_dir / "other.md").write_text("keep", encoding="utf-8")
 
     api = ScopeApi(str(root))
     assert api.set_folder_tags(str(folder), ["tag1"]) is True
-    assert (myos_dir / "myTags.md").exists()
+    assert (settings_dir / "myTags.md").exists()
 
     assert api.set_folder_tags(str(folder), []) is True
-    assert not (myos_dir / "myTags.md").exists()
-    assert (myos_dir / "other.md").exists()
-    assert myos_dir.exists()
+    assert not (settings_dir / "myTags.md").exists()
+    assert (settings_dir / "other.md").exists()
+    assert settings_dir.exists()
 
 
 def test_list_tag_buckets_splits_folder_and_file_tags(tmp_path):
@@ -241,9 +241,9 @@ def test_list_tag_buckets_splits_folder_and_file_tags(tmp_path):
 def test_list_entries_does_not_create_sidecar_for_untagged_folders(tmp_path):
     project = tmp_path / "Project"
     project.mkdir()
-    myos = project / META_DIR
-    myos.mkdir()
-    (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    settings_dir = project / META_DIR
+    settings_dir.mkdir()
+    (settings_dir / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
     folder = project / "Folder"
     folder.mkdir()
 

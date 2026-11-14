@@ -93,7 +93,7 @@ def test_the_side_buttons_are_their_icons(panel):
     # Right of the list the icon is the button: as large as the button, no frame around it.
     from PySide6.QtGui import QColor
 
-    for name in ("myosButton", "foldersButton", "xrayButton", "viewButton", "trashButton"):
+    for name in ("settingsButton", "foldersButton", "xrayButton", "viewButton", "trashButton"):
         button = _named(panel, name)
         assert button is not None, name
         assert QColor(button.property("color")).alpha() == 0, name
@@ -291,5 +291,5 @@ def test_the_folders_switch_is_remembered(backend):
 def test_the_window_reads_and_writes_the_folders_switch():
     main = (SCOPE_DIR / "main.qml").read_text(encoding="utf-8")
     assert "filesPane.showFolders = backend.filesShowFolders()" in main
-    handler = main.split("onShowFoldersChanged:", 1)[1].split("onLeaveMyosFolder:", 1)[0]
+    handler = main.split("onShowFoldersChanged:", 1)[1].split("onLeaveSettingsFolder:", 1)[0]
     assert "backend.setFilesShowFolders(filesPane.showFolders)" in handler

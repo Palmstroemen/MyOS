@@ -88,3 +88,10 @@ def test_colours_nobody_uses_are_gone():
     for gone in ("panelAlt2", "projectFolderTint", "embryoFolderTint", "action", "actionBorder",
                  "filesPaneBackground", "textMuted", "textSoft"):
         assert gone not in shipped_scheme("dark"), gone
+
+
+def test_a_colour_set_under_its_former_name_still_applies(tmp_path, monkeypatch):
+    import core.color_schemes as cs
+    monkeypatch.setattr(cs, "own_colors_path", lambda name: tmp_path / f"{name}.json")
+    (tmp_path / "dark.json").write_text('{"crownFolderMyos": "#112233"}', encoding="utf-8")
+    assert cs.load_scheme("dark")["crownFolderSystem"] == "#112233"

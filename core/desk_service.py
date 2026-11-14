@@ -95,7 +95,7 @@ def _project_roots(path: Path) -> tuple[Optional[Path], Optional[Path]]:
     return nearest, top
 
 
-def _never_set_by_myos(current: DesktopState, applied: Optional[DesktopState]) -> Dict[str, Any]:
+def _never_set_by_us(current: DesktopState, applied: Optional[DesktopState]) -> Dict[str, Any]:
     """Settings of current that MyOS has not set yet (nothing applied, or it could not read them)."""
     unknown = (None, "")
     return {
@@ -191,7 +191,7 @@ class DeskService:
 
         shared = self._read_shared()
         applied = shared.get("applied")
-        own = _never_set_by_myos(current, applied)
+        own = _never_set_by_us(current, applied)
         missing = DesktopState(**{f: v for f, v in own.items() if not _desk_has(system_desk, f)})
         if missing != DesktopState():
             # Before MyOS changes anything: the user's own desktop, restored outside projects.

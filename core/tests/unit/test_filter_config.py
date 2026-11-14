@@ -128,12 +128,12 @@ def test_find_filters_orders_by_specificity():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / META_DIR
+        settings_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
-        myos_dir.mkdir(parents=True)
+        settings_dir.mkdir(parents=True)
 
-        _write_named_filter(myos_dir / "Filter.md", "Root")
+        _write_named_filter(settings_dir / "Filter.md", "Root")
         _write_named_filter(sub_dir / "Filter.md", "Sub")
 
         results = find_filters(sub_dir)
@@ -145,12 +145,12 @@ def test_resolve_active_filter_manual_wins():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / META_DIR
+        settings_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
-        myos_dir.mkdir(parents=True)
+        settings_dir.mkdir(parents=True)
 
-        manual = myos_dir / "Filter.md"
+        manual = settings_dir / "Filter.md"
         auto = sub_dir / "Filter.md"
         _write_named_filter(manual, "Manual")
         _write_named_filter(auto, "Auto")
@@ -164,12 +164,12 @@ def test_resolve_active_filter_auto_nearest_folder():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / META_DIR
+        settings_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
-        myos_dir.mkdir(parents=True)
+        settings_dir.mkdir(parents=True)
 
-        _write_named_filter(myos_dir / "Filter.md", "Root")
+        _write_named_filter(settings_dir / "Filter.md", "Root")
         _write_named_filter(sub_dir / "Filter.md", "Sub")
 
         cfg = resolve_active_filter(sub_dir)
@@ -181,12 +181,12 @@ def test_resolve_active_filter_falls_back_to_project():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
-        myos_dir = project_root / META_DIR
+        settings_dir = project_root / META_DIR
         sub_dir = project_root / "sub"
         sub_dir.mkdir(parents=True)
-        myos_dir.mkdir(parents=True)
+        settings_dir.mkdir(parents=True)
 
-        _write_named_filter(myos_dir / "Filter.md", "Root")
+        _write_named_filter(settings_dir / "Filter.md", "Root")
 
         cfg = resolve_active_filter(sub_dir)
 

@@ -114,7 +114,7 @@ def grid_names():
     yield run
 
 
-def test_the_grid_shows_myos_folders_first_then_other_folders_then_files(grid_names):
+def test_the_grid_shows_settings_folders_first_then_other_folders_then_files(grid_names):
     assert grid_names(GRID_ENTRIES) == [
         "04_Finanz", "08_Dokumentation", "Zeta",  # MyOS folders, born or pale
         "01_Ablage", "Aufträge",  # subprojects and other folders

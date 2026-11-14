@@ -65,9 +65,9 @@ def test_myfilter_resolve_fallback():
         sub = root / "Sub"
         sub.mkdir(parents=True)
 
-        myos = root / META_DIR
-        myos.mkdir(parents=True)
-        _write_filter(myos / "Filter.md", "Root")
+        settings_dir = root / META_DIR
+        settings_dir.mkdir(parents=True)
+        _write_filter(settings_dir / "Filter.md", "Root")
 
         result = _run_cmd(["resolve", str(sub)], cwd=tmpdir)
 

@@ -15,7 +15,7 @@ from core.brand import META_DIR, NAME, getenv
 logger = logging.getLogger(__name__)
 
 # System-wide version constant
-MYOS_VERSION = getenv("VERSION", f"{NAME} v0.1")
+APP_VERSION = getenv("VERSION", f"{NAME} v0.1")
 
 
 def _coerce_search_dir(start_path: Union[str, Path]) -> Path:
@@ -107,10 +107,10 @@ class ProjectConfig:
     def __init__(self, path: Path):
         """Initialize a ProjectConfig for the given path."""
         self.path = Path(path)
-        self.myos_dir = self.path / META_DIR
+        self.settings_dir = self.path / META_DIR
         
         # Marker file that defines a project root
-        self.project_md = self.myos_dir / "Project.md"
+        self.project_md = self.settings_dir / "Project.md"
         
         self.templates = []
         self.version = None
@@ -128,13 +128,13 @@ class ProjectConfig:
     
     def load(self):
         """Load configuration from local .MyOS/ files."""
-        if self.myos_dir.exists():
-            self._load_from_myos()
+        if self.settings_dir.exists():
+            self._load_from_settings_dir()
     
-    def _load_from_myos(self):
+    def _load_from_settings_dir(self):
         """Load Templates.md, Manifest.md, and Config.md from .MyOS/."""
         # Templates.md -> self.templates
-        templates_md = self.myos_dir / "Templates.md"
+        templates_md = self.settings_dir / "Templates.md"
         if templates_md.exists():
             try:
                 data = MarkdownConfigParser.parse_file(templates_md)
@@ -164,7 +164,7 @@ class ProjectConfig:
                 logger.exception("Error parsing Templates.md: %s", e)
         
         # Manifest.md -> self.metadata, self.version
-        manifest_md = self.myos_dir / "Manifest.md"
+        manifest_md = self.settings_dir / "Manifest.md"
         if manifest_md.exists():
             try:
                 data = MarkdownConfigParser.parse_file(manifest_md)
@@ -195,7 +195,7 @@ class ProjectConfig:
     
     def _load_config_data(self):
         """Load Config.md into self.config_data."""
-        config_md = self.myos_dir / "Config.md"
+        config_md = self.settings_dir / "Config.md"
         if config_md.exists():
             try:
                 self.config_data = MarkdownConfigParser.parse_file(config_md)
@@ -230,17 +230,17 @@ class ProjectConfig:
             if version is not None:
                 self.version = version
             elif self.version is None:
-                self.version = MYOS_VERSION
+                self.version = APP_VERSION
             
             # Ensure .MyOS/ exists
-            self.myos_dir.mkdir(exist_ok=True, parents=True)
+            self.settings_dir.mkdir(exist_ok=True, parents=True)
             
             # Ensure Project.md exists as a minimal marker file
             if not self.project_md.exists():
                 self.project_md.write_text("# MyOS Project\n")
             
             # Write Templates.md in the current format
-            templates_md = self.myos_dir / "Templates.md"
+            templates_md = self.settings_dir / "Templates.md"
             if self.templates:
                 # Format: "# Templates" followed by one template per line
                 content = "# Templates\n"
@@ -252,7 +252,7 @@ class ProjectConfig:
                 templates_md.unlink()  # Remove if no templates
             
             # Write Manifest.md in the current format
-            manifest_md = self.myos_dir / "Manifest.md"
+            manifest_md = self.settings_dir / "Manifest.md"
             # Always write manifest if we have version or metadata
             if self.version is not None or self.metadata:
                 # Format: "# Project" followed by key/value lines
@@ -313,7 +313,7 @@ class ProjectConfig:
         if not section:
             return None, False
 
-        section_file = self.myos_dir / f"{section}.md"
+        section_file = self.settings_dir / f"{section}.md"
         if section_file.exists():
             try:
                 parsed = MarkdownConfigParser.parse_file(section_file)
@@ -360,11 +360,11 @@ class ProjectConfig:
         while True:
             marker = current / META_DIR / "Project.md"
             if marker.exists():
-                myos_dir = current / META_DIR
+                settings_dir = current / META_DIR
                 local_data = None
                 found = False
 
-                section_file = myos_dir / f"{section}.md"
+                section_file = settings_dir / f"{section}.md"
                 if section_file.exists():
                     try:
                         parsed = MarkdownConfigParser.parse_file(section_file)
@@ -381,7 +381,7 @@ class ProjectConfig:
                         found = True
 
                 if not found:
-                    config_md = myos_dir / "Config.md"
+                    config_md = settings_dir / "Config.md"
                     if config_md.exists():
                         try:
                             parsed_config = MarkdownConfigParser.parse_file(config_md)
@@ -544,14 +544,14 @@ class ProjectConfig:
         sections = {}
 
         # Single-file sections
-        for md in self.myos_dir.glob("*.md"):
+        for md in self.settings_dir.glob("*.md"):
             if md.name.lower() == "project.md":
                 continue
             name = md.stem
             sections[name] = self._parse_section_markdown(md.read_text())
 
         # Config.md sections
-        config = self.myos_dir / "Config.md"
+        config = self.settings_dir / "Config.md"
         if config.exists():
             legacy = self._parse_legacy_config(config.read_text())
             for name, data in legacy.items():
@@ -568,14 +568,14 @@ class ProjectConfig:
         dir_path = Path(dir_path)
         
         # Find nearest parent with .MyOS
-        parent_myos = cls._find_parent_myos(dir_path)
-        if not parent_myos:
+        parent_settings = cls._find_parent_settings_dir(dir_path)
+        if not parent_settings:
             raise ValueError(f"No parent {META_DIR} directory found for {dir_path}")
         # Ensure target directory exists and initialize minimal .MyOS marker.
         dir_path.mkdir(parents=True, exist_ok=True)
-        target_myos = dir_path / META_DIR
-        target_myos.mkdir(parents=True, exist_ok=True)
-        project_marker = target_myos / "Project.md"
+        target_settings = dir_path / META_DIR
+        target_settings.mkdir(parents=True, exist_ok=True)
+        project_marker = target_settings / "Project.md"
         if not project_marker.exists():
             project_marker.write_text("# MyOS Project\n")
             # A new project gets what its templates' root .MyOS holds (ACLs.md, Desk.md, ...).
@@ -594,13 +594,13 @@ class ProjectConfig:
         return project
 
     @staticmethod
-    def _find_parent_myos(dir_path: Path) -> Optional[Path]:
+    def _find_parent_settings_dir(dir_path: Path) -> Optional[Path]:
         """Find parent .MyOS directory by walking up the directory tree."""
         current = dir_path.parent
         while current and current != current.parent:  # Stop at filesystem root
-            myos_dir = current / META_DIR
-            if myos_dir.exists():
-                return myos_dir
+            settings_dir = current / META_DIR
+            if settings_dir.exists():
+                return settings_dir
             current = current.parent
         return None
 
@@ -667,7 +667,7 @@ class ProjectConfig:
     def _save_config_data(self) -> bool:
         """Write current config_data back to Config.md."""
         try:
-            config_md = self.myos_dir / "Config.md"
+            config_md = self.settings_dir / "Config.md"
             if not self.config_data:
                 if config_md.exists():
                     config_md.unlink()
@@ -784,7 +784,7 @@ def notify_config_changed(changed_file: Union[str, Path], dry_run: bool = False)
 
     parent = changed_path.parent
     if parent.name != META_DIR:
-        results["reason"] = "outside_myos"
+        results["reason"] = "outside_settings_dir"
         return results
 
     project_dir = parent.parent
@@ -897,9 +897,9 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmpdir:
         test_dir = Path(tmpdir) / "test_project"
         test_dir.mkdir()
-        parent_myos = test_dir.parent / META_DIR
-        parent_myos.mkdir(exist_ok=True)
-        (parent_myos / "Project.md").write_text("# MyOS Project\n")
+        parent_settings = test_dir.parent / META_DIR
+        parent_settings.mkdir(exist_ok=True)
+        (parent_settings / "Project.md").write_text("# MyOS Project\n")
         result = ProjectConfig.make_project(test_dir, template="standard")
         assert result, "make_project should succeed"
         config = ProjectConfig(test_dir)

@@ -22,16 +22,16 @@ def postfix_test_lab(tmp_path: Path) -> dict[str, Path]:
     """Small PostFix-focused test lab with vault + project layout."""
     vault = tmp_path / "vault"
     project = vault / "Projects" / "Demo"
-    myos = project / META_DIR
+    settings_dir = project / META_DIR
     obsidian = vault / ".obsidian"
     obsidian.mkdir(parents=True, exist_ok=True)
-    myos.mkdir(parents=True, exist_ok=True)
+    settings_dir.mkdir(parents=True, exist_ok=True)
     return {
         "vault": vault,
         "project": project,
-        "myos": myos,
+        "myos": settings_dir,
         "obsidian_app_json": obsidian / "app.json",
-        "scope_tags_md": myos / "Tags.md",
+        "scope_tags_md": settings_dir / "Tags.md",
     }
 
 

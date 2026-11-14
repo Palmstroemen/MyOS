@@ -348,7 +348,7 @@ class ScopeApi:
         self._acl_audit_file: Optional[Path] = None
         self._acl_audit_max_bytes: int = 262_144
         self._desk_service = DeskService()
-        self.myos_root = find_top_project_root(self.start_path)
+        self.top_root = find_top_project_root(self.start_path)
         self._set_project_root(find_project_root(self.start_path))
         self._configure_acl_from_env()
         self._refresh_desk_context(self.start_path)
@@ -381,8 +381,8 @@ class ScopeApi:
     def get_project_root(self) -> Optional[str]:
         return str(self.project_root) if self.project_root else None
 
-    def get_myos_root(self) -> Optional[str]:
-        return str(self.myos_root) if self.myos_root else None
+    def get_top_root(self) -> Optional[str]:
+        return str(self.top_root) if self.top_root else None
 
     def update_context(self, path: str, lens_desk: str = "", lens_desk_save: Optional[str] = None) -> None:
         """Be at path; with a lens on, its Desk (lens_desk) applies and changes of the
@@ -408,7 +408,7 @@ class ScopeApi:
             if candidate.name == "Projekte" and is_within(resolved_target, candidate):
                 return candidate
 
-        fallback = self.myos_root or find_top_project_root(resolved_target) or find_project_root(resolved_target)
+        fallback = self.top_root or find_top_project_root(resolved_target) or find_project_root(resolved_target)
         if fallback is None:
             return None
         root = Path(fallback).expanduser().resolve()
@@ -467,7 +467,7 @@ class ScopeApi:
         return self._desk_service.list_config_targets(
             target,
             config_name=config_name,
-            global_root=self.myos_root,
+            global_root=self.top_root,
             include_template_target=template_root is not None,
             template_root=template_root,
         )
@@ -656,7 +656,7 @@ class ScopeApi:
         return {
             "templateRoot": template_root,
             "projectRoot": project_root,
-            "globalRoot": self.myos_root,
+            "globalRoot": self.top_root,
         }
 
     def _resolve_effective_filter_for_target(self, target: Path) -> Optional[EffectiveFilter]:
@@ -1598,8 +1598,8 @@ class ScopeApi:
         return result
 
     def _write_folder_sidecar(self, folder_path: Path, tags: List[str]) -> None:
-        myos_dir = folder_path / META_DIR
-        sidecar = myos_dir / "myTags.md"
+        settings_dir = folder_path / META_DIR
+        sidecar = settings_dir / "myTags.md"
         cleaned = sorted(
             set(_normalize_tag_value(tag) for tag in (tags or []) if _normalize_tag_value(tag)),
             key=str.lower,
@@ -1611,14 +1611,14 @@ class ScopeApi:
                     sidecar.unlink()
             except Exception:
                 return
-            self._cleanup_empty_folder_myos_dir(folder_path)
+            self._cleanup_empty_folder_settings_dir(folder_path)
             return
 
         lines = [f"#{tag}" for tag in cleaned]
         content = "\n".join(lines).rstrip() + "\n"
 
         try:
-            myos_dir.mkdir(parents=True, exist_ok=True)
+            settings_dir.mkdir(parents=True, exist_ok=True)
             old_content = sidecar.read_text(encoding="utf-8", errors="replace") if sidecar.exists() else None
             if old_content == content:
                 return
@@ -1626,19 +1626,19 @@ class ScopeApi:
         except Exception:
             return
 
-    def _cleanup_empty_folder_myos_dir(self, folder_path: Path) -> None:
-        myos_dir = folder_path / META_DIR
-        if not myos_dir.exists() or not myos_dir.is_dir():
+    def _cleanup_empty_folder_settings_dir(self, folder_path: Path) -> None:
+        settings_dir = folder_path / META_DIR
+        if not settings_dir.exists() or not settings_dir.is_dir():
             return
         try:
-            next(myos_dir.iterdir())
+            next(settings_dir.iterdir())
             return
         except StopIteration:
             pass
         except Exception:
             return
         try:
-            myos_dir.rmdir()
+            settings_dir.rmdir()
         except Exception:
             return
 
@@ -1787,14 +1787,14 @@ class ScopeApi:
 
     def _get_folder_batch(self, folder_path: Path) -> Dict[str, Optional[str]]:
         """Return batch image URL or batchText from .MyOS/batch.* (batch1.svg etc. ignored)."""
-        myos = folder_path / META_DIR
-        if not myos.is_dir():
+        settings_dir = folder_path / META_DIR
+        if not settings_dir.is_dir():
             return {"batch": None, "batchText": None}
         for ext in (".svg", ".png", ".webp"):
-            batch_file = myos / f"batch{ext}"
+            batch_file = settings_dir / f"batch{ext}"
             if batch_file.is_file():
                 return {"batch": batch_file.as_uri(), "batchText": None}
-        batch_md = myos / "batch.md"
+        batch_md = settings_dir / "batch.md"
         if batch_md.is_file():
             try:
                 text = batch_md.read_text(encoding="utf-8", errors="replace")
@@ -2151,7 +2151,7 @@ class ScopeApi:
         except OSError:
             return -1
 
-    def has_myos_dir(self, path: str) -> bool:
+    def has_settings_dir(self, path: str) -> bool:
         target = self._resolve_path(path)
         return (target / META_DIR).is_dir()
 
@@ -2333,7 +2333,7 @@ class ScopeApi:
             return False
         if not target.is_dir() or (target / META_DIR / "Project.md").exists() or META_DIR in target.parts:
             return False
-        if ProjectConfig._find_parent_myos(target) is None:
+        if ProjectConfig._find_parent_settings_dir(target) is None:
             return False  # creating needs a .MyOS above (ProjectConfig.create)
         templates_dir = find_templates_dir(target)
         if templates_dir is not None:

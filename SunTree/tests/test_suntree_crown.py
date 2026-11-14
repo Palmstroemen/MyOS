@@ -38,7 +38,7 @@ def suntree(world):
     from core.scope_api import ScopeApi
 
     QGuiApplication.instance() or QGuiApplication([])
-    backend = T.SunTreeBackend(T.MyOSBackendAdapter(ScopeApi(str(world["studio"]))), str(world["studio"]))
+    backend = T.SunTreeBackend(T.BackendAdapter(ScopeApi(str(world["studio"]))), str(world["studio"]))
     yield backend
     backend.close()
 

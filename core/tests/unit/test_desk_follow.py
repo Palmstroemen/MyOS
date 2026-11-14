@@ -182,7 +182,7 @@ def test_changes_outside_projects_update_the_system_default(tree):
     assert desktop.state.theme == "Neu-Theme"
 
 
-def test_myos_own_changes_are_not_saved_as_user_changes(tree):
+def test_our_own_changes_are_not_saved_as_user_changes(tree):
     desktop = FakeDesktop()
     service = _service(desktop)
 
@@ -193,7 +193,7 @@ def test_myos_own_changes_are_not_saved_as_user_changes(tree):
     assert "Projekte-Theme" not in (desk_home() / "Desk.md").read_text()
 
 
-def test_scope_and_postfix_share_what_myos_set_last(tree):
+def test_scope_and_postfix_share_what_was_set_last(tree):
     desktop = FakeDesktop()
     scope, postfix = _service(desktop), _service(desktop)
 

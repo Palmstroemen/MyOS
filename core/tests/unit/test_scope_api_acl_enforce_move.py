@@ -7,15 +7,15 @@ from core.brand import META_DIR
 
 
 def _write_project_marker(root: Path) -> None:
-    myos = root / META_DIR
-    myos.mkdir(parents=True, exist_ok=True)
-    (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    settings_dir = root / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    (settings_dir / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
 
 def _write_templates_config(root: Path, template_name: str) -> None:
-    myos = root / META_DIR
-    myos.mkdir(parents=True, exist_ok=True)
-    (myos / "Templates.md").write_text(f"# Templates\n{template_name}\n", encoding="utf-8")
+    settings_dir = root / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    (settings_dir / "Templates.md").write_text(f"# Templates\n{template_name}\n", encoding="utf-8")
 
 
 def _setup_embryo_project(tmp_path: Path) -> Path:

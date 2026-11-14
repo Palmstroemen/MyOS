@@ -20,11 +20,11 @@ try:
     from core.localBlueprintLayer import Blueprint
     from core.tags import read_tags
     from core.xray import xray_listing
-    HAS_MYOS = True
+    HAS_CORE = True
 except ImportError:
-    HAS_MYOS = False
+    HAS_CORE = False
 
-class MyOSLister:
+class Lister:
     def __init__(self, path: str) -> None:
         self.root = Path(path).resolve()
         if not self.root.exists():
@@ -33,19 +33,19 @@ class MyOSLister:
         
         # Initialize MyOS API if available
         self.api = None
-        self.in_myos_project = False
+        self.in_project = False
         
-        if HAS_MYOS:
+        if HAS_CORE:
             try:
                 self.api = Blueprint(self.root)
-                self.in_myos_project = True
+                self.in_project = True
             except (ValueError, ImportError):
                 # Not a MyOS project or other error
                 pass
     
     def is_embryo(self, name: str) -> bool:
         """Check whether a name is an embryo."""
-        if not self.api or not self.in_myos_project:
+        if not self.api or not self.in_project:
             return False
         
         try:
@@ -57,7 +57,7 @@ class MyOSLister:
     
     def get_embryos(self) -> List[str]:
         """Return all embryos in the current directory."""
-        if not self.api or not self.in_myos_project:
+        if not self.api or not self.in_project:
             return []
         
         try:
@@ -74,7 +74,7 @@ class MyOSLister:
             color: Use colored output
         """
         print(f"Directory: {self.root}")
-        if self.in_myos_project and self.api:
+        if self.in_project and self.api:
             print(f"Project: {self.api.project_root.name}")
             print(f"Template: {self.api.template_names[0] if self.api.template_names else 'None'}")
         print("-" * 60)
@@ -110,7 +110,7 @@ class MyOSLister:
                 print(f"  🥚 {embryo}")
         
         # Project info if available
-        if self.in_myos_project and self.api:
+        if self.in_project and self.api:
             total_embryos = sum(len(self.api.get_embryos_at(p)) 
                               for p in [""] + list(self.api.embryo_tree.keys()))
             print(f"\nProject has {total_embryos} total embryos available")
@@ -125,7 +125,7 @@ class MyOSLister:
             return
 
         for item in items:
-            tags = read_tags(item) if HAS_MYOS else {}
+            tags = read_tags(item) if HAS_CORE else {}
             if not tags:
                 continue
             tags_found = True
@@ -273,7 +273,7 @@ def main() -> None:
     """Main entry point."""
     try:
         args = parse_arguments()
-        lister = MyOSLister(args.path)
+        lister = Lister(args.path)
         
         # Dispatch to the selected view
         if args.extended or args.potential:

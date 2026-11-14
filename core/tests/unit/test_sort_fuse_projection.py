@@ -5,9 +5,9 @@ from core.brand import META_DIR, env_name
 
 
 def _create_project(path: Path) -> None:
-    myos = path / META_DIR
-    myos.mkdir(parents=True, exist_ok=True)
-    (myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    settings_dir = path / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    (settings_dir / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
 
 
 def test_blueprint_projects_virtual_sort_level(monkeypatch, tmp_path):

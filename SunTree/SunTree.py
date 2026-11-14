@@ -133,7 +133,7 @@ class SunTreeBackend(QObject):
     pointerGlideDone = Signal()
     clipboardPathChanged = Signal(str)
 
-    def __init__(self, adapter: MyOSBackendAdapter, start_path: str) -> None:
+    def __init__(self, adapter: BackendAdapter, start_path: str) -> None:
         super().__init__()
         self._adapter = adapter
         self._cwd = str(Path(start_path).expanduser().resolve())
@@ -428,8 +428,8 @@ class SunTreeBackend(QObject):
         self._lens.close()  # the drive ends with the program that started it
 
     def _resolve_clipboard_dir(self) -> str:
-        myos_root = self._adapter.get_myos_root()
-        base = Path(myos_root).expanduser().resolve() if myos_root else Path(self._cwd).expanduser().resolve()
+        top_root = self._adapter.get_top_root()
+        base = Path(top_root).expanduser().resolve() if top_root else Path(self._cwd).expanduser().resolve()
         return str(base / "Clipboard")
 
     def _ensure_clipboard_dir(self) -> None:
@@ -441,7 +441,7 @@ class SunTreeBackend(QObject):
         self.clipboardPathChanged.emit(self._clipboard)
 
 
-class MyOSBackendAdapter:
+class BackendAdapter:
     def __init__(self, api: ScopeApi) -> None:
         self._api = api
 
@@ -451,8 +451,8 @@ class MyOSBackendAdapter:
     def update_context(self, path: str, lens_desk: str = "", lens_desk_save: Optional[str] = None) -> None:
         self._api.update_context(path, lens_desk, lens_desk_save)
 
-    def get_myos_root(self) -> Optional[str]:
-        return self._api.get_myos_root()
+    def get_top_root(self) -> Optional[str]:
+        return self._api.get_top_root()
 
     def list_children(self, path: str) -> list:
         return self._api.list_children(path, False)
@@ -491,7 +491,7 @@ def main() -> int:
         app.setWindowIcon(QIcon(str(icon_path)))
 
     api = ScopeApi(start_path)
-    adapter = MyOSBackendAdapter(api)
+    adapter = BackendAdapter(api)
     backend = SunTreeBackend(adapter, start_path)
     hotkey = os.environ.get("SUNTREE_HOTKEY", DEFAULT_HOTKEY)
     hotkey_service = GlobalHotkeyService(hotkey)

@@ -84,7 +84,7 @@ def test_each_note_keeps_its_own_undo(app, host, tmp_path):
     _type(app, host, "B")
     host.attach(a, "a.md", "ErsteA", tmp_path)
     _wait(app, lambda: False, 0.2)
-    _js(app, host, "MyOSEditor.undoOnce(window.host)")
+    _js(app, host, "PostFixEditor.undoOnce(window.host)")
     assert _js(app, host, "window.host.getDoc('a.md')") == "Erste"
     assert _js(app, host, "window.host.getDoc('b.md')") == "ZweiteB"  # untouched by a's undo
 

@@ -51,17 +51,17 @@ def tree(tmp_path):
     return {"template": template, "projects": projects}
 
 
-def test_a_new_project_gets_the_templates_myos_files(tree):
+def test_a_new_project_gets_the_templates_settings_files(tree):
     project = tree["projects"] / "Kunde"
 
     assert ProjectConfig.make_project(project)
 
-    myos = project / META_DIR
-    assert (myos / "Desk.md").read_text() == "# Desk\nPanelTheme: Mint-Y-Blue\n"
-    assert (myos / "ACLs.md").read_text().startswith(TEMPLATE_ACLS)
-    assert (myos / "Project.md").read_text() == "# MyOS Project\n"
-    assert not (myos / "ACLs-history").exists()  # the template's own history stays there
-    assert not (myos / ".ACLs.md.draft").exists()
+    settings_dir = project / META_DIR
+    assert (settings_dir / "Desk.md").read_text() == "# Desk\nPanelTheme: Mint-Y-Blue\n"
+    assert (settings_dir / "ACLs.md").read_text().startswith(TEMPLATE_ACLS)
+    assert (settings_dir / "Project.md").read_text() == "# MyOS Project\n"
+    assert not (settings_dir / "ACLs-history").exists()  # the template's own history stays there
+    assert not (settings_dir / ".ACLs.md.draft").exists()
 
 
 def test_the_buchhalter_gets_finanz_in_every_new_project(tree):
@@ -131,7 +131,7 @@ def test_symlinks_in_the_template_are_not_followed(tree, tmp_path):
     assert not (project / META_DIR / "Notes.md").exists()
 
 
-def test_the_templates_myos_is_neither_a_role_nor_an_embryo(tree):
+def test_the_templates_settings_is_neither_a_role_nor_an_embryo(tree):
     from core.localBlueprintLayer import Blueprint
 
     project = tree["projects"] / "Kunde"

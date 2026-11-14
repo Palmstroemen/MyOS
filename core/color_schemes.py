@@ -16,6 +16,8 @@ from core.settings import settings_path
 SCHEMES_DIR = Path(__file__).with_name("schemes")
 SCHEME_NAMES = ("dark", "light")
 _COLOR = re.compile(r"#([0-9a-fA-F]{2})?[0-9a-fA-F]{6}")
+# Colours renamed since (until 2026-11 under the name MyOS): one's own colour keeps applying.
+FORMER_COLOR_NAMES = {"crownFolderMyos": "crownFolderSystem", "crownBackMyos": "crownBackSystem"}
 
 
 def shipped_scheme(name: str) -> Dict[str, str]:
@@ -34,6 +36,7 @@ def _own_colors(name: str) -> Dict[str, str]:
     if not isinstance(own, dict):
         return {}
     shipped = shipped_scheme(name)
+    own = {FORMER_COLOR_NAMES.get(color, color): value for color, value in own.items()}
     return {color: value for color, value in own.items()
             if color in shipped and isinstance(value, str) and _COLOR.fullmatch(value)}
 

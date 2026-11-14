@@ -20,7 +20,7 @@ def _project(path):
     return path
 
 
-def test_the_templates_of_a_project_lie_in_its_myos_folder(tmp_path):
+def test_the_templates_of_a_project_lie_in_its_settings_folder(tmp_path):
     root = _project(tmp_path / "Projekte")
     (root / META_DIR / "Templates" / "Standard").mkdir(parents=True)
 

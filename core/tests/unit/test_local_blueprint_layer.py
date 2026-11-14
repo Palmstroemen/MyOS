@@ -33,19 +33,19 @@ def set_test_templates_dir():
             os.environ.pop(key, None)
 
 @pytest.fixture(autouse=True)
-def cleanup_myos_mounts_before_test():
-    cleanup_all_myos_mounts()
+def cleanup_mounts_before_test():
+    cleanup_all_mounts()
     yield
-    cleanup_all_myos_mounts()
+    cleanup_all_mounts()
 
-def cleanup_all_myos_mounts():
+def cleanup_all_mounts():
     try:
         result = subprocess.run(['mount'], capture_output=True, text=True, check=True)
     except subprocess.CalledProcessError:
         return
 
     for line in result.stdout.splitlines():
-        if 'MyOSFUSE' in line or 'fuse' in line and '/tmp/' in line:
+        if 'fuse' in line and '/tmp/' in line:
             try:
                 mount_point = line.split(' on ')[1].split(' type ')[0].strip()
                 subprocess.run(['fusermount', '-u', mount_point], check=False)
@@ -122,19 +122,19 @@ def test_lab_structure():
 
 def _create_test_project(project_dir, template_name):
     project_dir.mkdir(parents=True, exist_ok=True)
-    myos_dir = project_dir / META_DIR
-    myos_dir.mkdir(exist_ok=True)
+    settings_dir = project_dir / META_DIR
+    settings_dir.mkdir(exist_ok=True)
     
-    (myos_dir / "Project.md").write_text("# MyOS Project\n")
+    (settings_dir / "Project.md").write_text("# MyOS Project\n")
     templates_content = f"# Templates\n{template_name}\n"
-    (myos_dir / "Templates.md").write_text(templates_content)
+    (settings_dir / "Templates.md").write_text(templates_content)
     
     print(f"Created test project at {project_dir} with template '{template_name}'")
 
 
 def _write_acl_policy(project_dir: Path) -> None:
-    myos_dir = project_dir / META_DIR
-    (myos_dir / "ACLs.md").write_text(
+    settings_dir = project_dir / META_DIR
+    (settings_dir / "ACLs.md").write_text(
         "# Permissions\n"
         "## Folder\n"
         "- /{Folder}/: read\n"

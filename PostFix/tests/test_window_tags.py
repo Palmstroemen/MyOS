@@ -168,11 +168,11 @@ def test_propagate_scope_tags_update_calls_notify(monkeypatch, tmp_path: Path):
 def test_reload_tag_context_discovers_scope_and_sets_registry_path(tmp_path: Path):
     vault = tmp_path / "vault"
     project = vault / "Projects" / "Demo"
-    myos = project / META_DIR
+    settings_dir = project / META_DIR
     obsidian = vault / ".obsidian"
-    myos.mkdir(parents=True, exist_ok=True)
+    settings_dir.mkdir(parents=True, exist_ok=True)
     obsidian.mkdir(parents=True, exist_ok=True)
-    (myos / "Tags.md").write_text("# Tags\n#important\n", encoding="utf-8")
+    (settings_dir / "Tags.md").write_text("# Tags\n#important\n", encoding="utf-8")
     (obsidian / "app.json").write_text("{}", encoding="utf-8")
     note = project / "note.md"
     note.write_text("# demo\n", encoding="utf-8")
@@ -195,5 +195,5 @@ def test_reload_tag_context_discovers_scope_and_sets_registry_path(tmp_path: Pat
 
     assert w._vault_root == vault
     assert w._app_json_path == obsidian / "app.json"
-    assert w._scope_tags_path == myos / "Tags.md"
+    assert w._scope_tags_path == settings_dir / "Tags.md"
     assert w._scope_tags == ["important"]

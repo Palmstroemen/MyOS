@@ -31,7 +31,7 @@ from core.brand import META_DIR
 # (it would pass files on beyond ACLs.md).
 NEXTCLOUD_PERMISSIONS = ("read", "write", "create", "delete", "share")
 _MAP = {"read": {"read"}, "write": {"write", "create"}, "delete": {"delete"}}
-_ALL_MYOS = {"read", "write", "execute", "change", "delete"}
+_ALL_RIGHTS = {"read", "write", "execute", "change", "delete"}
 
 
 @dataclass(frozen=True)
@@ -159,10 +159,10 @@ def _mappable_rules(policy: ACLPolicy, notes: List[str]) -> Dict[str, list]:
     return kept
 
 
-def _nextcloud(myos_rights: Iterable[str]) -> FrozenSet[str]:
-    rights = set(myos_rights)
+def _nextcloud(our_rights: Iterable[str]) -> FrozenSet[str]:
+    rights = set(our_rights)
     if "*" in rights:
-        rights = set(_ALL_MYOS)
+        rights = set(_ALL_RIGHTS)
     return frozenset(p for right in rights for p in _MAP.get(right, ()))
 
 
@@ -194,7 +194,7 @@ def _person_rules(
                 found |= set(rule.rights)
         return found
 
-    def myos_rights(path: str) -> Set[str]:
+    def our_rights(path: str) -> Set[str]:
         found = own_rights(path)
         tops = [top for top in opened if _below(path, top)]
         if tops and opened[max(tops, key=len)]:  # the deepest pair decides
@@ -203,10 +203,10 @@ def _person_rules(
 
     def may_change(path: str) -> bool:
         acls = path.rsplit(f"/{META_DIR}/", 1)[0] + f"/{META_DIR}/ACLs.md"
-        return bool({"change", "*"} & myos_rights(acls))
+        return bool({"change", "*"} & our_rights(acls))
 
     def rights(path: str) -> FrozenSet[str]:
-        allowed = _nextcloud(myos_rights(path))
+        allowed = _nextcloud(our_rights(path))
         if any(_below(path, top) and not may_change(top) for top in protected):
             allowed = allowed & {"read"}
         return allowed

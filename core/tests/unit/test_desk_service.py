@@ -79,14 +79,14 @@ def test_desk_service_find_config_respects_inherit_not(tmp_path):
     project = tmp_path / "Project"
     sub = project / "Sub"
     sub.mkdir(parents=True)
-    parent_myos = project / META_DIR
-    parent_myos.mkdir(parents=True)
-    (parent_myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (parent_myos / "Desk.md").write_text("# Desk\nThemePreset: Parent\n", encoding="utf-8")
-    child_myos = sub / META_DIR
-    child_myos.mkdir(parents=True)
-    (child_myos / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
-    (child_myos / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
+    parent_settings = project / META_DIR
+    parent_settings.mkdir(parents=True)
+    (parent_settings / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (parent_settings / "Desk.md").write_text("# Desk\nThemePreset: Parent\n", encoding="utf-8")
+    child_settings = sub / META_DIR
+    child_settings.mkdir(parents=True)
+    (child_settings / "Project.md").write_text("# MyOS Project\n", encoding="utf-8")
+    (child_settings / "Desk.md").write_text("# Desk\n#### inherit: not\n", encoding="utf-8")
     service = DeskService(runtime=_FakeRuntime())
 
     found = service.find_config(sub)

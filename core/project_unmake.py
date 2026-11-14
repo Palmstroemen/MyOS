@@ -33,10 +33,10 @@ class ProjectHasOwnSettings(Exception):
 
 def record_created(project_root: Path) -> None:
     """Remember the files creating the project wrote into its .MyOS."""
-    myos = Path(project_root) / META_DIR
-    files = {item.name: _checksum(item) for item in myos.iterdir()
+    settings_dir = Path(project_root) / META_DIR
+    files = {item.name: _checksum(item) for item in settings_dir.iterdir()
              if not item.name.startswith(".") and item.is_file() and not item.is_symlink()}
-    (myos / CREATED).write_text(json.dumps(files, indent=2, sort_keys=True), encoding="utf-8")
+    (settings_dir / CREATED).write_text(json.dumps(files, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def can_unmake(path: Path) -> bool:
@@ -52,10 +52,10 @@ def can_unmake(path: Path) -> bool:
 
 def own_settings(project_root: Path) -> List[str]:
     """Names in the project's .MyOS that creating it did not write (or that changed since)."""
-    myos = Path(project_root) / META_DIR
-    created = _created(myos)
+    settings_dir = Path(project_root) / META_DIR
+    created = _created(settings_dir)
     own = []
-    for item in sorted(myos.iterdir(), key=lambda p: p.name):
+    for item in sorted(settings_dir.iterdir(), key=lambda p: p.name):
         if item.name.startswith("."):
             continue  # caches and drafts (.TagsHere.json, ...)
         if item.is_symlink():
@@ -81,10 +81,10 @@ def unmake_project(project_root: Path, user: str, keep_own: bool = False) -> Non
     if not can_unmake(root):
         raise ValueError(f"{root} cannot become an ordinary folder")
     own = own_settings(root)
-    myos = root / META_DIR
+    settings_dir = root / META_DIR
     if not own:
         # Only what creating it wrote, caches and empty folders: nothing to keep.
-        shutil.rmtree(myos)
+        shutil.rmtree(settings_dir)
         return
     if not keep_own:
         raise ProjectHasOwnSettings(own)
@@ -94,13 +94,13 @@ def unmake_project(project_root: Path, user: str, keep_own: bool = False) -> Non
     while settings.exists():
         settings = root / f"{SETTINGS_NAME} {number}"
         number += 1
-    myos.rename(settings)
+    settings_dir.rename(settings)
     trash.move_to_trash(settings, deleted_by=user)
 
 
-def _created(myos: Path) -> Dict[str, str]:
+def _created(settings_dir: Path) -> Dict[str, str]:
     try:
-        data = json.loads((myos / CREATED).read_text(encoding="utf-8"))
+        data = json.loads((settings_dir / CREATED).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}

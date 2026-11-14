@@ -55,7 +55,7 @@ def test_the_first_own_name_the_project_lists_counts():
     assert identity.person_in({"anna"}) == "orafelsberger"  # listed nowhere: the login
 
 
-def test_myos_acl_user_wins(monkeypatch):
+def test_own_acl_user_wins(monkeypatch):
     identity.add_own_name("Oliver")
     monkeypatch.setenv(env_name("ACL_USER"), "Anna")
 

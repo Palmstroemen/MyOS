@@ -20,7 +20,7 @@ Item { // ROOT
     property string path: "/"
     property string pathDisplayPrefix: ""
     property string pathSegmentMyosTest: "MyOS_Test"
-    property string pathSegmentMyOS: Brand.NAME
+    property string pathSegmentRepo: Brand.NAME
     property var resolvePath: function(p) { return String(p || "") }
     property var folders: []
     property var childrenProvider: null

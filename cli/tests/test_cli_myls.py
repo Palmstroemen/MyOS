@@ -10,10 +10,10 @@ import subprocess
 import pytest  # For capsys fixture
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from cli.myls import MyOSLister
+from cli.myls import Lister
 from core.brand import XATTR_PREFIX
 
-class TestMyOSListerBasic(unittest.TestCase):
+class TestListerBasic(unittest.TestCase):
     
     def setUp(self):
         """Create a temporary test directory structure."""
@@ -54,7 +54,7 @@ class TestMyOSListerBasic(unittest.TestCase):
         # Minimal setup summary (optional)
         # print(f"\n[setUp] Created: {self.test_dir}")
         
-        self.lister = MyOSLister(self.test_dir)
+        self.lister = Lister(self.test_dir)
         
         # capsys is provided by pytest when available
         self.capsys = None
@@ -76,12 +76,12 @@ class TestMyOSListerBasic(unittest.TestCase):
         shutil.rmtree(self.test_dir, ignore_errors=True)
     
     def test_import(self):
-        """Test that MyOSLister can be imported."""
-        self.assertIsNotNone(MyOSLister)
+        """Test that Lister can be imported."""
+        self.assertIsNotNone(Lister)
     
     def test_initialization(self):
-        """Test MyOSLister initialization with a path."""
-        lister = MyOSLister(self.test_dir)
+        """Test Lister initialization with a path."""
+        lister = Lister(self.test_dir)
         self.assertEqual(lister.root, Path(self.test_dir).resolve())
     
     def test_basic_listing(self):
@@ -196,7 +196,7 @@ def test_roentgen_shows_the_files_of_small_folders_and_where_they_lie(tmp_path, 
         (tmp_path / "Fotos" / name).write_text(name)
     (tmp_path / "notiz.md").write_text("n")
 
-    MyOSLister(str(tmp_path)).list_roentgen(limit=3)
+    Lister(str(tmp_path)).list_roentgen(limit=3)
 
     lines = capsys.readouterr().out.splitlines()
     assert lines == ["📁 Fotos/", "📄 notiz.md", "📄 r1.pdf   (in Rechnungen/2024)"]
@@ -209,6 +209,6 @@ def test_roentgen_without_a_number_fills_the_terminal(tmp_path, capsys, monkeypa
         (tmp_path / "Fotos" / name).write_text(name)
     monkeypatch.setattr("cli.myls.shutil.get_terminal_size", lambda *a, **k: _os.terminal_size((80, 6)))
 
-    MyOSLister(str(tmp_path)).list_roentgen()
+    Lister(str(tmp_path)).list_roentgen()
 
     assert "📄 a.jpg   (in Fotos)" in capsys.readouterr().out

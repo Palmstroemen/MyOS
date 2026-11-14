@@ -59,10 +59,10 @@ def _resolve_target_file(section: str, path: str) -> Path:
     if not cwp:
         raise ValueError("No project found for path")
 
-    myos_dir = cwp.path / META_DIR
-    myos_dir.mkdir(parents=True, exist_ok=True)
+    settings_dir = cwp.path / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
 
-    target = myos_dir / SECTION_MAP[key]
+    target = settings_dir / SECTION_MAP[key]
     if not target.exists():
         target.write_text(f"# {target.stem}\n")
     return target

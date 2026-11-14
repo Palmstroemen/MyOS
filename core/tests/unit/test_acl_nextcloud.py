@@ -231,11 +231,11 @@ def test_an_entry_on_the_way_gets_its_own_rule_even_when_it_reads_as_the_way(pro
 # --- .MyOS: what manages rights and the sync, only for who may change the rights ---
 
 def _with_settings(root):
-    myos = root / "Familie" / META_DIR
-    (myos / "ACLs-history").mkdir(parents=True)
+    settings_dir = root / "Familie" / META_DIR
+    (settings_dir / "ACLs-history").mkdir(parents=True)
     for name in ("ACLs.md", "Nextcloud.md", "Embryos.json", "Desk.md"):
-        (myos / name).write_text("x")
-    (myos / "Embryos" / "Neu").mkdir(parents=True)
+        (settings_dir / name).write_text("x")
+    (settings_dir / "Embryos" / "Neu").mkdir(parents=True)
     return root
 
 
@@ -249,7 +249,7 @@ PROTECTED = [f"/Familie/{META_DIR}/ACLs.md", f"/Familie/{META_DIR}/ACLs-history"
              f"/Familie/{META_DIR}/Embryos.json", f"/Familie/{META_DIR}/Embryos"]
 
 
-def test_who_may_write_a_folder_may_not_write_the_rights_and_sync_files_of_its_myos(project):
+def test_who_may_write_a_folder_may_not_write_the_rights_and_sync_files_of_its_settings(project):
     rules = _protected_rules(_with_settings(project), PROTECTED)
     lisa = _of(rules, "lisa")
 
@@ -272,7 +272,7 @@ def test_protection_gives_no_read_to_who_had_none(project):
     assert ("user", "paul", f"/Familie/{META_DIR}/ACLs.md") not in rules
 
 
-def test_rights_files_finds_them_in_every_myos_folder():
+def test_rights_files_finds_them_in_every_settings_folder():
     paths = ["/", f"/{META_DIR}", f"/{META_DIR}/ACLs.md", f"/{META_DIR}/Desk.md", f"/Haus/{META_DIR}/Embryos", f"/Haus/{META_DIR}/Embryos/Neu",
              "/Haus/ACLs.md", f"/Haus/{META_DIR}/ACLs-history", f"/Haus/{META_DIR}/Nextcloud.md", f"/x/{META_DIR}/Embryos.json"]
 

@@ -17,6 +17,12 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:  # started as a script: make core importable
+    sys.path.insert(0, str(REPO_ROOT))
+
+from core.brand import NAME, file_name  # noqa: E402
+
+WORD = NAME.lower()  # the name as the pictures show it
 FONT = Path("/usr/share/fonts/truetype/open-sans/OpenSans-Semibold.ttf")  # SIL Open Font License
 BOX = "#4a3478"  # the box and the letters
 PAPER = "#f3ecdf"  # the compartments
@@ -74,11 +80,12 @@ class Letters:
 
 
 def _compartments():
-    """(text, x, y, width, height): s e i on top, t and on below."""
+    """(text, x, y, width, height): s e i on top, t and on below (for seiton)."""
     top, bottom = WALL, 2 * WALL + ROW
     cols = [WALL + i * (COL + WALL) for i in range(3)]
-    return [("s", cols[0], top, COL, ROW), ("e", cols[1], top, COL, ROW), ("i", cols[2], top, COL, ROW),
-            ("t", cols[0], bottom, COL, ROW), ("on", cols[1], bottom, 2 * COL + WALL, ROW)]
+    w = WORD
+    return [(w[0], cols[0], top, COL, ROW), (w[1], cols[1], top, COL, ROW), (w[2], cols[2], top, COL, ROW),
+            (w[3], cols[0], bottom, COL, ROW), (w[4:], cols[1], bottom, 2 * COL + WALL, ROW)]
 
 
 def _n(v: float) -> str:
@@ -96,7 +103,7 @@ def _icon_body(letters: Letters) -> str:
 
 def icon(letters: Letters) -> str:
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE} {SIZE}" width="{SIZE}" height="{SIZE}">\n'
-            f'  <title>seiton</title>\n  {_icon_body(letters)}\n</svg>\n')
+            f'  <title>{WORD}</title>\n  {_icon_body(letters)}\n</svg>\n')
 
 
 def icon_small() -> str:
@@ -105,7 +112,7 @@ def icon_small() -> str:
     rects = "\n  ".join(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{PAPER}"/>' for x, y, w, h in cells)
     return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" '
             'shape-rendering="crispEdges">\n'
-            f'  <title>seiton</title>\n  <rect width="16" height="16" fill="{BOX}"/>\n  {rects}\n</svg>\n')
+            f'  <title>{WORD}</title>\n  <rect width="16" height="16" fill="{BOX}"/>\n  {rects}\n</svg>\n')
 
 
 def wordmark(letters: Letters) -> str:
@@ -113,11 +120,11 @@ def wordmark(letters: Letters) -> str:
     size = ROW / (letters.x_height / letters.upm)
     gap = SIZE * 0.18
     baseline = 2 * WALL + 2 * ROW  # the name sits on the floor of the lower row
-    x0, x1 = letters.bounds("seiton", size)
+    x0, x1 = letters.bounds(WORD, size)
     width = SIZE + gap + (x1 - x0)
-    name = letters.path("seiton", size, SIZE + gap, baseline)
+    name = letters.path(WORD, size, SIZE + gap, baseline)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {_n(width)} {SIZE}" '
-            f'width="{_n(width)}" height="{SIZE}">\n  <title>seiton</title>\n  {_icon_body(letters)}\n'
+            f'width="{_n(width)}" height="{SIZE}">\n  <title>{WORD}</title>\n  {_icon_body(letters)}\n'
             f'  <path fill="{BOX}" d="{name}"/>\n</svg>\n')
 
 
@@ -131,8 +138,8 @@ def main(argv=None) -> int:
         return 1
     letters = Letters(args.font)
     args.out.mkdir(parents=True, exist_ok=True)
-    files = {"seiton-icon.svg": icon(letters), "seiton-icon-small.svg": icon_small(),
-             "seiton-wordmark.svg": wordmark(letters)}
+    files = {file_name("icon.svg"): icon(letters), file_name("icon-small.svg"): icon_small(),
+             file_name("wordmark.svg"): wordmark(letters)}
     for name, text in files.items():
         (args.out / name).write_text(text, encoding="utf-8")
         print(args.out / name)

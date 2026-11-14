@@ -841,8 +841,8 @@ class Backend(QObject):
         self._prime_thumbnails(entries)
 
     @Slot(str, result=bool)
-    def hasMyosDir(self, path: str) -> bool:
-        return self._api.has_myos_dir(path)
+    def hasSettingsDir(self, path: str) -> bool:
+        return self._api.has_settings_dir(path)
 
     @Slot(str, result=bool)
     def isProject(self, path: str) -> bool:

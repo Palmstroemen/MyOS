@@ -11,9 +11,9 @@ from core.brand import META_DIR
 
 
 def _write_export_project(project_root: Path, subtree: str) -> None:
-    myos_dir = project_root / META_DIR
-    myos_dir.mkdir(parents=True, exist_ok=True)
-    project_md = myos_dir / "Project.md"
+    settings_dir = project_root / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    project_md = settings_dir / "Project.md"
     project_md.write_text(
         "# MyOS Project\n"
         "# Export\n"

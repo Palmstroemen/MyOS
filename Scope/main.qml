@@ -101,11 +101,11 @@ ApplicationWindow {
     // Positive value lets FilesPanel overlap a bit to the left.
     property int filesPanelOverlapPx: 8
     // Zentrale Pfad-/Ordnernamen (Magic Values vermeiden)
-    readonly property string myosDirName: Brand.META_DIR
+    readonly property string settingsDirName: Brand.META_DIR
     readonly property string pathSegmentClipboard: "Clipboard"
     readonly property string pathSegmentProjekte: "Projekte"
     readonly property string pathSegmentMyosTest: "MyOS_Test"
-    readonly property string pathSegmentMyOS: Brand.NAME
+    readonly property string pathSegmentRepo: Brand.NAME
     property color dialogPanelBg: schemeColors.dialogPanelBg
     property color dialogPanelBorder: schemeColors.dialogPanelBorder
     property color dialogTextStrong: schemeColors.dialogTextStrong
@@ -212,7 +212,7 @@ ApplicationWindow {
     property var selectedEntryPaths: []
     property int fileItemsOffset: 0
     property int fileItemsChunk: 160
-    property bool hasMyosInCwp: false
+    property bool hasSettingsInCwp: false
     /// Folder the P-Button turns into a project: the one folder selected in the FilesPanel,
     /// else the folder it shows; "" when neither can become one (see updateProjectCreateTarget).
     property string projectCreateTarget: ""
@@ -404,11 +404,11 @@ ApplicationWindow {
         showFiles: false
         showHidden: true
         showDotAndDotDot: false
-        nameFilters: [myosDirName]
+        nameFilters: [settingsDirName]
         folder: PathUtils.toFileUrl(cwp)
         onCountChanged: {
             if (!hasBackend()) {
-                hasMyosInCwp = fsHiddenModel.count > 0
+                hasSettingsInCwp = fsHiddenModel.count > 0
             }
         }
     }
@@ -566,11 +566,11 @@ ApplicationWindow {
         return norm.slice(0, idx) || "/"
     }
 
-    readonly property bool isInsideMyosFolder: {
+    readonly property bool isInsideSettingsFolder: {
         var p = String(currentFilesPath() || "").trim()
         if (p.length === 0) return false
         var norm = p.endsWith("/") ? p.slice(0, -1) : p
-        var segment = "/" + myosDirName
+        var segment = "/" + settingsDirName
         return norm.endsWith(segment) || norm.indexOf(segment + "/") >= 0
     }
 
@@ -736,7 +736,7 @@ ApplicationWindow {
     }
 
     /// A MyOS folder (born or embryo): a double click on it puts on its lens.
-    function isMyosFolder(folderMeta) {
+    function isSettingsFolder(folderMeta) {
         return folderTypeFromMeta(folderMeta) > 0
     }
 
@@ -756,9 +756,9 @@ ApplicationWindow {
         commitCTD(shown)
     }
 
-    function _isMyOSFolderTrace(pathOrName) {
+    function _isRepoFolderTrace(pathOrName) {
         var s = String(pathOrName || "")
-        return s.indexOf("/" + pathSegmentMyosTest) >= 0 || s.indexOf("/" + pathSegmentMyOS + "/") >= 0 || s.endsWith("/" + pathSegmentMyOS) || s === pathSegmentMyOS
+        return s.indexOf("/" + pathSegmentMyosTest) >= 0 || s.indexOf("/" + pathSegmentRepo + "/") >= 0 || s.endsWith("/" + pathSegmentRepo) || s === pathSegmentRepo
     }
     function listChildren(path, options) {
         var showHidden = (options && options.showHidden !== undefined) ? options.showHidden : projectsShowHiddenFolders
@@ -784,7 +784,7 @@ ApplicationWindow {
     /// The projects row (right): folders that are no MyOS folder - those, born or not, are
     /// shown in the MyOS-folder row only.
     function listRightFolders(path, options) {
-        return listChildren(path, options).filter(function(item) { return !isMyosFolder(item) })
+        return listChildren(path, options).filter(function(item) { return !isSettingsFolder(item) })
     }
 
     function listTemplates(path) {
@@ -847,8 +847,8 @@ ApplicationWindow {
             }
             return out
         }
-        if (text.indexOf("__MYOS_PATHS__") === 0) {
-            var raw = text.slice("__MYOS_PATHS__".length)
+        if (text.indexOf("__SCOPE_PATHS__") === 0) {
+            var raw = text.slice("__SCOPE_PATHS__".length)
             try {
                 var arr = JSON.parse(raw)
                 if (!(arr && arr.length)) {
@@ -1562,7 +1562,7 @@ ApplicationWindow {
         var source = fileItemsAll || []
         for (var i = 0; i < source.length; i++) {
             var entry = source[i]
-            if (entry.isDir && entry.name === myosDirName) {
+            if (entry.isDir && entry.name === settingsDirName) {
                 found = true
             }
             if (!projectsShowHiddenFolders && entry.name && entry.name.indexOf(".") === 0) {
@@ -1621,7 +1621,7 @@ ApplicationWindow {
         filesModel.clear()
         appendNextChunk()
         if (!hasBackend()) {
-            hasMyosInCwp = found
+            hasSettingsInCwp = found
         }
     }
 
@@ -1917,7 +1917,7 @@ ApplicationWindow {
             backend.requestFolderSizes(targetPath)
         }
         if (hasBackend()) {
-            hasMyosInCwp = backend.hasMyosDir(cwp)
+            hasSettingsInCwp = backend.hasSettingsDir(cwp)
             if (typeof backend.isProject === "function") {
                 hasProjectInFilesPath = backend.isProject(targetPath)
             } else {
@@ -2398,7 +2398,7 @@ ApplicationWindow {
         function onEntriesReady(path, entries) {
             if (path === cwp) {
                 applyEntries(entries)
-                hasMyosInCwp = backend.hasMyosDir(cwp)
+                hasSettingsInCwp = backend.hasSettingsDir(cwp)
             }
         }
     }
@@ -2984,7 +2984,7 @@ ApplicationWindow {
             hostProjectIconForPath: projectIconForPath
             hostHasBackend: hasBackend
             pathSegmentMyosTest: pathSegmentMyosTest
-            pathSegmentMyOS: pathSegmentMyOS
+            pathSegmentRepo: pathSegmentRepo
             searchActive: level2SearchActive
             searchText: level2SearchText
             onToggleMode: level2VerticalView = !level2VerticalView
@@ -3039,7 +3039,7 @@ ApplicationWindow {
                     lensRequest("look_at", { "path": target })
                 } else if (gesture === "single") {
                     applyFolderActivation(target)
-                } else if (isMyosFolder(meta)) {
+                } else if (isSettingsFolder(meta)) {
                     lensRequest("look_at", { "path": target })  // put on the lens (A3)
                 } else {
                     commitCTD(target)
@@ -3143,7 +3143,7 @@ ApplicationWindow {
             path: cwp
             pathDisplayPrefix: cwp
             pathSegmentMyosTest: pathSegmentMyosTest
-            pathSegmentMyOS: pathSegmentMyOS
+            pathSegmentRepo: pathSegmentRepo
             folders: subProjects
             childrenProvider: function(targetPath, options) { return listRightFolders(targetPath, options) }
             showEmbryos: false  // MyOS folders, suggestions too, are only on the left (A3.9)
@@ -3383,8 +3383,8 @@ ApplicationWindow {
             }
             onCreateProjectAtRequested: function(path) { window.createProjectAt(path) }
             onRemoveProjectAtRequested: function(path) { window.removeProjectAt(path, false) }
-            hasMyosDirInCwp: window.hasMyosInCwp
-            showLeaveMyosButton: window.isInsideMyosFolder
+            hasSettingsDirInCwp: window.hasSettingsInCwp
+            showLeaveSettingsButton: window.isInsideSettingsFolder
             availableTags: window.availableTags
             folderTags: window.folderTags
             subfolderTags: window.subfolderTags
@@ -3495,16 +3495,16 @@ ApplicationWindow {
             onOpenWithRequested: function(path) {
                 requestOpenWith(path)
             }
-            onOpenMyosFolder: {
+            onOpenSettingsFolder: {
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
-                var targetPath = base + "/" + myosDirName
+                var targetPath = base + "/" + settingsDirName
                 commitCTD(targetPath)
                 clearSearchAfterNavigate()
             }
-            onCreateMyosAndEnter: {
+            onCreateSettingsAndEnter: {
                 if (!hasBackend() || typeof backend.createFolder !== "function") return
                 var base = cwp.endsWith("/") ? cwp.slice(0, -1) : cwp
-                var created = backend.createFolder(base, myosDirName)
+                var created = backend.createFolder(base, settingsDirName)
                 if (created && created.length > 0) {
                     commitCTD(created)
                     clearSearchAfterNavigate()
@@ -3522,7 +3522,7 @@ ApplicationWindow {
                 if (hasBackend() && typeof backend.setFilesShowFolders === "function") backend.setFilesShowFolders(filesPane.showFolders)
                 if (window.xrayEnabled) window.applyXrayView()
             }
-            onLeaveMyosFolder: {
+            onLeaveSettingsFolder: {
                 var parent = parentOfPath(currentFilesPath())
                 commitCTD(parent)
                 clearSearchAfterNavigate()

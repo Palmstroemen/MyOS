@@ -34,7 +34,7 @@ def suntree(world):
     from core.scope_api import ScopeApi
 
     QGuiApplication.instance() or QGuiApplication([])
-    backend = T.SunTreeBackend(T.MyOSBackendAdapter(ScopeApi(str(world["studio"]))), str(world["studio"]))
+    backend = T.SunTreeBackend(T.BackendAdapter(ScopeApi(str(world["studio"]))), str(world["studio"]))
     yield backend
     backend.close()
 
@@ -148,7 +148,7 @@ def test_the_lens_stays_on_until_taken_off(world, suntree, window):
     assert _lens(window)["active"]
 
 
-def test_the_right_half_shows_no_myos_folders(world, suntree):
+def test_the_right_half_shows_no_settings_folders(world, suntree):
     (world["studio"] / "04_Finanz").mkdir()  # born: still a MyOS folder, left only
     (world["studio"] / "Noten").mkdir()
 

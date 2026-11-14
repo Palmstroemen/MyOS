@@ -4,10 +4,10 @@ from core.brand import META_DIR
 
 def test_get_project_color_prefers_color_md_over_project_md(tmp_path):
     root = tmp_path / "ProjectA"
-    myos = root / META_DIR
-    myos.mkdir(parents=True)
-    (myos / "Project.md").write_text("color: #112233\n", encoding="utf-8")
-    (myos / "Color.md").write_text("#445566\n", encoding="utf-8")
+    settings_dir = root / META_DIR
+    settings_dir.mkdir(parents=True)
+    (settings_dir / "Project.md").write_text("color: #112233\n", encoding="utf-8")
+    (settings_dir / "Color.md").write_text("#445566\n", encoding="utf-8")
 
     api = ScopeApi(str(root))
     assert api.get_project_color(str(root)) == "#445566"
@@ -17,9 +17,9 @@ def test_resolve_project_color_inherits_from_parent_project(tmp_path):
     root = tmp_path / "ProjectA"
     child = root / "notes" / "daily"
     child.mkdir(parents=True)
-    myos = root / META_DIR
-    myos.mkdir(parents=True)
-    (myos / "Project.md").write_text("Theme #A1B2C3", encoding="utf-8")
+    settings_dir = root / META_DIR
+    settings_dir.mkdir(parents=True)
+    (settings_dir / "Project.md").write_text("Theme #A1B2C3", encoding="utf-8")
 
     api = ScopeApi(str(root))
     assert api._resolve_project_color(child) == "#A1B2C3"
@@ -28,21 +28,21 @@ def test_resolve_project_color_inherits_from_parent_project(tmp_path):
 def test_resolve_project_color_uses_cache_after_first_read(tmp_path):
     root = tmp_path / "ProjectA"
     root.mkdir()
-    myos = root / META_DIR
-    myos.mkdir()
-    (myos / "Color.md").write_text("#101112", encoding="utf-8")
+    settings_dir = root / META_DIR
+    settings_dir.mkdir()
+    (settings_dir / "Color.md").write_text("#101112", encoding="utf-8")
 
     api = ScopeApi(str(root))
     first = api._resolve_project_color(root)
     # Change file after first lookup; cached value should remain stable.
-    (myos / "Color.md").write_text("#FFFFFF", encoding="utf-8")
+    (settings_dir / "Color.md").write_text("#FFFFFF", encoding="utf-8")
     second = api._resolve_project_color(root)
 
     assert first == "#101112"
     assert second == "#101112"
 
 
-def test_find_color_upwards_checks_dotmyos_then_plain_color(tmp_path):
+def test_find_color_upwards_checks_settings_dir_then_plain_color(tmp_path):
     base = tmp_path / "Templates"
     leaf = base / "One" / "Sub"
     leaf.mkdir(parents=True)

@@ -36,7 +36,7 @@ function payloadText(drop) {
             return urls[0]
         }
         if (urls.length > 1) {
-            return "__MYOS_PATHS__" + JSON.stringify(urls)
+            return "__SCOPE_PATHS__" + JSON.stringify(urls)
         }
     }
     return ""

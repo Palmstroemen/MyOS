@@ -11,10 +11,10 @@ from core.brand import META_DIR
 
 
 def _create_project(project_root: Path, template_name: str = "Standard") -> None:
-    myos_dir = project_root / META_DIR
-    myos_dir.mkdir(parents=True, exist_ok=True)
-    (myos_dir / "Project.md").write_text("# MyOS Project\n")
-    (myos_dir / "Templates.md").write_text(f"# Templates\n{template_name}\n")
+    settings_dir = project_root / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    (settings_dir / "Project.md").write_text("# MyOS Project\n")
+    (settings_dir / "Templates.md").write_text(f"# Templates\n{template_name}\n")
 
 
 def _create_templates(project_root: Path, template_name: str = "Standard") -> None:
@@ -23,7 +23,7 @@ def _create_templates(project_root: Path, template_name: str = "Standard") -> No
     (templates_root / "admin").mkdir(parents=True, exist_ok=True)
 
 
-def test_export_subtree_includes_myos_and_templates():
+def test_export_subtree_includes_settings_and_templates():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         project_root = tmp / "Project"
@@ -178,9 +178,9 @@ def test_export_subproject_uses_runtime_inherited_templates():
         _create_project(root, template_name="Standard")
         _create_templates(root, template_name="Standard")
 
-        child_myos = child / META_DIR
-        child_myos.mkdir(parents=True, exist_ok=True)
-        (child_myos / "Project.md").write_text("# MyOS Project\n")
+        child_settings = child / META_DIR
+        child_settings.mkdir(parents=True, exist_ok=True)
+        (child_settings / "Project.md").write_text("# MyOS Project\n")
 
         subtree = child / "finanz"
         subtree.mkdir(parents=True)

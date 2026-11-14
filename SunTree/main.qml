@@ -74,7 +74,7 @@ ApplicationWindow {
     }
 
     /// A MyOS folder (born or embryo): a double click on it puts on its lens.
-    function isMyosFolder(entry) {
+    function isSettingsFolder(entry) {
         if (entry && entry.folderType !== undefined && !isNaN(Number(entry.folderType))) {
             return Number(entry.folderType) > 0
         }
@@ -461,7 +461,7 @@ ApplicationWindow {
 
     function applyLeftRowDouble(row) {
         if (!row) return
-        if (lensOn || isMyosFolder(row.entry)) {
+        if (lensOn || isSettingsFolder(row.entry)) {
             lensRequest("look_at", { "path": row.path })
         } else {
             sunTreeBackend.enterFolder(row.path)
@@ -878,8 +878,8 @@ ApplicationWindow {
         var g = crownGeo(side), h = crownHalves[side]
         var state = h.shown || { s: 0, u: [], lock: [] }
         var rings = Crown.layout(state, g, function(way) { return crownRows(side, way) })
-        var fallback = side < 0 ? schemeColors.crownFolderMyos : schemeColors.crownFolderOwn
-        var back = side < 0 ? schemeColors.crownBackMyos : schemeColors.crownBackOwn
+        var fallback = side < 0 ? schemeColors.crownFolderSystem : schemeColors.crownFolderOwn
+        var back = side < 0 ? schemeColors.crownBackSystem : schemeColors.crownBackOwn
         crownSector(ctx, side, g.cx, g.cy, 0, g.R + 6, -90, 90)
         ctx.fillStyle = back
         ctx.fill()

@@ -39,7 +39,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); }
 <script>
 new QWebChannel(qt.webChannelTransport, (channel) => {
   const bridge = channel.objects.bridge;
-  window.host = MyOSEditor.createHost(document.getElementById("editor"), {
+  window.host = PostFixEditor.createHost(document.getElementById("editor"), {
     onChange: (note, text) => bridge.changed(note, text),
     onLink: (note, href) => bridge.link(note, href),
     onScroll: (note, line, offset) => bridge.scrolled(note, line, offset),

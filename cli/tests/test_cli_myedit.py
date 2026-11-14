@@ -20,9 +20,9 @@ def _run_cmd(args, cwd, env):
 
 
 def _create_project(path: Path) -> None:
-    myos_dir = path / META_DIR
-    myos_dir.mkdir(parents=True, exist_ok=True)
-    (myos_dir / "Project.md").write_text("# MyOS Project\n")
+    settings_dir = path / META_DIR
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    (settings_dir / "Project.md").write_text("# MyOS Project\n")
 
 
 def test_myedit_creates_target_file():

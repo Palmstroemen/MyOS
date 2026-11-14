@@ -105,7 +105,7 @@ def all_project_tags(root: Union[str, Path]) -> List[str]:
     found = set()
     for folder, dirs, _files in os.walk(Path(root)):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
-        myos = Path(folder) / META_DIR
-        if (myos / "Project.md").is_file() and (myos / "Tags.md").is_file():
-            found.update(tag_list(myos / "Tags.md"))
+        settings_dir = Path(folder) / META_DIR
+        if (settings_dir / "Project.md").is_file() and (settings_dir / "Tags.md").is_file():
+            found.update(tag_list(settings_dir / "Tags.md"))
     return sorted(found, key=str.lower)

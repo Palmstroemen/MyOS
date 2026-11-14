@@ -31,5 +31,5 @@ def test_is_helpers_on_missing_path_are_false(tmp_path):
     api = ScopeApi(str(root))
     assert api.is_dir(str(missing)) is False
     assert api.is_project(str(missing)) is False
-    assert api.has_myos_dir(str(missing)) is False
+    assert api.has_settings_dir(str(missing)) is False
 
