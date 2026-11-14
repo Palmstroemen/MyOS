@@ -11,4 +11,4 @@ In MyOS brauchst du dafür keine Benutzer und keine Passwörter, aber sonst funk
 [Und noch etwas ...](<../Lektion15/Ein schnelles Zugriffswidget.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

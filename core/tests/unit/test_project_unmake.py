@@ -12,7 +12,7 @@ import pytest
 from core import trash
 from core.project import ProjectConfig
 from core.project_unmake import ProjectHasOwnSettings, can_unmake, own_settings, unmake_project
-from core.brand import META_DIR, env_name
+from core.brand import META_DIR, NAME, env_name
 
 
 @pytest.fixture(autouse=True)
@@ -78,7 +78,7 @@ def test_with_consent_they_go_into_the_parents_trash(tree):
 
     assert not (kunde / META_DIR).exists()
     entries = trash.list_trash(tree["projects"])
-    assert [(e.original, e.is_dir, e.deleted_by) for e in entries] == [("Kunde/MyOS settings", True, "oliver")]
+    assert [(e.original, e.is_dir, e.deleted_by) for e in entries] == [(f"Kunde/{NAME} settings", True, "oliver")]
     restored = trash.restore(tree["projects"], entries[0].name)
     assert (restored / "Tags.md").read_text() == "# Tags\nwichtig\n"
 

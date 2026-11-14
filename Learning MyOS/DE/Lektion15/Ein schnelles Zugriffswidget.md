@@ -11,4 +11,4 @@ Probier es aus! Der Ordnerfächer ist noch in Entwicklung, aber hier kannst du s
 [Zum Abschluss](<../Lektion16/Abschluss und Zusammenfassung.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

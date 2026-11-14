@@ -1,10 +1,11 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../js/PathUtils.js" as PathUtils
+import "../js/Brand.js" as Brand
 
 // Asked only when a project that is to become an ordinary folder again has settings of its
 // own (changed rights, tags, a trash, ...): they are not deleted but go into the parent
-// project's trash as "MyOS settings" (see core/project_unmake.py).
+// project's trash as "Seiton settings" (see core/project_unmake.py).
 Dialog {
     id: root
     required property var window
@@ -39,8 +40,8 @@ Dialog {
 
     contentItem: Text {
         width: Math.max(120, root.width - 32)
-        text: qsTr("“%1” has settings of its own: %2. They are not deleted: they go into the trash of the project above, as “MyOS settings”, and can be restored from there.")
-            .arg(PathUtils.basename(root.targetPath)).arg(root.ownNames.join(", "))
+        text: qsTr("“%1” has settings of its own: %2. They are not deleted: they go into the trash of the project above, as “%3 settings”, and can be restored from there.")
+            .arg(PathUtils.basename(root.targetPath)).arg(root.ownNames.join(", ")).arg(Brand.NAME)
         wrapMode: Text.WordWrap
         color: window.dialogTextStrong
         font.pixelSize: window.baseFont

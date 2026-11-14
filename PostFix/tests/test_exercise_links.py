@@ -1,5 +1,5 @@
 """Exercise links in notes (PostFix/exercise_links.py): a lesson says
-[Übung öffnen](<myos:open?scope=Urlaub 2025&files=Urlaub 2025>) and a click opens Scope in the
+[Übung öffnen](<seiton:open?scope=Urlaub 2025&files=Urlaub 2025>) and a click opens Scope in the
 exercise folder - and the classic file browser beside it, if the exercise needs one. Nothing
 is started for real here: the launches are recorded."""
 
@@ -13,9 +13,10 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication
 
 from PostFix import exercise_links as ex
-from core.brand import env_name
+from core.brand import LEGACY_URL_SCHEMES, URL_SCHEME, env_name
 
 REPO = Path(__file__).resolve().parents[2]
+S = ex.SCHEME
 
 
 @pytest.fixture
@@ -27,18 +28,30 @@ def lesson(tmp_path):
 
 
 def test_a_link_names_folders_relative_to_the_lesson(lesson):
-    action = ex.parse("myos:open?scope=Urlaub%202025&files=Urlaub%202025", lesson)
+    action = ex.parse(f"{S}:open?scope=Urlaub%202025&files=Urlaub%202025", lesson)
     assert action == ex.ExerciseAction(scope=lesson / "Urlaub 2025", files=lesson / "Urlaub 2025")
-    assert ex.parse("myos:open?scope=.", lesson) == ex.ExerciseAction(scope=lesson, files=None)
-    assert ex.parse("myos:open?files=Urlaub 2025", lesson).scope is None
+    assert ex.parse(f"{S}:open?scope=.", lesson) == ex.ExerciseAction(scope=lesson, files=None)
+    assert ex.parse(f"{S}:open?files=Urlaub 2025", lesson).scope is None
 
 
 def test_a_link_may_not_leave_the_lesson(lesson):
     # Security: a note opens folders of its own lesson only, nothing else on the computer.
-    for url in ("myos:open?scope=../Secret", "myos:open?scope=/etc", "myos:open?scope=%2Fhome",
-                "myos:open?scope=Urlaub 2025/../../Secret", "myos:open?scope=Missing",
-                "myos:open", "myos:delete?scope=Urlaub 2025", "https://example.org"):
+    for url in (f"{S}:open?scope=../Secret", f"{S}:open?scope=/etc", f"{S}:open?scope=%2Fhome",
+                f"{S}:open?scope=Urlaub 2025/../../Secret", f"{S}:open?scope=Missing",
+                f"{S}:open", f"{S}:delete?scope=Urlaub 2025", "https://example.org"):
         assert ex.parse(url, lesson) is None, url
+
+
+def test_the_scheme_is_the_brands_and_former_links_still_work(lesson):
+    # Notes written before the rename (myos:...) keep working; new ones say seiton:...
+    assert ex.SCHEME == URL_SCHEME and ex.SCHEMES == (URL_SCHEME, *LEGACY_URL_SCHEMES)
+    for old in LEGACY_URL_SCHEMES:
+        assert ex.parse(f"{old}:open?scope=.", lesson) == ex.ExerciseAction(scope=lesson, files=None)
+        assert ex.command_of(f"{old}:finish") == "finish"
+        assert ex.is_exercise_link(f"{old}:comment")
+    assert ex.is_exercise_link(f"{URL_SCHEME}:open?scope=.")
+    for other in ("https://example.org", "mailto:a@b.c", "Notiz.md", "#top", "", "x:open"):
+        assert not ex.is_exercise_link(other), other
 
 
 def test_the_commands_start_scope_and_the_desktops_file_browser(lesson):
@@ -93,7 +106,7 @@ def test_a_click_starts_both_and_places_them_side_by_side(lesson):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     recorder = _Recorder()
     launcher = _launcher(lesson, recorder)
-    launcher.open(QUrl("myos:open?scope=Urlaub 2025&files=Urlaub 2025"))
+    launcher.open(QUrl(f"{S}:open?scope=Urlaub 2025&files=Urlaub 2025"))
     assert [argv[0] for argv in recorder.started] == [sys.executable, "xdg-open"]
     launcher.place_tick()  # what the timer does once the windows are there
     moves = [argv for argv in recorder.ran if "-e" in argv]
@@ -106,9 +119,9 @@ def test_only_scope_is_not_moved_and_a_refused_link_starts_nothing(lesson):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     recorder = _Recorder()
     launcher = _launcher(lesson, recorder)
-    launcher.open(QUrl("myos:open?scope=."))
+    launcher.open(QUrl(f"{S}:open?scope=."))
     assert len(recorder.started) == 1 and not launcher.placing
-    launcher.open(QUrl("myos:open?scope=../Secret"))
+    launcher.open(QUrl(f"{S}:open?scope=../Secret"))
     assert len(recorder.started) == 1
 
 
@@ -116,18 +129,18 @@ def test_without_wmctrl_both_still_open(lesson):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     recorder = _Recorder()
     launcher = _launcher(lesson, recorder, can_place=False)
-    launcher.open(QUrl("myos:open?scope=Urlaub 2025&files=Urlaub 2025"))
+    launcher.open(QUrl(f"{S}:open?scope=Urlaub 2025&files=Urlaub 2025"))
     assert len(recorder.started) == 2 and not launcher.placing
 
 
 def test_a_rendered_lesson_link_reaches_the_handler(lesson):
     # The way a click takes in PostFix: the note's Markdown becomes HTML, Qt hands the
-    # link's URL to the handler registered for "myos".
+    # link's URL to the handler registered for the scheme.
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     import re
     from PostFix.markdown_render import render_markdown
 
-    html = render_markdown("[Übung öffnen](<myos:open?scope=Urlaub 2025&files=Urlaub 2025>)")
+    html = render_markdown(f"[Übung öffnen](<{S}:open?scope=Urlaub 2025&files=Urlaub 2025>)")
     href = re.search(r'href="([^"]+)"', html).group(1).replace("&amp;", "&")
     recorder = _Recorder()
     launcher = _launcher(lesson, recorder)
@@ -171,7 +184,7 @@ def test_every_exercise_link_of_the_tutorial_opens_a_folder_of_its_lesson():
 
     links = []
     for note in (REPO / "Learning MyOS").rglob("*.md"):
-        for target in re.findall(r"\]\(<(myos:[^>]+)>\)", note.read_text(encoding="utf-8")):
+        for target in re.findall(rf"\]\(<({S}:[^>]+)>\)", note.read_text(encoding="utf-8")):
             links.append((note, target))
     assert len(links) >= 14  # lessons 4, 5, 7, 8 and the sheets of 10, 11, in both languages
     for note, target in links:
@@ -186,8 +199,8 @@ def test_every_german_lesson_ends_with_a_comment_link_and_the_last_with_finish()
     assert len(lessons) == 16
     for folder in lessons:
         texts = [n.read_text(encoding="utf-8") for n in folder.glob("*.md")]
-        assert any("(<myos:comment>)" in t for t in texts), folder
-    assert any("(<myos:finish>)" in n.read_text(encoding="utf-8") for n in lessons[-1].glob("*.md"))
+        assert any(f"(<{S}:comment>)" in t for t in texts), folder
+    assert any(f"(<{S}:finish>)" in n.read_text(encoding="utf-8") for n in lessons[-1].glob("*.md"))
 
 
 @pytest.fixture
@@ -206,7 +219,7 @@ def test_the_comment_link_opens_the_comment_note_with_a_heading(tutorial_copy):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     recorder = _Recorder()
     launcher = _launcher(tutorial_copy / "DE" / "Lektion07", recorder)
-    launcher.open(QUrl("myos:comment"))
+    launcher.open(QUrl(f"{S}:comment"))
     note = tutorial_copy / "Meine Kommentare.md"
     assert "## Lektion 7" in note.read_text(encoding="utf-8")
     assert recorder.started == [[sys.executable, str(REPO / "PostFix" / "cli.py"), str(note)]]
@@ -217,10 +230,10 @@ def test_finish_asks_first_and_then_hands_over_to_the_test_run(tutorial_copy):
     recorder = _Recorder()
     launcher = _launcher(tutorial_copy / "DE" / "Lektion16", recorder)
     launcher.confirm_finish = lambda: (False, "")
-    launcher.open(QUrl("myos:finish"))
+    launcher.open(QUrl(f"{S}:finish"))
     assert recorder.started == []  # not confirmed: nothing happens
     launcher.confirm_finish = lambda: (True, "Anna")
-    launcher.open(QUrl("myos:finish"))
+    launcher.open(QUrl(f"{S}:finish"))
     assert recorder.started == [[sys.executable, str(REPO / "scripts" / "testrun.py"), "finish", "--name", "Anna"]]
     assert recorder.envs[-1][env_name("TUTORIAL_DIR")] == str(tutorial_copy.resolve())
 
@@ -232,8 +245,8 @@ def test_comment_and_finish_only_work_in_a_tutorial_copy(lesson):
     recorder = _Recorder()
     launcher = _launcher(lesson, recorder)
     launcher.confirm_finish = lambda: (True, "")
-    launcher.open(QUrl("myos:finish"))
-    launcher.open(QUrl("myos:comment"))
+    launcher.open(QUrl(f"{S}:finish"))
+    launcher.open(QUrl(f"{S}:comment"))
     assert recorder.started == []
 
 
@@ -243,7 +256,7 @@ def test_scope_from_an_exercise_starts_without_the_lens_drive(lesson):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     recorder = _Recorder()
     launcher = _launcher(lesson, recorder)
-    launcher.open(QUrl("myos:open?scope=Urlaub 2025&files=Urlaub 2025"))
+    launcher.open(QUrl(f"{S}:open?scope=Urlaub 2025&files=Urlaub 2025"))
     scope_env = recorder.envs[0]
     assert scope_env.get(env_name("SCOPE_START_DAEMON")) == "0"
 
@@ -261,7 +274,7 @@ def test_the_tutorials_pictures_need_no_qt_add_ons():
 
 
 def test_with_several_notes_a_link_goes_to_the_window_it_was_clicked_in():
-    # One PostFix for all notes: one handler for "myos" links, which hands each click to the
+    # One PostFix for all notes: one handler for exercise links, which hands each click to the
     # window it came from (the active one), so the lesson folder is that note's.
     from PostFix import main as pm
 
@@ -279,11 +292,11 @@ def test_with_several_notes_a_link_goes_to_the_window_it_was_clicked_in():
     lesson4, lesson7 = Note(), Note()
     pm.remember_active(lesson4)
     pm.remember_active(lesson7)  # clicked into lesson 7 last
-    pm.EXERCISE_ROUTER.open(QUrl("myos:open?scope=."))
-    assert lesson7.exercise_launcher.urls == ["myos:open?scope=."] and lesson4.exercise_launcher.urls == []
+    pm.EXERCISE_ROUTER.open(QUrl(f"{S}:open?scope=."))
+    assert lesson7.exercise_launcher.urls == [f"{S}:open?scope=."] and lesson4.exercise_launcher.urls == []
 
 
 def test_postfix_registers_one_handler_for_all_windows():
     main = (REPO / "PostFix" / "main.py").read_text(encoding="utf-8")
     assert main.count("QDesktopServices.setUrlHandler(") == 1
-    assert "QDesktopServices.setUrlHandler(EXERCISE_SCHEME, EXERCISE_ROUTER, \"open\")" in main
+    assert "for scheme in EXERCISE_SCHEMES:\n            QDesktopServices.setUrlHandler(scheme, EXERCISE_ROUTER, \"open\")" in main

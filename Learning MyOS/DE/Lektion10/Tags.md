@@ -36,4 +36,4 @@ Wenn du gern mit Tags experimentierst, findest du in dieser Lektion zwei kleine 
 [Weiter!](<../Lektion11/Zugriffsrechte.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

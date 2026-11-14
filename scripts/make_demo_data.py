@@ -15,7 +15,7 @@ Under target:
 
 Scope started in target/Projekte puts the drive "Perspektiven" next to it.
 
-A target that exists must be an earlier demo (it holds the marker file .myos-demo): it is
+A target that exists must be an earlier demo (it holds the marker file .seiton-demo, or one under a former name): it is
 rebuilt. Anything else is refused, and so is a demo whose drive is still mounted.
 
 Needs Pillow and reportlab; LibreOffice (soffice) for the .odt, which is left out without it.
@@ -34,11 +34,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.brand import META_DIR  # noqa: E402
+from core.brand import META_DIR, legacy_markers, marker  # noqa: E402
 from core.template_place import TEMPLATES_REL  # noqa: E402
 from scripts.make_tutorial_data import write_pdf, write_photo  # noqa: E402
 
-MARKER = ".myos-demo"
+MARKER = marker("demo")
+MARKERS = (MARKER, *legacy_markers("demo"))  # demos built under a former name too
 
 # A document: (file name, kind, content) as in make_tutorial_data: pdf (sender, title, lines,
 # items as (what, amount) or None), photo (scene), note (Markdown).
@@ -171,7 +172,7 @@ def _clear(target):
     """Make target empty for a new demo; refuse anything that is not an earlier one."""
     if not target.exists():
         return
-    if not (target / MARKER).exists():
+    if not any((target / name).exists() for name in MARKERS):
         if any(target.iterdir()):
             raise SystemExit(f"{target} is no demo (no {MARKER}) and not empty: not touched")
         return

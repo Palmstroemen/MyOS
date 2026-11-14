@@ -33,4 +33,4 @@ So viel zu Vorlagen, Individualisierung, Standardisierung und einem möglichen V
 [Weiter geht's!](<../Lektion10/Tags.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

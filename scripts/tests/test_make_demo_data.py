@@ -4,6 +4,7 @@ an earlier demo rebuilt, anything else left alone."""
 from pathlib import Path
 
 import pytest
+from core import brand
 from core.brand import META_DIR
 
 pytest.importorskip("reportlab")
@@ -67,3 +68,15 @@ def test_a_folder_that_is_no_demo_is_left_alone(tmp_path, templates):
     with pytest.raises(SystemExit):
         make_demo_data.generate(mine, templates)
     assert [p.name for p in mine.iterdir()] == ["Wichtig.md"]
+
+
+def test_a_demo_marked_under_a_former_name_is_rebuilt(tmp_path, templates, monkeypatch):
+    monkeypatch.setattr(make_demo_data, "write_odt", lambda path, html: False)
+    old = brand.legacy_markers("demo")[0]
+    target = tmp_path / "demo"
+    target.mkdir()
+    (target / old).write_text("earlier demo\n", encoding="utf-8")
+    (target / "leftover.md").write_text("x", encoding="utf-8")
+    make_demo_data.generate(target, templates)
+    assert not (target / "leftover.md").exists() and not (target / old).exists()
+    assert (target / make_demo_data.MARKER).is_file() and make_demo_data.MARKER == brand.marker("demo")

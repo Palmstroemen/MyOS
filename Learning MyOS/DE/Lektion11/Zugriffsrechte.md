@@ -16,4 +16,4 @@ Wenn du tiefer einsteigen willst, findest du in dieser Lektion eine kleine Muste
 [Weiter!](<../Lektion12/Filter.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

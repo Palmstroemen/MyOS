@@ -3,7 +3,7 @@
 # Creating a project remembers what it wrote into .MyOS (CREATED, names and checksums).
 # Turning it back removes .MyOS when nothing of its own came since (changed rights, tags,
 # a trash with entries, ...); otherwise only with consent, and then .MyOS is not deleted
-# but goes into the parent project's trash as "MyOS settings". Not for the top project,
+# but goes into the parent project's trash as "Seiton settings". Not for the top project,
 # not outside the projects tree; subprojects stay projects.
 
 from __future__ import annotations
@@ -16,10 +16,10 @@ from typing import Dict, List
 
 from core import trash
 from core.template_place import find_templates_dir
-from core.brand import META_DIR
+from core.brand import META_DIR, NAME
 
 CREATED = ".created.json"  # in .MyOS: what creating the project wrote
-SETTINGS_NAME = "MyOS settings"  # .MyOS with settings of its own, in the parent's trash
+SETTINGS_NAME = f"{NAME} settings"  # .seiton with settings of its own, in the parent's trash
 _MARKER_BODY = "# MyOS Project"
 
 

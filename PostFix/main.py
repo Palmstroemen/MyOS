@@ -25,7 +25,7 @@ try:
     from .window_tags import WindowTagsMixin
     from .window_acls import WindowAclsMixin
     from .window_theme import WindowThemeMixin
-    from .exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
+    from .exercise_links import SCHEMES as EXERCISE_SCHEMES, ExerciseLauncher, is_exercise_link
     from .live_file import conflict_copy_path, merge3
     from . import editor_host
 except ImportError:
@@ -36,7 +36,7 @@ except ImportError:
     from window_tags import WindowTagsMixin
     from window_acls import WindowAclsMixin
     from window_theme import WindowThemeMixin
-    from exercise_links import SCHEME as EXERCISE_SCHEME, ExerciseLauncher
+    from exercise_links import SCHEMES as EXERCISE_SCHEMES, ExerciseLauncher, is_exercise_link
     from live_file import conflict_copy_path, merge3
     import editor_host
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
@@ -48,7 +48,7 @@ from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QTextDocume
 from PySide6.QtPrintSupport import QPrinter
 
 class _ExerciseRouter(QObject):
-    """The one handler of "myos" links for all notes of this PostFix: a click goes to the
+    """The one handler of exercise links for all notes of this PostFix: a click goes to the
     window it was clicked in (the active one), whose note the lesson folder belongs to."""
 
     @Slot(QUrl)
@@ -243,11 +243,12 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             self.editor.set_light_look(True)
             self.editor.editRequested.connect(self._take_editor)
             self.editor.linkRequested.connect(self.follow_link)
-        # Exercise links of the tutorial (myos:open?scope=...&files=...): a click opens Scope in
+        # Exercise links of the tutorial (seiton:open?scope=...&files=...): a click opens Scope in
         # the exercise folder, the file browser beside it (exercise_links.py).
         self.exercise_launcher = ExerciseLauncher(self._exercise_base, Path(__file__).resolve().parents[1], parent=self)
         # One handler for all windows of this PostFix: the router hands each click on.
-        QDesktopServices.setUrlHandler(EXERCISE_SCHEME, EXERCISE_ROUTER, "open")
+        for scheme in EXERCISE_SCHEMES:
+            QDesktopServices.setUrlHandler(scheme, EXERCISE_ROUTER, "open")
         remember_active(self)
         self.right_sidebar = TagSidebar()
         self._doc_tags = []
@@ -753,7 +754,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
             return
         raw = editor.get_frontmatter_field("note_style")
         if raw in (None, ""):
-            raw = editor.get_frontmatter_field("myos_note_style")
+            raw = editor.get_frontmatter_field("myos_note_style")  # its key until 2026-11 (MyOS)
         normalized = self._normalize_note_style(raw)
         idx = combo.findData(normalized)
         if idx < 0:
@@ -988,7 +989,7 @@ class PostFixWindow(WindowLayoutMixin, WindowTagsMixin, WindowAclsMixin, WindowT
         href = str(href or "").strip()
         if not href or href.startswith("#"):
             return
-        if href.startswith(EXERCISE_SCHEME + ":"):
+        if is_exercise_link(href):
             self.exercise_launcher.open(QUrl(href))
             return
         if "://" in href or href.startswith("mailto:"):

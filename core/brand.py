@@ -24,6 +24,7 @@ CONFIG_DIR = "seiton"  # the user's settings, below XDG_CONFIG_HOME
 ENV_PREFIX = "SEITON_"
 XATTR_PREFIX = "user.seiton."
 HTTP_HEADER_PREFIX = "X-Seiton-"  # between the platform's bridge and the core service
+URL_SCHEME = "seiton"  # links in notes: seiton:open?scope=... (PostFix/exercise_links.py)
 
 # Former names, newest first (MyOS until 2026-11-14): environment variables under them are
 # still read; settings folders, the user's settings and extended attributes under them are
@@ -32,6 +33,7 @@ LEGACY_ENV_PREFIXES: tuple = ("MYOS_",)
 LEGACY_META_DIRS: tuple = (".MyOS",)
 LEGACY_CONFIG_DIRS: tuple = ("MyOS",)
 LEGACY_XATTR_PREFIXES: tuple = ("user.myos.",)
+LEGACY_URL_SCHEMES: tuple = ("myos",)  # still followed: notes keep their links
 
 
 def meta_dir(folder: Union[str, Path]) -> Path:
@@ -59,3 +61,13 @@ def getenv(key: str, default: Optional[str] = None, env: Optional[Mapping[str, s
         if value is not None:
             return value
     return default
+
+
+def marker(kind: str) -> str:
+    """The name of a marker file of ours: marker("demo") -> ".seiton-demo"."""
+    return f".{CONFIG_DIR.lower()}-{kind}"
+
+
+def legacy_markers(kind: str) -> tuple:
+    """The same marker under the former names (".myos-demo"): still recognised."""
+    return tuple(f".{name.lower()}-{kind}" for name in LEGACY_CONFIG_DIRS)

@@ -32,4 +32,4 @@ Und das funktioniert in MyOS heute schon. Du kannst in jedem deiner Programme be
 [Noch etwas ...](<../Lektion14/Adaptiver Desktop.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

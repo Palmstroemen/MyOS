@@ -18,8 +18,8 @@ Denk einmal kurz darüber nach, was das bedeuten könnte.
 * Stell dir vor, die KI weiß sofort, wo sie Informationen, Rechnungen oder Mails findet und wo sie sie ablegen soll. Die Suche nach der letzten Rechnung ist in kürzester Zeit erledigt. Und wenn eine Suche nur noch ein Zehntel des Rechners durchsuchen muss, braucht sie nur ein Zehntel der Energie. Nicht nur bei dir. In ganz Europa, auf der ganzen Welt!
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)
 
-**[✅ Bin fertig – Rechner für den nächsten Tester vorbereiten](<myos:finish>)**
+**[✅ Bin fertig – Rechner für den nächsten Tester vorbereiten](<seiton:finish>)**
 
 Danke fürs Durchspielen! Deine Kommentare und Notizen werden gesammelt, alle Übungen zurückgesetzt, und der Rechner beginnt wieder bei der ersten Lektion.

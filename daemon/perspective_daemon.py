@@ -28,7 +28,7 @@ _DAEMON_LOG_PID: Optional[int] = None
 
 
 def _daemon_log_path(socket_path: str) -> Path:
-    """Log file next to socket: XDG_RUNTIME_DIR/perspective-daemon.log or ~/.config/myos/perspective-daemon.log."""
+    """Log file next to socket: XDG_RUNTIME_DIR/perspective-daemon.log or ~/.config/seiton/perspective-daemon.log."""
     return Path(socket_path).resolve().parent / "perspective-daemon.log"
 
 
@@ -71,7 +71,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.brand import getenv
+from core.brand import CONFIG_DIR, config_dir, getenv
 from core.perspective_fuse import FUSE, mount_perspective_drive
 from core.perspective_session import PerspectiveSession
 
@@ -82,8 +82,8 @@ def socket_path_for(projects_root: Union[str, Path]) -> str:
     """The socket of the daemon serving projects_root (one per root)."""
     key = hashlib.sha1(str(Path(projects_root).expanduser().resolve()).encode("utf-8")).hexdigest()[:12]
     runtime = os.environ.get("XDG_RUNTIME_DIR", "").strip()
-    base = Path(runtime) if runtime else Path.home() / ".config" / "myos"
-    return str(base / f"myos-perspective-{key}.sock")
+    base = Path(runtime) if runtime else config_dir()
+    return str(base / f"{CONFIG_DIR}-perspective-{key}.sock")
 
 
 class DaemonState:

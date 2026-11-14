@@ -13,4 +13,4 @@ Aber wie könnte das gehen?
 [Lass uns schauen!](<../Lektion04/Urlaub.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

@@ -36,9 +36,10 @@ from typing import List, Optional
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.brand import CONFIG_DIR, getenv
+from core.brand import CONFIG_DIR, NAME, getenv, legacy_markers, marker
 
-MARKER = ".myos-tutorial-copy"  # in the copy's root: it is ours, and when the tester started
+MARKER = marker("tutorial-copy")  # in the copy's root: it is ours, and when the tester started
+MARKERS = (MARKER, *legacy_markers("tutorial-copy"))  # copies made under a former name too
 COMMENTS = "Meine Kommentare.md"
 FIRST_LESSON = Path("DE") / "Lektion01" / "Beginne HIER.md"
 # Settings a tester changes, reset for the next one (relative to the config home).
@@ -97,8 +98,8 @@ class Places:
         home = Path.home()
         return cls(
             repo=REPO_ROOT,
-            tutorial=Path(getenv("TUTORIAL_DIR") or home / "MyOS-Tutorial"),
-            results=Path(getenv("RESULTS_DIR") or home / "MyOS-Testergebnisse"),
+            tutorial=Path(getenv("TUTORIAL_DIR") or home / f"{NAME}-Tutorial"),
+            results=Path(getenv("RESULTS_DIR") or home / f"{NAME}-Testergebnisse"),
             config=Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config"),
         )
 
@@ -111,11 +112,20 @@ def first_lesson(places: Places) -> Path:
     return places.tutorial / FIRST_LESSON
 
 
+def _marked(folder: Path) -> bool:
+    return any((folder / name).is_file() for name in MARKERS)
+
+
+def _marker_of(folder: Path) -> Path:
+    """The marker file of a copy (current name first)."""
+    return next((folder / name for name in MARKERS if (folder / name).is_file()), folder / MARKER)
+
+
 def copy_root(path: Path) -> Optional[Path]:
     """The tutorial copy path lies in (the folder with the marker), None outside of one."""
     path = Path(path).resolve()
     for folder in (path, *path.parents):
-        if (folder / MARKER).is_file():
+        if _marked(folder):
             return folder
     return None
 
@@ -153,7 +163,7 @@ def prepare(places: Places, ismount=os.path.ismount, unmount=_fusermount) -> Non
     """A fresh copy of the tutorial and the programs' settings back to their defaults."""
     if places.tutorial.exists():
         # Security: only ever delete a folder this script made (it holds the marker).
-        if not (places.tutorial / MARKER).is_file():
+        if not _marked(places.tutorial):
             raise NotATutorialCopy(f"{places.tutorial} is no tutorial copy, it is left alone")
         _unmount_inside(places.tutorial, ismount, unmount)
         shutil.rmtree(places.tutorial)
@@ -166,7 +176,7 @@ def prepare(places: Places, ismount=os.path.ismount, unmount=_fusermount) -> Non
 def _files(root: Path) -> dict:
     found = {}
     for path in root.rglob("*"):
-        if path.is_file() and path.name not in NOISE and path.name != MARKER and "__pycache__" not in path.parts:
+        if path.is_file() and path.name not in NOISE and path.name not in MARKERS and "__pycache__" not in path.parts:
             found[path.relative_to(root).as_posix()] = path
     return found
 
@@ -254,7 +264,7 @@ def collect(places: Places, name: str = "") -> Path:
 
     started = ""
     try:
-        started = json.loads((places.tutorial / MARKER).read_text(encoding="utf-8")).get("started", "")
+        started = json.loads(_marker_of(places.tutorial).read_text(encoding="utf-8")).get("started", "")
     except (OSError, ValueError):
         pass
     (result / "Zusammenfassung.md").write_text(

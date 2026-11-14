@@ -1,16 +1,16 @@
-"""Exercise links in notes: a lesson of Learning MyOS says
+"""Exercise links in notes: a lesson of the tutorial says
 
-    [Übung öffnen](<myos:open?scope=Urlaub 2025&files=Urlaub 2025>)
+    [Übung öffnen](<seiton:open?scope=Urlaub 2025&files=Urlaub 2025>)
 
 and a click opens Scope in the exercise folder (scope=) and, if the exercise needs it, the
 desktop's classic file browser (files=) - Scope on the left half of the screen, the file
 browser on the right. Folders are relative to the note shown. PostFix registers the handler
-for "myos" links itself (QDesktopServices); nothing on the system changes, so these links work
-in PostFix only.
+for these links itself (QDesktopServices); nothing on the system changes, so they work in
+PostFix only. Links under a former name (myos:open?...) are followed the same way.
 
-On the test machine (scripts/testrun.py) two more: myos:comment opens the tutorial's comment
-note with a heading for the lesson, myos:finish ("Bin fertig") hands the tutorial copy over to
-the test run, which collects the tester's work and starts over.
+On the test machine (scripts/testrun.py) two more: seiton:comment opens the tutorial's comment
+note with a heading for the lesson, seiton:finish ("Bin fertig") hands the tutorial copy over
+to the test run, which collects the tester's work and starts over.
 """
 
 import os
@@ -25,9 +25,10 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from PySide6.QtCore import QObject, QTimer, QUrl, Slot
 from PySide6.QtWidgets import QInputDialog, QLineEdit
 
-from core.brand import env_name
+from core.brand import LEGACY_URL_SCHEMES, URL_SCHEME, env_name
 
-SCHEME = "myos"
+SCHEME = URL_SCHEME  # the one new links get
+SCHEMES = (URL_SCHEME, *LEGACY_URL_SCHEMES)  # the ones followed
 PLACE_INTERVAL_MS = 250
 PLACE_TRIES = 80  # the windows have 20 seconds to appear (a file browser starting cold is slow)
 
@@ -57,19 +58,24 @@ def _inside(base: Path, relative: str) -> Optional[Path]:
     return target if target.is_dir() else None
 
 
+def is_exercise_link(url: str) -> bool:
+    """Whether url is an exercise link (under the current or a former scheme)."""
+    return urlsplit(str(url or "")).scheme in SCHEMES
+
+
 def command_of(url: str) -> Optional[str]:
-    """"open", "comment" or "finish" of a myos link, None for anything else."""
+    """"open", "comment" or "finish" of an exercise link, None for anything else."""
     parts = urlsplit(str(url or ""))
-    if parts.scheme != SCHEME:
+    if parts.scheme not in SCHEMES:
         return None
     command = unquote(parts.path)
     return command if command in ("open", "comment", "finish") else None
 
 
 def parse(url: str, base: Path) -> Optional[ExerciseAction]:
-    """The action of a "myos:open?..." link in a note lying in base, None if refused."""
+    """The action of a "seiton:open?..." link in a note lying in base, None if refused."""
     parts = urlsplit(str(url or ""))
-    if parts.scheme != SCHEME or unquote(parts.path) != "open":
+    if parts.scheme not in SCHEMES or unquote(parts.path) != "open":
         return None
     query = parse_qs(parts.query, keep_blank_values=True)
     folders = {}
@@ -134,7 +140,7 @@ def _window_ids(run) -> Set[str]:
 
 
 class ExerciseLauncher(QObject):
-    """Handler of "myos" links (QDesktopServices.setUrlHandler(SCHEME, launcher, "open"))."""
+    """Handler of exercise links (QDesktopServices.setUrlHandler(scheme, launcher, "open"))."""
 
     def __init__(self, base: Callable[[], Optional[Path]], repo_root: Path, popen=subprocess.Popen,
                  run=subprocess.run, screen: Optional[Callable[[], Tuple[int, int, int, int]]] = None,
@@ -196,7 +202,7 @@ class ExerciseLauncher(QObject):
         # scripts/testrun.py (marker in its root) may start it, and only after asking.
         root = testrun.copy_root(base) if base is not None else None
         if root is None:
-            print(f"[PostFix] myos:{command} only works in a tutorial copy", file=sys.stderr)
+            print(f"[PostFix] {SCHEME}:{command} only works in a tutorial copy", file=sys.stderr)
             return
         if command == "comment":
             note = testrun.comment_note(base)

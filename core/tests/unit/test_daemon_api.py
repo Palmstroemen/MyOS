@@ -14,7 +14,7 @@ import pytest
 from daemon.api import decode_request, decode_response, encode_request, encode_response
 from daemon.client import LocalSession
 from daemon.perspective_daemon import DaemonState, _end_when_free, _handle_request, socket_path_for
-from core.brand import META_DIR, env_name
+from core.brand import META_DIR, env_name, CONFIG_DIR
 
 
 def _project(path: Path) -> Path:
@@ -108,6 +108,13 @@ def test_one_socket_per_projects_root(tmp_path, monkeypatch):
     a, b = socket_path_for(tmp_path / "A" / "Projekte"), socket_path_for(tmp_path / "B" / "Projekte")
 
     assert a != b and Path(a).parent == tmp_path and socket_path_for(tmp_path / "A" / "Projekte") == a
+    assert Path(a).name.startswith(f"{CONFIG_DIR}-perspective-")
+
+
+def test_without_a_runtime_dir_the_socket_lies_in_the_settings_folder(tmp_path, monkeypatch):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert Path(socket_path_for(tmp_path / "Projekte")).parent == tmp_path / CONFIG_DIR
 
 
 def test_protocol_roundtrip():

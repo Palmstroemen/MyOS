@@ -15,4 +15,4 @@ Es zeigt sich langsam, Stück für Stück, wenn du in dieses System hineinwächs
 [Weiter geht's!](<../Lektion03/Ordner.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

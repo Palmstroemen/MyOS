@@ -2,7 +2,7 @@ So you have organized your vacation data into folders. That's kind of the past. 
 
 For this lesson we have put all your files and documents back into a single, unsorted folder: "vacation summer 2026", right next to this note. Sorry for that, but we had a good reason.
 
-**[▶ Open the exercise](<myos:open?scope=.>)** – Scope opens here.
+**[▶ Open the exercise](<seiton:open?scope=.>)** – Scope opens here.
 
 Select this folder. At the top right of the file area, the **P** button lights up: “make it a project”. Click it and give it a try! (A right-click on the folder offers the same.)
 

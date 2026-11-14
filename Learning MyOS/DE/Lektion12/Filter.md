@@ -15,4 +15,4 @@ Aber seien wir ehrlich: Filter gab es schon immer. Was unsere Standardordner mö
 [Schreiten wir also voran.](<../Lektion13/Perspektiven.md>)
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

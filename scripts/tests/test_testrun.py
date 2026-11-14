@@ -8,7 +8,8 @@ import shutil
 from pathlib import Path
 
 import pytest
-from core.brand import CONFIG_DIR, META_DIR, env_name
+from core import brand
+from core.brand import CONFIG_DIR, META_DIR, NAME, env_name
 
 pytest.importorskip("reportlab")
 pytest.importorskip("PIL")
@@ -22,8 +23,8 @@ from scripts import testrun  # noqa: E402
 def machine(tmp_path):
     places = testrun.Places(
         repo=testrun.REPO_ROOT,
-        tutorial=tmp_path / "MyOS-Tutorial",
-        results=tmp_path / "MyOS-Testergebnisse",
+        tutorial=tmp_path / f"{NAME}-Tutorial",
+        results=tmp_path / f"{NAME}-Testergebnisse",
         config=tmp_path / "config",
     )
     (places.config / CONFIG_DIR).mkdir(parents=True)
@@ -89,6 +90,26 @@ def test_nothing_is_deleted_that_is_not_a_tutorial_copy(machine):
     with pytest.raises(testrun.NotATutorialCopy):
         testrun.prepare(machine)
     assert (machine.tutorial / "important.txt").is_file()
+
+
+def test_a_copy_marked_under_a_former_name_is_still_ours(machine):
+    # Copies made before the rename carry the former marker: recognised, and replaced by a
+    # fresh copy with the current one.
+    old = brand.legacy_markers("tutorial-copy")[0]
+    (machine.tutorial / "DE" / "Lektion07").mkdir(parents=True)
+    (machine.tutorial / old).write_text('{"started": "2026-11-01T10:00:00"}', encoding="utf-8")
+    assert testrun.copy_root(machine.tutorial / "DE" / "Lektion07") == machine.tutorial
+    testrun.prepare(machine)
+    assert (machine.tutorial / testrun.MARKER).is_file() and not (machine.tutorial / old).exists()
+
+
+def test_default_places_carry_the_name(monkeypatch):
+    for key in ("TUTORIAL_DIR", "RESULTS_DIR"):
+        for name in (env_name(key), *(p + key for p in brand.LEGACY_ENV_PREFIXES)):
+            monkeypatch.delenv(name, raising=False)
+    places = testrun.Places.default()
+    assert places.tutorial.name == f"{NAME}-Tutorial" and places.results.name == f"{NAME}-Testergebnisse"
+    assert testrun.MARKER == brand.marker("tutorial-copy")
 
 
 def test_the_copy_root_is_found_from_any_lesson(machine):

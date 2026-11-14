@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:  # started as a script: make core importable
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.brand import META_DIR  # noqa: E402
+from core.brand import META_DIR, URL_SCHEME  # noqa: E402
 
 
 # --- What the vacations hold, per language -----------------------------------------------
@@ -251,7 +251,7 @@ TAGS = {
          "In dieser Lektion liegen zwei kleine Projekte: **Wohnungsrenovierung** und **Haushaltsfinanzen**. "
          "Jedes bringt seine eigenen Tags mit.\n\n"
          "## 1. Tags finden und filtern\n"
-         "Öffne die *Wohnungsrenovierung* in Scope: **[▶ Wohnungsrenovierung öffnen](<myos:open?scope=Wohnungsrenovierung>)**. Rechts unter **Filetags** siehst du die Tags der Notizen: "
+         f"Öffne die *Wohnungsrenovierung* in Scope: **[▶ Wohnungsrenovierung öffnen](<{URL_SCHEME}:open?scope=Wohnungsrenovierung>)**. Rechts unter **Filetags** siehst du die Tags der Notizen: "
          "#wichtig, #dringend, #in-Arbeit, #erledigt. Klick auf #dringend: Jetzt siehst du nur noch, was dringend ist. "
          "Ein zweiter Klick zeigt wieder alles.\n\n"
          "## 2. Selbst taggen\n"
@@ -263,7 +263,7 @@ TAGS = {
          "und gib dem Ordner einen Tag. Schau, was dir vorgeschlagen wird: genau die Tags dieses Projekts. "
          "Wähle #in-Arbeit. Mit einem Rechtsklick auf den Tag gibst du ihm eine Farbe.\n\n"
          "## 4. Anderes Projekt, andere Tags\n"
-         "Öffne jetzt die *Haushaltsfinanzen* (**[▶ Haushaltsfinanzen öffnen](<myos:open?scope=Haushaltsfinanzen>)**) und gib dem Ordner *Belege 2026* einen Tag. Die Vorschläge sind "
+         f"Öffne jetzt die *Haushaltsfinanzen* (**[▶ Haushaltsfinanzen öffnen](<{URL_SCHEME}:open?scope=Haushaltsfinanzen>)**) und gib dem Ordner *Belege 2026* einen Tag. Die Vorschläge sind "
          "ganz andere: #bezahlt, #nicht-bezahlt, #wartend ... So halten Projekte die Flut an Tags im Zaum. "
          "Filtere dann nach #nicht-bezahlt: Was musst du noch bezahlen?\n\n"
          "## 5. Wo die Tags eines Projekts stehen\n"
@@ -314,7 +314,7 @@ TAGS = {
          "In this lesson there are two small projects: **Apartment renovation** and **Household finances**. "
          "Each brings its own tags.\n\n"
          "## 1. Find tags and filter\n"
-         "Open *Apartment renovation* in Scope: **[▶ Open Apartment renovation](<myos:open?scope=Apartment renovation>)**. On the right, under **File tags**, you see the tags of the notes: "
+         f"Open *Apartment renovation* in Scope: **[▶ Open Apartment renovation](<{URL_SCHEME}:open?scope=Apartment renovation>)**. On the right, under **File tags**, you see the tags of the notes: "
          "#important, #urgent, #in-progress, #done. Click #urgent: now you only see what is urgent. "
          "A second click shows everything again.\n\n"
          "## 2. Tag something yourself\n"
@@ -326,7 +326,7 @@ TAGS = {
          "Click it and give the folder a tag. Look at what is suggested: exactly the tags of this project. "
          "Choose #in-progress. Right-click the tag to give it a colour.\n\n"
          "## 4. Another project, other tags\n"
-         "Now open *Household finances* (**[▶ Open Household finances](<myos:open?scope=Household finances>)**) and give the folder *Receipts 2026* a tag. The suggestions are quite "
+         f"Now open *Household finances* (**[▶ Open Household finances](<{URL_SCHEME}:open?scope=Household finances>)**) and give the folder *Receipts 2026* a tag. The suggestions are quite "
          "different: #paid, #not-paid, #waiting ... That's how projects keep the flood of tags in check. "
          "Then filter by #not-paid: what do you still have to pay?\n\n"
          "## 5. Where a project's tags are\n"
@@ -401,7 +401,7 @@ COMPANY = {
          "Anna Huber (Buchhaltung), Karl Berger (Team) und Mia Novak (Gast). Wer was darf, steht in einer "
          f"einzigen Notiz: *{META_DIR}/ACLs.md*.\n\n"
          "## 1. Wer darf hier hinein?\n"
-         "Öffne die Musterfirma in Scope: **[▶ Musterfirma öffnen](<myos:open?scope=Musterfirma>)**. Links unter **Zugriff** siehst du, wer auf den angezeigten Ordner "
+         f"Öffne die Musterfirma in Scope: **[▶ Musterfirma öffnen](<{URL_SCHEME}:open?scope=Musterfirma>)**. Links unter **Zugriff** siehst du, wer auf den angezeigten Ordner "
          "zugreifen darf – Gruppen und Menschen, mit kleinen Pfeilen: ◂ lesen, ▸ schreiben. Geh in *04_Finanz*: "
          "Jetzt steht dort die Buchhaltung. Geh in *07_Arbeit/Vertraulich*: Hier darf das Team nicht hinein, "
          "nur die Geschäftsleitung.\n"
@@ -465,7 +465,7 @@ COMPANY = {
          "Anna Huber (accounting), Karl Berger (team) and Mia Novak (guest). Who may do what is in one "
          f"single note: *{META_DIR}/ACLs.md*.\n\n"
          "## 1. Who may enter here?\n"
-         "Open the Sample Company in Scope: **[▶ Open the Sample Company](<myos:open?scope=Sample Company>)**. On the left, under **Access**, you see who may access the folder "
+         f"Open the Sample Company in Scope: **[▶ Open the Sample Company](<{URL_SCHEME}:open?scope=Sample Company>)**. On the left, under **Access**, you see who may access the folder "
          "shown – groups and people, with small arrows: ◂ read, ▸ write. Go into *04_Finance*: now accounting "
          "is listed there. Go into *07_Work/Confidential*: the team may not enter here, only the management.\n"
          "Scope may tell you: \"You are not listed in this project. Who are you?\" – leave that for now; in "

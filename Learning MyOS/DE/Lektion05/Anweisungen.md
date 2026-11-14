@@ -2,7 +2,7 @@ Du hast also deine Urlaubsdaten in Ordner sortiert. Das ist gewissermaßen die V
 
 Für diese Lektion haben wir alle deine Dateien und Dokumente wieder in einen einzigen, unsortierten Ordner gepackt: „Urlaub Sommer 2026", gleich neben dieser Notiz. Entschuldige, aber wir hatten einen guten Grund.
 
-**[▶ Übung öffnen](<myos:open?scope=.>)** – Scope öffnet sich hier.
+**[▶ Übung öffnen](<seiton:open?scope=.>)** – Scope öffnet sich hier.
 
 Wähle diesen Ordner aus. Rechts oben im Dateibereich leuchtet jetzt der Knopf **P** auf: „zum Projekt machen“. Klick darauf und probier es aus! (Dasselbe findest du auch mit einem Rechtsklick auf den Ordner.)
 
@@ -13,4 +13,4 @@ Versuche jetzt noch einmal, deine Dateien in diese Ordner zu sortieren. Wenn du 
 Wenn du fertig bist, geh weiter [zur nächsten Lektion](<../Lektion06/Lies mich.md>).
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>)
+[💬 Kommentar zu dieser Lektion](<seiton:comment>)

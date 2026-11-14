@@ -94,4 +94,4 @@ Sie sind nützlich für kleine Notizen und für große, strukturierte Texte. Du 
 Gehen wir also einen Schritt weiter: [zur nächsten Lektion](<../Lektion02/Markdown-Dateien.md>).
 
 ---
-[💬 Kommentar zu dieser Lektion](<myos:comment>) – unter jeder Lektion kannst du uns so schreiben, was dir auffällt.
+[💬 Kommentar zu dieser Lektion](<seiton:comment>) – unter jeder Lektion kannst du uns so schreiben, was dir auffällt.

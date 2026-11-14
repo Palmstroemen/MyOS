@@ -46,6 +46,16 @@ def test_getenv_reads_os_environ_by_default(monkeypatch):
     assert brand.getenv("BRAND_PROBE") == "1"
 
 
+def test_marker_names_follow_the_name(monkeypatch):
+    assert brand.marker("demo") == f".{brand.CONFIG_DIR}-demo"
+    monkeypatch.setattr(brand, "LEGACY_CONFIG_DIRS", ("OldName",))
+    assert brand.legacy_markers("demo") == (".oldname-demo",)
+
+
+def test_url_scheme_is_lowercase_and_differs_from_former_ones():
+    assert brand.URL_SCHEME == brand.URL_SCHEME.lower() and brand.URL_SCHEME not in brand.LEGACY_URL_SCHEMES
+
+
 def test_qml_has_the_same_name():
     """Scope/js/Brand.js mirrors core/brand.py for QML."""
     js = (REPO / "Scope" / "js" / "Brand.js").read_text(encoding="utf-8")
