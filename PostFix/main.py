@@ -3,7 +3,6 @@
 PostFix - Main Application Entry Point
 Builds UI directly in Python without .ui files for full control.
 """
-import os
 import subprocess
 import weakref
 import sys
@@ -15,6 +14,8 @@ from pathlib import Path
 # `core`, as Scope/Scope.py does. As a module (python3 -m PostFix.main) it already is.
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from core.brand import getenv
 
 try:
     from .markdown_render import render_markdown
@@ -78,7 +79,7 @@ def active_window():
 def editor_enabled() -> bool:
     """The CodeMirror editor (editor_host.py); MYOS_POSTFIX_EDITOR=line brings back the old line
     editor (smart_editor.py) until it goes."""
-    return os.environ.get("MYOS_POSTFIX_EDITOR", "").strip().lower() != "line"
+    return getenv("POSTFIX_EDITOR", "").strip().lower() != "line"
 
 
 def _window_for_note(note: str):

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from core.brand import META_DIR
 from core.project import ProjectConfig
 
 
@@ -38,9 +39,9 @@ def _sub_project_roots(project_root: Path) -> list:
     roots = []
     for current, dirs, _files in os.walk(project_root, followlinks=False):
         current_path = Path(current)
-        if current_path != project_root and (current_path / ".MyOS" / "Project.md").is_file():
+        if current_path != project_root and (current_path / META_DIR / "Project.md").is_file():
             roots.append(current_path)
-        dirs[:] = [d for d in dirs if d != ".MyOS"]
+        dirs[:] = [d for d in dirs if d != META_DIR]
     return roots
 
 

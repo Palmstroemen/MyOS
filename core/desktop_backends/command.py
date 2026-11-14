@@ -7,12 +7,13 @@ before they reach a command.
 
 from __future__ import annotations
 
-import os
 import re
 import shlex
 import shutil
 import subprocess
 from pathlib import Path
+
+from core.brand import getenv
 from typing import Optional, Sequence
 from urllib.parse import unquote, urlparse
 
@@ -46,13 +47,13 @@ def plain_path(value: str) -> str:
 
 
 class CommandDesktopBackend(DesktopBackend):
-    timeout_env = "MYOS_DESK_TIMEOUT_S"
+    timeout_key = "DESK_TIMEOUT_S"  # MYOS_DESK_TIMEOUT_S
 
     def __init__(self) -> None:
         self.command_timeout_s = self._read_timeout_seconds()
 
     def _read_timeout_seconds(self) -> int:
-        raw = str(os.environ.get(self.timeout_env, "15")).strip()
+        raw = str(getenv(self.timeout_key, "15")).strip()
         try:
             timeout = int(raw or "15")
         except Exception:

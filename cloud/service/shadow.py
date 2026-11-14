@@ -14,14 +14,14 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from core.nextcloud_dav import NextcloudError
+from core.brand import META_DIR
 
-MYOS = ".MyOS"
 
 
 def matters(path: str, is_dir: bool) -> bool:
     """Whether a change at path (in the Team folder) changes the shadow: a folder, or a file of
     a .MyOS - documents are not in it."""
-    return bool(is_dir) or MYOS in [p for p in str(path).split("/") if p][:-1]
+    return bool(is_dir) or META_DIR in [p for p in str(path).split("/") if p][:-1]
 
 
 def build_shadow(dav, target: Path, before: Optional[Path] = None, etags: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -37,7 +37,7 @@ def build_shadow(dav, target: Path, before: Optional[Path] = None, etags: Option
         entry = tree[path]
         if entry.is_dir:
             target.joinpath(*parts).mkdir(parents=True, exist_ok=True)
-        elif MYOS in parts[:-1]:
+        elif META_DIR in parts[:-1]:
             file = target.joinpath(*parts)
             file.parent.mkdir(parents=True, exist_ok=True)
             old = before.joinpath(*parts) if before is not None else None

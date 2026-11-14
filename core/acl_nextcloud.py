@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Callable, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 from core.acl import ACLPolicy, _nearest_rules, _normalize_path, _rule_base
+from core.brand import META_DIR
 
 # MyOS right -> Nextcloud permissions. execute and change have none; share is never given
 # (it would pass files on beyond ACLs.md).
@@ -139,7 +140,7 @@ def rights_files(paths: Iterable[str]) -> List[str]:
     found = []
     for path in paths:
         parent, _, name = path.rpartition("/")
-        if name in RIGHTS_FILES and parent.rpartition("/")[2] == ".MyOS":
+        if name in RIGHTS_FILES and parent.rpartition("/")[2] == META_DIR:
             found.append(path)
     return sorted(found)
 
@@ -201,7 +202,7 @@ def _person_rules(
         return found
 
     def may_change(path: str) -> bool:
-        acls = path.rsplit("/.MyOS/", 1)[0] + "/.MyOS/ACLs.md"
+        acls = path.rsplit(f"/{META_DIR}/", 1)[0] + f"/{META_DIR}/ACLs.md"
         return bool({"change", "*"} & myos_rights(acls))
 
     def rights(path: str) -> FrozenSet[str]:

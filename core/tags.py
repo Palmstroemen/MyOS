@@ -10,8 +10,9 @@ from typing import Dict, List, Optional, Union
 import os
 
 from core.project import find_config_in_parents
+from core.brand import META_DIR, XATTR_PREFIX
 
-XATTR_KEY = "user.myos.tags"
+XATTR_KEY = XATTR_PREFIX + "tags"  # user.myos.tags
 
 
 def read_tags(path: Path) -> Dict[str, Optional[int]]:
@@ -104,7 +105,7 @@ def all_project_tags(root: Union[str, Path]) -> List[str]:
     found = set()
     for folder, dirs, _files in os.walk(Path(root)):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
-        myos = Path(folder) / ".MyOS"
+        myos = Path(folder) / META_DIR
         if (myos / "Project.md").is_file() and (myos / "Tags.md").is_file():
             found.update(tag_list(myos / "Tags.md"))
     return sorted(found, key=str.lower)

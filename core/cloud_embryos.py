@@ -20,9 +20,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from core.localBlueprintLayer import Blueprint
+from core.brand import META_DIR
 
-MANIFEST = ".MyOS/Embryos.json"
-PAYLOAD = ".MyOS/Embryos"
+MANIFEST = f"{META_DIR}/Embryos.json"
+PAYLOAD = f"{META_DIR}/Embryos"
 
 
 @dataclass
@@ -40,7 +41,7 @@ def embryo_sets(root: Path) -> List[EmbryoSet]:
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
         for name in dirs:
             project = Path(folder) / name
-            if (project / ".MyOS" / "Project.md").is_file():
+            if (project / META_DIR / "Project.md").is_file():
                 sets.append(_embryo_set(project, "/" + project.relative_to(root).as_posix()))
     return sets
 
@@ -186,7 +187,7 @@ def cloud_paths(embryos: EmbryoSet) -> List[str]:
     """Every entry the upload of embryos creates (relative to the Team folder), parents first."""
     if not embryos.manifest["tree"] and not embryos.payload:
         return []
-    paths = [_in_project(embryos.path, ".MyOS"), _in_project(embryos.path, MANIFEST), _in_project(embryos.path, PAYLOAD)]
+    paths = [_in_project(embryos.path, META_DIR), _in_project(embryos.path, MANIFEST), _in_project(embryos.path, PAYLOAD)]
     paths.extend(_in_project(embryos.path, f"{PAYLOAD}/{embryo}") for embryo in _paths(embryos.manifest["tree"]))
     for rel in sorted(embryos.payload):
         parts = rel.split("/")

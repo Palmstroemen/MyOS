@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from core.perspective import find_filters
+from core.brand import META_DIR
 
 
 _TRUE_VALUES = {"true", "yes", "1", "on"}
@@ -298,7 +299,7 @@ def _has_any_profile_value(config: DeskConfig) -> bool:
 
 
 def _desk_candidates(directory: Path, *, include_root_desk: bool) -> List[Path]:
-    candidates = [directory / ".MyOS" / "Desk.md"]
+    candidates = [directory / META_DIR / "Desk.md"]
     if include_root_desk:
         candidates.append(directory / "Desk.md")
     return candidates

@@ -20,6 +20,7 @@ from core.cloud_embryos import PAYLOAD, birth_contents
 from core.localBlueprintLayer import Blueprint
 from core.perspective_drive import PerspectiveDrive
 from core.tags import project_tags
+from core.brand import META_DIR
 
 
 def level(root: Union[str, Path], person: str, path: str) -> Optional[dict]:
@@ -118,7 +119,7 @@ def _folder(root: Path, path: str) -> Optional[Path]:
 def _project_of(root: Path, folder: Path) -> Optional[Path]:
     """The nearest project up from folder, within root."""
     for candidate in [folder, *folder.parents]:
-        if (candidate / ".MyOS" / "Project.md").is_file():
+        if (candidate / META_DIR / "Project.md").is_file():
             return candidate
         if candidate == root:
             break

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from core.desk_service import DeskService
+from core.brand import META_DIR
 
 try:
     from core.project import notify_config_changed
@@ -113,7 +114,7 @@ class WindowTagsMixin:
             current_dir = file_path.parent
             nearest_myos_dir = None
             for parent in [current_dir, *current_dir.parents]:
-                myos_dir = parent / ".MyOS"
+                myos_dir = parent / META_DIR
                 if nearest_myos_dir is None and myos_dir.exists():
                     nearest_myos_dir = myos_dir
                 tags_md = myos_dir / "Tags.md"

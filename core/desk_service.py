@@ -11,6 +11,7 @@ from core.desk import DeskConfig
 from core.desk_runtime import DeskRuntime
 from core.desktop_backends.base import DesktopState
 from core.project import find_config_in_parents, find_next_parent_config
+from core.brand import META_DIR, config_dir
 
 _SAFE_CONFIG_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
 _MAX_CONFIG_NAME_LEN = 120
@@ -18,8 +19,7 @@ _MAX_CONFIG_NAME_LEN = 120
 
 def desk_home() -> Path:
     """Where MyOS keeps the user's own desktop (Desk.md) and what it set last."""
-    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(config_home) / "MyOS"
+    return config_dir()
 
 
 _DESK_KEYS = (("ThemePreset", "theme"), ("PanelTheme", "panel_theme"), ("WallpaperPath", "wallpaper"))
@@ -89,7 +89,7 @@ def _project_roots(path: Path) -> tuple[Optional[Path], Optional[Path]]:
     """(nearest, top) project containing path; (None, None) outside the projects tree."""
     nearest = top = None
     for candidate in [path, *path.parents]:
-        if (candidate / ".MyOS" / "Project.md").exists():
+        if (candidate / META_DIR / "Project.md").exists():
             nearest = nearest or candidate
             top = candidate
     return nearest, top
@@ -214,7 +214,7 @@ class DeskService:
         if top is None:  # outside the projects tree: the user's own desktop, no search
             manual_desk = manual_desk or system_desk
         result = runtime.handle_context(target, manual_desk=manual_desk, boundary=top, fallback=system_desk)
-        owner = nearest / ".MyOS" / "Desk.md" if nearest is not None else system_desk
+        owner = nearest / META_DIR / "Desk.md" if nearest is not None else system_desk
         if desk_owner is not None:
             owner = Path(desk_owner) if str(desk_owner) else None
         self._write_shared(runtime.backend.capture() or current, owner, runtime.active_source, runtime.active_hash)
@@ -309,7 +309,7 @@ class DeskService:
         candidates: List[Dict[str, str]] = []
         current_project = self._resolve_project_dir(target)
         if current_project is not None:
-            local_path = current_project / ".MyOS" / config_name
+            local_path = current_project / META_DIR / config_name
             candidates.append(
                 {
                     "id": "current_project",
@@ -347,7 +347,7 @@ class DeskService:
                 )
         if global_root:
             root = Path(global_root).expanduser().resolve()
-            config_path = root / ".MyOS" / config_name
+            config_path = root / META_DIR / config_name
             candidates.append(
                 {
                     "id": "global_root",
@@ -359,7 +359,7 @@ class DeskService:
             )
         if include_template_target and template_root:
             root = Path(template_root).expanduser().resolve()
-            config_path = root / ".MyOS" / config_name
+            config_path = root / META_DIR / config_name
             candidates.append(
                 {
                     "id": "template",
@@ -409,7 +409,7 @@ class DeskService:
             if not capture.get("ok"):
                 return {"ok": False, "reason": "capture_failed", "path": ""}
             state = dict(capture.get("state") or {})
-        config_path = root / ".MyOS" / config_name
+        config_path = root / META_DIR / config_name
         config_path.parent.mkdir(parents=True, exist_ok=True)
         content = self._provider_render(config_name, state)
         config_path.write_text(content, encoding="utf-8")
@@ -426,7 +426,7 @@ class DeskService:
             return {"ok": False, "reason": "unsupported_config", "path": ""}
         if not root.exists() or not root.is_dir():
             return {"ok": False, "reason": "target_missing", "path": ""}
-        config_path = root / ".MyOS" / config_name
+        config_path = root / META_DIR / config_name
         if config_path.exists():
             return {"ok": True, "reason": "exists", "path": str(config_path)}
         config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -472,7 +472,7 @@ class DeskService:
 
     def _resolve_project_dir(self, start_path: Path) -> Optional[Path]:
         for candidate in [start_path, *start_path.parents]:
-            if (candidate / ".MyOS" / "Project.md").exists():
+            if (candidate / META_DIR / "Project.md").exists():
                 return candidate
         return None
 

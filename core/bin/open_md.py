@@ -13,9 +13,14 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+# Started as a script (scope_api.open_markdown): make the repo root importable for `core`.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from core.brand import env_name, getenv  # noqa: E402
 
 VAULT_MARKER = ".obsidian"
-REPO_ROOT = Path(__file__).resolve().parents[2]
 POSTFIX_PATH = REPO_ROOT / "PostFix" / "main.py"
 OBSIDIAN_CONFIG_PATHS = [
     Path("~/.var/app/md.obsidian.Obsidian/config/obsidian/obsidian.json"),
@@ -53,8 +58,8 @@ def load_registered_vaults() -> list[Path]:
 
 
 def resolve_vault_root(file_path: Path) -> Path | None:
-    debug = os.environ.get("MYOS_MD_DEBUG", "").strip().lower() in {"1", "true", "yes"}
-    env_root = os.environ.get("MYOS_VAULT_ROOT")
+    debug = getenv("MD_DEBUG", "").strip().lower() in {"1", "true", "yes"}
+    env_root = getenv("VAULT_ROOT")
     if env_root:
         candidate = Path(env_root).expanduser().resolve()
         try:
@@ -63,7 +68,7 @@ def resolve_vault_root(file_path: Path) -> Path | None:
             pass
         else:
             if debug:
-                print(f"[open_md] vault root from MYOS_VAULT_ROOT: {candidate}")
+                print(f"[open_md] vault root from {env_name('VAULT_ROOT')}: {candidate}")
             return candidate
 
     registered = load_registered_vaults()
@@ -159,7 +164,7 @@ def main() -> int:
     args = parser.parse_args()
 
     file_path = Path(args.path).expanduser().resolve()
-    debug = os.environ.get("MYOS_MD_DEBUG", "").strip().lower() in {"1", "true", "yes"}
+    debug = getenv("MD_DEBUG", "").strip().lower() in {"1", "true", "yes"}
     if debug:
         print(f"[open_md] file_path={file_path}")
     if not file_path.exists() or not file_path.is_file():
@@ -169,20 +174,20 @@ def main() -> int:
         print(f"Not a markdown file: {file_path}", file=sys.stderr)
         return 2
 
-    override_cmd = os.environ.get("MYOS_MD_EDITOR_CMD")
-    force_override = os.environ.get("MYOS_MD_FORCE_EDITOR", "").strip().lower() in {"1", "true", "yes"}
-    use_postfix = os.environ.get("MYOS_MD_USE_POSTFIX", "").strip().lower() in {"1", "true", "yes"}
+    override_cmd = getenv("MD_EDITOR_CMD")
+    force_override = getenv("MD_FORCE_EDITOR", "").strip().lower() in {"1", "true", "yes"}
+    use_postfix = getenv("MD_USE_POSTFIX", "").strip().lower() in {"1", "true", "yes"}
 
     if use_postfix:
         return open_with_postfix(file_path)
 
     vault_root = resolve_vault_root(file_path)
     if vault_root:
-        vault_name_override = os.environ.get("MYOS_VAULT_NAME")
-        uri_mode = os.environ.get("MYOS_OBSIDIAN_URI_MODE", "native").strip().lower()
+        vault_name_override = getenv("VAULT_NAME")
+        uri_mode = getenv("OBSIDIAN_URI_MODE", "native").strip().lower()
         if args.uri_mode:
             uri_mode = args.uri_mode
-        debug = os.environ.get("MYOS_MD_DEBUG", "").strip().lower() in {"1", "true", "yes"}
+        debug = getenv("MD_DEBUG", "").strip().lower() in {"1", "true", "yes"}
         marker_path = vault_root / VAULT_MARKER / "myos-open.json"
         try:
             marker_path.write_text(

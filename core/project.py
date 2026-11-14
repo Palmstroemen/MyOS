@@ -6,16 +6,16 @@ Handles .MyOS/Project.md and project hierarchy detection.
 
 from typing import Dict, List, Any, Optional, Union, Tuple
 from pathlib import Path
-import os
 import sys
 import logging
 
 from core.config.parser import MarkdownConfigParser
+from core.brand import META_DIR, NAME, getenv
 
 logger = logging.getLogger(__name__)
 
 # System-wide version constant
-MYOS_VERSION = os.environ.get("MYOS_VERSION", "MyOS v0.1")
+MYOS_VERSION = getenv("VERSION", f"{NAME} v0.1")
 
 
 def _coerce_search_dir(start_path: Union[str, Path]) -> Path:
@@ -64,9 +64,9 @@ def find_config_in_parents(
     """
     search_dir = _coerce_search_dir(start_path)
     for candidate in [search_dir, *search_dir.parents]:
-        if require_project_marker and not (candidate / ".MyOS" / "Project.md").exists():
+        if require_project_marker and not (candidate / META_DIR / "Project.md").exists():
             continue
-        config_path = candidate / ".MyOS" / str(config_name)
+        config_path = candidate / META_DIR / str(config_name)
         if not (config_path.exists() and config_path.is_file()):
             continue
         if honor_inherit_not:
@@ -107,7 +107,7 @@ class ProjectConfig:
     def __init__(self, path: Path):
         """Initialize a ProjectConfig for the given path."""
         self.path = Path(path)
-        self.myos_dir = self.path / ".MyOS"
+        self.myos_dir = self.path / META_DIR
         
         # Marker file that defines a project root
         self.project_md = self.myos_dir / "Project.md"
@@ -358,9 +358,9 @@ class ProjectConfig:
 
         current = self.path
         while True:
-            marker = current / ".MyOS" / "Project.md"
+            marker = current / META_DIR / "Project.md"
             if marker.exists():
-                myos_dir = current / ".MyOS"
+                myos_dir = current / META_DIR
                 local_data = None
                 found = False
 
@@ -570,10 +570,10 @@ class ProjectConfig:
         # Find nearest parent with .MyOS
         parent_myos = cls._find_parent_myos(dir_path)
         if not parent_myos:
-            raise ValueError(f"No parent .MyOS directory found for {dir_path}")
+            raise ValueError(f"No parent {META_DIR} directory found for {dir_path}")
         # Ensure target directory exists and initialize minimal .MyOS marker.
         dir_path.mkdir(parents=True, exist_ok=True)
-        target_myos = dir_path / ".MyOS"
+        target_myos = dir_path / META_DIR
         target_myos.mkdir(parents=True, exist_ok=True)
         project_marker = target_myos / "Project.md"
         if not project_marker.exists():
@@ -598,7 +598,7 @@ class ProjectConfig:
         """Find parent .MyOS directory by walking up the directory tree."""
         current = dir_path.parent
         while current and current != current.parent:  # Stop at filesystem root
-            myos_dir = current / ".MyOS"
+            myos_dir = current / META_DIR
             if myos_dir.exists():
                 return myos_dir
             current = current.parent
@@ -783,7 +783,7 @@ def notify_config_changed(changed_file: Union[str, Path], dry_run: bool = False)
         return results
 
     parent = changed_path.parent
-    if parent.name != ".MyOS":
+    if parent.name != META_DIR:
         results["reason"] = "outside_myos"
         return results
 
@@ -841,7 +841,7 @@ class ProjectFinder:
         
         while current != current.parent:  # Stop at filesystem root
             # Check for .MyOS/Project.md marker
-            if (current / ".MyOS" / "Project.md").exists():
+            if (current / META_DIR / "Project.md").exists():
                 return current
             
             current = current.parent
@@ -854,7 +854,7 @@ class ProjectFinder:
         path = Path(path)
         
         # Check for .MyOS/Project.md marker
-        if (path / ".MyOS" / "Project.md").exists():
+        if (path / META_DIR / "Project.md").exists():
             return True
         
         return False
@@ -897,7 +897,7 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmpdir:
         test_dir = Path(tmpdir) / "test_project"
         test_dir.mkdir()
-        parent_myos = test_dir.parent / ".MyOS"
+        parent_myos = test_dir.parent / META_DIR
         parent_myos.mkdir(exist_ok=True)
         (parent_myos / "Project.md").write_text("# MyOS Project\n")
         result = ProjectConfig.make_project(test_dir, template="standard")

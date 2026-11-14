@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 
 from core.perspective_session import bear_folder, children, departments, holds_project, is_project, template_dirs
+from core.brand import META_DIR
 
 PROJECTS = "Projekte"
 Parts = Tuple[str, ...]
@@ -141,6 +142,6 @@ def _parts(path: str) -> Optional[Parts]:
     parts = tuple(p for p in str(path or "/").split("/") if p)
     # Security: no way out of the projects root, never into MyOS' own .MyOS. Other hidden
     # files are allowed (LibreOffice keeps its lock file next to the document).
-    if any(p in (".", "..", ".MyOS") or "\\" in p for p in parts):
+    if any(p in (".", "..", META_DIR) or "\\" in p for p in parts):
         return None
     return parts

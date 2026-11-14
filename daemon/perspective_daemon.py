@@ -71,6 +71,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from core.brand import getenv
 from core.perspective_fuse import FUSE, mount_perspective_drive
 from core.perspective_session import PerspectiveSession
 
@@ -293,7 +294,7 @@ def run_daemon(
     foreground: bool = True,  # kept for callers; the drive always runs in this process
 ) -> None:
     projects_root = str(Path(projects_root).expanduser().resolve())
-    socket_path = socket_path or os.environ.get("MYOS_DAEMON_SOCKET") or socket_path_for(projects_root)
+    socket_path = socket_path or getenv("DAEMON_SOCKET") or socket_path_for(projects_root)
     mount_point = str(Path(mount_point).expanduser().resolve())
 
     log_path = _daemon_log_path(socket_path)

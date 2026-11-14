@@ -20,6 +20,7 @@ from core.cloud_embryos import EmbryoChange, EmbryoSet, cloud_paths, compare as 
 from core.cloud_embryos import send as send_embryos
 from core.nextcloud_dav import NextcloudError, tree_functions
 from core.tags import all_project_tags
+from core.brand import META_DIR
 
 
 class SyncRefused(Exception):
@@ -49,7 +50,7 @@ class NextcloudSync:
 
     def __init__(self, project_root: Path, dav) -> None:
         self.project_root = Path(project_root)
-        settings_file = self.project_root / ".MyOS" / "Nextcloud.md"
+        settings_file = self.project_root / META_DIR / "Nextcloud.md"
         if not settings_file.is_file():
             raise SyncRefused(f"{settings_file} is missing (# Nextcloud: url, folder, group; # Accounts: person: account)")
         self.settings, self.accounts = read_nextcloud_md(settings_file)

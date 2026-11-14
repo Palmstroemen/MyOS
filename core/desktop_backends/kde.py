@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import configparser
-import os
 from pathlib import Path
 from typing import Optional
 
 from core.desk import DeskConfig, env_flag_is_true
 from core.desktop_backends.base import BackendStepResult, DesktopState
 from core.desktop_backends.command import CommandDesktopBackend, plain_path
+from core.brand import getenv
 
 
 class KdeDesktopBackend(CommandDesktopBackend):
@@ -19,13 +19,13 @@ class KdeDesktopBackend(CommandDesktopBackend):
     """
 
     name = "kde"
-    timeout_env = "MYOS_DESK_KDE_TIMEOUT_S"
+    timeout_key = "DESK_KDE_TIMEOUT_S"  # MYOS_DESK_KDE_TIMEOUT_S
 
     def __init__(self) -> None:
         super().__init__()
-        self.enable_theme = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_THEME_ENABLE", "1"))
-        self.enable_wallpaper = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_WALLPAPER_ENABLE", "1"))
-        self.enable_recent_policy = env_flag_is_true(os.environ.get("MYOS_DESK_KDE_RECENT_ENABLE", "0"))
+        self.enable_theme = env_flag_is_true(getenv("DESK_KDE_THEME_ENABLE", "1"))
+        self.enable_wallpaper = env_flag_is_true(getenv("DESK_KDE_WALLPAPER_ENABLE", "1"))
+        self.enable_recent_policy = env_flag_is_true(getenv("DESK_KDE_RECENT_ENABLE", "0"))
 
     def capture(self) -> Optional[DesktopState]:
         """Look-and-feel (else color scheme) and wallpaper from the KDE config files."""

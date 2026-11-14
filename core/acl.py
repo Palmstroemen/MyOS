@@ -10,6 +10,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 from core.config.parser import MarkdownConfigParser
 from core.project import ProjectConfig, find_config_in_parents
 from core.template_place import find_templates_dir
+from core.brand import META_DIR
 
 try:
     import casbin as _casbin
@@ -121,7 +122,7 @@ class ACLPolicy:
         display_names = dict(self.display_names)
         for depth in range(1, len(rel_parts) + 1):
             sub = root.joinpath(*rel_parts[:depth])
-            if not (sub / ".MyOS" / "Project.md").exists():
+            if not (sub / META_DIR / "Project.md").exists():
                 continue
             try:
                 folders = _roles_from_templates(sub, ProjectConfig(sub).get_effective_templates())
@@ -248,7 +249,7 @@ def find_acl_project_root(path) -> Optional[Path]:
         for candidate in [start, *start.parents]:
             if found is not None and candidate == found:
                 break
-            if (candidate / ".MyOS" / "ACLs.md").is_file() and is_template_root(candidate):
+            if (candidate / META_DIR / "ACLs.md").is_file() and is_template_root(candidate):
                 return candidate
     except OSError:
         return None
@@ -261,10 +262,10 @@ def _governed_subprojects(root: Path) -> List[Path]:
     for folder, dirs, _files in os.walk(root):
         current = Path(folder)
         if current != root:
-            if (current / ".MyOS" / "ACLs.md").is_file():
+            if (current / META_DIR / "ACLs.md").is_file():
                 dirs[:] = []  # its own rules govern it and everything below
                 continue
-            if (current / ".MyOS" / "Project.md").is_file():
+            if (current / META_DIR / "Project.md").is_file():
                 found.append(current)
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
     return found
@@ -384,7 +385,7 @@ def is_template_root(path) -> bool:
     """Whether path is a template (.MyOS/Templates/<name>): no project, its rights take effect
     in the projects made from it."""
     path = Path(path).expanduser().resolve()
-    if (path / ".MyOS" / "Project.md").exists():
+    if (path / META_DIR / "Project.md").exists():
         return False
     templates_dir = find_templates_dir(path)
     return templates_dir is not None and path.parent == templates_dir.resolve()
@@ -394,7 +395,7 @@ def _roles_from_acls(
     project_root: Path,
     acl_file: Optional[Path] = None,
 ) -> Tuple[Set[str], Dict[str, Dict[str, Set[str]]], Dict[str, Set[str]], Dict[str, Set[str]]]:
-    acl_file = Path(acl_file) if acl_file is not None else project_root / ".MyOS" / "ACLs.md"
+    acl_file = Path(acl_file) if acl_file is not None else project_root / META_DIR / "ACLs.md"
     if not acl_file.exists():
         return set(), {}, {}, {}
 

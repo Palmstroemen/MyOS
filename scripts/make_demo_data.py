@@ -34,6 +34,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from core.brand import META_DIR  # noqa: E402
 from core.template_place import TEMPLATES_REL  # noqa: E402
 from scripts.make_tutorial_data import write_pdf, write_photo  # noqa: E402
 
@@ -186,8 +187,8 @@ def _make_project(folder, colour):
     with contextlib.redirect_stdout(io.StringIO()):
         if not ProjectConfig.make_project(folder):
             raise SystemExit(f"Could not make {folder} a project")
-    (folder / ".MyOS" / "Project.md").write_text(f"color: {colour}\n", encoding="utf-8")
-    (folder / ".MyOS" / "Templates.md").write_text("Standard\n", encoding="utf-8")
+    (folder / META_DIR / "Project.md").write_text(f"color: {colour}\n", encoding="utf-8")
+    (folder / META_DIR / "Templates.md").write_text("Standard\n", encoding="utf-8")
 
 
 def _bear(project, below):
@@ -228,13 +229,13 @@ def generate(target, templates):
                                  encoding="utf-8")
     root = target / "Projekte"
     # The projects root is the first project: written by hand (making a project needs one above).
-    (root / ".MyOS").mkdir(parents=True)
+    (root / META_DIR).mkdir(parents=True)
     # Without access rights: they are not the demo's subject, and rights for people of a test
     # template ("you are not listed in this project") would show a panel and lock actions.
     shutil.copytree(Path(templates) / "Standard", root / TEMPLATES_REL / "Standard",
                     ignore=shutil.ignore_patterns("ACLs.md", "ACLs-history"))
-    (root / ".MyOS" / "Project.md").write_text("color: #4422ee\n", encoding="utf-8")
-    (root / ".MyOS" / "Templates.md").write_text("Standard\n", encoding="utf-8")
+    (root / META_DIR / "Project.md").write_text("color: #4422ee\n", encoding="utf-8")
+    (root / META_DIR / "Templates.md").write_text("Standard\n", encoding="utf-8")
     write_documents(root / "Urlaub 2025", URLAUB)
     for name, colour, folders in PROJECTS:
         project = root / name

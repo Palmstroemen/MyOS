@@ -8,6 +8,7 @@ import os
 import re
 from pathlib import Path
 from textwrap import wrap
+from core.brand import getenv
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -60,7 +61,7 @@ FALLBACK_PNG_1X1 = (
 
 
 def _debug(message: str) -> None:
-    if os.environ.get("MYOS_THUMBNAILER_DEBUG") == "1":
+    if getenv("THUMBNAILER_DEBUG") == "1":
         print(f"[myos-md-thumbnailer] {message}", file=os.sys.stderr)
 
 

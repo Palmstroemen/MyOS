@@ -8,6 +8,7 @@ from typing import Dict, FrozenSet, List, Optional, Tuple
 
 from core.acl import ACLPolicy, _nearest_rules, _normalize_path, _rule_base, find_acl_project_root
 from core.project import ProjectFinder
+from core.brand import META_DIR
 
 # Rights a "*" grant stands for (ACL design document, MVP rights set), in display order.
 RIGHTS_ORDER = ("read", "write", "execute", "change", "delete")
@@ -51,7 +52,7 @@ class ACLView:
         root = find_acl_project_root(path)
         if root is None:
             return None
-        acl_file = root / ".MyOS" / "ACLs.md"
+        acl_file = root / META_DIR / "ACLs.md"
         try:
             info = acl_file.stat()
         except OSError:
@@ -111,7 +112,7 @@ class ACLView:
         """
         if viewer is None:
             return True
-        return "read" in self.rights_for_user(viewer, self.project_root / ".MyOS" / "ACLs.md")
+        return "read" in self.rights_for_user(viewer, self.project_root / META_DIR / "ACLs.md")
 
     def rights_for_user(self, user: str, path) -> FrozenSet[str]:
         rel = self.relative_path(path)

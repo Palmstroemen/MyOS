@@ -16,7 +16,6 @@ from __future__ import annotations
 import hmac
 import json
 import logging
-import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,6 +29,7 @@ from cloud.service.reconcile import Steward
 from cloud.service.shadow import ShadowKeeper, matters
 from core.acl_nextcloud import read_nextcloud_md
 from core.nextcloud_dav import NextcloudDAV
+from core.brand import META_DIR, env_name, getenv
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ MIN_SECRET_LENGTH = 24
 def nextcloud_person(root: Union[str, Path], account: str) -> Optional[str]:
     """The person (lower-case key) whose Nextcloud account is account, by the project's
     .MyOS/Nextcloud.md "# Accounts" ("Lisa: lisa.m"); None for an account not listed."""
-    _settings, accounts = read_nextcloud_md(Path(root) / ".MyOS" / "Nextcloud.md")
+    _settings, accounts = read_nextcloud_md(Path(root) / META_DIR / "Nextcloud.md")
     people = [person for person, listed in accounts.items() if listed == account]
     return people[0] if account and len(people) == 1 else None
 
@@ -142,29 +142,29 @@ def _within(place: str, path: str) -> Optional[str]:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    env = os.environ
     wake = threading.Event()
-    if env.get("MYOS_NC_URL"):
-        dav = NextcloudDAV(env["MYOS_NC_URL"], env.get("MYOS_NC_USER", ""), env.get("MYOS_NC_PASSWORD", ""),
-                           env.get("MYOS_NC_FOLDER", ""))
-        keeper = ShadowKeeper(Path(env.get("MYOS_SHADOW_BASE", "/tmp/myos-shadow")), dav)
-        threading.Thread(target=_keep, args=(Steward(keeper, dav), wake, float(env.get("MYOS_SHADOW_POLL", "60"))),
+    if getenv("NC_URL"):
+        dav = NextcloudDAV(getenv("NC_URL"), getenv("NC_USER", ""), getenv("NC_PASSWORD", ""),
+                           getenv("NC_FOLDER", ""))
+        keeper = ShadowKeeper(Path(getenv("SHADOW_BASE", "/tmp/myos-shadow")), dav)
+        threading.Thread(target=_keep, args=(Steward(keeper, dav), wake, float(getenv("SHADOW_POLL", "60"))),
                          daemon=True).start()
         root: Root = lambda: keeper.root
-        where = f"{env['MYOS_NC_URL']} {env.get('MYOS_NC_FOLDER', '')}"
+        where = f"{getenv('NC_URL')} {getenv('NC_FOLDER', '')}"
     else:
-        folder = env.get("MYOS_SHADOW_ROOT", "")
+        folder = getenv("SHADOW_ROOT", "")
         if not folder or not Path(folder).is_dir():
-            raise SystemExit("MYOS_SHADOW_ROOT must name the shadow tree (a folder), or MYOS_NC_URL a Nextcloud")
+            raise SystemExit(f"{env_name('SHADOW_ROOT')} must name the shadow tree (a folder), "
+                             f"or {env_name('NC_URL')} a Nextcloud")
         root, where = Path(folder), folder
 
     def person_for(account: str) -> Optional[str]:
         shadow = root() if callable(root) else root
         return nextcloud_person(shadow, account) if shadow is not None else None
 
-    server = make_server(root, env.get("MYOS_CORE_SECRET", ""), person_for,
-                         host=env.get("MYOS_CORE_HOST", "127.0.0.1"), port=int(env.get("MYOS_CORE_PORT", "8080")),
-                         place="/" + env.get("MYOS_NC_FOLDER", "").strip("/") if env.get("MYOS_NC_URL") else "",
+    server = make_server(root, getenv("CORE_SECRET", ""), person_for,
+                         host=getenv("CORE_HOST", "127.0.0.1"), port=int(getenv("CORE_PORT", "8080")),
+                         place="/" + getenv("NC_FOLDER", "").strip("/") if getenv("NC_URL") else "",
                          on_change=wake.set)
     logger.info("MyOS core service on %s:%s for %s", *server.server_address[:2], where)
     server.serve_forever()

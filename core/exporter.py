@@ -17,6 +17,7 @@ import socket
 
 from core.project import ProjectConfig, ProjectFinder
 from core.template_place import TEMPLATES_REL, find_templates_dir
+from core.brand import META_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +78,11 @@ def export_subtree(
     _copy_tree_no_symlinks(export_root / subtree_rel, package_path / subtree_rel)
 
     # Copy project .MyOS from export root (its templates: only the used ones, below)
-    _copy_tree_no_symlinks(export_root / ".MyOS", package_path / ".MyOS", skip={TEMPLATES_REL.name})
+    _copy_tree_no_symlinks(export_root / META_DIR, package_path / META_DIR, skip={TEMPLATES_REL.name})
 
     # Add export metadata
     _write_export_metadata(
-        project_md=package_path / ".MyOS" / "Project.md",
+        project_md=package_path / META_DIR / "Project.md",
         reference_path=export_root,
         subtree_path=subtree_rel,
     )

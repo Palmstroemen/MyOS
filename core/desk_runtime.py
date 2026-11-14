@@ -8,7 +8,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -16,6 +15,7 @@ from typing import Any, Dict, Optional, Union
 from core.desk import DeskConfig, env_flag_is_true, resolve_active_desk
 from core.desktop_backends import build_backend
 from core.desktop_backends.base import DesktopBackend
+from core.brand import getenv
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +34,12 @@ class DeskRuntimeSettings:
         # Always on for the running desktop (decided 2026-10-21); the variables only
         # serve development and tests (MYOS_DESK_BACKEND=none: no desktop changes).
         return cls(
-            enabled=env_flag_is_true(os.environ.get("MYOS_DESK_ENABLE", "1")),
-            dry_run=env_flag_is_true(os.environ.get("MYOS_DESK_DRY_RUN", "0")),
-            backend_name=str(os.environ.get("MYOS_DESK_BACKEND", "auto")).strip().lower() or "auto",
-            include_root_desk=env_flag_is_true(os.environ.get("MYOS_DESK_INCLUDE_ROOT", "0")),
-            prefer_filter_desk=not env_flag_is_true(os.environ.get("MYOS_DESK_DISABLE_FILTER", "0")),
-            fallback_profile=(str(os.environ.get("MYOS_DESK_FALLBACK", "")).strip() or None),
+            enabled=env_flag_is_true(getenv("DESK_ENABLE", "1")),
+            dry_run=env_flag_is_true(getenv("DESK_DRY_RUN", "0")),
+            backend_name=str(getenv("DESK_BACKEND", "auto")).strip().lower() or "auto",
+            include_root_desk=env_flag_is_true(getenv("DESK_INCLUDE_ROOT", "0")),
+            prefer_filter_desk=not env_flag_is_true(getenv("DESK_DISABLE_FILTER", "0")),
+            fallback_profile=(str(getenv("DESK_FALLBACK", "")).strip() or None),
         )
 
 

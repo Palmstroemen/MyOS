@@ -16,6 +16,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
+from core.brand import META_DIR
 
 SORT_FILE = "Sort.md"
 DATE_SOURCES = ("exif", "filename", "frontmatter", "modified")
@@ -58,11 +59,11 @@ def read_rule(folder: Union[str, Path]) -> Optional[SortRule]:
     """The rule folder carries (.MyOS/Sort.md), or None: none there, not inside a project,
     or not usable (unknown token, '..', an absolute path, a date token twice)."""
     folder = Path(folder).expanduser().resolve()
-    sort_file = folder / ".MyOS" / SORT_FILE
+    sort_file = folder / META_DIR / SORT_FILE
     # Security: a symlinked rule could make files go elsewhere.
     if sort_file.is_symlink() or not sort_file.is_file():
         return None
-    if not any((p / ".MyOS" / "Project.md").is_file() for p in [folder, *folder.parents]):
+    if not any((p / META_DIR / "Project.md").is_file() for p in [folder, *folder.parents]):
         return None
     try:
         values = _sort_section(sort_file.read_text(encoding="utf-8"))

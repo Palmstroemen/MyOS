@@ -1,7 +1,6 @@
 """CLI entrypoint for PostFix."""
 
 import argparse
-import os
 import signal
 import sys
 from pathlib import Path
@@ -10,6 +9,8 @@ from pathlib import Path
 # `core`, as Scope/Scope.py does. As a module (python3 -m PostFix.main) it already is.
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from core.brand import getenv
 
 try:
     from .single_instance import InstanceServer, hand_over, server_name
@@ -112,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lang",
         choices=["de", "en"],
-        default=os.environ.get("MYOS_UI_LANG", "de"),
+        default=getenv("UI_LANG", "de"),
         help="UI language (de or en)",
     )
     return parser
@@ -130,7 +131,7 @@ def main() -> int:
 
     # One PostFix for all notes (single_instance.py): a later start hands its note over and ends
     # - before loading the rest of PostFix, which only the running one needs.
-    single = os.environ.get("MYOS_POSTFIX_SINGLE", "1") != "0"
+    single = getenv("POSTFIX_SINGLE", "1") != "0"
     if single and hand_over(server_name(), str(open_path.resolve()) if open_path else None):
         return 0
 

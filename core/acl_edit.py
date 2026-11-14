@@ -16,10 +16,11 @@ from typing import List, Optional, Set
 
 from core.acl import ACLPolicy, _normalize_path, _normalize_role, find_acl_project_root, is_template_root
 from core.project import ProjectFinder
+from core.brand import META_DIR
 
 # Rights an edit may grant, in the order they are written (ACL design document 2.2).
 EDITABLE_RIGHTS = ("read", "write", "execute", "change", "delete")
-ACL_FILE_REL = "/.MyOS/ACLs.md"
+ACL_FILE_REL = f"/{META_DIR}/ACLs.md"
 HISTORY_DIR = "ACLs-history"
 
 _HEADING = re.compile(r"^(#{1,2})\s+(.*?)\s*$")
@@ -79,7 +80,7 @@ def set_role_rights(path, role: str, rights: Optional[Set[str]], editor: str) ->
     root = find_acl_project_root(target)
     if root is None:
         raise ACLEditError(f"no ACLs.md governs {target}")
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     policy = ACLPolicy.from_project(root)
 
     _require_change_right(policy, root, editor)
@@ -113,7 +114,7 @@ def set_user_roles(path, user: str, roles: Set[str], editor: str) -> Optional[Pa
     root = find_acl_project_root(target)
     if root is None:
         raise ACLEditError(f"no ACLs.md governs {target}")
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     policy = ACLPolicy.from_project(root)
 
     _require_change_right(policy, root, editor)
@@ -148,7 +149,7 @@ def add_user(path, name: str, roles: Set[str], editor: str) -> Optional[Path]:
     root = find_acl_project_root(target)
     if root is None:
         raise ACLEditError(f"no ACLs.md governs {target}")
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     policy = ACLPolicy.from_project(root)
 
     _require_change_right(policy, root, editor)
@@ -198,7 +199,7 @@ def own_rule(path, role: str) -> Optional[Set[str]]:
     root = find_acl_project_root(target)
     if root is None:
         return None
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     try:
         lines = acl_file.read_text(encoding="utf-8").splitlines(keepends=True)
     except OSError:
@@ -230,7 +231,7 @@ def check_move_rules(old_path, new_path) -> None:
     new_rel = _plain_rel(root, Path(new_path))
     if new_rel is None:
         return
-    lines = (root / ".MyOS" / "ACLs.md").read_text(encoding="utf-8").splitlines(keepends=True)
+    lines = (root / META_DIR / "ACLs.md").read_text(encoding="utf-8").splitlines(keepends=True)
     if _rule_lines_under(lines, new_rel):
         raise ACLEditError(f"ACLs.md already has rules for {new_rel}")
 
@@ -250,7 +251,7 @@ def move_rules(old_path, new_path, editor: str) -> bool:
     old_rel, new_rel = _plain_rel(root, old_path), _plain_rel(root, new_path)
     if old_rel is None or new_rel is None:
         return False
-    acl_file = root / ".MyOS" / "ACLs.md"
+    acl_file = root / META_DIR / "ACLs.md"
     original = acl_file.read_text(encoding="utf-8")
     lines = original.splitlines(keepends=True)
     hits = _rule_lines_under(lines, old_rel)
@@ -311,7 +312,7 @@ def _require_change_right(policy: ACLPolicy, root: Path, editor: str) -> None:
         # A template's rights take effect only in the projects made from it, and its
         # "# Users" are the people of those projects: whoever may write the template may
         # edit them, like any other file of it.
-        if not os.access(root / ".MyOS" / "ACLs.md", os.W_OK) or not _may_write_template(root, editor):
+        if not os.access(root / META_DIR / "ACLs.md", os.W_OK) or not _may_write_template(root, editor):
             raise PermissionError(f"{editor!r} may not write the template {root}")
         return
     # Security: only users who may change ACLs.md may edit it, whatever the GUI shows.
@@ -325,7 +326,7 @@ def _may_write_template(template: Path, editor: str) -> bool:
     holder = find_acl_project_root(template.parent)
     if holder is None:
         return True
-    rel = "/" + (template / ".MyOS" / "ACLs.md").relative_to(holder).as_posix()
+    rel = "/" + (template / META_DIR / "ACLs.md").relative_to(holder).as_posix()
     return "write" in _user_rights(ACLPolicy.from_project(holder), editor, rel)
 
 

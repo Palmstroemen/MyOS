@@ -16,6 +16,7 @@ from typing import Dict, List
 
 from core import trash
 from core.template_place import find_templates_dir
+from core.brand import META_DIR
 
 CREATED = ".created.json"  # in .MyOS: what creating the project wrote
 SETTINGS_NAME = "MyOS settings"  # .MyOS with settings of its own, in the parent's trash
@@ -32,7 +33,7 @@ class ProjectHasOwnSettings(Exception):
 
 def record_created(project_root: Path) -> None:
     """Remember the files creating the project wrote into its .MyOS."""
-    myos = Path(project_root) / ".MyOS"
+    myos = Path(project_root) / META_DIR
     files = {item.name: _checksum(item) for item in myos.iterdir()
              if not item.name.startswith(".") and item.is_file() and not item.is_symlink()}
     (myos / CREATED).write_text(json.dumps(files, indent=2, sort_keys=True), encoding="utf-8")
@@ -41,9 +42,9 @@ def record_created(project_root: Path) -> None:
 def can_unmake(path: Path) -> bool:
     """Whether path is a project that can become an ordinary folder again."""
     target = Path(path).expanduser().resolve()
-    if not (target / ".MyOS" / "Project.md").is_file():
+    if not (target / META_DIR / "Project.md").is_file():
         return False
-    if not any((parent / ".MyOS" / "Project.md").is_file() for parent in target.parents):
+    if not any((parent / META_DIR / "Project.md").is_file() for parent in target.parents):
         return False  # the top project of the projects tree
     templates_dir = find_templates_dir(target)
     return templates_dir is None or templates_dir.resolve() not in target.parents
@@ -51,7 +52,7 @@ def can_unmake(path: Path) -> bool:
 
 def own_settings(project_root: Path) -> List[str]:
     """Names in the project's .MyOS that creating it did not write (or that changed since)."""
-    myos = Path(project_root) / ".MyOS"
+    myos = Path(project_root) / META_DIR
     created = _created(myos)
     own = []
     for item in sorted(myos.iterdir(), key=lambda p: p.name):
@@ -80,7 +81,7 @@ def unmake_project(project_root: Path, user: str, keep_own: bool = False) -> Non
     if not can_unmake(root):
         raise ValueError(f"{root} cannot become an ordinary folder")
     own = own_settings(root)
-    myos = root / ".MyOS"
+    myos = root / META_DIR
     if not own:
         # Only what creating it wrote, caches and empty folders: nothing to keep.
         shutil.rmtree(myos)

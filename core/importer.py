@@ -14,6 +14,7 @@ import os
 import shutil
 import tempfile
 import zipfile
+from core.brand import META_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +64,9 @@ def _import_from_folder(
     mode: str,
     conflict: str,
 ) -> ImportResult:
-    project_md = package_root / ".MyOS" / "Project.md"
+    project_md = package_root / META_DIR / "Project.md"
     if not project_md.exists():
-        raise ValueError("Invalid package: missing .MyOS/Project.md")
+        raise ValueError(f"Invalid package: missing {META_DIR}/Project.md")
 
     metadata = _read_export_metadata(project_md)
     subtree = metadata.get("Subtree")

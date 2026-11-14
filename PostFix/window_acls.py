@@ -1,11 +1,11 @@
 """ACL sidebar behavior for PostFixWindow: who may access the open note, and editing."""
 
-import os
 from pathlib import Path
 
 from core.acl_edit import ACLEditError, ACLSelfLockoutError, can_edit, own_rule, set_role_rights, set_user_roles
 from core.acl_view import RIGHTS_ORDER, ACLView
 from core.identity import acl_user_for
+from core.brand import getenv
 
 
 def acl_principals_for_document(path: Path | None) -> list[dict]:
@@ -21,7 +21,7 @@ def acl_principals_for_document(path: Path | None) -> list[dict]:
         return []
     # Security: with enforcement on, only a user who may read ACLs.md sees its content
     # (same rule as Scope's ACL panel).
-    mode = str(os.environ.get("MYOS_ACL_MODE") or "off").strip().lower()
+    mode = str(getenv("ACL_MODE") or "off").strip().lower()
     viewer = acl_user_for(path) if mode == "enforce" else None
     if not view.may_view(viewer):
         return []

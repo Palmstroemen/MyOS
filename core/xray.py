@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
+from core.brand import META_DIR
 
 
 @dataclass(frozen=True)
@@ -87,7 +88,7 @@ def _visible_files(folder: Path, limit: int, may_read: Callable[[Path], bool]) -
     while stack:
         current = stack.pop()
         # Security: never look into a folder the user may not read.
-        if not may_read(current) or (current / ".MyOS" / "Project.md").exists():
+        if not may_read(current) or (current / META_DIR / "Project.md").exists():
             return None
         try:
             items = sorted(current.iterdir(), key=lambda p: p.name.lower())

@@ -8,16 +8,16 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Optional
+from core.brand import META_DIR, getenv
 
-TEMPLATES_REL = Path(".MyOS") / "Templates"
+TEMPLATES_REL = Path(META_DIR) / "Templates"
 
 
 def find_templates_dir(start) -> Optional[Path]:
     """The templates folder that serves start (a project or anything in it), or None."""
-    env_dir = os.environ.get("MYOS_TEMPLATES_DIR")
+    env_dir = getenv("TEMPLATES_DIR")
     if env_dir:
         return Path(env_dir).expanduser().resolve()
     current = Path(start).expanduser().resolve()

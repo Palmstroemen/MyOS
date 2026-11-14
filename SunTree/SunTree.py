@@ -14,6 +14,7 @@ from PySide6.QtGui import QGuiApplication, QIcon, QCursor, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 
+from core.brand import env_name, getenv
 from core.scope_api import ScopeApi
 from core.color_schemes import load_scheme
 from core.settings import Settings
@@ -142,7 +143,7 @@ class SunTreeBackend(QObject):
         self._last_pointer = {"x": 0, "y": 0}
         # The lens: the daemon of the projects root, shared with Scope (daemon/lens_link.py).
         # Started when none runs, with the same switch as Scope (MYOS_SCOPE_START_DAEMON=0).
-        self._lens = LensLink(adapter, start_daemon=os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0")
+        self._lens = LensLink(adapter, start_daemon=getenv("SCOPE_START_DAEMON", "1") != "0")
         self._lens.call("set_cwd", {"path": self._cwd})
         self._lens.update_context(self._cwd)
         self._clipboard = self._resolve_clipboard_dir()
@@ -479,7 +480,7 @@ class MyOSBackendAdapter:
 
 
 def main() -> int:
-    os.environ.setdefault("MYOS_MD_USE_POSTFIX", "1")
+    os.environ.setdefault(env_name("MD_USE_POSTFIX"), "1")
     start_path = sys.argv[1] if len(sys.argv) > 1 else str(Path.cwd())
 
     app = QGuiApplication(sys.argv)

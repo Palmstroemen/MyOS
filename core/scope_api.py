@@ -44,6 +44,7 @@ from core.perspective import (
     resolve_effective_filter,
 )
 from core.filing import destination_for, file_due, sorted_folder_for, sorted_folders, virtual_groups, virtual_listing
+from core.brand import META_DIR, getenv
 
 try:
     from core.localBlueprintLayer import Blueprint
@@ -77,7 +78,7 @@ def find_project_root(start_path: Path) -> Optional[Path]:
     """Project root = directory that has .MyOS/Project.md. .MyOS/ alone is not enough."""
     start_path = start_path.resolve()
     for candidate in [start_path] + list(start_path.parents):
-        if (candidate / ".MyOS" / "Project.md").exists():
+        if (candidate / META_DIR / "Project.md").exists():
             return candidate
     return None
 
@@ -86,7 +87,7 @@ def find_top_project_root(start_path: Path) -> Optional[Path]:
     start_path = start_path.resolve()
     found: Optional[Path] = None
     for candidate in [start_path] + list(start_path.parents):
-        if (candidate / ".MyOS" / "Project.md").exists():
+        if (candidate / META_DIR / "Project.md").exists():
             found = candidate
     return found
 
@@ -371,7 +372,7 @@ class ScopeApi:
                 self.blueprint = None
         if self.project_root:
             self._root_default_project_color = self._read_first_color(
-                self.project_root, [".MyOS/Color.md", ".MyOS/Project.md"]
+                self.project_root, [f"{META_DIR}/Color.md", f"{META_DIR}/Project.md"]
             )
 
     def get_start_path(self) -> str:
@@ -398,7 +399,7 @@ class ScopeApi:
         # Pick the nearest ancestor that provides a valid "Projekte" anchor
         # containing the target. This avoids CPD mixes in nested workspaces.
         for candidate in [resolved_target] + list(resolved_target.parents):
-            marker = candidate / ".MyOS" / "Project.md"
+            marker = candidate / META_DIR / "Project.md"
             if not marker.exists():
                 continue
             projects_dir = (candidate / "Projekte").resolve()
@@ -522,7 +523,7 @@ class ScopeApi:
         root = find_project_root(target)
         if not root:
             return False
-        candidate = root / ".MyOS" / config_name
+        candidate = root / META_DIR / config_name
         return candidate.exists() and candidate.is_file()
 
     def find_config(self, path: str, config_name: str) -> Optional[str]:
@@ -622,7 +623,7 @@ class ScopeApi:
             folder = self._resolve_path(path)
         except Exception:
             return {"ok": False, "reason": "invalid_path", "path": ""}
-        rule_file = folder / ".MyOS" / "Sort.md"
+        rule_file = folder / META_DIR / "Sort.md"
         if not folder.is_dir() or find_project_root(folder) is None:
             return {"ok": False, "reason": "no_project", "path": ""}
         if rule_file.exists() or rule_file.is_symlink():
@@ -783,7 +784,7 @@ class ScopeApi:
         return target if target.is_dir() else None
 
     def _resolve_or_materialize_target_dir(self, target_dir: str) -> tuple[Optional[Path], str]:
-        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        _dbg = getenv("DEBUG_BIRTH")
         if _dbg:
             print(f"[birth] _resolve_or_materialize_target_dir target_dir={target_dir!r}")
         try:
@@ -902,7 +903,7 @@ class ScopeApi:
             self._acl_audit_file = Path(str(path)).expanduser().resolve()
             return
         if self.project_root:
-            self._acl_audit_file = (self.project_root / ".MyOS" / "audit.log").resolve()
+            self._acl_audit_file = (self.project_root / META_DIR / "audit.log").resolve()
         else:
             self._acl_audit_file = None
 
@@ -934,7 +935,7 @@ class ScopeApi:
             self._acl_audit_file = None
             return
 
-        backend = str(os.environ.get("MYOS_ACL_BACKEND") or "auto").strip().lower() or "auto"
+        backend = str(getenv("ACL_BACKEND") or "auto").strip().lower() or "auto"
         if backend not in {"auto", "legacy", "casbin"}:
             backend = "auto"
 
@@ -953,10 +954,10 @@ class ScopeApi:
         self._acl_enforcement = ACLEnforcementService(authorizer, mode=mode)
         self._acl_root = Path(root).resolve()
 
-        audit_path = str(os.environ.get("MYOS_ACL_AUDIT_FILE") or "").strip()
-        audit_enabled = str(os.environ.get("MYOS_ACL_AUDIT") or "").strip().lower() in {"1", "true", "yes", "on"}
+        audit_path = str(getenv("ACL_AUDIT_FILE") or "").strip()
+        audit_enabled = str(getenv("ACL_AUDIT") or "").strip().lower() in {"1", "true", "yes", "on"}
         try:
-            max_bytes = int(str(os.environ.get("MYOS_ACL_AUDIT_MAX_BYTES") or "262144").strip())
+            max_bytes = int(str(getenv("ACL_AUDIT_MAX_BYTES") or "262144").strip())
         except Exception:
             max_bytes = 262_144
 
@@ -1584,7 +1585,7 @@ class ScopeApi:
 
     def _read_folder_sidecar(self, folder_path: Path) -> Dict[str, Any]:
         result: Dict[str, Any] = {"tags": []}
-        sidecar = folder_path / ".MyOS" / "myTags.md"
+        sidecar = folder_path / META_DIR / "myTags.md"
         if not sidecar.exists():
             return result
         try:
@@ -1597,7 +1598,7 @@ class ScopeApi:
         return result
 
     def _write_folder_sidecar(self, folder_path: Path, tags: List[str]) -> None:
-        myos_dir = folder_path / ".MyOS"
+        myos_dir = folder_path / META_DIR
         sidecar = myos_dir / "myTags.md"
         cleaned = sorted(
             set(_normalize_tag_value(tag) for tag in (tags or []) if _normalize_tag_value(tag)),
@@ -1626,7 +1627,7 @@ class ScopeApi:
             return
 
     def _cleanup_empty_folder_myos_dir(self, folder_path: Path) -> None:
-        myos_dir = folder_path / ".MyOS"
+        myos_dir = folder_path / META_DIR
         if not myos_dir.exists() or not myos_dir.is_dir():
             return
         try:
@@ -1777,7 +1778,7 @@ class ScopeApi:
         return root_app
 
     def _remove_legacy_folder_tag_colors_file(self, folder_path: Path) -> None:
-        legacy = folder_path / ".MyOS" / "tagColors.json"
+        legacy = folder_path / META_DIR / "tagColors.json"
         try:
             if legacy.exists():
                 legacy.unlink()
@@ -1786,7 +1787,7 @@ class ScopeApi:
 
     def _get_folder_batch(self, folder_path: Path) -> Dict[str, Optional[str]]:
         """Return batch image URL or batchText from .MyOS/batch.* (batch1.svg etc. ignored)."""
-        myos = folder_path / ".MyOS"
+        myos = folder_path / META_DIR
         if not myos.is_dir():
             return {"batch": None, "batchText": None}
         for ext in (".svg", ".png", ".webp"):
@@ -1919,7 +1920,7 @@ class ScopeApi:
         entry["group"] = _group_name(info.st_gid)
         if not is_dir:
             entry["sizeBytes"] = int(info.st_size)
-        elif os.path.isfile(os.path.join(path, ".MyOS", "Project.md")):
+        elif os.path.isfile(os.path.join(path, META_DIR, "Project.md")):
             entry["isProject"] = True  # the P badge on the folder
             color = self._resolve_effective_project_color(Path(path))
             if color:
@@ -1960,7 +1961,7 @@ class ScopeApi:
             return None
         # Security: the panels show the content of ACLs.md (who may do what); with
         # enforcement on, only a user who may read ACLs.md gets to see it.
-        probe = self._acl_probe("read", view.project_root / ".MyOS" / "ACLs.md")
+        probe = self._acl_probe("read", view.project_root / META_DIR / "ACLs.md")
         if probe is not None and probe.enforced and not probe.allowed:
             return None
         return view
@@ -2081,7 +2082,7 @@ class ScopeApi:
             return {"ok": False, "reason": "invalid", "message": str(exc)}
         # Security: checks of this session follow the new rules at once. Only rebuilt when
         # configured from the environment (a service set via set_acl_enforcement stays).
-        env_mode = str(os.environ.get("MYOS_ACL_MODE") or "off").strip().lower()
+        env_mode = str(getenv("ACL_MODE") or "off").strip().lower()
         if self._acl_enforcement is not None and env_mode in {"monitor", "enforce"}:
             self._configure_acl_from_env()
         return {"ok": True, "reason": ""}
@@ -2152,11 +2153,11 @@ class ScopeApi:
 
     def has_myos_dir(self, path: str) -> bool:
         target = self._resolve_path(path)
-        return (target / ".MyOS").is_dir()
+        return (target / META_DIR).is_dir()
 
     def is_project(self, path: str) -> bool:
         target = self._resolve_path(path)
-        return (target / ".MyOS" / "Project.md").is_file()
+        return (target / META_DIR / "Project.md").is_file()
 
     def is_dir(self, path: str) -> bool:
         target = self._resolve_path(path)
@@ -2199,7 +2200,7 @@ class ScopeApi:
         return icon_value or None
 
     def _resolve_direct_project_color(self, path: Path) -> Optional[str]:
-        return self._read_first_color(path, [".MyOS/Color.md", ".MyOS/Project.md"])
+        return self._read_first_color(path, [f"{META_DIR}/Color.md", f"{META_DIR}/Project.md"])
 
     def _resolve_effective_project_color(self, path: Path) -> Optional[str]:
         return self._resolve_project_color(
@@ -2264,7 +2265,7 @@ class ScopeApi:
         return None
 
     def _find_color_upwards(self, start: Path, stop: Path) -> Optional[str]:
-        return self._find_first_color_upwards(start, stop, [".MyOS/Color.md", "Color.md"])
+        return self._find_first_color_upwards(start, stop, [f"{META_DIR}/Color.md", "Color.md"])
 
     def _read_first_color(self, base: Path, relative_paths: List[str]) -> Optional[str]:
         for rel in relative_paths:
@@ -2330,7 +2331,7 @@ class ScopeApi:
             target = Path(path).expanduser().resolve()
         except (OSError, RuntimeError):
             return False
-        if not target.is_dir() or (target / ".MyOS" / "Project.md").exists() or ".MyOS" in target.parts:
+        if not target.is_dir() or (target / META_DIR / "Project.md").exists() or META_DIR in target.parts:
             return False
         if ProjectConfig._find_parent_myos(target) is None:
             return False  # creating needs a .MyOS above (ProjectConfig.create)
@@ -2377,7 +2378,7 @@ class ScopeApi:
         # Security: a project with its own ACLs.md stops governing its folders when it goes;
         # that is a change of rights, for those who may change them. Otherwise it is a
         # change to the folder, like creating the project.
-        if (target / ".MyOS" / "ACLs.md").is_file():
+        if (target / META_DIR / "ACLs.md").is_file():
             return acl_can_edit(target, self._acl_user_at(target))
         probe = self._acl_probe("write_dir", target)
         return not (probe and probe.enforced and not probe.allowed)
@@ -2666,7 +2667,7 @@ class ScopeApi:
         return removed
 
     def move_entry(self, source: str, target_dir: str) -> bool:
-        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        _dbg = getenv("DEBUG_BIRTH")
         if _dbg:
             print(f"[birth] move_entry source={source!r} target_dir={target_dir!r}")
         try:
@@ -2702,7 +2703,7 @@ class ScopeApi:
             return False
 
     def move_entries(self, sources: List[str], target_dir: str) -> Dict[str, Any]:
-        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        _dbg = getenv("DEBUG_BIRTH")
         if _dbg:
             print(f"[birth] move_entries target_dir={target_dir!r} sources#={len(sources)}")
         result: Dict[str, Any] = {

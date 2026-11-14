@@ -36,11 +36,13 @@ from typing import List, Optional
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from core.brand import CONFIG_DIR, getenv
+
 MARKER = ".myos-tutorial-copy"  # in the copy's root: it is ours, and when the tester started
 COMMENTS = "Meine Kommentare.md"
 FIRST_LESSON = Path("DE") / "Lektion01" / "Beginne HIER.md"
 # Settings a tester changes, reset for the next one (relative to the config home).
-SETTINGS = ("MyOS", "PostFixDev")
+SETTINGS = (CONFIG_DIR, "PostFixDev")
 # Files the programs write on their own; not what the tester did.
 NOISE = {".TagsHere.json"}
 
@@ -95,8 +97,8 @@ class Places:
         home = Path.home()
         return cls(
             repo=REPO_ROOT,
-            tutorial=Path(os.environ.get("MYOS_TUTORIAL_DIR") or home / "MyOS-Tutorial"),
-            results=Path(os.environ.get("MYOS_RESULTS_DIR") or home / "MyOS-Testergebnisse"),
+            tutorial=Path(getenv("TUTORIAL_DIR") or home / "MyOS-Tutorial"),
+            results=Path(getenv("RESULTS_DIR") or home / "MyOS-Testergebnisse"),
             config=Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config"),
         )
 

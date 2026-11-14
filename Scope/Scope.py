@@ -41,6 +41,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
+from core.brand import CONFIG_DIR, env_name, getenv
 from core.color_schemes import (
     has_own_colors,
     load_scheme,
@@ -312,7 +313,7 @@ class Backend(QObject):
         self._entries_pending: set[str] = set()
         # Folder sizes: measured on demand (hover/click on the size column), one task at a
         # time; a new request or cancel bumps the generation so older measurements stop.
-        self._settings = QSettings("MyOS", "Scope")
+        self._settings = QSettings(CONFIG_DIR, "Scope")  # ~/.config/MyOS/Scope.conf
         # The settings of all MyOS programs (core/settings.py), set on Scope's back.
         self._shared_settings = Settings()
         self._sizes_pool = QThreadPool(self)
@@ -344,7 +345,7 @@ class Backend(QObject):
         # The lens: the daemon of this projects root, shared with SunTree (daemon/lens_link.py).
         # Scope starts it when none runs (switched off with MYOS_SCOPE_START_DAEMON=0, e.g.
         # for tests).
-        self._lens_link = LensLink(self._api, start_daemon=os.environ.get("MYOS_SCOPE_START_DAEMON", "1") != "0")
+        self._lens_link = LensLink(self._api, start_daemon=getenv("SCOPE_START_DAEMON", "1") != "0")
         self._projects_root = self._lens_link.projects_root
 
     @Slot(str, bool, bool, result="QVariantList")
@@ -1204,7 +1205,7 @@ class ThemeIconProvider(QQuickImageProvider):
 
 
 def main() -> int:
-    os.environ.setdefault("MYOS_MD_USE_POSTFIX", "1")
+    os.environ.setdefault(env_name("MD_USE_POSTFIX"), "1")
     start_path = sys.argv[1] if len(sys.argv) > 1 else str(Path.cwd())
     api = ScopeApi(start_path)
     app = QGuiApplication(sys.argv)
@@ -1222,7 +1223,7 @@ def main() -> int:
     ctx.setContextProperty("scopeProjectRoot", api.get_project_root() or "")
     engine._backend = backend
 
-    ui_lang = os.environ.get("MYOS_UI_LANG", "de")
+    ui_lang = getenv("UI_LANG", "de")
     backend.setLanguage(ui_lang)
 
     qml_path = Path(__file__).with_name("main.qml").resolve()

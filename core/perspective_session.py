@@ -20,6 +20,7 @@ from typing import List, Optional, Sequence, Tuple, Union
 from core.acl import _template_folder_names
 from core.template_place import find_templates_dir
 from core.project import ProjectConfig
+from core.brand import META_DIR
 
 Parts = Tuple[str, ...]
 
@@ -196,12 +197,12 @@ class PerspectiveSession:
         if not templates:
             return None
         home = next((t for t in templates if (t / self.lens[0]).is_dir()), templates[0])
-        return self._nearest_lens_desk(templates) or home / self.lens[0] / ".MyOS" / "Desk.md"
+        return self._nearest_lens_desk(templates) or home / self.lens[0] / META_DIR / "Desk.md"
 
     def _nearest_lens_desk(self, bases: Sequence[Path]) -> Optional[Path]:
         for depth in range(len(self.lens), 0, -1):
             for base in bases:
-                desk = base.joinpath(*self.lens[:depth], ".MyOS", "Desk.md")
+                desk = base.joinpath(*self.lens[:depth], META_DIR, "Desk.md")
                 if desk.is_file() and not desk.is_symlink():
                     return desk
         return None
@@ -252,14 +253,14 @@ def bear_folder(project_dir: Path, lens: Sequence[str]) -> Path:
 
 
 def is_project(folder: Path) -> bool:
-    return (folder / ".MyOS" / "Project.md").is_file()
+    return (folder / META_DIR / "Project.md").is_file()
 
 
 def holds_project(folder: Path) -> bool:
     """Whether a project lies somewhere below folder (hidden folders not searched)."""
     for current, dirs, _files in os.walk(folder):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
-        if current != str(folder) and (Path(current) / ".MyOS" / "Project.md").is_file():
+        if current != str(folder) and (Path(current) / META_DIR / "Project.md").is_file():
             return True
     return False
 

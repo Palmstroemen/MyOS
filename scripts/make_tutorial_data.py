@@ -30,6 +30,10 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:  # started as a script: make core importable
+    sys.path.insert(0, str(REPO_ROOT))
+
+from core.brand import META_DIR  # noqa: E402
 
 
 # --- What the vacations hold, per language -----------------------------------------------
@@ -233,11 +237,11 @@ MOROCCO = {
 # in .MyOS/ACLs.md. Paths below are relative to the lesson's folder.
 
 def _project(name, colour):
-    return (f"{name}/.MyOS/Project.md", "note", f"color: {colour}\n")
+    return (f"{name}/{META_DIR}/Project.md", "note", f"color: {colour}\n")
 
 
 def _tags(name, tags):
-    return (f"{name}/.MyOS/Tags.md", "note", "# Tags\n" + "".join(f"#{tag}\n" for tag in tags))
+    return (f"{name}/{META_DIR}/Tags.md", "note", "# Tags\n" + "".join(f"#{tag}\n" for tag in tags))
 
 
 TAGS = {
@@ -263,7 +267,7 @@ TAGS = {
          "ganz andere: #bezahlt, #nicht-bezahlt, #wartend ... So halten Projekte die Flut an Tags im Zaum. "
          "Filtere dann nach #nicht-bezahlt: Was musst du noch bezahlen?\n\n"
          "## 5. Wo die Tags eines Projekts stehen\n"
-         "Die Tags eines Projekts stehen in einer Notiz: *.MyOS/Tags.md* im Projektordner. *.MyOS* ist ein "
+         f"Die Tags eines Projekts stehen in einer Notiz: *{META_DIR}/Tags.md* im Projektordner. *{META_DIR}* ist ein "
          "versteckter Ordner – in Scope zeigst du ihn mit ⚙ → Scope → Versteckte Ordner. Ergänze dort eine "
          "Zeile #Steuer: Ab jetzt wird sie dir in diesem Projekt vorgeschlagen.\n\n"
          "---\n"
@@ -326,7 +330,7 @@ TAGS = {
          "different: #paid, #not-paid, #waiting ... That's how projects keep the flood of tags in check. "
          "Then filter by #not-paid: what do you still have to pay?\n\n"
          "## 5. Where a project's tags are\n"
-         "A project's tags are in a note: *.MyOS/Tags.md* in the project folder. *.MyOS* is a hidden folder – "
+         f"A project's tags are in a note: *{META_DIR}/Tags.md* in the project folder. *{META_DIR}* is a hidden folder – "
          "in Scope you show it with ⚙ → Scope → Hidden folders. Add a line #tax there: from now on it is "
          "suggested in this project.\n\n"
          "---\n"
@@ -372,7 +376,7 @@ TAGS = {
 
 ACLS = {
     "de": ("# Permissions\n\n"
-           "## Admin\n- /*: read, write, execute, delete\n- /.MyOS/ACLs.md: read, write, change\n\n"
+           f"## Admin\n- /*: read, write, execute, delete\n- /{META_DIR}/ACLs.md: read, write, change\n\n"
            "## Geschäftsleitung\n- /*: read\n- /07_Arbeit/Vertraulich/: read, write\n\n"
            "## Buchhaltung\n- /01_Info/: read\n- /04_Finanz/: read, write\n- /05_Rechtliches/: read\n\n"
            "## Team\n- /01_Info/: read\n- /07_Arbeit/: read, write\n- /07_Arbeit/Vertraulich/: none\n"
@@ -380,7 +384,7 @@ ACLS = {
            "## Gast\n- /01_Info/: read\n\n"
            "# Users\nEva Muster: Geschäftsleitung\nAnna Huber: Buchhaltung\nKarl Berger: Team\nMia Novak: Gast\n"),
     "en": ("# Permissions\n\n"
-           "## Admin\n- /*: read, write, execute, delete\n- /.MyOS/ACLs.md: read, write, change\n\n"
+           f"## Admin\n- /*: read, write, execute, delete\n- /{META_DIR}/ACLs.md: read, write, change\n\n"
            "## Management\n- /*: read\n- /07_Work/Confidential/: read, write\n\n"
            "## Accounting\n- /01_Info/: read\n- /04_Finance/: read, write\n- /05_Legal/: read\n\n"
            "## Team\n- /01_Info/: read\n- /07_Work/: read, write\n- /07_Work/Confidential/: none\n"
@@ -395,7 +399,7 @@ COMPANY = {
          "# Übungen zu Zugriffsrechten\n\n"
          "In dieser Lektion liegt die **Musterfirma** mit vier Menschen: Eva Muster (Geschäftsleitung), "
          "Anna Huber (Buchhaltung), Karl Berger (Team) und Mia Novak (Gast). Wer was darf, steht in einer "
-         "einzigen Notiz: *.MyOS/ACLs.md*.\n\n"
+         f"einzigen Notiz: *{META_DIR}/ACLs.md*.\n\n"
          "## 1. Wer darf hier hinein?\n"
          "Öffne die Musterfirma in Scope: **[▶ Musterfirma öffnen](<myos:open?scope=Musterfirma>)**. Links unter **Zugriff** siehst du, wer auf den angezeigten Ordner "
          "zugreifen darf – Gruppen und Menschen, mit kleinen Pfeilen: ◂ lesen, ▸ schreiben. Geh in *04_Finanz*: "
@@ -407,7 +411,7 @@ COMPANY = {
          "Klick links auf *Team*: Scope zeigt nur noch, worauf das Team zugreifen darf. Ein zweiter Klick "
          "zeigt wieder alles.\n\n"
          "## 3. Eine einzige Zeile\n"
-         "Öffne *.MyOS/ACLs.md*. *.MyOS* ist ein versteckter Ordner – in Scope zeigst du ihn mit ⚙ → Scope → "
+         f"Öffne *{META_DIR}/ACLs.md*. *{META_DIR}* ist ein versteckter Ordner – in Scope zeigst du ihn mit ⚙ → Scope → "
          "Versteckte Ordner. Unter **## Gast** steht `- /01_Info/: read`. Diese eine Zeile sagt: Gäste dürfen "
          "/01_Info/ lesen – und sonst nichts.\n\n"
          "## 4. Selbst Admin werden (für Fortgeschrittene)\n"
@@ -417,7 +421,7 @@ COMPANY = {
          "Zurück in Scope änderst du jetzt mit einem **Rechtsklick** auf eine Gruppe ihre Rechte für den "
          "angezeigten Ordner. Gib zum Beispiel dem Team in *04_Finanz* Leserechte. Schau danach in die "
          "ACLs.md: Genau eine Zeile ist dazugekommen. Die vorige Fassung bewahrt MyOS in "
-         "*.MyOS/ACLs-history* auf.\n\n"
+         f"*{META_DIR}/ACLs-history* auf.\n\n"
          "## 5. Eine neue Kollegin\n"
          "Links unten findest du jetzt **+ Person**. Füge Lea Wagner hinzu und gib ihr die Gruppe Team. "
          "Auch das steht danach als eine Zeile in der ACLs.md.\n\n"
@@ -426,7 +430,7 @@ COMPANY = {
          "In diesen Übungen siehst du, wer was darf – verstecken wird MyOS dabei noch nichts.\n\n"
          "[Zurück zur Lektion](<Zugriffsrechte.md>)\n"),
         _project("Musterfirma", "#4c72d9"),
-        ("Musterfirma/.MyOS/ACLs.md", "note", ACLS["de"]),
+        (f"Musterfirma/{META_DIR}/ACLs.md", "note", ACLS["de"]),
         ("Musterfirma/00_Admin/Firmenbuchauszug.pdf", "pdf",
          ("Firmenbuch", "Auszug FN 512344 k", ["Musterfirma GmbH, Hauptstraße 1, 1010 Wien",
                                                  "Geschäftsführerin: Eva Muster"], None)),
@@ -459,7 +463,7 @@ COMPANY = {
          "# Access rights exercises\n\n"
          "In this lesson there is the **Sample Company** with four people: Eva Muster (management), "
          "Anna Huber (accounting), Karl Berger (team) and Mia Novak (guest). Who may do what is in one "
-         "single note: *.MyOS/ACLs.md*.\n\n"
+         f"single note: *{META_DIR}/ACLs.md*.\n\n"
          "## 1. Who may enter here?\n"
          "Open the Sample Company in Scope: **[▶ Open the Sample Company](<myos:open?scope=Sample Company>)**. On the left, under **Access**, you see who may access the folder "
          "shown – groups and people, with small arrows: ◂ read, ▸ write. Go into *04_Finance*: now accounting "
@@ -470,7 +474,7 @@ COMPANY = {
          "Click *Team* on the left: Scope only shows what the team may access. A second click shows "
          "everything again.\n\n"
          "## 3. One single line\n"
-         "Open *.MyOS/ACLs.md*. *.MyOS* is a hidden folder – in Scope you show it with ⚙ → Scope → Hidden "
+         f"Open *{META_DIR}/ACLs.md*. *{META_DIR}* is a hidden folder – in Scope you show it with ⚙ → Scope → Hidden "
          "folders. Under **## Guest** it says `- /01_Info/: read`. This one line says: guests may read "
          "/01_Info/ – and nothing else.\n\n"
          "## 4. Become admin yourself (advanced)\n"
@@ -479,7 +483,7 @@ COMPANY = {
          "under /home), a colon, and *Admin*, for example `maria: Admin`.\n"
          "Back in Scope, you can now **right-click** a group to change its rights for the folder shown. "
          "For example, give the team read access in *04_Finance*. Then look into ACLs.md: exactly one line "
-         "has been added. MyOS keeps the previous version in *.MyOS/ACLs-history*.\n\n"
+         f"has been added. MyOS keeps the previous version in *{META_DIR}/ACLs-history*.\n\n"
          "## 5. A new colleague\n"
          "At the bottom left you now find **+ Person**. Add Lea Wagner and give her the group Team. "
          "That, too, is one line in ACLs.md afterwards.\n\n"
@@ -488,7 +492,7 @@ COMPANY = {
          "exercises you see who may do what – MyOS won't hide anything yet.\n\n"
          "[Back to the lesson](<Access Rights.md>)\n"),
         _project("Sample Company", "#4c72d9"),
-        ("Sample Company/.MyOS/ACLs.md", "note", ACLS["en"]),
+        (f"Sample Company/{META_DIR}/ACLs.md", "note", ACLS["en"]),
         ("Sample Company/00_Admin/Company register extract.pdf", "pdf",
          ("Company Register", "Extract FN 512344 k", ["Sample Company Ltd., Main Street 1, Vienna",
                                                        "Managing director: Eva Muster"], None)),

@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.15
 import "Theme/tag_chips.js" as TagChips
 import "js/FolderBrowserUtils.js" as FBUtils
 import "js/DropUtils.js" as DropUtils
+import "js/Brand.js" as Brand
 
 Item { // ROOT
     id: root
@@ -19,7 +20,7 @@ Item { // ROOT
     property string path: "/"
     property string pathDisplayPrefix: ""
     property string pathSegmentMyosTest: "MyOS_Test"
-    property string pathSegmentMyOS: "MyOS"
+    property string pathSegmentMyOS: Brand.NAME
     property var resolvePath: function(p) { return String(p || "") }
     property var folders: []
     property var childrenProvider: null

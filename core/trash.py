@@ -18,8 +18,9 @@ from typing import List, Optional
 from urllib.parse import quote, unquote
 
 from core.project import ProjectFinder
+from core.brand import META_DIR
 
-TRASH_DIR = Path(".MyOS") / "Trash"
+TRASH_DIR = Path(META_DIR) / "Trash"
 DEFAULT_RETENTION_DAYS = 30
 _DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 _TRASH_DAYS = re.compile(r"^\s*trash_days\s*:\s*(\d+)\s*$", re.MULTILINE)
@@ -57,7 +58,7 @@ def move_to_trash(path, deleted_by: str) -> TrashEntry:
         raise TrashError(f"{target} is not in a MyOS project")
     rel = target.relative_to(root)
     # The project's own configuration (and the trash in it) is not deleted this way.
-    if not rel.parts or rel.parts[0] == ".MyOS":
+    if not rel.parts or rel.parts[0] == META_DIR:
         raise TrashError(f"{target} cannot be moved to the trash")
     if not target.exists() and not target.is_symlink():
         raise TrashError(f"{target} does not exist")
@@ -158,7 +159,7 @@ def retention_days(project_root) -> int:
     current = ProjectFinder.find_nearest(Path(project_root).expanduser().absolute())
     while current is not None:
         try:
-            text = (current / ".MyOS" / "Project.md").read_text(encoding="utf-8")
+            text = (current / META_DIR / "Project.md").read_text(encoding="utf-8")
         except OSError:
             text = ""
         match = _TRASH_DAYS.search(text)

@@ -6,11 +6,11 @@ myacl - MyOS ACLs CLI: who may do what, every rule of a project, and its rules i
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from core.brand import META_DIR, env_name, getenv
 from core.acl import ACLPolicy
 from core.acl_enforcement import configured_mode
 from core.acl_nextcloud import BITS, FULL_MASK, NEXTCLOUD_PERMISSIONS, local_tree, plan, read_nextcloud_md, rights_files
@@ -41,12 +41,12 @@ def parse_args(args=None) -> argparse.Namespace:
     rules_cmd.add_argument("path", nargs="?", default=".")
     rules_cmd.add_argument("--json", action="store_true", help="Output as JSON")
 
-    sync_cmd = sub.add_parser("sync", help="The project's rules in a Nextcloud Team folder (settings: .MyOS/Nextcloud.md)")
+    sync_cmd = sub.add_parser("sync", help=f"The project's rules in a Nextcloud Team folder (settings: {META_DIR}/Nextcloud.md)")
     sync_cmd.add_argument("path", nargs="?", default=".")
     sync_cmd.add_argument("--plan", action="store_true", help="Only show the rules Nextcloud should hold (no network)")
     sync_cmd.add_argument("--dry-run", action="store_true",
                           help="Read the rules Nextcloud holds and show what would change; sends nothing "
-                               "(login: MYOS_NEXTCLOUD_USER, MYOS_NEXTCLOUD_PASSWORD)")
+                               f"(login: {env_name('NEXTCLOUD_USER')}, {env_name('NEXTCLOUD_PASSWORD')})")
     sync_cmd.add_argument("--yes", action="store_true", help="Send without asking (needed without a terminal)")
     sync_cmd.add_argument("--json", action="store_true", help="Output as JSON")
 
@@ -109,7 +109,7 @@ def _show(path: str) -> int:
         print(f"No ACLs.md governs {path}.")
         return 0
     rel = view.relative_path(path) or "/"
-    print(f"{rel}   (rules: {view.project_root / '.MyOS' / 'ACLs.md'})")
+    print(f"{rel}   (rules: {view.project_root / META_DIR / 'ACLs.md'})")
     principals = view.principals(path)
     roles = [p for p in principals if p.kind == "role"]
     people = [p for p in principals if p.kind == "user"]
@@ -135,7 +135,7 @@ def _check(person: str, path: str, right) -> int:
     if view is None:
         raise _Refused(f"No ACLs.md governs {path}")
     if person.strip().lower() not in view.policy.users:
-        print(f"{person} is not listed in # Users of {view.project_root / '.MyOS' / 'ACLs.md'}", file=sys.stderr)
+        print(f"{person} is not listed in # Users of {view.project_root / META_DIR / 'ACLs.md'}", file=sys.stderr)
     rights = view.rights_for_user(person, path)
     if right is None:
         print(_rights_text(rights))
@@ -195,7 +195,7 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
     view = _view(path)
     if view is None:
         raise _Refused(f"No ACLs.md governs {path}")
-    settings_file = view.project_root / ".MyOS" / "Nextcloud.md"
+    settings_file = view.project_root / META_DIR / "Nextcloud.md"
     if not settings_file.is_file():
         raise _Refused(f"{settings_file} is missing (# Nextcloud: url, folder, group; # Accounts: person: account)")
     settings, accounts = read_nextcloud_md(settings_file)
@@ -212,9 +212,10 @@ def _sync(path: str, plan_only: bool, dry_run: bool, yes: bool, as_json: bool) -
         # group: the groups the Team folder is given to are locked out at the root; rules
         # on the way rely on it (they leave share to be inherited from there).
         raise _Refused(f"{settings_file} needs {', '.join(missing)} in # Nextcloud")
-    user, password = os.environ.get("MYOS_NEXTCLOUD_USER", ""), os.environ.get("MYOS_NEXTCLOUD_PASSWORD", "")
+    user, password = getenv("NEXTCLOUD_USER", ""), getenv("NEXTCLOUD_PASSWORD", "")
     if not (user and password):
-        raise _Refused("set MYOS_NEXTCLOUD_USER and MYOS_NEXTCLOUD_PASSWORD (best an app password) for the login")
+        raise _Refused(f"set {env_name('NEXTCLOUD_USER')} and {env_name('NEXTCLOUD_PASSWORD')} (best an app password) "
+                       "for the login")
     try:
         sync = NextcloudSync(view.project_root, NextcloudDAV(settings["url"], user, password, settings["folder"]))
         comparison = sync.compare()

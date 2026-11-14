@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Iterable, Tuple
 
 from core.config.parser import MarkdownConfigParser
+from core.brand import META_DIR
 
 _INHERIT_VALUES = {"dynamic", "fix", "not"}
 
@@ -465,8 +466,8 @@ def _origin_seen_from(item_path: Path, cwd: Path) -> str:
 
 def _iter_filter_candidates(directory: Path) -> Iterable[Tuple[Path, str]]:
     yield (directory / "Filter.md", "folder")
-    yield (directory / ".MyOS" / "Filter.md", "myos")
-    collection_dir = directory / ".MyOS" / "Filters"
+    yield (directory / META_DIR / "Filter.md", "myos")
+    collection_dir = directory / META_DIR / "Filters"
     if collection_dir.exists() and collection_dir.is_dir():
         for child in sorted(collection_dir.iterdir(), key=lambda item: item.name.lower()):
             if child.is_file() and child.suffix.lower() == ".md":

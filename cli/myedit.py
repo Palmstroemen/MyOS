@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from core.brand import META_DIR
 from core.project import resolve_cwp
 
 
@@ -58,7 +59,7 @@ def _resolve_target_file(section: str, path: str) -> Path:
     if not cwp:
         raise ValueError("No project found for path")
 
-    myos_dir = cwp.path / ".MyOS"
+    myos_dir = cwp.path / META_DIR
     myos_dir.mkdir(parents=True, exist_ok=True)
 
     target = myos_dir / SECTION_MAP[key]

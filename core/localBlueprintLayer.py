@@ -6,6 +6,7 @@ import time
 import errno
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from core.brand import META_DIR, getenv
 
 try:
     from fuse import FUSE, FuseOSError, Operations
@@ -40,14 +41,14 @@ class BirthClinic:
         Complete birth process for a SINGLE embryo path.
         Returns: Path to the newborn physical folder
         """
-        if os.environ.get("MYOS_DEBUG_BIRTH"):
+        if getenv("DEBUG_BIRTH"):
             print(f"[birth] BirthClinic.give_birth embryo_path={embryo_path!r}")
         template_source = self.find_template_source(embryo_path)
         self._validate_template_security(template_source)
         target_path = self._embryo_to_physical_path(embryo_path)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         self._copy_template_safely(template_source, target_path)
-        if os.environ.get("MYOS_DEBUG_BIRTH"):
+        if getenv("DEBUG_BIRTH"):
             print(f"[birth] give_birth done -> {target_path}")
         return target_path
     
@@ -304,7 +305,7 @@ class Blueprint(Operations):
 
         # ACL policy and role resolution
         self.acl_policy = ACLPolicy.from_project(self.project_root)
-        self.acl_enabled = (self.project_root / ".MyOS" / "ACLs.md").exists()
+        self.acl_enabled = (self.project_root / META_DIR / "ACLs.md").exists()
         self.acl_roles = self._resolve_acl_roles()
         
         print(f"Blueprint: Mounted on {self.project_root}")
@@ -319,7 +320,7 @@ class Blueprint(Operations):
         """Find the nearest project root by searching for .MyOS/Project.md upwards."""
         current = start_path
         while current != current.parent:
-            if (current / ".MyOS" / "Project.md").exists():
+            if (current / META_DIR / "Project.md").exists():
                 return current
             current = current.parent
         raise ValueError(f"No project root found from {start_path}")
@@ -333,7 +334,7 @@ class Blueprint(Operations):
         If Users section exists but user is not listed, returns empty set.
         If no Users section exists, returns empty set (no enforcement).
         """
-        env_roles = os.environ.get("MYOS_ROLES")
+        env_roles = getenv("ROLES")
         if env_roles:
             return {r.strip().lower() for r in env_roles.split(",") if r.strip()}
 
@@ -537,7 +538,7 @@ class Blueprint(Operations):
         Handle birth process for a path containing embryos.
         Births from root to leaf so parent embryos are materialized before sub-embryos.
         """
-        _dbg = os.environ.get("MYOS_DEBUG_BIRTH")
+        _dbg = getenv("DEBUG_BIRTH")
         if _dbg:
             print(f"[birth] _birth_path fuse_path={fuse_path!r}")
         parts = fuse_path.strip('/').split('/')
@@ -608,7 +609,7 @@ class Blueprint(Operations):
         if node is None or folder.is_symlink() or not folder.is_dir():
             return []
         # A sub-project has its own templates; never judge it by ours.
-        if rel and (folder / ".MyOS" / "Project.md").exists():
+        if rel and (folder / META_DIR / "Project.md").exists():
             return []
         removed: List[Path] = []
         for name in node:
@@ -625,7 +626,7 @@ class Blueprint(Operations):
         if folder.is_symlink() or not folder.is_dir():
             return False
         # A born sub-project is its own project, not a plain template folder.
-        if (folder / ".MyOS" / "Project.md").exists():
+        if (folder / META_DIR / "Project.md").exists():
             return False
         # Folders the user may not write as embryos would vanish from their view.
         if not self._can_write_embryo(rel):
@@ -735,7 +736,7 @@ class Blueprint(Operations):
 
     def mkdir(self, path: str, mode) -> None:
         rel_path = path.lstrip('/')
-        if os.environ.get("MYOS_DEBUG_BIRTH"):
+        if getenv("DEBUG_BIRTH"):
             print(f"[birth] Blueprint.mkdir path={path!r} is_embryo={self.is_embryo(rel_path)} contains_embryos={self.contains_embryos(path)}")
         if self.is_embryo(rel_path) or self.contains_embryos(path):
             self._birth_path(path)

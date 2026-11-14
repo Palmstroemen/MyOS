@@ -6,6 +6,7 @@ import "Theme/tag_chips.js" as TagChips
 import "js/PathUtils.js" as PathUtils
 import "js/ListSort.js" as ListSort
 import "js/FormatUtils.js" as FormatUtils
+import "js/Brand.js" as Brand
 import "./Dialogs" 1.0
 
 ApplicationWindow {
@@ -100,11 +101,11 @@ ApplicationWindow {
     // Positive value lets FilesPanel overlap a bit to the left.
     property int filesPanelOverlapPx: 8
     // Zentrale Pfad-/Ordnernamen (Magic Values vermeiden)
-    readonly property string myosDirName: ".MyOS"
+    readonly property string myosDirName: Brand.META_DIR
     readonly property string pathSegmentClipboard: "Clipboard"
     readonly property string pathSegmentProjekte: "Projekte"
     readonly property string pathSegmentMyosTest: "MyOS_Test"
-    readonly property string pathSegmentMyOS: "MyOS"
+    readonly property string pathSegmentMyOS: Brand.NAME
     property color dialogPanelBg: schemeColors.dialogPanelBg
     property color dialogPanelBorder: schemeColors.dialogPanelBorder
     property color dialogTextStrong: schemeColors.dialogTextStrong

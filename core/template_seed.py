@@ -18,6 +18,7 @@ from core.template_place import find_templates_dir
 from core.acl_edit import complete_people
 from core.identity import acl_user_for
 from core.project import ProjectConfig
+from core.brand import META_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def seed_from_templates(project_root: Path) -> List[Path]:
         return []
     copied: List[Path] = []
     for name in ProjectConfig(project_root).get_effective_templates() or []:
-        source_dir = templates_dir / name / ".MyOS"
+        source_dir = templates_dir / name / META_DIR
         if source_dir.is_symlink() or not source_dir.is_dir():
             continue
         for source in sorted(source_dir.iterdir()):
@@ -41,12 +42,12 @@ def seed_from_templates(project_root: Path) -> List[Path]:
             # folders (the template's own ACLs-history, Trash), no hidden drafts.
             if source.name.startswith(".") or source.is_symlink() or not source.is_file():
                 continue
-            target = project_root / ".MyOS" / source.name
+            target = project_root / META_DIR / source.name
             if target.exists() or target.is_symlink():
                 continue
             shutil.copyfile(source, target)
             copied.append(target)
-    acl_file = project_root / ".MyOS" / "ACLs.md"
+    acl_file = project_root / META_DIR / "ACLs.md"
     if acl_file in copied and previous_root is not None and previous_root != project_root:
-        complete_people(acl_file, previous_root / ".MyOS" / "ACLs.md", creator)
+        complete_people(acl_file, previous_root / META_DIR / "ACLs.md", creator)
     return copied

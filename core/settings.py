@@ -6,9 +6,10 @@ the wrong kind, a key unknown - falls back to the default, as the file can be ed
 """
 
 import configparser
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+from core.brand import NAME, config_dir
 
 # "Group/name": (kind, default, allowed: (low, high) for numbers, a set for text, None)
 SETTINGS: Dict[str, Tuple[type, Any, Any]] = {
@@ -46,8 +47,7 @@ SETTINGS: Dict[str, Tuple[type, Any, Any]] = {
 
 
 def settings_path() -> Path:
-    config = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(config) / "MyOS" / "MyOS.conf"
+    return config_dir() / f"{NAME}.conf"
 
 
 def _checked(key: str, value: Any) -> Optional[Any]:

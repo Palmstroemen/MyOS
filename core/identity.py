@@ -21,14 +21,14 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from core.acl import ACLPolicy, find_acl_project_root
 from core.acl_edit import ACLEditError, is_person_name, may_change_acls
+from core.brand import META_DIR, config_dir, getenv
 
 # ACLs.md -> ((mtime_ns, size), lower-case people listed): resolved for every ACL check.
 _listed_cache: Dict[Path, Tuple[Tuple[int, int], Set[str]]] = {}
 
 
 def identity_file() -> Path:
-    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(config_home) / "MyOS" / "Identity.md"
+    return config_dir() / "Identity.md"
 
 
 def login_name() -> str:
@@ -61,7 +61,7 @@ def own_names() -> List[str]:
 
 def person_in(users: Iterable[str]) -> str:
     """The user's (lower-case) key in a project listing users (lower-case keys)."""
-    override = str(os.environ.get("MYOS_ACL_USER") or "").strip().lower()
+    override = str(getenv("ACL_USER") or "").strip().lower()
     if override:
         return override
     listed = set(users)
@@ -144,7 +144,7 @@ def _policy(path: Union[str, Path]) -> Optional[ACLPolicy]:
 
 
 def _listed_people(root: Path) -> Set[str]:
-    acl_file = Path(root).resolve() / ".MyOS" / "ACLs.md"
+    acl_file = Path(root).resolve() / META_DIR / "ACLs.md"
     try:
         stat = acl_file.stat()
     except OSError:
