@@ -6,7 +6,7 @@ Build the data for the three-minute demo (Vision/Demo in drei Minuten.md), fresh
 
 Under target:
 - Projekte/.MyOS/Templates/Standard - copied from --templates (default: the templates of
-  MyOS_Test/Projekte, else ~/.MyOS/Templates), without access rights (ACLs.md).
+  Seiton_Test/Projekte, else ~/.MyOS/Templates), without access rights (ACLs.md).
 - Downloads - about 30 mixed files, the mess of scene 1, and "Rechnung Heizung 2025.odt" for
   scene 5 (LibreOffice saves it through the "Perspektiven" drive).
 - Projekte - the projects root: "Urlaub 2025" an ordinary folder (scene 2 makes it a project);
@@ -34,7 +34,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.brand import META_DIR, legacy_markers, marker  # noqa: E402
+from core.brand import META_DIR, NAME, legacy_markers, marker  # noqa: E402
 from core.template_place import TEMPLATES_REL  # noqa: E402
 from scripts.make_tutorial_data import write_pdf, write_photo  # noqa: E402
 
@@ -162,7 +162,7 @@ def write_documents(folder, documents):
 
 
 def default_templates():
-    for candidate in (REPO_ROOT / "MyOS_Test" / "Projekte" / TEMPLATES_REL, Path.home() / TEMPLATES_REL):
+    for candidate in (REPO_ROOT / f"{NAME}_Test" / "Projekte" / TEMPLATES_REL, Path.home() / TEMPLATES_REL):
         if (candidate / "Standard").is_dir():
             return candidate
     return None

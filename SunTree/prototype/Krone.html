@@ -133,7 +133,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--hand); outl
 
 <div id="stage">
   <canvas id="crown" tabindex="0" aria-label="SunTree: links MyOS-Ordner, rechts Ordner, in der Mitte der Stamm"></canvas>
-  <div id="hint">Testordner wie MyOS_Test/Projekte/Job</div>
+  <div id="hint">Testordner wie Seiton_Test/Projekte/Job</div>
   <div id="toast" role="status" aria-live="polite" style="opacity:0"></div>
 </div>
 
@@ -149,7 +149,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--hand); outl
 
 <script>
 "use strict";
-// ---------- test folders (as in MyOS_Test/Projekte) ----------
+// ---------- test folders (as in Seiton_Test/Projekte) ----------
 function N(name, kids, o) {
   o = o || {};
   const n = { name, kids: kids || [], myos: !!o.myos, embryo: !!o.embryo, parent: null };
@@ -204,7 +204,7 @@ const PROJEKTE = N("Projekte", [
   plain("Computer"),
   plain("Testkunde")
 ]);
-const HOME = N("home", [N("oliver", [N("Dokumente", [N("MyOS", [N("MyOS_Test", [PROJEKTE])])])])]);
+const HOME = N("home", [N("oliver", [N("Dokumente", [N("MyOS", [N("Seiton_Test", [PROJEKTE])])])])]);
 
 let cwd = JOB;
 const list = (node, side) => node.kids.filter(k => k.myos === (side < 0));

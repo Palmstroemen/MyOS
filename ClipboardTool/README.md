@@ -13,7 +13,7 @@ Saves text clipboard contents as Markdown files in your MyOS Clipboard folder. F
 ### 1. Set environment variables
 
 - **`MYOS_CLIPBOARD_PATH`** – Target directory for clip files (e.g. your project’s `Clipboard` folder).
-  - Example: `~/Dokumente/MyOS/MyOS_Test/Clipboard`
+  - Example: `~/Dokumente/MyOS/Seiton_Test/Clipboard`
   - Fallback if unset: `~/Clipboard`
 
 - **`MYOS_CLIPBOARD_TOOL_SCRIPT`** (optional) – Full path to `save_clip_to_myos.py` if it is not at:
@@ -22,7 +22,7 @@ Saves text clipboard contents as Markdown files in your MyOS Clipboard folder. F
 To set for your session:
 
 ```bash
-export MYOS_CLIPBOARD_PATH="$HOME/Dokumente/MyOS/MyOS_Test/Clipboard"
+export MYOS_CLIPBOARD_PATH="$HOME/Dokumente/MyOS/Seiton_Test/Clipboard"
 # optional, if ClipboardTool is elsewhere:
 export MYOS_CLIPBOARD_TOOL_SCRIPT="$HOME/Dokumente/MyOS/ClipboardTool/save_clip_to_myos.py"
 ```

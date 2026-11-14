@@ -18,7 +18,7 @@ MyOS/
 ├── cli/                  # CLI tools (myls, myproject, mytag, etc.)
 ├── core/Dokumentation/   # Design documents
 ├── docs/                 # Consolidated documentation
-├── MyOS_Test/            # Test/demo project structure
+├── Seiton_Test/            # Test/demo project structure
 └── LICENSE
 ```
 
@@ -55,7 +55,7 @@ python3 -m pytest core/tests/unit -m benchmark
 ```bash
 python3 Scope/Scope.py
 python3 PostFix/cli.py path/to/file.md
-python3 cli/myls.py MyOS_Test/Projekte/ --recent=5
+python3 cli/myls.py Seiton_Test/Projekte/ --recent=5
 ```
 
 ## UI Language (i18n)

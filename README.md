@@ -41,7 +41,7 @@ The building blocks exist but are fragmented. MyOS aims to unify them into one c
 | **docs/** | Documentation index, development guide, conventions, security |
 | **Vision/** | Concept and GUI notes (e.g. CWD/CWP/CTD) |
 | **Learning MyOS/** | Tutorial and learning content (DE/EN) |
-| **MyOS_Test/** | Test/demo project structure |
+| **Seiton_Test/** | Test/demo project structure |
 
 Design documents live under `core/Dokumentation/`. Entry points: [Designdokument.md](Designdokument.md), [docs/INDEX.md](docs/INDEX.md).
 
@@ -61,7 +61,7 @@ python3 -m pytest core/tests/unit cli/tests PostFix/tests -v
 
 **CLI examples:**
 ```bash
-python3 cli/myls.py MyOS_Test/Projekte/ --extended
+python3 cli/myls.py Seiton_Test/Projekte/ --extended
 python3 PostFix/cli.py path/to/file.md
 ```
 

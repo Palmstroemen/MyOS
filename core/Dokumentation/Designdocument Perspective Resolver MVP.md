@@ -391,7 +391,7 @@ the invoice from FirmaX from two weeks ago? In which project was it?"
 - Whether the CWD survives as a word: with one line it is simply where one is.
 - The default of the fallback: with or without folders (A4).
 - The MyOS service (A9): which projects roots it serves (a small configuration: the real
-  one, `MyOS_Test`); autostart of the small Scope; how Nemo, Déjà Dup and the search
+  one, `Seiton_Test`); autostart of the small Scope; how Nemo, Déjà Dup and the search
   indexes treat the `Perspektiven` symlink on the real desktop.
 
 # Part B - Resolver Contract (removed)
