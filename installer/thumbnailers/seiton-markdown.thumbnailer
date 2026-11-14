@@ -2,6 +2,6 @@
 Version=1.0
 Encoding=UTF-8
 Type=X-Thumbnailer
-Name=MyOS Markdown Thumbnailer
+Name=Seiton Markdown Thumbnailer
 MimeType=text/markdown;text/x-markdown;
-Exec=/usr/local/bin/myos-md-thumbnailer %i %o %s
+Exec=/usr/local/bin/seiton-md-thumbnailer %i %o %s

@@ -6,6 +6,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from core.brand import file_name, legacy_file_names
+
+ENTRY = file_name("suntree.desktop")
 
 SCRIPT = Path(__file__).resolve().parents[1] / "install_autostart.py"
 
@@ -22,7 +25,7 @@ def test_the_entry_starts_suntree_at_the_projects_root(tmp_path):
 
     assert _run(config, str(root)).returncode == 0
 
-    entry = (config / "autostart" / "myos-suntree.desktop").read_text(encoding="utf-8")
+    entry = (config / "autostart" / ENTRY).read_text(encoding="utf-8")
     exec_line = next(line for line in entry.splitlines() if line.startswith("Exec="))
     assert "SunTree.py" in exec_line and f'"{root}"' in exec_line  # quoted: the space
     assert "X-GNOME-Autostart-enabled=true" in entry and "Type=Application" in entry
@@ -35,7 +38,7 @@ def test_it_can_be_removed(tmp_path):
     _run(config, str(root))
 
     assert _run(config, "--remove").returncode == 0
-    assert not (config / "autostart" / "myos-suntree.desktop").exists()
+    assert not (config / "autostart" / ENTRY).exists()
 
 
 @pytest.mark.parametrize("name", [None, 'with"quote', "with$dollar"])
@@ -47,4 +50,27 @@ def test_only_an_existing_plain_folder(tmp_path, name):
     config = tmp_path / "config"
     result = _run(config, str(bad))
     assert result.returncode != 0
-    assert not (config / "autostart" / "myos-suntree.desktop").exists()
+    assert not (config / "autostart" / ENTRY).exists()
+
+
+def test_an_entry_under_a_former_name_is_replaced(tmp_path):
+    # Installed before the rename: it would start SunTree a second time at login.
+    root = tmp_path / "Projekte"
+    root.mkdir()
+    config = tmp_path / "config"
+    (config / "autostart").mkdir(parents=True)
+    for old in legacy_file_names("suntree.desktop"):
+        (config / "autostart" / old).write_text("[Desktop Entry]\nExec=SunTree.py\n", encoding="utf-8")
+    (config / "autostart" / "other.desktop").write_text("[Desktop Entry]\n", encoding="utf-8")
+
+    assert _run(config, str(root)).returncode == 0
+    assert sorted(p.name for p in (config / "autostart").iterdir()) == sorted([ENTRY, "other.desktop"])
+
+
+def test_remove_takes_former_entries_too(tmp_path):
+    config = tmp_path / "config"
+    (config / "autostart").mkdir(parents=True)
+    old = legacy_file_names("suntree.desktop")[0]
+    (config / "autostart" / old).write_text("[Desktop Entry]\n", encoding="utf-8")
+    assert _run(config, "--remove").returncode == 0
+    assert not (config / "autostart" / old).exists()

@@ -52,6 +52,13 @@ def test_marker_names_follow_the_name(monkeypatch):
     assert brand.legacy_markers("demo") == (".oldname-demo",)
 
 
+def test_installed_file_names_follow_the_name(monkeypatch):
+    # Desktop entries, thumbnailer, sockets: lowercase, the name first.
+    assert brand.file_name("suntree.desktop") == f"{brand.CONFIG_DIR.lower()}-suntree.desktop"
+    monkeypatch.setattr(brand, "LEGACY_CONFIG_DIRS", ("OldName",))
+    assert brand.legacy_file_names("suntree.desktop") == ("oldname-suntree.desktop",)
+
+
 def test_url_scheme_is_lowercase_and_differs_from_former_ones():
     assert brand.URL_SCHEME == brand.URL_SCHEME.lower() and brand.URL_SCHEME not in brand.LEGACY_URL_SCHEMES
 

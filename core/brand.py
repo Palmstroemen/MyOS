@@ -63,11 +63,22 @@ def getenv(key: str, default: Optional[str] = None, env: Optional[Mapping[str, s
     return default
 
 
+def file_name(kind: str) -> str:
+    """The name of a file of ours outside a project (desktop entry, socket, thumbnailer):
+    file_name("suntree.desktop") -> "seiton-suntree.desktop"."""
+    return f"{CONFIG_DIR.lower()}-{kind}"
+
+
+def legacy_file_names(kind: str) -> tuple:
+    """The same file under the former names ("myos-suntree.desktop"): replaced when installing."""
+    return tuple(f"{name.lower()}-{kind}" for name in LEGACY_CONFIG_DIRS)
+
+
 def marker(kind: str) -> str:
     """The name of a marker file of ours: marker("demo") -> ".seiton-demo"."""
-    return f".{CONFIG_DIR.lower()}-{kind}"
+    return "." + file_name(kind)
 
 
 def legacy_markers(kind: str) -> tuple:
     """The same marker under the former names (".myos-demo"): still recognised."""
-    return tuple(f".{name.lower()}-{kind}" for name in LEGACY_CONFIG_DIRS)
+    return tuple("." + name for name in legacy_file_names(kind))

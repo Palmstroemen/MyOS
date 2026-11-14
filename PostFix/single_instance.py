@@ -15,13 +15,15 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Union
 
+from core.brand import file_name
+
 
 def server_name() -> str:
     """The name the running PostFix listens under."""
     config = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
     key = "|".join([str(os.getuid()), os.environ.get("DISPLAY", ""), os.environ.get("WAYLAND_DISPLAY", ""),
                     str(Path(config).expanduser().resolve())])
-    return "myos-postfix-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return file_name("postfix-") + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
 
 
 def socket_path(name: str) -> str:

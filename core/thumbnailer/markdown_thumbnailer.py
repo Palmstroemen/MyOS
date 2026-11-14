@@ -62,7 +62,7 @@ FALLBACK_PNG_1X1 = (
 
 def _debug(message: str) -> None:
     if getenv("THUMBNAILER_DEBUG") == "1":
-        print(f"[myos-md-thumbnailer] {message}", file=os.sys.stderr)
+        print(f"[seiton-md-thumbnailer] {message}", file=os.sys.stderr)
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:

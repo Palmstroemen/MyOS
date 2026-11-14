@@ -42,12 +42,12 @@ chmod +x cli/myls.py
 ln -sf "$(pwd)/cli/myls.py" ~/.local/bin/myls 2>/dev/null || true
 
 # Optional: Markdown thumbnailer for Linux file browsers
-if [ -f "$(pwd)/core/bin/myos-md-thumbnailer" ]; then
-    chmod +x "$(pwd)/core/bin/myos-md-thumbnailer"
-    sudo ln -sf "$(pwd)/core/bin/myos-md-thumbnailer" /usr/local/bin/myos-md-thumbnailer || true
+if [ -f "$(pwd)/core/bin/seiton-md-thumbnailer" ]; then
+    chmod +x "$(pwd)/core/bin/seiton-md-thumbnailer"
+    sudo ln -sf "$(pwd)/core/bin/seiton-md-thumbnailer" /usr/local/bin/seiton-md-thumbnailer || true
     mkdir -p "$HOME/.local/share/thumbnailers"
-    if [ -f "$(pwd)/installer/thumbnailers/myos-markdown.thumbnailer" ]; then
-        cp "$(pwd)/installer/thumbnailers/myos-markdown.thumbnailer" "$HOME/.local/share/thumbnailers/myos-markdown.thumbnailer"
+    if [ -f "$(pwd)/installer/thumbnailers/seiton-markdown.thumbnailer" ]; then
+        cp "$(pwd)/installer/thumbnailers/seiton-markdown.thumbnailer" "$HOME/.local/share/thumbnailers/seiton-markdown.thumbnailer"
         echo "🖼️  Markdown thumbnailer installed (user scope)."
     fi
 fi

@@ -70,7 +70,7 @@ collect and reset), `python3 scripts/testrun.py prepare` (reset without collecti
 
 ## Safety
 
-- `prepare` only deletes a folder it made itself (marker file `.myos-tutorial-copy`).
+- `prepare` only deletes a folder it made itself (marker file `.seiton-tutorial-copy`).
 - The copy is built from the lessons as last committed (`git archive HEAD`), not from the
   working files: a lesson opened in the repository itself (PostFix saves window places into
   notes) never reaches a tester. Without git the working files are copied.

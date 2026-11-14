@@ -36,7 +36,7 @@ from typing import List, Optional
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.brand import CONFIG_DIR, NAME, getenv, legacy_markers, marker
+from core.brand import CONFIG_DIR, NAME, file_name, getenv, legacy_file_names, legacy_markers, marker
 
 MARKER = marker("tutorial-copy")  # in the copy's root: it is ours, and when the tester started
 MARKERS = (MARKER, *legacy_markers("tutorial-copy"))  # copies made under a former name too
@@ -347,12 +347,21 @@ def comment_note(lesson_folder: Path) -> Path:
     return note
 
 
+def _desktop_entry(folder: Path, kind: str) -> Path:
+    """Where a desktop entry of ours goes; one under a former name is taken away (it would
+    start the tutorial twice, or stay the program for Markdown)."""
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in legacy_file_names(kind):
+        if (folder / old).is_file():
+            (folder / old).unlink()
+    return folder / file_name(kind)
+
+
 def install_autostart(places: Places) -> Path:
     """At login the tutorial opens (lesson 1 of the current copy)."""
-    entry = places.config / "autostart" / "myos-tutorial.desktop"
-    entry.parent.mkdir(parents=True, exist_ok=True)
+    entry = _desktop_entry(places.config / "autostart", "tutorial.desktop")
     entry.write_text(
-        "[Desktop Entry]\nType=Application\nName=MyOS Tutorial\n"
+        f"[Desktop Entry]\nType=Application\nName={NAME} Tutorial\n"
         f"Exec={sys.executable} \"{places.repo / 'scripts' / 'testrun.py'}\" start\n"
         "X-GNOME-Autostart-enabled=true\n", encoding="utf-8")
     return entry
@@ -362,10 +371,9 @@ def install_postfix_for_markdown(places: Places, data_home: Optional[Path] = Non
     """PostFix as the program for Markdown notes: a double click on a lesson (file browser,
     Scope) opens it there - with its links and exercises - not in a plain text editor."""
     data_home = Path(data_home or os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
-    entry = data_home / "applications" / "myos-postfix.desktop"
-    entry.parent.mkdir(parents=True, exist_ok=True)
+    entry = _desktop_entry(data_home / "applications", "postfix.desktop")
     entry.write_text(
-        "[Desktop Entry]\nType=Application\nName=PostFix\nComment=MyOS notes\n"
+        f"[Desktop Entry]\nType=Application\nName=PostFix\nComment={NAME} notes\n"
         f"Exec={sys.executable} \"{places.repo / 'PostFix' / 'cli.py'}\" %f\n"
         "Icon=accessories-text-editor\nTerminal=false\nCategories=Office;\n"
         "MimeType=text/markdown;text/x-markdown;\n", encoding="utf-8")

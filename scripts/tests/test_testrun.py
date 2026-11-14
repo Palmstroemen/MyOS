@@ -239,10 +239,28 @@ def test_install_makes_postfix_the_program_for_markdown(machine, tmp_path):
     ran = []
     entry = testrun.install_postfix_for_markdown(machine, data_home=data, run=lambda argv, **kw: ran.append(argv))
     text = entry.read_text(encoding="utf-8")
-    assert entry == data / "applications" / "myos-postfix.desktop"
+    name = brand.file_name("postfix.desktop")
+    assert entry == data / "applications" / name
     assert "PostFix/cli.py" in text and "%f" in text and "MimeType=text/markdown;text/x-markdown;" in text
-    assert ["xdg-mime", "default", "myos-postfix.desktop", "text/markdown"] in ran
-    assert ["xdg-mime", "default", "myos-postfix.desktop", "text/x-markdown"] in ran
+    assert ["xdg-mime", "default", name, "text/markdown"] in ran
+    assert ["xdg-mime", "default", name, "text/x-markdown"] in ran
+
+
+def test_installing_again_takes_the_entries_of_a_former_name(machine, tmp_path):
+    data = tmp_path / "share"
+    (data / "applications").mkdir(parents=True)
+    (machine.config / "autostart").mkdir(parents=True)
+    for old in brand.legacy_file_names("postfix.desktop"):
+        (data / "applications" / old).write_text("[Desktop Entry]\n", encoding="utf-8")
+    for old in brand.legacy_file_names("tutorial.desktop"):
+        (machine.config / "autostart" / old).write_text("[Desktop Entry]\n", encoding="utf-8")
+
+    testrun.install_postfix_for_markdown(machine, data_home=data, run=lambda argv, **kw: None)
+    autostart = testrun.install_autostart(machine)
+
+    assert [p.name for p in (data / "applications").iterdir()] == [brand.file_name("postfix.desktop")]
+    assert [p.name for p in autostart.parent.iterdir()] == [brand.file_name("tutorial.desktop")]
+    assert f"Name={NAME} Tutorial" in autostart.read_text(encoding="utf-8")
 
 
 def test_the_tutorial_is_its_own_root_and_its_folders_can_become_projects(machine, monkeypatch):

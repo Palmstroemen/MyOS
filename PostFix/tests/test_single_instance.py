@@ -13,6 +13,9 @@ from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import QApplication
 
 from PostFix import single_instance as si
+from core.brand import file_name
+
+PREFIX = file_name("postfix-")
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -38,15 +41,15 @@ def test_one_postfix_per_user_display_and_settings(monkeypatch, tmp_path):
     assert si.server_name() != first
     monkeypatch.setenv("DISPLAY", ":1")
     assert si.server_name() != first
-    assert first.startswith("myos-postfix-")
+    assert first.startswith(PREFIX)
 
 
 def test_without_a_running_postfix_nothing_is_handed_over(app, tmp_path):
-    assert not si.hand_over(f"myos-postfix-test-{os.getpid()}-none", str(tmp_path / "x.md"), timeout_ms=300)
+    assert not si.hand_over(f"{PREFIX}test-{os.getpid()}-none", str(tmp_path / "x.md"), timeout_ms=300)
 
 
 def test_a_second_start_hands_its_note_over(app, tmp_path):
-    name = f"myos-postfix-test-{os.getpid()}"
+    name = f"{PREFIX}test-{os.getpid()}"
     note = tmp_path / "Zweite Notiz.md"
     note.write_text("# Zweite\n", encoding="utf-8")
     server = si.InstanceServer(name)
@@ -80,7 +83,7 @@ def test_only_existing_markdown_notes_are_taken(app, tmp_path):
 
 
 def test_the_connection_is_for_this_user_only(app):
-    server = si.InstanceServer(f"myos-postfix-test-{os.getpid()}-perm")
+    server = si.InstanceServer(f"{PREFIX}test-{os.getpid()}-perm")
     assert server.listen()
     from PySide6.QtNetwork import QLocalServer
     assert server.server.socketOptions() == QLocalServer.UserAccessOption
@@ -115,13 +118,13 @@ def test_the_connection_lies_in_the_users_private_runtime_folder(monkeypatch, tm
     runtime = tmp_path / "run"
     runtime.mkdir(mode=0o700)
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
-    assert Path(si.socket_path("myos-postfix-x")).parent == runtime
+    assert Path(si.socket_path(PREFIX + "x")).parent == runtime
 
 
 def test_handing_over_needs_no_qt(tmp_path):
     # A later start only hands its note over: plain Python, quick, before loading anything of Qt.
     code = ("import sys; sys.path.insert(0, sys.argv[1]); import PostFix.single_instance as si;"
-            "si.hand_over('myos-postfix-none', None, timeout_ms=100);"
+            "si.hand_over('postfix-test-none', None, timeout_ms=100);"
             "print(any(m.startswith('PySide6') for m in sys.modules))")
     out = subprocess.run([sys.executable, "-c", code, str(REPO)], capture_output=True, text=True).stdout.strip()
     assert out == "False"

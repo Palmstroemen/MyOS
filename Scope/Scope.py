@@ -41,7 +41,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtCore import QMimeDatabase
 
-from core.brand import CONFIG_DIR, env_name, getenv
+from core.brand import CONFIG_DIR, env_name, file_name, getenv
 from core.color_schemes import (
     has_own_colors,
     load_scheme,
@@ -112,7 +112,7 @@ class Thumbnailer(QObject):
         self._cache_root = Path("~/.cache/myos-scope/thumbnails").expanduser()
         self._freedesktop_cache = Path("~/.cache/thumbnails").expanduser()
         self._pdftoppm = shutil.which("pdftoppm")
-        self._md_thumbnailer = Path(__file__).resolve().parents[1] / "core" / "bin" / "myos-md-thumbnailer"
+        self._md_thumbnailer = Path(__file__).resolve().parents[1] / "core" / "bin" / file_name("md-thumbnailer")
         self._size_px = 256
 
     def request_thumbnail(self, file_path: Path) -> str:

@@ -8,7 +8,7 @@ the Freedesktop thumbnailer standard (for example Nautilus, Nemo, Caja).
 - Short notes are rendered as sticky notes (Post-it style).
 - Longer notes are rendered as notebook pages (Notizblock/Heft style).
 - If markdown frontmatter contains `background_color: "#rrggbb"`, that color is used.
-- Optional frontmatter `note_style` (or `myos_note_style`) can override style manually.
+- Optional frontmatter `note_style` (or the former `myos_note_style`) can override style manually.
 
 ## Manual note styles
 
@@ -23,8 +23,8 @@ Supported style values (aliases in German/English are accepted):
 
 ## Files
 
-- `scripts/myos_md_thumbnailer.py` - renderer script
-- `installer/myos-md.thumbnailer` - thumbnailer template
+- `scripts/seiton_md_thumbnailer.py` - renderer script
+- `installer/seiton-md.thumbnailer` - thumbnailer template
 - `installer/install-thumbnailer.sh` - local installer helper
 
 ## Install (per user)
@@ -32,7 +32,7 @@ Supported style values (aliases in German/English are accepted):
 From project root:
 
 ```bash
-chmod +x installer/install-thumbnailer.sh scripts/myos_md_thumbnailer.py
+chmod +x installer/install-thumbnailer.sh scripts/seiton_md_thumbnailer.py
 ./installer/install-thumbnailer.sh install
 rm -rf ~/.cache/thumbnails/*
 ```

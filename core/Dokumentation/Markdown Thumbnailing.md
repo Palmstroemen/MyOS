@@ -7,7 +7,7 @@ Show attractive previews for `*.md` files in common Linux file browsers (Nautilu
 ## Architecture
 
 - **Renderer:** `core/thumbnailer/markdown_thumbnailer.py`
-- **CLI entrypoint:** `core/bin/myos-md-thumbnailer`
+- **CLI entrypoint:** `core/bin/seiton-md-thumbnailer`
 - **Thumbnailer registration:** `installer/thumbnailers/myos-markdown.thumbnailer`
 - **Installer integration:** `install.sh`
 
@@ -21,7 +21,7 @@ Installed user-local to:
 - `~/.local/share/thumbnailers/myos-markdown.thumbnailer`
 
 CLI is linked to:
-- `/usr/local/bin/myos-md-thumbnailer`
+- `/usr/local/bin/seiton-md-thumbnailer`
 
 ## Rendering Rules (Post-it Style)
 

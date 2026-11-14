@@ -2,11 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MYOS_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 TARGET_DIR="${HOME}/.local/share/thumbnailers"
-TARGET_FILE="${TARGET_DIR}/myos-md.thumbnailer"
-SRC_FILE="${MYOS_ROOT}/installer/myos-md.thumbnailer"
+TARGET_FILE="${TARGET_DIR}/seiton-md.thumbnailer"
+SRC_FILE="${REPO_ROOT}/installer/seiton-md.thumbnailer"
+# The same definition under the former name (MyOS): taken away, or it would render twice.
+LEGACY_FILES=("${TARGET_DIR}/myos-md.thumbnailer" "${TARGET_DIR}/myos-markdown.thumbnailer")
 ACTION="${1:-install}"
 
 die() {
@@ -29,7 +31,7 @@ EOF
 ensure_prerequisites() {
     command -v python3 >/dev/null 2>&1 || die "python3 not found in PATH"
     [ -f "${SRC_FILE}" ] || die "missing template: ${SRC_FILE}"
-    [ -f "${MYOS_ROOT}/scripts/myos_md_thumbnailer.py" ] || die "missing renderer script in scripts/"
+    [ -f "${REPO_ROOT}/scripts/seiton_md_thumbnailer.py" ] || die "missing renderer script in scripts/"
 }
 
 install_thumbnailer() {
@@ -37,7 +39,7 @@ install_thumbnailer() {
     mkdir -p "${TARGET_DIR}"
 
     tmp_file="$(mktemp)"
-    sed "s|__MYOS_ROOT__|${MYOS_ROOT}|g" "${SRC_FILE}" > "${tmp_file}"
+    sed "s|__REPO_ROOT__|${REPO_ROOT}|g" "${SRC_FILE}" > "${tmp_file}"
 
     if [ -f "${TARGET_FILE}" ] && cmp -s "${tmp_file}" "${TARGET_FILE}"; then
         rm -f "${tmp_file}"
@@ -50,7 +52,8 @@ install_thumbnailer() {
         echo "  ${TARGET_FILE}"
     fi
 
-    chmod +x "${MYOS_ROOT}/scripts/myos_md_thumbnailer.py" || true
+    chmod +x "${REPO_ROOT}/scripts/seiton_md_thumbnailer.py" || true
+    remove_former
     echo
     echo "Quick check:"
     "${BASH_SOURCE[0]}" check
@@ -73,7 +76,7 @@ check_thumbnailer() {
     echo "Exec:"
     echo "  ${exec_line}"
 
-    if [[ "${exec_line}" == *"scripts/myos_md_thumbnailer.py"* ]]; then
+    if [[ "${exec_line}" == *"scripts/seiton_md_thumbnailer.py"* ]]; then
         script_path="$(echo "${exec_line}" | awk '{print $2}')"
         [ -f "${script_path}" ] || die "renderer script referenced by Exec not found: ${script_path}"
         echo "Renderer script:"
@@ -83,7 +86,18 @@ check_thumbnailer() {
     echo "Status: OK"
 }
 
+remove_former() {
+    for old in "${LEGACY_FILES[@]}"; do
+        if [ -f "${old}" ]; then
+            rm -f "${old}"
+            echo "Removed former definition:"
+            echo "  ${old}"
+        fi
+    done
+}
+
 uninstall_thumbnailer() {
+    remove_former
     if [ -f "${TARGET_FILE}" ]; then
         rm -f "${TARGET_FILE}"
         echo "Removed thumbnailer definition:"
